@@ -1,7 +1,8 @@
 """FastMCP server for the HEALTHCRAFT simulation.
 
 Exposes 24 tools for interacting with the Mercy Point ED simulation
-via the Model Context Protocol.
+via the Model Context Protocol. Tool names are camelCase per Corecraft
+convention; Python handlers use snake_case internally.
 """
 
 from __future__ import annotations
@@ -17,69 +18,55 @@ except ImportError:
     HAS_MCP = False
 
 from healthcraft.mcp.audit import AuditLogger
-from healthcraft.mcp.validation import ValidationError, validate_encounter_id, validate_patient_id
+from healthcraft.mcp.validation import ValidationError
 from healthcraft.world.state import WorldState
 
-# --- Tool definitions ---
+# --- camelCase -> snake_case handler mapping ---
+# This is the single source of truth for tool name translation.
+# MCP clients see camelCase names; Python handlers use snake_case.
 
-TOOL_DEFINITIONS: list[dict[str, str]] = [
-    # Patient management
-    {"name": "get_patient", "description": "Retrieve patient demographics and history"},
-    {"name": "search_patients", "description": "Search patients by name, MRN, or chief complaint"},
-    {"name": "update_patient", "description": "Update patient information"},
-    # Encounter management
-    {"name": "get_encounter", "description": "Retrieve encounter details"},
-    {"name": "create_encounter", "description": "Create a new ED encounter"},
-    {"name": "update_encounter", "description": "Update encounter status or disposition"},
-    # Clinical assessment
-    {"name": "record_vitals", "description": "Record a set of vital signs"},
-    {"name": "get_vitals_history", "description": "Retrieve vital signs history for an encounter"},
-    {"name": "perform_assessment", "description": "Document clinical assessment findings"},
-    # Orders
-    {"name": "order_lab", "description": "Place a laboratory order"},
-    {"name": "order_imaging", "description": "Place an imaging study order"},
-    {"name": "order_medication", "description": "Place a medication order"},
-    {"name": "get_lab_results", "description": "Retrieve laboratory results"},
-    {"name": "get_imaging_results", "description": "Retrieve imaging study results"},
-    # Procedures
-    {"name": "perform_procedure", "description": "Document a procedure performed"},
-    {"name": "administer_medication", "description": "Record medication administration"},
-    # Documentation
-    {"name": "write_note", "description": "Write a clinical note"},
-    {"name": "get_notes", "description": "Retrieve clinical notes for an encounter"},
-    # Disposition
-    {"name": "set_disposition", "description": "Set encounter disposition"},
-    {"name": "request_consult", "description": "Request a specialist consultation"},
-    # ED Operations
-    {"name": "get_bed_board", "description": "View current ED bed status"},
-    {"name": "assign_bed", "description": "Assign a patient to a bed"},
-    {"name": "get_department_census", "description": "Get current ED census and metrics"},
-    # Clinical decision support
-    {"name": "lookup_clinical_knowledge", "description": "Query clinical knowledge base"},
-]
+TOOL_NAME_MAP: dict[str, str] = {
+    # Wave 1: Read-only tools
+    "searchEncounters": "search_encounters",
+    "searchPatients": "search_patients",
+    "searchClinicalKnowledge": "search_clinical_knowledge",
+    "searchReferenceMaterials": "search_reference_materials",
+    "searchAvailableResources": "search_available_resources",
+    "getEncounterDetails": "get_encounter_details",
+    "getConditionDetails": "get_condition_details",
+    "getPatientHistory": "get_patient_history",
+    "getProtocolDetails": "get_protocol_details",
+    "getTransferStatus": "get_transfer_status",
+    "getInsuranceCoverage": "get_insurance_coverage",
+    "getReferenceArticle": "get_reference_article",
+    # Wave 2: Computation tools
+    "checkResourceAvailability": "check_resource_availability",
+    "calculateTransferTime": "calculate_transfer_time",
+    "runDecisionRule": "run_decision_rule",
+    "validateTreatmentPlan": "validate_treatment_plan",
+    # Wave 3: State-mutating tools
+    "createClinicalOrder": "create_clinical_order",
+    "updateTaskStatus": "update_task_status",
+    "updateEncounter": "update_encounter",
+    "updatePatientRecord": "update_patient_record",
+    "registerPatient": "register_patient",
+    "applyProtocol": "apply_protocol",
+    # Wave 4: Complex workflow tools
+    "processDischarge": "process_discharge",
+    "processTransfer": "process_transfer",
+}
 
-
-def _make_error_response(message: str) -> dict[str, Any]:
-    """Create a structured error response.
-
-    Args:
-        message: Error description.
-
-    Returns:
-        Dict with error details.
-    """
-    return {"status": "error", "error": message}
+# Reverse map for lookup
+_SNAKE_TO_CAMEL: dict[str, str] = {v: k for k, v in TOOL_NAME_MAP.items()}
 
 
-def _make_success_response(data: Any) -> dict[str, Any]:
-    """Create a structured success response.
+def _make_error(code: str, message: str) -> dict[str, Any]:
+    """Create a structured error response."""
+    return {"status": "error", "code": code, "message": message}
 
-    Args:
-        data: Response payload.
 
-    Returns:
-        Dict with success status and data.
-    """
+def _make_success(data: Any) -> dict[str, Any]:
+    """Create a structured success response."""
     return {"status": "ok", "data": data}
 
 
@@ -87,40 +74,113 @@ class HealthcraftServer:
     """HEALTHCRAFT MCP server wrapping the world state.
 
     Provides tool dispatch, input validation, and audit logging
-    as middleware around the world state.
+    as middleware around the world state. Accepts both camelCase
+    and snake_case tool names.
     """
 
     def __init__(self, world_state: WorldState) -> None:
         self._world = world_state
         self._audit = AuditLogger()
-        self._handlers: dict[str, Any] = {
-            "get_patient": self._handle_get_patient,
-            "search_patients": self._handle_search_patients,
-            "get_encounter": self._handle_get_encounter,
-            "get_vitals_history": self._handle_get_vitals_history,
-            "get_bed_board": self._handle_get_bed_board,
-            "get_department_census": self._handle_get_department_census,
-            "lookup_clinical_knowledge": self._handle_lookup_clinical_knowledge,
-        }
+        self._handlers: dict[str, Any] = {}
+        self._register_tools()
+
+    def _register_tools(self) -> None:
+        """Register all tool handlers from the tool modules."""
+        # Wave 1: Read-only
+        from healthcraft.mcp.tools.read_tools import (
+            get_condition_details,
+            get_encounter_details,
+            get_insurance_coverage,
+            get_patient_history,
+            get_protocol_details,
+            get_reference_article,
+            get_transfer_status,
+            search_available_resources,
+            search_clinical_knowledge,
+            search_encounters,
+            search_patients,
+            search_reference_materials,
+        )
+
+        self._handlers["search_encounters"] = search_encounters
+        self._handlers["search_patients"] = search_patients
+        self._handlers["search_clinical_knowledge"] = search_clinical_knowledge
+        self._handlers["search_reference_materials"] = search_reference_materials
+        self._handlers["search_available_resources"] = search_available_resources
+        self._handlers["get_encounter_details"] = get_encounter_details
+        self._handlers["get_condition_details"] = get_condition_details
+        self._handlers["get_patient_history"] = get_patient_history
+        self._handlers["get_protocol_details"] = get_protocol_details
+        self._handlers["get_transfer_status"] = get_transfer_status
+        self._handlers["get_insurance_coverage"] = get_insurance_coverage
+        self._handlers["get_reference_article"] = get_reference_article
+
+        # Wave 2: Computation
+        from healthcraft.mcp.tools.compute_tools import (
+            calculate_transfer_time,
+            check_resource_availability,
+            run_decision_rule,
+            validate_treatment_plan,
+        )
+
+        self._handlers["check_resource_availability"] = check_resource_availability
+        self._handlers["calculate_transfer_time"] = calculate_transfer_time
+        self._handlers["run_decision_rule"] = run_decision_rule
+        self._handlers["validate_treatment_plan"] = validate_treatment_plan
+
+        # Wave 3: State-mutating
+        from healthcraft.mcp.tools.mutate_tools import (
+            apply_protocol,
+            create_clinical_order,
+            register_patient,
+            update_encounter,
+            update_patient_record,
+            update_task_status,
+        )
+
+        self._handlers["create_clinical_order"] = create_clinical_order
+        self._handlers["update_task_status"] = update_task_status
+        self._handlers["update_encounter"] = update_encounter
+        self._handlers["update_patient_record"] = update_patient_record
+        self._handlers["register_patient"] = register_patient
+        self._handlers["apply_protocol"] = apply_protocol
+
+        # Wave 4: Complex workflows
+        from healthcraft.mcp.tools.workflow_tools import (
+            process_discharge,
+            process_transfer,
+        )
+
+        self._handlers["process_discharge"] = process_discharge
+        self._handlers["process_transfer"] = process_transfer
+
+    def _resolve_tool_name(self, tool_name: str) -> str | None:
+        """Resolve a tool name to its snake_case handler key.
+
+        Accepts both camelCase and snake_case names.
+        """
+        # Direct snake_case match
+        if tool_name in self._handlers:
+            return tool_name
+        # camelCase -> snake_case via map
+        snake = TOOL_NAME_MAP.get(tool_name)
+        if snake and snake in self._handlers:
+            return snake
+        return None
 
     def call_tool(self, tool_name: str, params: dict[str, Any]) -> dict[str, Any]:
         """Dispatch a tool call with validation and audit logging.
 
-        Args:
-            tool_name: Name of the tool to invoke.
-            params: Tool parameters.
-
-        Returns:
-            Structured response dict.
+        Accepts both camelCase (MCP standard) and snake_case tool names.
         """
-        handler = self._handlers.get(tool_name)
-        if handler is None:
-            result = _make_error_response(f"Unknown tool: {tool_name}")
+        handler_key = self._resolve_tool_name(tool_name)
+        if handler_key is None:
+            result = _make_error("unknown_tool", f"Unknown tool: {tool_name}")
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             return result
 
         try:
-            result = handler(params)
+            result = self._handlers[handler_key](self._world, params)
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             self._world.record_audit(
                 tool_name=tool_name,
@@ -129,11 +189,11 @@ class HealthcraftServer:
             )
             return result
         except ValidationError as e:
-            result = _make_error_response(f"Validation error: {e}")
+            result = _make_error("validation_error", str(e))
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             return result
         except Exception as e:
-            result = _make_error_response(f"Internal error: {e}")
+            result = _make_error("internal_error", str(e))
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             return result
 
@@ -142,109 +202,17 @@ class HealthcraftServer:
         """The server's audit logger."""
         return self._audit
 
-    # --- Tool handlers ---
+    @property
+    def world_state(self) -> WorldState:
+        """The underlying world state."""
+        return self._world
 
-    def _handle_get_patient(self, params: dict[str, Any]) -> dict[str, Any]:
-        patient_id = params.get("patient_id", "")
-        if not validate_patient_id(patient_id):
-            raise ValidationError(f"Invalid patient_id: {patient_id}")
-        patient = self._world.get_entity("patient", patient_id)
-        if patient is None:
-            return _make_error_response(f"Patient not found: {patient_id}")
-        # Return patient as dict (works for both dataclass and dict entities)
-        if hasattr(patient, "__dataclass_fields__"):
-            from dataclasses import asdict
-
-            return _make_success_response(asdict(patient))
-        return _make_success_response(patient)
-
-    def _handle_search_patients(self, params: dict[str, Any]) -> dict[str, Any]:
-        query = params.get("query", "").lower()
-        patients = self._world.list_entities("patient")
-        results = []
-        for pid, patient in patients.items():
-            # Search by name or MRN
-            searchable = ""
-            if hasattr(patient, "first_name"):
-                searchable = f"{patient.first_name} {patient.last_name} {patient.mrn}".lower()
-            elif isinstance(patient, dict):
-                searchable = (
-                    f"{patient.get('first_name', '')} "
-                    f"{patient.get('last_name', '')} "
-                    f"{patient.get('mrn', '')}"
-                ).lower()
-            if query in searchable:
-                results.append({"id": pid})
-        return _make_success_response(results)
-
-    def _handle_get_encounter(self, params: dict[str, Any]) -> dict[str, Any]:
-        encounter_id = params.get("encounter_id", "")
-        if not validate_encounter_id(encounter_id):
-            raise ValidationError(f"Invalid encounter_id: {encounter_id}")
-        encounter = self._world.get_entity("encounter", encounter_id)
-        if encounter is None:
-            return _make_error_response(f"Encounter not found: {encounter_id}")
-        if hasattr(encounter, "__dataclass_fields__"):
-            from dataclasses import asdict
-
-            return _make_success_response(asdict(encounter))
-        return _make_success_response(encounter)
-
-    def _handle_get_vitals_history(self, params: dict[str, Any]) -> dict[str, Any]:
-        encounter_id = params.get("encounter_id", "")
-        if not validate_encounter_id(encounter_id):
-            raise ValidationError(f"Invalid encounter_id: {encounter_id}")
-        encounter = self._world.get_entity("encounter", encounter_id)
-        if encounter is None:
-            return _make_error_response(f"Encounter not found: {encounter_id}")
-        vitals = getattr(encounter, "vitals", ())
-        if hasattr(vitals, "__iter__"):
-            from dataclasses import asdict
-
-            vitals_list = [asdict(v) if hasattr(v, "__dataclass_fields__") else v for v in vitals]
-        else:
-            vitals_list = []
-        return _make_success_response(vitals_list)
-
-    def _handle_get_bed_board(self, params: dict[str, Any]) -> dict[str, Any]:
-        locations = self._world.list_entities("location")
-        return _make_success_response(list(locations.values()))
-
-    def _handle_get_department_census(self, params: dict[str, Any]) -> dict[str, Any]:
-        patients = self._world.list_entities("patient")
-        encounters = self._world.list_entities("encounter")
-        locations = self._world.list_entities("location")
-        return _make_success_response(
-            {
-                "total_patients": len(patients),
-                "active_encounters": len(encounters),
-                "total_beds": len(locations),
-                "timestamp": self._world.timestamp.isoformat(),
-            }
-        )
-
-    def _handle_lookup_clinical_knowledge(self, params: dict[str, Any]) -> dict[str, Any]:
-        condition_id = params.get("condition_id", "")
-        knowledge = self._world.get_entity("clinical_knowledge", f"CK-{condition_id}")
-        if knowledge is None:
-            # Try without prefix
-            knowledge = self._world.get_entity("clinical_knowledge", condition_id)
-        if knowledge is None:
-            return _make_error_response(f"Condition not found: {condition_id}")
-        if hasattr(knowledge, "__dataclass_fields__"):
-            from dataclasses import asdict
-
-            return _make_success_response(asdict(knowledge))
-        return _make_success_response(knowledge)
+    @property
+    def available_tools(self) -> list[str]:
+        """List of available camelCase tool names."""
+        return list(TOOL_NAME_MAP.keys())
 
 
 def create_server(world_state: WorldState) -> HealthcraftServer:
-    """Factory function to create a HEALTHCRAFT MCP server.
-
-    Args:
-        world_state: The WorldState instance to expose via tools.
-
-    Returns:
-        A configured HealthcraftServer.
-    """
+    """Factory function to create a HEALTHCRAFT MCP server."""
     return HealthcraftServer(world_state)
