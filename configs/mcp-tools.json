@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "HEALTHCRAFT MCP tool definitions. 24 tools for Mercy Point ED.",
+  "tools": [
+    {
+      "name": "searchEncounters",
+      "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string", "pattern": "^PAT-[A-F0-9]{8}$"},
+          "date_from": {"type": "string", "format": "date-time"},
+          "date_to": {"type": "string", "format": "date-time"},
+          "chief_complaint": {"type": "string"},
+          "esi_level": {"type": "integer", "minimum": 1, "maximum": 5},
+          "disposition": {"type": "string", "enum": ["admitted", "discharged", "transferred", "ama", "expired", "lwbs"]},
+          "limit": {"type": "integer", "default": 10, "maximum": 50}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "encounters": {"type": "array", "items": {"type": "object"}},
+          "count": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "searchPatients",
+      "description": "Search patients by name, MRN, date of birth, or demographics",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "mrn": {"type": "string", "pattern": "^MRN-\\d{6,10}$"},
+          "date_of_birth": {"type": "string", "format": "date"},
+          "sex": {"type": "string", "enum": ["M", "F", "X"]},
+          "limit": {"type": "integer", "default": 10, "maximum": 50}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "patients": {"type": "array", "items": {"type": "object"}},
+          "count": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "searchClinicalKnowledge",
+      "description": "Search clinical knowledge base for conditions, differentials, treatment protocols, and drug interactions",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "minLength": 2},
+          "category": {"type": "string", "enum": ["condition", "differential", "protocol", "drug", "interaction"]},
+          "limit": {"type": "integer", "default": 10, "maximum": 50}
+        },
+        "required": ["query"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "results": {"type": "array", "items": {"type": "object"}},
+          "count": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "searchReferenceMaterials",
+      "description": "Search drug monographs, procedure guides, dosing references, and clinical guidelines",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "minLength": 2},
+          "type": {"type": "string", "enum": ["drug_monograph", "procedure_guide", "dosing", "guideline"]},
+          "limit": {"type": "integer", "default": 10, "maximum": 50}
+        },
+        "required": ["query"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "results": {"type": "array", "items": {"type": "object"}},
+          "count": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "searchAvailableResources",
+      "description": "Search available beds, staff, equipment, OR suites, and blood bank inventory",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "resource_type": {"type": "string", "enum": ["bed", "staff", "equipment", "or_suite", "blood_bank", "specialist"]},
+          "department": {"type": "string"},
+          "urgency": {"type": "string", "enum": ["routine", "urgent", "emergent"]}
+        },
+        "required": ["resource_type"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "available": {"type": "array", "items": {"type": "object"}},
+          "count": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "getEncounterDetails",
+      "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string", "pattern": "^ENC-[A-F0-9]{8}$"}
+        },
+        "required": ["encounter_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "encounter": {"type": "object"},
+          "vitals": {"type": "array"},
+          "labs": {"type": "array"},
+          "imaging": {"type": "array"},
+          "orders": {"type": "array"},
+          "notes": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "getConditionDetails",
+      "description": "Get detailed information about a clinical condition including presentation, workup, and management",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "condition_id": {"type": "string"},
+          "condition_name": {"type": "string"}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "condition": {"type": "object"},
+          "confusion_pairs": {"type": "array"},
+          "decision_rules": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "getPatientHistory",
+      "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string", "pattern": "^PAT-[A-F0-9]{8}$"}
+        },
+        "required": ["patient_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "patient": {"type": "object"},
+          "allergies": {"type": "array"},
+          "medications": {"type": "array"},
+          "past_medical_history": {"type": "array"},
+          "prior_visits": {"type": "array"},
+          "advance_directives": {"type": "object"},
+          "insurance": {"type": "object"}
+        }
+      }
+    },
+    {
+      "name": "getProtocolDetails",
+      "description": "Get details of a clinical protocol including steps, timing requirements, and contraindications",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "protocol_id": {"type": "string"},
+          "protocol_name": {"type": "string"}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "protocol": {"type": "object"},
+          "steps": {"type": "array"},
+          "timing_requirements": {"type": "object"},
+          "contraindications": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "getTransferStatus",
+      "description": "Get status of an inter-facility transfer including transport ETA and receiving facility readiness",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "transfer_id": {"type": "string"},
+          "encounter_id": {"type": "string"}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "transfer": {"type": "object"},
+          "status": {"type": "string"},
+          "eta": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "getInsuranceCoverage",
+      "description": "Get insurance coverage details, prior authorization requirements, and coverage status",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string"},
+          "procedure_code": {"type": "string"},
+          "service_type": {"type": "string"}
+        },
+        "required": ["patient_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "coverage": {"type": "object"},
+          "prior_auth_required": {"type": "boolean"},
+          "auth_status": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "getReferenceArticle",
+      "description": "Get a specific reference article, drug monograph, or clinical guideline by ID",
+      "category": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "article_id": {"type": "string"},
+          "drug_name": {"type": "string"},
+          "topic": {"type": "string"}
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "article": {"type": "object"},
+          "content": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "checkResourceAvailability",
+      "description": "Check if specific resources are available (named bed, specialist, equipment, blood products)",
+      "category": "compute",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "resource_type": {"type": "string", "enum": ["bed", "specialist", "equipment", "blood_product", "or_suite", "security"]},
+          "resource_id": {"type": "string"},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["resource_type"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "available": {"type": "boolean"},
+          "details": {"type": "object"},
+          "alternatives": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "calculateTransferTime",
+      "description": "Calculate estimated transfer time to a receiving facility including transport mode options",
+      "category": "compute",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "destination_facility": {"type": "string"},
+          "transport_mode": {"type": "string", "enum": ["ground", "helicopter", "fixed_wing"]},
+          "patient_acuity": {"type": "string", "enum": ["critical", "acute", "stable"]}
+        },
+        "required": ["destination_facility"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "estimated_minutes": {"type": "integer"},
+          "transport_mode": {"type": "string"},
+          "availability": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "runDecisionRule",
+      "description": "Apply a validated clinical decision rule (Ottawa SAH, HEART, Wells, PECARN, qSOFA, Canadian C-Spine, NEXUS, etc.)",
+      "category": "compute",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rule_name": {"type": "string"},
+          "patient_id": {"type": "string"},
+          "criteria": {"type": "object", "description": "Rule-specific input criteria"}
+        },
+        "required": ["rule_name"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "rule_name": {"type": "string"},
+          "score": {"type": "number"},
+          "interpretation": {"type": "string"},
+          "recommendation": {"type": "string"},
+          "criteria_met": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "validateTreatmentPlan",
+      "description": "Validate a treatment plan against patient allergies, drug interactions, and protocol compliance",
+      "category": "compute",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string"},
+          "medications": {"type": "array", "items": {"type": "object"}},
+          "procedures": {"type": "array", "items": {"type": "string"}},
+          "protocol_id": {"type": "string"}
+        },
+        "required": ["patient_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "valid": {"type": "boolean"},
+          "warnings": {"type": "array"},
+          "contraindications": {"type": "array"},
+          "interactions": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "createClinicalOrder",
+      "description": "Create a clinical order for labs, imaging, medications, procedures, or consults",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "order_type": {"type": "string", "enum": ["lab", "imaging", "medication", "procedure", "consult", "blood_product"]},
+          "details": {"type": "object", "description": "Order-specific details (test name, medication dose, procedure type, etc.)"},
+          "priority": {"type": "string", "enum": ["routine", "urgent", "stat", "emergent"]},
+          "indication": {"type": "string"}
+        },
+        "required": ["encounter_id", "order_type", "details"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "order_id": {"type": "string"},
+          "status": {"type": "string"},
+          "validation_warnings": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "updateTaskStatus",
+      "description": "Update the status of a clinical task (pending, in-progress, completed, cancelled)",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string"},
+          "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"]},
+          "notes": {"type": "string"}
+        },
+        "required": ["task_id", "status"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string"},
+          "status": {"type": "string"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "name": "updateEncounter",
+      "description": "Update encounter information including clinical notes, disposition status, and annotations",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "notes": {"type": "string"},
+          "disposition": {"type": "string", "enum": ["admitted", "discharged", "transferred", "ama", "observation"]},
+          "disposition_details": {"type": "object"},
+          "status": {"type": "string"}
+        },
+        "required": ["encounter_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "status": {"type": "string"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "name": "updatePatientRecord",
+      "description": "Update patient record including demographics, allergies, advance directives, and consent documentation",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string"},
+          "allergies": {"type": "array", "items": {"type": "object"}},
+          "advance_directives": {"type": "object"},
+          "consent": {"type": "object"},
+          "demographics": {"type": "object"}
+        },
+        "required": ["patient_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string"},
+          "status": {"type": "string"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "name": "registerPatient",
+      "description": "Register a new patient in the ED system with demographics and initial encounter",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "object", "properties": {"given": {"type": "string"}, "family": {"type": "string"}}},
+          "date_of_birth": {"type": "string", "format": "date"},
+          "sex": {"type": "string", "enum": ["M", "F", "X"]},
+          "chief_complaint": {"type": "string"},
+          "arrival_mode": {"type": "string"},
+          "insurance": {"type": "object"}
+        },
+        "required": ["chief_complaint"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "patient_id": {"type": "string"},
+          "encounter_id": {"type": "string"},
+          "mrn": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "applyProtocol",
+      "description": "Activate a clinical protocol (sepsis bundle, STEMI alert, trauma activation, stroke alert, MTP, EMTALA)",
+      "category": "mutate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "protocol_name": {"type": "string", "enum": ["sepsis_bundle", "stemi_alert", "trauma_activation_level1", "trauma_activation_level2", "stroke_alert", "massive_transfusion", "difficult_airway", "cardiac_arrest", "emtala"]},
+          "reason": {"type": "string"},
+          "override_reason": {"type": "string", "description": "Required when activating a protocol that conflicts with current status"}
+        },
+        "required": ["encounter_id", "protocol_name"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "protocol_id": {"type": "string"},
+          "status": {"type": "string"},
+          "activated_at": {"type": "string", "format": "date-time"},
+          "steps": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "processDischarge",
+      "description": "Process patient discharge including instructions, medication reconciliation, and follow-up arrangements",
+      "category": "workflow",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "diagnosis": {"type": "string"},
+          "instructions": {"type": "string"},
+          "medications": {"type": "array", "items": {"type": "object"}},
+          "follow_up": {"type": "array", "items": {"type": "object"}},
+          "return_precautions": {"type": "array", "items": {"type": "string"}},
+          "patient_language": {"type": "string"}
+        },
+        "required": ["encounter_id", "diagnosis"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "discharge_id": {"type": "string"},
+          "status": {"type": "string"},
+          "instructions_generated": {"type": "boolean"}
+        }
+      }
+    },
+    {
+      "name": "processTransfer",
+      "description": "Process inter-facility transfer including documentation, receiving facility coordination, and transport",
+      "category": "workflow",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "encounter_id": {"type": "string"},
+          "destination_facility": {"type": "string"},
+          "reason": {"type": "string"},
+          "transport_mode": {"type": "string", "enum": ["ground", "helicopter", "fixed_wing"]},
+          "accepting_physician": {"type": "string"},
+          "clinical_summary": {"type": "string"}
+        },
+        "required": ["encounter_id", "destination_facility", "reason"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "transfer_id": {"type": "string"},
+          "status": {"type": "string"},
+          "eta": {"type": "string"}
+        }
+      }
+    }
+  ]
+}
