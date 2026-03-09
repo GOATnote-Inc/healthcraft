@@ -5,8 +5,8 @@
 An open-source, high-fidelity reinforcement learning environment for training and evaluating AI agents in emergency medicine workflows. Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with 24 tools, 14 entity types, and 6 task categories spanning the full complexity of a Level I Trauma Center ED.
 
 > **Attribution:** HEALTHCRAFT directly adapts the architecture described in
-> [Corecraft: Grounding LLM Agents with Task-Centric World Building](https://arxiv.org/abs/2602.16179)
-> by Sushant Mehta et al. (Surge AI). The Corecraft team demonstrated that
+> [EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments](https://arxiv.org/abs/2602.16179)
+> by Sushant Mehta, Alexander Ritchie, Sai Mahesh Garre, Paulo Niebres, Brady Heiner, and Albert Chen (Surge AI). The Corecraft team demonstrated that
 > high-fidelity RL environments with task-centric world building, expert-authored
 > rubrics, and realistic workflows produce agents that generalize beyond their
 > training distribution. HEALTHCRAFT extends this architecture to emergency
@@ -137,4 +137,4 @@ Apache 2.0. See [LICENSE](LICENSE).
 }
 ```
 
-See also: [Corecraft](https://arxiv.org/abs/2602.16179) by Mehta et al. (Surge AI), whose architecture HEALTHCRAFT adapts.
+See also: [EnterpriseBench Corecraft](https://arxiv.org/abs/2602.16179) by Mehta, Ritchie, Garre, Niebres, Heiner, and Chen (Surge AI), whose architecture HEALTHCRAFT adapts.

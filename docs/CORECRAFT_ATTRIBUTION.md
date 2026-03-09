@@ -2,8 +2,8 @@
 
 HEALTHCRAFT directly adapts the architecture described in:
 
-> **Corecraft: Grounding LLM Agents with Task-Centric World Building**
-> Sushant Mehta, Nayan Sawyer, Rohan Agarwal, Jason Choi, Rushil Gupta
+> **EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments**
+> Sushant Mehta, Alexander Ritchie, Sai Mahesh Garre, Paulo Niebres, Brady Heiner, Albert Chen
 > Surge AI
 > arXiv:2602.16179v5
 

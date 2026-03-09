@@ -3,7 +3,7 @@
 ## Overview
 
 HEALTHCRAFT is an emergency medicine RL training environment that adapts the
-[Corecraft](https://arxiv.org/abs/2602.16179) architecture (Mehta et al., Surge AI)
+[EnterpriseBench Corecraft](https://arxiv.org/abs/2602.16179) architecture (Mehta, Ritchie, Garre, Niebres, Heiner, Chen — Surge AI)
 to emergency medicine. It provides a stateful, deterministic environment where
 AI agents interact with a fictional Level I Trauma Center (Mercy Point ED)
 through Model Context Protocol (MCP) tools.

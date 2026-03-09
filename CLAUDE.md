@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Emergency Medicine RL Training Environment adapting the Corecraft architecture (Mehta et al., arXiv:2602.16179v5) to emergency medicine. Public repo, Apache 2.0.
+Emergency Medicine RL Training Environment adapting the Corecraft architecture (Mehta, Ritchie, Garre, Niebres, Heiner, Chen — Surge AI, arXiv:2602.16179v5, "EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments") to emergency medicine. Public repo, Apache 2.0.
 
 ## Architecture
 
