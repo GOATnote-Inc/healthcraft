@@ -6,7 +6,7 @@ trajectories, and writes results to the experiment log.
 
 Usage:
     python -m healthcraft.eval_runner --tasks all --model claude-opus-4-6 --trials 5
-    python -m healthcraft.eval_runner --tasks CR-001 --model gpt-5.2 --trials 1
+    python -m healthcraft.eval_runner --tasks CR-001 --model gpt-5.4 --trials 1
 """
 
 from __future__ import annotations

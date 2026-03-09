@@ -10,7 +10,7 @@ Manages the full evaluation pipeline:
 Usage:
     python -m healthcraft.llm.orchestrator \\
         --agent-model claude-opus-4-6 --agent-key $ANTHROPIC_API_KEY \\
-        --judge-model gpt-5.2 --judge-key $OPENAI_API_KEY \\
+        --judge-model gpt-5.4 --judge-key $OPENAI_API_KEY \\
         --tasks all --trials 5 --seed 42
 """
 

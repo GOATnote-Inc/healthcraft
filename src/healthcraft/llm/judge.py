@@ -228,7 +228,7 @@ def select_judge_model(agent_model: str) -> str:
         Model identifier for the judge.
     """
     if "claude" in agent_model.lower() or "opus" in agent_model.lower():
-        return "gpt-5.2"
+        return "gpt-5.4"
     elif "gpt" in agent_model.lower():
         return "claude-opus-4-6"
     elif "gemini" in agent_model.lower():

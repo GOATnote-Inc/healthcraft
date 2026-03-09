@@ -126,7 +126,7 @@ class AnthropicClient:
 class OpenAIClient:
     """Client for GPT models via the OpenAI API."""
 
-    def __init__(self, api_key: str, model: str = "gpt-5.2") -> None:
+    def __init__(self, api_key: str, model: str = "gpt-5.4") -> None:
         self._api_key = api_key
         self._model = model
         self._client: Any = None
@@ -194,7 +194,7 @@ def create_client(model: str, api_key: str) -> ModelClient:
     """Create a model client based on model name.
 
     Args:
-        model: Model identifier (e.g., "claude-opus-4-6", "gpt-5.2").
+        model: Model identifier (e.g., "claude-opus-4-6", "gpt-5.4").
         api_key: API key for the model provider.
 
     Returns:

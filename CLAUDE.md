@@ -354,7 +354,7 @@ authored separately at 5-10x scale for RL training.
 
 ## Evaluation Protocol
 
-- **Frontier models:** Claude Opus 4.6, GPT-5.2, Gemini 3.1 Pro (minimum 3)
+- **Frontier models:** Claude Opus 4.6, GPT-5.4, Gemini 3.1 Pro (minimum 3)
 - **Trials:** 5 per model per task (Pass^k methodology from LostBench/τ²-Bench)
 - **Judging:** Cross-vendor (never self-judge). GPT judges Claude; Claude judges GPT.
 - **Target:** <35% task pass rate (Corecraft Table 1: best was 30.80%)
