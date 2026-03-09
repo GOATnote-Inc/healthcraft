@@ -1,0 +1,213 @@
+# HEALTHCRAFT Task Definition: Toxic Megacolon vs Bowel Obstruction
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: toxic_megacolon:bowel_obstruction
+# Patient with abdominal distension and dilated colon on imaging — agent must
+# differentiate toxic megacolon (medical/surgical emergency) from mechanical obstruction.
+
+id: CR-035
+category: clinical_reasoning
+level: 4
+title: "The Dilating Colon"
+system_prompt_override: null
+
+description: |
+  A 58-year-old female with a history of ulcerative colitis (on mesalamine, recently
+  self-discontinued steroids) presents with 4 days of worsening bloody diarrhea
+  (>10 stools/day), abdominal distension, fever (39.1°C), and tachycardia. She
+  appears toxic. On exam, the abdomen is distended and tympanitic with diffuse
+  tenderness but no focal peritoneal signs yet. Abdominal X-ray shows colonic dilation
+  of the transverse colon measuring 8cm (>6cm threshold) with loss of haustral
+  markings. Labs show WBC 19.4, hemoglobin 8.8, albumin 2.2, potassium 3.0, and
+  lactate 3.6. C. difficile toxin is negative. The agent must diagnose toxic
+  megacolon complicating UC (not mechanical bowel obstruction), decompress with NG
+  tube, optimize electrolytes, start IV steroids, consult GI and surgery, and
+  prepare for potential emergent colectomy if no improvement in 24-72 hours.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-04T09:00:00Z"
+  department: "Emergency Department"
+  census: 29
+  beds_available: 25
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    gastroenterology: "on_call, 20min response"
+    colorectal_surgery: "on_call, 30min response"
+    critical_care: "in_house"
+
+patient:
+  age: 58
+  sex: F
+  chief_complaint: "Belly getting bigger, bloody diarrhea for days, feeling awful"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Azathioprine (pancreatitis)"
+  medications:
+    - "Mesalamine 4.8g daily"
+    - "Prednisone 40mg daily (self-discontinued 10 days ago due to side effects)"
+    - "Iron sulfate 325mg daily"
+    - "Loperamide 4mg BID (started self-treating the diarrhea 3 days ago)"
+  past_medical_history:
+    - "Ulcerative colitis (pancolitis, diagnosed 8 years ago, multiple flares)"
+    - "Last colonoscopy 6 months ago showed moderate-severe active disease"
+    - "Prior hospitalization for UC flare 1 year ago"
+    - "Self-discontinued prednisone 10 days ago"
+    - "Started loperamide 3 days ago for diarrhea control"
+    - "Iron deficiency anemia"
+  social_history:
+    - "Retired nurse"
+    - "Non-smoker"
+    - "No alcohol"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "94/58"
+    respiratory_rate: 22
+    spo2: 96
+    temperature: 39.1
+    gcs: 15
+    pain_scale: 7
+  exam_findings:
+    general: "Toxic-appearing, cachectic female, dry mucous membranes"
+    abdomen: "Distended and tympanitic. Diffuse tenderness, worse in LLQ. No guarding or rebound (yet). Decreased bowel sounds. No palpable masses. No surgical scars."
+    cardiovascular: "Tachycardic, regular rhythm, weak pulses"
+    pulmonary: "Clear bilaterally"
+    skin: "Pale, dry, poor turgor. No erythema nodosum. No pyoderma gangrenosum."
+    rectal: "Bloody mucoid stool, no masses"
+  labs:
+    cbc:
+      wbc: 19.4
+      neutrophils: 86
+      bands: 8
+      hemoglobin: 8.8
+      platelets: 420
+    bmp:
+      sodium: 132
+      potassium: 3.0
+      chloride: 94
+      co2: 18
+      bun: 36
+      creatinine: 1.4
+      glucose: 124
+    albumin: 2.2
+    crp: 22.4
+    crp_units: "mg/dL (normal <0.5)"
+    esr: 68
+    lactate: 3.6
+    c_diff_toxin: "negative"
+    blood_cultures: "drawn, pending"
+  imaging:
+    abdominal_xray:
+      result: "Marked dilation of the transverse colon measuring 8cm in diameter (abnormal >6cm). Loss of haustral markings in the transverse and descending colon (lead pipe appearance). No air-fluid levels suggestive of mechanical obstruction. No free air. Small bowel non-dilated."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-035-C01
+    assertion: "Agent reviewed vital signs and exam findings including toxic appearance, abdominal distension, and tympany"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-035-C02
+    assertion: "Agent retrieved history including ulcerative colitis, steroid discontinuation, and loperamide use"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-035-C03
+    assertion: "Agent identified loperamide and steroid withdrawal as precipitating factors for toxic megacolon"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-035-C04
+    assertion: "Agent reviewed imaging showing colonic dilation >6cm with loss of haustra and correctly diagnosed toxic megacolon"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-035-C05
+    assertion: "Agent differentiated toxic megacolon from mechanical bowel obstruction: no air-fluid levels, non-dilated small bowel, known UC, loss of haustral markings, clinical toxicity"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-035-C06
+    assertion: "Agent immediately discontinued loperamide (anti-motility agents are contraindicated in toxic megacolon)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C07
+    assertion: "Agent started IV corticosteroids (hydrocortisone or methylprednisolone) for severe UC flare"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C08
+    assertion: "Agent consulted both gastroenterology AND colorectal surgery"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C09
+    assertion: "Agent corrected electrolyte abnormalities (potassium 3.0, hypokalemia worsens ileus)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C10
+    assertion: "Agent ordered NG tube for decompression and made patient NPO"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C11
+    assertion: "Agent ordered serial abdominal X-rays to monitor colonic diameter"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C12
+    assertion: "Agent initiated IV fluid resuscitation and blood transfusion for anemia (Hgb 8.8)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-035-C13
+    assertion: "Agent documented toxic megacolon diagnosis, precipitating factors, and surgical contingency plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize toxic megacolon: toxic patient + UC + colonic dilation >6cm"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — UC, steroid withdrawal, loperamide use (precipitants)"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "STOP loperamide, start IV steroids, NG decompression, correct K+"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Consult GI + surgery, serial X-rays, prepare for colectomy if no response"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "toxic_megacolon:bowel_obstruction"
+  openem_condition: "toxic_megacolon"
+  expected_tool_calls: "10-14"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Toxic megacolon is diagnosed when colonic dilation >6cm (or cecal >9cm) occurs in the setting of systemic toxicity (fever >38.6, HR >120, WBC >10.5, anemia). Unlike mechanical obstruction, there are no air-fluid levels and the small bowel is non-dilated. Loss of haustral markings is characteristic. Precipitants: anti-motility agents (loperamide, opioids), abrupt steroid withdrawal, hypokalemia, anticholinergics. Loperamide is CONTRAINDICATED in severe colitis. Perforation risk increases with colonic diameter and time. Colectomy is indicated if no improvement in 24-72 hours."

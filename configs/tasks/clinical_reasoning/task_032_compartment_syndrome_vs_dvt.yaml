@@ -1,0 +1,194 @@
+# HEALTHCRAFT Task Definition: Compartment Syndrome vs Deep Vein Thrombosis
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: compartment_syndrome:deep_vein_thrombosis
+# Post-fracture patient with increasing leg pain and swelling — agent must differentiate
+# compartment syndrome (surgical emergency) from DVT.
+
+id: CR-032
+category: clinical_reasoning
+level: 4
+title: "The Tightening Cast"
+system_prompt_override: null
+
+description: |
+  A 28-year-old male presents 14 hours after closed reduction and casting of a
+  tibial shaft fracture with escalating pain in the left leg that is not controlled
+  by his prescribed oxycodone. He reports the pain is "deep and burning" and worse
+  with passive dorsiflexion of the toes. On exam after cast removal, the anterior
+  compartment of the left leg is tense and firm. There is pain with passive
+  extension of the great toe (stretch of the anterior compartment). Sensation is
+  decreased over the first web space (deep peroneal nerve). Pulses are still palpable
+  (a late and unreliable finding). Compartment pressure measured at 42 mmHg
+  (diastolic BP 78 mmHg, delta P = 36 mmHg — <30 mmHg threshold for fasciotomy).
+  The agent must diagnose acute compartment syndrome and arrange emergent fasciotomy
+  rather than treating for presumed DVT.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-01T23:30:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    orthopedic_surgery: "on_call, 15min response"
+    vascular_surgery: "on_call, 30min response"
+
+patient:
+  age: 28
+  sex: M
+  chief_complaint: "My leg is killing me, the pain meds aren't touching it"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "None known"
+  medications:
+    - "Oxycodone 10mg Q4H (prescribed post-fracture, last dose 2 hours ago)"
+    - "Ibuprofen 800mg Q8H"
+    - "Enoxaparin 40mg daily (DVT prophylaxis, first dose given)"
+  past_medical_history:
+    - "Left tibial shaft fracture (closed, reduced and casted in ED 14 hours ago)"
+    - "Motorcycle accident — isolated leg injury, no other injuries"
+    - "No prior fractures"
+    - "No blood clotting disorders"
+  social_history:
+    - "Electrician"
+    - "Non-smoker"
+    - "Social alcohol"
+  vitals:
+    heart_rate: 104
+    blood_pressure: "142/78"
+    respiratory_rate: 18
+    spo2: 99
+    temperature: 37.2
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    general: "Young male in severe pain, grimacing, cannot find comfortable position"
+    left_lower_extremity:
+      inspection: "Cast removed. Leg swollen, skin tense and shiny over anterior compartment. No erythema, no warmth (unlike DVT). No ecchymosis at fracture site beyond expected."
+      palpation: "Anterior compartment is firm, tense ('wood-like'). Lateral compartment moderately tense. Posterior compartments soft."
+      pain: "Excruciating pain with passive extension of the great toe (passive stretch of anterior compartment muscles). Pain far exceeds what is expected for the fracture."
+      neurovascular: "Decreased sensation over first web space (deep peroneal nerve territory). Weak dorsiflexion of the great toe (2/5). Dorsalis pedis pulse palpable but diminished. Posterior tibial pulse palpable."
+      compartment_pressure: "Anterior compartment: 42 mmHg (Stryker intracompartmental pressure monitor). Diastolic BP 78 mmHg. Delta pressure = 36 mmHg."
+    right_lower_extremity: "Normal, soft compartments, full strength, intact sensation"
+    cardiovascular: "Regular rhythm, tachycardic"
+  labs:
+    cbc:
+      wbc: 11.8
+      hemoglobin: 13.2
+      platelets: 278
+    bmp:
+      sodium: 140
+      potassium: 4.4
+      creatinine: 1.0
+    ck: 8400
+    ck_units: "U/L (normal <200, elevated from muscle ischemia)"
+    lactate: 2.4
+
+criteria:
+  - id: CR-032-C01
+    assertion: "Agent reviewed the 6 P's of compartment syndrome: Pain (out of proportion), Pressure, Paresthesia, Paralysis (late), Pulselessness (very late), Pallor"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C02
+    assertion: "Agent identified pain with passive stretch (extension of great toe) as the earliest and most reliable sign of compartment syndrome"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C03
+    assertion: "Agent retrieved history including recent tibial fracture and casting"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-032-C04
+    assertion: "Agent diagnosed acute compartment syndrome, not DVT"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-032-C05
+    assertion: "Agent differentiated from DVT: no erythema, no warmth, tense compartment (not soft edema), pain with passive stretch, sensory deficit in nerve distribution"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C06
+    assertion: "Agent noted that palpable pulses do NOT rule out compartment syndrome (pulses are lost only with pressure >diastolic)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C07
+    assertion: "Agent reviewed compartment pressure measurement and calculated delta P (diastolic - compartment pressure = 36 mmHg, >30 threshold)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C08
+    assertion: "Agent consulted orthopedic surgery for emergent fasciotomy"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-032-C09
+    assertion: "Agent removed the cast and all circumferential dressings immediately"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-032-C10
+    assertion: "Agent did NOT order anticoagulation for presumed DVT"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CR-032-C11
+    assertion: "Agent recognized the elevated CK (8,400) as evidence of ongoing muscle ischemia and necrosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-032-C12
+    assertion: "Agent initiated IV fluids for rhabdomyolysis prevention"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-032-C13
+    assertion: "Agent documented compartment syndrome diagnosis, pressure measurements, exam findings, and surgical urgency"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize pain out of proportion to fracture — red flag"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — tense compartment, pain with passive stretch, sensory deficit"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Remove cast, measure compartment pressure — 42 mmHg, delta P 36"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Orthopedic surgery STAT for fasciotomy"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Irreversible muscle necrosis begins at 6 hours. Nerve damage at 4 hours. Fasciotomy is the only treatment."
+
+metadata:
+  confusion_pair: "compartment_syndrome:deep_vein_thrombosis"
+  openem_condition: "compartment_syndrome"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Compartment syndrome vs DVT after fracture: Both cause pain and swelling, but compartment syndrome has a tense/firm compartment (not soft edema), pain with passive stretch, sensory deficit in nerve territory, and pain out of proportion to injury. DVT has soft edema, warmth, erythema. Palpable pulses do NOT rule out compartment syndrome. Delta pressure (diastolic - compartment) <30 mmHg indicates fasciotomy. The most reliable early sign is pain with passive stretch of the involved compartment muscles. Irreversible damage occurs within 6-8 hours."

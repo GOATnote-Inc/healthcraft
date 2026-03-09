@@ -1,0 +1,208 @@
+# HEALTHCRAFT Task Definition: Esophageal Rupture vs Myocardial Infarction
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: esophageal_rupture:myocardial_infarction
+# Patient with severe chest pain after vomiting — agent must recognize Boerhaave
+# syndrome rather than treating for ACS. Delay in diagnosis is almost always fatal.
+
+id: CR-033
+category: clinical_reasoning
+level: 5
+title: "The Retching Rupture"
+system_prompt_override: null
+
+description: |
+  A 52-year-old male presents with sudden severe left-sided chest pain that began
+  during forceful vomiting after a large meal with heavy alcohol consumption. He is
+  diaphoretic, tachycardic, and febrile (38.3°C). The initial ECG shows sinus
+  tachycardia with non-specific ST changes, and troponin is borderline at 0.05 ng/mL,
+  raising concern for ACS. However, subcutaneous emphysema is palpable in the left
+  supraclavicular area, and the chest X-ray shows a left-sided pleural effusion with
+  pneumomediastinum and subcutaneous emphysema. Hamman's sign (mediastinal crunch
+  synchronous with heartbeat) is audible on auscultation. The agent must diagnose
+  Boerhaave syndrome (spontaneous esophageal rupture), initiate broad-spectrum IV
+  antibiotics, make NPO, and consult thoracic surgery emergently.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-02T01:15:00Z"
+  department: "Emergency Department"
+  census: 19
+  beds_available: 35
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    cardiothoracic_surgery: "on_call, 25min response"
+    gastroenterology: "on_call, 30min response"
+    critical_care: "in_house"
+
+patient:
+  age: 52
+  sex: M
+  chief_complaint: "Terrible chest pain, started when I was throwing up"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "Cephalosporins (rash)"
+  medications:
+    - "Lisinopril 10mg daily"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "GERD"
+    - "Hypertension"
+    - "Heavy alcohol use"
+    - "No cardiac history"
+    - "No prior esophageal disease"
+  social_history:
+    - "Restaurant owner"
+    - "Heavy alcohol use (4-6 drinks daily)"
+    - "15 pack-year smoking history"
+    - "Large meal with heavy drinking tonight"
+  vitals:
+    heart_rate: 126
+    blood_pressure: "96/64"
+    respiratory_rate: 28
+    spo2: 90
+    temperature: 38.3
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    general: "Acutely ill male, diaphoretic, writhing in pain, unable to lie flat"
+    heent: "Subcutaneous emphysema palpable in the left supraclavicular fossa and left neck ('Rice Krispies' crepitus)"
+    cardiovascular: "Tachycardic, regular rhythm. Hamman's sign present — crunching sound synchronous with heartbeat on left lateral decubitus auscultation."
+    pulmonary: "Decreased breath sounds left base, dull to percussion left lower lobe, tachypneic"
+    abdomen: "Epigastric tenderness, mild guarding, no rigidity"
+    skin: "Diaphoretic, pale"
+  labs:
+    cbc:
+      wbc: 16.8
+      neutrophils: 82
+      hemoglobin: 14.6
+      platelets: 230
+    bmp:
+      sodium: 136
+      potassium: 4.0
+      chloride: 100
+      co2: 20
+      bun: 24
+      creatinine: 1.2
+      glucose: 168
+    troponin_i: 0.05
+    troponin_units: "ng/mL (normal <0.04, borderline — likely demand ischemia from shock)"
+    lactate: 4.2
+    amylase: 280
+    amylase_units: "U/L (elevated — salivary amylase from pleural fluid)"
+  imaging:
+    chest_xray:
+      result: "Left-sided pleural effusion. Pneumomediastinum with air tracking along the mediastinal contours. Subcutaneous emphysema in the left neck and supraclavicular soft tissues. No pneumothorax. Heart size normal."
+      read_by: "Dr. James Park, Radiology — STAT read"
+  ecg:
+    interpretation: "Sinus tachycardia at 126 bpm, low voltage in limb leads, non-specific ST-T wave changes, no ST elevation"
+
+criteria:
+  - id: CR-033-C01
+    assertion: "Agent recognized Mackler's triad: vomiting + chest pain + subcutaneous emphysema"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-033-C02
+    assertion: "Agent identified subcutaneous emphysema on exam and pneumomediastinum on CXR"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-033-C03
+    assertion: "Agent noted Hamman's sign (mediastinal crunch) as evidence of pneumomediastinum"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-033-C04
+    assertion: "Agent diagnosed Boerhaave syndrome (esophageal rupture), not myocardial infarction"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-033-C05
+    assertion: "Agent correctly attributed the borderline troponin to demand ischemia from shock, not primary ACS"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-033-C06
+    assertion: "Agent ordered CT chest with oral contrast (water-soluble, e.g., Gastrografin) to confirm esophageal perforation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-033-C07
+    assertion: "Agent consulted cardiothoracic surgery EMERGENTLY for operative repair"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-033-C08
+    assertion: "Agent made patient NPO and started IV broad-spectrum antibiotics with anaerobic coverage"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-033-C09
+    assertion: "Agent initiated IV fluid resuscitation for hemodynamic instability"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-033-C10
+    assertion: "Agent did NOT activate the cath lab or start anticoagulation for ACS"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain activate_cath_lab"
+
+  - id: CR-033-C11
+    assertion: "Agent recognized the elevated amylase as salivary (from pleural contamination), not pancreatic"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-033-C12
+    assertion: "Agent addressed the left pleural effusion (may require chest tube for contaminated effusion)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-033-C13
+    assertion: "Agent documented Boerhaave syndrome diagnosis, differentiating from MI, and surgical management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize subcutaneous emphysema + chest pain after vomiting = esophageal rupture"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "CXR — pneumomediastinum, left effusion, subcutaneous emphysema"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "CT chest with water-soluble oral contrast to confirm"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Thoracic surgery STAT, IV antibiotics, NPO, fluids"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Boerhaave syndrome mortality approaches 100% without surgery within 24 hours. Mediastinitis from esophageal contents is rapidly fatal."
+
+metadata:
+  confusion_pair: "esophageal_rupture:myocardial_infarction"
+  openem_condition: "esophageal_rupture"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Boerhaave syndrome (spontaneous esophageal rupture) occurs from forceful vomiting and presents with Mackler's triad: vomiting + chest pain + subcutaneous emphysema. Pneumomediastinum on CXR and Hamman's sign on auscultation are key findings. The borderline troponin is demand ischemia from shock, not ACS. Elevated pleural fluid amylase (salivary type) is diagnostic. Mortality is nearly 100% without surgical repair within 24 hours. Do NOT waste time on cath lab activation — this is a thoracic surgery emergency."

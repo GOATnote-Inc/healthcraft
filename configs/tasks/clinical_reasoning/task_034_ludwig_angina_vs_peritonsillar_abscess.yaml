@@ -1,0 +1,208 @@
+# HEALTHCRAFT Task Definition: Ludwig's Angina vs Peritonsillar Abscess
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: ludwig_angina:peritonsillar_abscess
+# Patient with severe throat/floor of mouth swelling — agent must differentiate
+# Ludwig's angina (bilateral floor of mouth, airway emergency) from PTA (unilateral,
+# drainable, less immediately dangerous).
+
+id: CR-034
+category: clinical_reasoning
+level: 4
+title: "The Swollen Floor"
+system_prompt_override: null
+
+description: |
+  A 38-year-old male presents with progressive bilateral jaw swelling, trismus,
+  and inability to swallow for 2 days. He had a lower molar extracted 5 days ago.
+  He was seen at an urgent care yesterday where he was diagnosed with a peritonsillar
+  abscess and referred for ENT drainage. On arrival, however, the swelling is
+  bilateral and submandibular (not unilateral tonsillar), the tongue is elevated and
+  protruding, the floor of the mouth is indurated and "woody," and there is no
+  uvular deviation. He is sitting upright in a tripod position with drooling and a
+  muffled voice. CT neck shows diffuse bilateral submandibular, sublingual, and
+  submental space infection without a discrete drainable abscess — consistent with
+  Ludwig's angina, not peritonsillar abscess. The agent must recognize this distinction,
+  prioritize airway management, and consult ENT/OMFS for surgical exploration.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-03T14:00:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 23
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    ent: "on_call, 20min response"
+    oral_maxillofacial_surgery: "on_call, 25min response"
+    anesthesiology: "in_house"
+
+patient:
+  age: 38
+  sex: M
+  chief_complaint: "Can't open my mouth, can't swallow, jaw hugely swollen both sides"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "Penicillin (hives)"
+  medications:
+    - "Amoxicillin 500mg TID (prescribed post-extraction, may have contributed to allergic reaction vs breakthrough infection)"
+    - "Ibuprofen 600mg PRN"
+  past_medical_history:
+    - "Type 2 Diabetes Mellitus (A1c 8.9%)"
+    - "Lower right second molar extraction 5 days ago"
+    - "Multiple dental caries"
+    - "Seen at urgent care yesterday, diagnosed with peritonsillar abscess"
+  social_history:
+    - "Warehouse worker"
+    - "Smoker (10 pack-years)"
+    - "Occasional alcohol"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "152/88"
+    respiratory_rate: 26
+    spo2: 92
+    temperature: 39.4
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Toxic-appearing male, sitting upright, tripod position, drooling, muffled voice"
+    heent:
+      mouth: "Trismus — inter-incisor distance 1.5cm. Tongue elevated and protruding. Floor of mouth indurated, elevated bilaterally ('woody' on palpation). NO uvular deviation. No peritonsillar bulge visible."
+      neck: "Bilateral submandibular swelling, symmetrical, woody induration. 'Bull neck' appearance. No fluctuance. Tender. No crepitus."
+      voice: "Muffled 'hot potato' voice"
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Mild inspiratory stridor, otherwise clear"
+    abdomen: "Soft, non-tender"
+  labs:
+    cbc:
+      wbc: 24.6
+      neutrophils: 88
+      bands: 10
+      hemoglobin: 13.4
+      platelets: 298
+    bmp:
+      sodium: 137
+      potassium: 4.2
+      creatinine: 1.0
+      glucose: 298
+    crp: 26.8
+    crp_units: "mg/dL (normal <0.5)"
+    lactate: 2.8
+  imaging:
+    ct_neck_with_contrast:
+      result: "Diffuse bilateral edema and inflammatory changes involving the submandibular, sublingual, and submental spaces. Floor of mouth markedly thickened and elevated. Tongue base displaced superiorly. No discrete drainable fluid collection. No gas in soft tissues. Mild oropharyngeal airway narrowing. Peritonsillar regions appear normal bilaterally with no abscess."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-034-C01
+    assertion: "Agent reviewed exam findings including bilateral submandibular swelling, elevated tongue, woody floor of mouth, and absence of uvular deviation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-034-C02
+    assertion: "Agent retrieved history including dental extraction, diabetes, and prior misdiagnosis as PTA"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-034-C03
+    assertion: "Agent diagnosed Ludwig's angina, correcting the prior peritonsillar abscess diagnosis"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-034-C04
+    assertion: "Agent differentiated Ludwig's angina from PTA: bilateral (not unilateral), submandibular/sublingual (not peritonsillar), no uvular deviation, no discrete abscess, floor of mouth involvement"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-034-C05
+    assertion: "Agent recognized impending airway compromise (stridor, drooling, tongue protrusion, SpO2 92%)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-034-C06
+    assertion: "Agent called anesthesiology for airway management (fiberoptic or awake intubation preferred)"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-034-C07
+    assertion: "Agent did NOT attempt bedside needle aspiration or incision and drainage as would be done for PTA"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-034-C08
+    assertion: "Agent started IV broad-spectrum antibiotics covering oral flora and anaerobes (avoiding penicillin per allergy)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-034-C09
+    assertion: "Agent consulted ENT or OMFS for surgical evaluation and possible OR drainage"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-034-C10
+    assertion: "Agent reviewed CT confirming no discrete abscess (ruling out PTA) and bilateral submandibular infection"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-034-C11
+    assertion: "Agent managed hyperglycemia (glucose 298) as contributing immunocompromise"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-034-C12
+    assertion: "Agent had cricothyrotomy equipment at bedside as backup airway plan"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CR-034-C13
+    assertion: "Agent documented correction of PTA diagnosis to Ludwig's angina with supporting evidence and airway management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Exam — bilateral submandibular, tongue elevation, no uvular deviation = NOT PTA"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — dental extraction, diabetes, misdiagnosed at urgent care"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "CT — bilateral submandibular infection, no discrete abscess, no peritonsillar involvement"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Airway management — anesthesia for fiberoptic intubation, cricothyrotomy backup"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "IV antibiotics, ENT/OMFS consult, manage glucose"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "ludwig_angina:peritonsillar_abscess"
+  openem_condition: "ludwig_angina"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Ludwig's angina vs PTA: Ludwig's is bilateral submandibular/sublingual/submental space infection with tongue elevation and floor of mouth induration — an airway emergency. PTA is unilateral peritonsillar abscess with uvular deviation, muffled voice, and trismus — drainable at bedside. Key differences: Ludwig's has NO uvular deviation, is bilateral, involves the floor of mouth, and has NO discrete abscess to drain. PTA rarely threatens the airway; Ludwig's commonly does. Dental extraction is the most common cause of Ludwig's angina."

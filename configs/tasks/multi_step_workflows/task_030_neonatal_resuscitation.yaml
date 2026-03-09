@@ -1,0 +1,264 @@
+# HEALTHCRAFT Task Definition: Neonatal Resuscitation
+# Category: multi_step_workflows | Level: 5
+# Tests NRP algorithm execution: initial steps, PPV, intubation,
+# chest compressions, epinephrine, thermoregulation, and NICU transfer.
+
+id: MW-030
+category: multi_step_workflows
+level: 5
+title: "Neonatal Resuscitation — NRP Algorithm and NICU Transfer"
+system_prompt_override: null
+
+description: |
+  A 36-week gestation neonate is delivered by emergency cesarean section for
+  placental abruption with fetal bradycardia. The mother is a 28-year-old G2P1
+  who presented to the ED with sudden-onset severe abdominal pain and vaginal
+  bleeding at 36 weeks. OB performed crash C-section in the OR. The neonate is
+  brought to the ED resuscitation bay (the NICU team is responding but not yet
+  present — ETA 4 minutes). The infant is limp, apneic, centrally cyanotic, with
+  HR 48 by auscultation. Apgar score at 1 minute is 1 (HR <100 only). The agent
+  must execute the NRP algorithm with precision: initial steps (warm, dry,
+  stimulate, position, clear airway), initiate positive pressure ventilation (PPV)
+  within 60 seconds ("the golden minute"), reassess HR after 30 seconds of
+  effective PPV, escalate to intubation and chest compressions (3:1 ratio) if HR
+  remains <60, administer IV/IO epinephrine if bradycardia persists after 60
+  seconds of compressions, manage thermoregulation throughout, and coordinate
+  NICU transfer. This is a rare scenario where the ED physician must perform
+  neonatal resuscitation before the NICU team arrives. Every step must follow
+  correct NRP temporal sequencing.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T03:42:00Z"
+  department: "Emergency Department — Resuscitation Bay 2"
+  census: 22
+  beds_available: 30
+  attending_on_duty: "Dr. Michael Torres"
+  specialist_availability:
+    nicu_team: "responding — ETA 4 minutes from page"
+    neonatology: "Dr. Karen White — responding with NICU team"
+    pediatric_surgery: "on-call, 15-minute response"
+    anesthesia: "in OR with mother"
+    obstetrics: "Dr. Anna Reyes — in OR with mother post-delivery"
+  equipment:
+    radiant_warmer: "available, preheated"
+    neonatal_bag_mask: "available — 240mL self-inflating bag, multiple mask sizes"
+    neonatal_ett: "available — sizes 2.5, 3.0, 3.5"
+    laryngoscope: "Miller 0 and 1 blades available"
+    t_piece_resuscitator: "available"
+    pulse_oximeter_neonatal: "available"
+    cardiac_monitor_neonatal: "available"
+    uvc_kit: "available — umbilical venous catheter tray"
+    plastic_wrap: "available (thermal protection)"
+    transport_isolette: "available"
+  pharmacy:
+    epinephrine_neonatal: "available — 1:10000 (0.1mg/mL)"
+    normal_saline_neonatal: "available — 10mL/kg bolus preparation"
+    surfactant: "available (if needed post-stabilization)"
+
+patient:
+  age: "0 minutes (newborn)"
+  sex: M
+  weight_kg: 2.6
+  gestational_age: "36 weeks"
+  chief_complaint: "Neonatal resuscitation — apneic, bradycardic newborn following emergency C-section for placental abruption"
+  maternal_history:
+    age: 28
+    gravida_para: "G2P1 → now P2"
+    prenatal_care: "Regular, uncomplicated until today"
+    blood_type: "O positive"
+    gbs_status: "Negative"
+    medications: "Prenatal vitamins only"
+    complications: "Placental abruption — sudden onset at 36 weeks, emergency C-section"
+    delivery_time: "2026-01-15T03:38:00Z"
+    cord_blood_gas: "pH 6.92, base deficit -18 (severe metabolic acidosis)"
+  apgar:
+    one_minute:
+      heart_rate: 1
+      respiratory_effort: 0
+      muscle_tone: 0
+      reflex_irritability: 0
+      color: 0
+      total: 1
+  initial_assessment:
+    appearance: "Limp, apneic, centrally cyanotic, pale"
+    heart_rate: 48
+    respiratory_effort: "None — apneic"
+    tone: "Flaccid"
+    color: "Central cyanosis, pale"
+    weight: "2.6 kg (estimated)"
+    temperature: "35.8C (mild hypothermia from delivery)"
+  timeline:
+    maternal_ed_arrival: "2026-01-15T02:55:00Z"
+    abruption_diagnosed: "2026-01-15T03:10:00Z"
+    crash_csection_start: "2026-01-15T03:25:00Z"
+    delivery: "2026-01-15T03:38:00Z"
+    neonate_to_ed_resus: "2026-01-15T03:40:00Z"
+    one_minute_apgar: "2026-01-15T03:39:00Z"
+    nicu_team_eta: "2026-01-15T03:46:00Z"
+
+criteria:
+  - id: MW-030-C01
+    assertion: "Agent performed NRP initial steps within the first 30 seconds: warm (radiant warmer), dry, stimulate, position airway (sniffing position), clear airway if needed"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neonatal_initial_steps including warming and airway_positioning"
+
+  - id: MW-030-C02
+    assertion: "Agent initiated positive pressure ventilation (PPV) within 60 seconds of birth (the golden minute) given apnea and HR <100"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for PPV_neonatal within appropriate time window"
+
+  - id: MW-030-C03
+    assertion: "Agent used correct PPV parameters: rate 40-60 breaths/min, initial PIP 20-25 cmH2O, FiO2 0.21-0.30 for late preterm infant"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-030-C04
+    assertion: "Agent reassessed heart rate after 30 seconds of effective PPV and escalated to intubation and chest compressions given HR still <60"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "PPV createClinicalOrder timestamp precedes intubation and chest_compressions createClinicalOrder timestamps"
+
+  - id: MW-030-C05
+    assertion: "Agent performed neonatal intubation with appropriately sized ETT (3.0 or 3.5 for 36-week, 2.6 kg neonate)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neonatal_intubation with ETT size 3.0 or 3.5"
+
+  - id: MW-030-C06
+    assertion: "Agent initiated chest compressions with correct NRP technique (3:1 compression-to-ventilation ratio, two-thumb encircling method, rate 120 events/min — 90 compressions + 30 breaths)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neonatal_chest_compressions"
+
+  - id: MW-030-C07
+    assertion: "Agent administered epinephrine (0.01-0.03 mg/kg IV/IO of 1:10000) after 60 seconds of coordinated compressions and ventilation with persistent HR <60"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for epinephrine_neonatal with dose 0.01-0.03 mg/kg"
+
+  - id: MW-030-C08
+    assertion: "Agent established emergency vascular access (UVC preferred, IO acceptable) for epinephrine and volume administration"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for UVC_placement or IO_access_neonatal"
+
+  - id: MW-030-C09
+    assertion: "Agent managed thermoregulation throughout resuscitation (radiant warmer, plastic wrap or polyethylene bag, temperature monitoring — target 36.5-37.5C)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for thermoregulation with temperature_monitoring"
+
+  - id: MW-030-C10
+    assertion: "Agent attached pulse oximeter to right hand/wrist (pre-ductal) for SpO2 and HR monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for pulse_oximetry_preductal"
+
+  - id: MW-030-C11
+    assertion: "Agent considered volume expansion with 10 mL/kg NS bolus given suspected blood loss from placental abruption"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for normal_saline_bolus_neonatal"
+
+  - id: MW-030-C12
+    assertion: "Agent applied neonatal resuscitation protocol (NRP)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for neonatal_resuscitation or NRP"
+
+  - id: MW-030-C13
+    assertion: "Agent coordinated NICU transfer once stabilized (transport isolette, handoff to neonatology team)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for NICU_transfer or processTransfer"
+
+  - id: MW-030-C14
+    assertion: "Agent assigned 5-minute Apgar score"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-030-C15
+    assertion: "Agent documented complete resuscitation record: timeline, interventions, Apgar scores, cord gas results, and NICU handoff"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with neonatal_resuscitation documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "processTransfer"
+
+expected_sequence:
+  - step: 1
+    action: "Receive neonate, assess initial status (apnea, HR, tone, color), review maternal history"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Perform NRP initial steps: warm, dry, stimulate, position, clear airway (within 30 seconds)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Apply NRP protocol, attach pre-ductal pulse oximeter"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Initiate PPV within golden minute — correct rate, pressure, FiO2"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Reassess HR after 30 seconds of PPV — still <60, escalate"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Intubate and begin chest compressions (3:1 ratio)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Establish UVC or IO access"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Administer epinephrine IV/IO after 60 seconds of compressions"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Administer NS bolus for suspected hypovolemia from abruption"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Maintain thermoregulation, monitor temperature continuously"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 11
+    action: "Assign 5-minute Apgar, reassess for NICU team handoff"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 12
+    action: "Transfer to NICU with complete resuscitation handoff"
+    tools: ["processTransfer", "checkResourceAvailability"]
+    critical: true
+  - step: 13
+    action: "Document complete neonatal resuscitation record"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "neonatal_resuscitation"
+  expected_tool_calls: "16-20"
+  entity_types: 6
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Neonatal resuscitation follows the NRP algorithm with strict temporal sequencing. Initial steps (warm, dry, stimulate, position, clear) must happen within the first 30 seconds. If the infant remains apneic or HR <100 after initial steps, begin PPV within 60 seconds of birth (the golden minute). For a 36-week infant, start FiO2 at 0.21-0.30. Reassess HR after 30 seconds of effective PPV. If HR remains <60 despite effective ventilation, intubate and begin chest compressions at a 3:1 ratio (90 compressions + 30 breaths = 120 events/minute). If HR still <60 after 60 seconds of compressions, administer epinephrine 0.01-0.03 mg/kg IV (1:10000) via UVC or IO. Volume expansion (10 mL/kg NS) is indicated for suspected blood loss (placental abruption). Thermoregulation is critical — hypothermia worsens acidosis and increases mortality. Pre-ductal SpO2 (right hand) is the standard monitoring site. ETT size = gestational age in weeks / 10 (3.5 for 36 weeks, or 3.0 acceptable). Cord gas pH 6.92 with base deficit -18 indicates severe perinatal asphyxia — this infant may need therapeutic hypothermia (cooling protocol) in the NICU."

@@ -1,0 +1,214 @@
+# HEALTHCRAFT Task Definition: Posterior Stroke vs Vestibular Neuritis
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: posterior_stroke:vestibular_neuritis
+# Patient with acute vertigo — agent must recognize posterior circulation stroke
+# mimicking benign vestibular neuritis. Missing this diagnosis is devastating.
+
+id: CR-037
+category: clinical_reasoning
+level: 5
+title: "The Dizzy Deception"
+system_prompt_override: null
+
+description: |
+  A 62-year-old male with hypertension and atrial fibrillation (on warfarin,
+  subtherapeutic INR 1.4) presents with acute-onset severe vertigo, nausea,
+  vomiting, and unsteadiness for 4 hours. He has no hearing loss. Initial assessment
+  by the triage physician suspects vestibular neuritis and plans for symptomatic
+  management and discharge. However, key exam findings suggest a central cause:
+  direction-changing nystagmus (changes direction with gaze, not fixed unidirectional),
+  severe gait ataxia (cannot sit unsupported), a NEGATIVE head impulse test (HIT) on
+  the left (central lesion — peripheral would show corrective saccade), and subtle
+  left-sided dysmetria on finger-to-nose. The HINTS exam (Head Impulse, Nystagmus,
+  Test of Skew) is concerning for a central pattern. The agent must recognize this as
+  posterior circulation stroke (likely cerebellar), order emergent MRI/MRA or CTA,
+  and consult neurology rather than discharging with meclizine.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-06T12:45:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    neurology: "on_call, 15min response"
+    neuroradiology: "in_house"
+    interventional_neuroradiology: "on_call, 30min response"
+
+patient:
+  age: 62
+  sex: M
+  chief_complaint: "Room is spinning, can't walk, keep throwing up"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Lisinopril (cough)"
+  medications:
+    - "Warfarin 5mg daily (for atrial fibrillation)"
+    - "Metoprolol 50mg BID"
+    - "Amlodipine 5mg daily"
+    - "Atorvastatin 40mg daily"
+  past_medical_history:
+    - "Atrial fibrillation (persistent, rate-controlled)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Type 2 Diabetes Mellitus"
+    - "No prior strokes or TIAs"
+  family_history:
+    - "Father: stroke at age 68"
+    - "Mother: hypertension"
+  social_history:
+    - "Retired postal worker"
+    - "Former smoker (30 pack-years, quit 5 years ago)"
+    - "Occasional alcohol"
+  vitals:
+    heart_rate: 82
+    blood_pressure: "178/94"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 2
+  exam_findings:
+    general: "Elderly male, eyes closed, nauseated, vomiting, in moderate distress"
+    neurological:
+      mental_status: "Alert, oriented x4, speech fluent, no dysarthria"
+      cranial_nerves: "Nystagmus present — direction-changing (left-beating in left gaze, right-beating in right gaze). No facial asymmetry. Hearing intact bilaterally."
+      hints_exam:
+        head_impulse: "NEGATIVE bilaterally (no corrective saccade — this is ABNORMAL in the setting of acute vertigo, suggests CENTRAL cause)"
+        nystagmus: "Direction-changing (central pattern, not fixed unidirectional peripheral)"
+        test_of_skew: "Positive — right hypertropia with alternating cover test (vertical skew deviation)"
+      motor: "5/5 in all extremities"
+      cerebellar: "Left-sided dysmetria on finger-to-nose (past-pointing). Left-sided dysdiadochokinesia. Severely ataxic gait — unable to sit unsupported (truncal ataxia). Left heel-to-shin ataxic."
+      sensory: "Intact to light touch and pinprick in all extremities"
+    cardiovascular: "Irregularly irregular rhythm (atrial fibrillation), no murmurs"
+    pulmonary: "Clear bilaterally"
+  labs:
+    cbc:
+      wbc: 8.2
+      hemoglobin: 14.0
+      platelets: 210
+    bmp:
+      sodium: 140
+      potassium: 4.2
+      creatinine: 1.1
+      glucose: 148
+    coagulation:
+      pt: 15.8
+      inr: 1.4
+      ptt: 32
+    troponin_i: "<0.01"
+  imaging:
+    ct_head_noncontrast:
+      result: "No acute hemorrhage. No mass. No hydrocephalus. Posterior fossa structures obscured by beam-hardening artifact from petrous bones. Cannot exclude early posterior fossa ischemia."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-037-C01
+    assertion: "Agent performed or reviewed the HINTS exam (Head Impulse, Nystagmus, Test of Skew)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-037-C02
+    assertion: "Agent identified the central pattern: negative HIT + direction-changing nystagmus + positive skew deviation"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-037-C03
+    assertion: "Agent recognized that a NEGATIVE head impulse test in acute vertigo suggests central (not peripheral) cause"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C04
+    assertion: "Agent identified left cerebellar signs: dysmetria, dysdiadochokinesia, truncal ataxia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C05
+    assertion: "Agent diagnosed posterior circulation stroke (cerebellar), not vestibular neuritis"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-037-C06
+    assertion: "Agent recognized the subtherapeutic INR (1.4) in a patient with AF as the likely embolic mechanism"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C07
+    assertion: "Agent ordered emergent MRI brain with diffusion-weighted imaging (DWI) to confirm posterior fossa stroke"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-037-C08
+    assertion: "Agent recognized that CT is insufficient for posterior fossa stroke evaluation (beam-hardening artifact)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C09
+    assertion: "Agent consulted neurology STAT"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-037-C10
+    assertion: "Agent did NOT discharge with meclizine and vestibular neuritis diagnosis"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain processDischarge"
+
+  - id: CR-037-C11
+    assertion: "Agent monitored for cerebellar edema and brainstem compression (posterior fossa strokes can herniate rapidly)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C12
+    assertion: "Agent addressed the subtherapeutic anticoagulation and considered bridging therapy"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-037-C13
+    assertion: "Agent documented HINTS exam findings, central vs peripheral pattern, and stroke workup rationale"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "HINTS exam — central pattern (negative HIT, direction-changing nystagmus, positive skew)"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Cerebellar exam — dysmetria, truncal ataxia, cannot sit unsupported"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — AF, subtherapeutic INR, multiple vascular risk factors"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Emergent MRI (CT misses posterior fossa strokes), neurology consult"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Cerebellar strokes can cause rapid edema and brainstem herniation. Missing this diagnosis and discharging the patient can be fatal within hours."
+
+metadata:
+  confusion_pair: "posterior_stroke:vestibular_neuritis"
+  openem_condition: "posterior_stroke"
+  expected_tool_calls: "8-14"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "very_high"
+  teaching_point: "The HINTS exam is more sensitive than CT for posterior fossa stroke. Central pattern: negative HIT (no corrective saccade) + direction-changing nystagmus + positive skew deviation. Peripheral pattern: positive HIT + fixed unidirectional nystagmus + negative skew. 'Cannot walk' vertigo is central until proven otherwise — peripheral vertigo patients can usually sit and walk with difficulty. CT misses up to 40% of posterior fossa strokes due to beam-hardening artifact. MRI with DWI is the gold standard. Subtherapeutic anticoagulation in AF is a major embolic risk factor."

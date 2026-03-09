@@ -1,0 +1,244 @@
+# HEALTHCRAFT Task Definition: Pediatric Fever Workup
+# Category: multi_step_workflows | Level: 3
+# Tests age-appropriate fever workup: risk stratification, blood/urine/CSF
+# cultures, empiric antibiotics, and disposition based on age.
+
+id: MW-024
+category: multi_step_workflows
+level: 3
+title: "Pediatric Fever — Age-Appropriate Workup Protocol"
+system_prompt_override: null
+
+description: |
+  A 28-day-old male infant is brought by his mother for fever. Rectal temperature
+  at triage is 38.4C (101.1F). He was born full-term via uncomplicated vaginal
+  delivery. Maternal GBS status was negative. He has been feeding well until today,
+  when he had decreased oral intake and has been "fussier than usual." He has had
+  no URI symptoms, no diarrhea, no rash, and no sick contacts. He appears
+  well-appearing but this is a 28-day-old with a fever — per the AAP clinical
+  practice guideline for febrile infants 8-60 days, a full sepsis workup is
+  indicated: complete blood count, blood culture, urinalysis and urine culture (via
+  catheterization), AND lumbar puncture with CSF analysis and culture. Empiric
+  antibiotics (ampicillin + gentamicin or cefotaxime) must be administered.
+  The infant must be admitted for observation pending culture results.
+  The 28-day cutoff is critical — infants <= 28 days require the most aggressive
+  workup regardless of appearance.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T02:15:00Z"
+  department: "Emergency Department"
+  census: 18
+  beds_available: 36
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    pediatrics: "on-call, 15-minute phone response"
+    neonatology: "on-call at children's hospital, phone available"
+    pediatric_infectious_disease: "on-call, phone only"
+  pharmacy:
+    ampicillin: "available"
+    gentamicin: "available"
+    cefotaxime: "available"
+    acyclovir: "available"
+
+patient:
+  age: 28
+  age_unit: days
+  sex: M
+  weight_kg: 4.2
+  chief_complaint: "Fever 38.4C in 28-day-old infant"
+  arrival_mode: "Private vehicle, mother drove"
+  esi_level: 2
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Vitamin D drops 400 IU daily"
+  past_medical_history:
+    - "Born full-term (39+2 weeks) via SVD"
+    - "Birth weight 3.6 kg, current weight 4.2 kg"
+    - "Maternal GBS negative"
+    - "No NICU stay"
+    - "No complications in nursery"
+    - "Hepatitis B vaccine given at birth"
+    - "Circumcised day of life 2"
+  birth_history:
+    gestational_age: "39 weeks + 2 days"
+    delivery: "Spontaneous vaginal delivery"
+    maternal_gbs: "Negative"
+    maternal_complications: "None"
+    apgar_scores: "8 at 1 min, 9 at 5 min"
+    nicu_admission: false
+  family_history:
+    - "No family history of immunodeficiency"
+    - "No neonatal infections"
+  social_history:
+    - "First child"
+    - "Breastfeeding exclusively"
+    - "No sick contacts"
+    - "No pets"
+    - "Parents are non-smokers"
+  vitals:
+    heart_rate: 168
+    blood_pressure: "72/42 (normal for age)"
+    respiratory_rate: 42
+    spo2: 98
+    temperature: 38.4
+    temperature_route: "rectal"
+    weight: "4.2 kg"
+  exam_findings:
+    general: "28-day-old male, active, crying vigorously when examined, consolable by mother. Well-appearing overall but this does NOT change management in this age group."
+    fontanelle: "Anterior fontanelle soft, flat, open"
+    eyes: "No conjunctival injection. Pupils equal and reactive."
+    ears: "Tympanic membranes clear bilateral"
+    oropharynx: "Moist mucous membranes, no thrush, no lesions"
+    neck: "Supple, no lymphadenopathy"
+    lungs: "Clear bilateral, no retractions, no grunting"
+    cardiac: "Regular rate, no murmur. Cap refill < 2 seconds."
+    abdomen: "Soft, non-distended, no masses. Circumcision site healing well."
+    skin: "No rash, no petechiae, no vesicles. Warm, well-perfused."
+    neuro: "Active, strong cry, good tone, symmetric movements, normal Moro reflex"
+  labs:
+    cbc: "WBC 14.2 (65% neutrophils, 30% lymphocytes), Hgb 16.8, Plt 280"
+    crp: "1.8 mg/dL (mildly elevated)"
+    bmp: "Na 138, K 4.8, Cl 104, CO2 22, BUN 8, Cr 0.3, Glu 72"
+    ua_catheter: "Clear, LE negative, nitrite negative, no WBCs, no bacteria"
+    blood_culture: "NOT YET DRAWN"
+    urine_culture: "NOT YET SENT"
+    csf: "NOT YET OBTAINED"
+  timeline:
+    fever_noticed: "2026-01-15T01:00:00Z"
+    home_temp: "2026-01-15T01:05:00Z"
+    ed_arrival: "2026-01-15T01:50:00Z"
+    triage: "2026-01-15T02:00:00Z"
+
+criteria:
+  - id: MW-024-C01
+    assertion: "Agent recognized that a 28-day-old infant with fever requires a FULL sepsis workup regardless of clinical appearance"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-024-C02
+    assertion: "Agent ordered blood culture"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for blood_culture"
+
+  - id: MW-024-C03
+    assertion: "Agent ordered catheterized urine specimen for urinalysis and urine culture (NOT bag specimen — unreliable in infants)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for catheterized_urine_culture"
+
+  - id: MW-024-C04
+    assertion: "Agent ordered lumbar puncture with CSF analysis (cell count, glucose, protein, Gram stain, culture)"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for lumbar_puncture"
+
+  - id: MW-024-C05
+    assertion: "Agent ordered cultures BEFORE administering antibiotics"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "blood_culture and LP createClinicalOrder timestamps precede antibiotic createClinicalOrder timestamp"
+
+  - id: MW-024-C06
+    assertion: "Agent administered empiric antibiotics appropriate for neonatal sepsis (ampicillin + gentamicin or ampicillin + cefotaxime)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ampicillin AND createClinicalOrder for gentamicin or cefotaxime"
+
+  - id: MW-024-C07
+    assertion: "Agent considered HSV (herpes simplex virus) and ordered or considered acyclovir (especially given age <= 28 days)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-024-C08
+    assertion: "Agent used weight-based dosing for all medications (4.2 kg infant)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-024-C09
+    assertion: "Agent consulted pediatrics for admission and ongoing management"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for pediatrics_consult"
+
+  - id: MW-024-C10
+    assertion: "Agent admitted the infant for observation pending culture results (minimum 36-48 hours)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for admission"
+
+  - id: MW-024-C11
+    assertion: "Agent applied neonatal fever or febrile infant protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for febrile_infant or neonatal_sepsis"
+
+  - id: MW-024-C12
+    assertion: "Agent documented age-specific risk stratification, workup rationale, and disposition plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess infant, review birth history, confirm age and fever"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Apply febrile infant protocol — determine workup based on age"
+    tools: ["applyProtocol", "getProtocolDetails", "runDecisionRule"]
+    critical: true
+  - step: 3
+    action: "Order blood culture"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Order catheterized urine specimen for UA and culture"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Perform lumbar puncture — CSF analysis and culture"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Administer empiric antibiotics (ampicillin + gentamicin)"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 7
+    action: "Consider HSV — evaluate for acyclovir"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 8
+    action: "Consult pediatrics for admission"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Document workup rationale and age-specific management plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "neonatal_sepsis"
+  expected_tool_calls: "10-14"
+  entity_types: 6
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Per the 2021 AAP Clinical Practice Guideline for febrile infants 8-60 days: infants <= 28 days require FULL sepsis workup (blood culture, catheterized urine, LP) and empiric antibiotics regardless of clinical appearance. The well-appearing exam does NOT reduce the risk of serious bacterial infection in this age group. Empiric coverage: ampicillin (for Listeria and GBS) + gentamicin or cefotaxime. Consider acyclovir for HSV, especially with vesicles, seizures, elevated LFTs, or CSF pleocytosis. Bag urine specimens are unreliable — always catheterize for culture."

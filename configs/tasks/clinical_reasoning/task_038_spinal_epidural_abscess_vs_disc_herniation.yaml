@@ -1,0 +1,211 @@
+# HEALTHCRAFT Task Definition: Spinal Epidural Abscess vs Disc Herniation
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: spinal_epidural_abscess:disc_herniation
+# Patient with back pain and radiculopathy — agent must recognize spinal epidural
+# abscess (surgical emergency) rather than treating as disc herniation.
+
+id: CR-038
+category: clinical_reasoning
+level: 5
+title: "The Hot Spine"
+system_prompt_override: null
+
+description: |
+  A 56-year-old male IV drug user presents with 5 days of progressive severe
+  midline thoracic back pain, now with bilateral lower extremity weakness and
+  urinary retention. He has a fever of 38.9°C and point tenderness over the
+  T8-T10 spinous processes. He was seen at another ED 3 days ago, diagnosed with
+  "musculoskeletal back pain," given NSAIDs and muscle relaxants, and discharged.
+  Since then, his symptoms have progressed — he now has 3/5 bilateral lower extremity
+  weakness, decreased sensation below the umbilicus (T10 level), urinary retention
+  (800mL on straight cath), and hyperreflexia in the lower extremities. WBC is 18.2,
+  ESR 98, CRP 18. Blood cultures are positive for MSSA. MRI shows a posterior
+  epidural abscess from T7-T11 with cord compression. The agent must diagnose spinal
+  epidural abscess, start IV antistaphylococcal antibiotics immediately, and consult
+  neurosurgery for emergent decompression before irreversible paralysis occurs.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-07T08:00:00Z"
+  department: "Emergency Department"
+  census: 27
+  beds_available: 27
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    neurosurgery: "on_call, 20min response"
+    infectious_disease: "on_call, 30min response"
+    mri: "available"
+
+patient:
+  age: 56
+  sex: M
+  chief_complaint: "Back pain getting worse, now legs are weak, can't pee"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "None known"
+  medications:
+    - "Ibuprofen 800mg TID (prescribed 3 days ago at prior ED visit)"
+    - "Cyclobenzaprine 10mg TID (prescribed 3 days ago)"
+    - "Methadone 80mg daily (for opioid use disorder)"
+  past_medical_history:
+    - "IV heroin use (active, daily, femoral injection sites)"
+    - "Opioid use disorder, on methadone maintenance"
+    - "Hepatitis C (untreated)"
+    - "Prior skin abscess (MSSA, drained 6 months ago)"
+    - "Seen at outside ED 3 days ago for back pain — discharged with musculoskeletal diagnosis"
+    - "No prior spine surgery"
+  social_history:
+    - "Homeless, lives in shelter"
+    - "Active IV drug use (heroin, femoral injection)"
+    - "Smoker"
+    - "No alcohol"
+  vitals:
+    heart_rate: 106
+    blood_pressure: "134/82"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 38.9
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Ill-appearing male, diaphoretic, in significant pain"
+    spine: "Exquisite point tenderness over T8-T10 spinous processes. Paraspinal muscle spasm. No step-off deformity."
+    neurological:
+      motor: "Upper extremities 5/5. Lower extremities: hip flexion 3/5 bilateral, knee extension 3/5 bilateral, ankle dorsiflexion 3/5 bilateral."
+      sensory: "Decreased sensation to pinprick below the umbilicus (approximately T10 level). Intact above T10."
+      reflexes: "Upper extremities 2+ (normal). Lower extremities 3+ bilateral (hyperreflexia). Bilateral Babinski signs positive (upgoing plantar responses)."
+      rectal: "Decreased anal sphincter tone."
+      bladder: "Urinary retention — 800mL on straight catheterization."
+    skin: "Track marks bilateral femoral veins, healed abscess scar right groin. No new abscesses."
+    cardiovascular: "Regular rhythm, no murmurs (no signs of endocarditis on exam)"
+  labs:
+    cbc:
+      wbc: 18.2
+      neutrophils: 84
+      bands: 10
+      hemoglobin: 11.4
+      platelets: 340
+    bmp:
+      sodium: 137
+      potassium: 4.2
+      creatinine: 1.0
+      glucose: 112
+    crp: 18.4
+    crp_units: "mg/dL (normal <0.5)"
+    esr: 98
+    esr_units: "mm/hr (normal <20)"
+    blood_cultures: "Preliminary: Gram-positive cocci in clusters (MSSA on sensitivity)"
+    procalcitonin: 2.8
+
+criteria:
+  - id: CR-038-C01
+    assertion: "Agent identified the classic triad of spinal epidural abscess: fever + back pain + neurological deficit"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-038-C02
+    assertion: "Agent retrieved history including IV drug use (primary risk factor), prior MSSA infection, and prior ED visit with misdiagnosis"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-038-C03
+    assertion: "Agent recognized the upper motor neuron signs (hyperreflexia, Babinski) and sensory level as cord compression, not simple disc herniation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-038-C04
+    assertion: "Agent diagnosed spinal epidural abscess, not disc herniation"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-038-C05
+    assertion: "Agent ordered emergent MRI spine with gadolinium contrast"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-038-C06
+    assertion: "Agent started IV antistaphylococcal antibiotics (vancomycin empirically, narrowed to nafcillin/cefazolin once MSSA confirmed)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-038-C07
+    assertion: "Agent consulted neurosurgery for emergent surgical decompression"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-038-C08
+    assertion: "Agent recognized the urinary retention and decreased anal tone as cauda equina or cord compression signs"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-038-C09
+    assertion: "Agent noted elevated ESR (98) and CRP (18.4) as strongly suggestive of spinal infection"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-038-C10
+    assertion: "Agent ordered echocardiogram to evaluate for endocarditis (IVDU with MSSA bacteremia)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-038-C11
+    assertion: "Agent did NOT discharge with pain medications and outpatient follow-up"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain processDischarge"
+
+  - id: CR-038-C12
+    assertion: "Agent placed Foley catheter for urinary retention"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-038-C13
+    assertion: "Agent documented spinal epidural abscess diagnosis, neurological exam with deficit progression, and urgency of surgical decompression"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize triad: fever + back pain + neuro deficit in IVDU"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Neuro exam — sensory level, weakness, hyperreflexia, Babinski, urinary retention"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — IVDU, prior MSSA, prior ED misdiagnosis, progression"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Emergent MRI spine, IV vancomycin, neurosurgery STAT"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Neurological outcome correlates directly with duration of deficit. Deficits present >24-48 hours are often irreversible. Surgical decompression within 24 hours gives best outcomes."
+
+metadata:
+  confusion_pair: "spinal_epidural_abscess:disc_herniation"
+  openem_condition: "spinal_epidural_abscess"
+  expected_tool_calls: "8-14"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Spinal epidural abscess presents as back pain progressing through stages: back pain → radiculopathy → motor/sensory deficits → paralysis. Key differentiators from disc herniation: FEVER, elevated inflammatory markers (ESR >20 in 95%), IVDU/bacteremia risk, midline tenderness (not paraspinal), upper motor neuron signs (hyperreflexia, Babinski) if above the conus. The classic triad (fever + back pain + neuro deficit) is present in only 10-15% at initial presentation. IVDU is the #1 risk factor. MRI with gadolinium is the gold standard. Surgical decompression within 24 hours of deficit onset gives the best neurological outcomes."

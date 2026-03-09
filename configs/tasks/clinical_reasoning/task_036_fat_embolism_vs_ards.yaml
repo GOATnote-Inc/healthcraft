@@ -1,0 +1,212 @@
+# HEALTHCRAFT Task Definition: Fat Embolism Syndrome vs ARDS
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: fat_embolism:ards
+# Post-fracture patient with respiratory distress, confusion, and petechiae — agent
+# must recognize fat embolism syndrome and not just treat generic ARDS.
+
+id: CR-036
+category: clinical_reasoning
+level: 5
+title: "The Marrow Shower"
+system_prompt_override: null
+
+description: |
+  A 22-year-old male who sustained bilateral femur fractures in a motor vehicle
+  accident 36 hours ago (now with external fixation) develops acute dyspnea,
+  confusion, and tachycardia. On exam, there is a petechial rash across the chest,
+  axillae, and conjunctivae. SpO2 is 84% on room air. He is confused and agitated
+  (GCS 12). Chest X-ray shows bilateral diffuse alveolar infiltrates ("snowstorm"
+  pattern). ABG shows PaO2 52 on room air. Platelets have dropped from 240 to 98
+  over 36 hours. Fat globules are seen on urinalysis. The classic triad of respiratory
+  distress + neurological changes + petechial rash 24-72 hours after long bone
+  fracture is pathognomonic for fat embolism syndrome. The agent must diagnose FES,
+  distinguish it from generic ARDS or PE, and initiate appropriate supportive care
+  with emphasis on the neurological and hematological components.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-05T06:30:00Z"
+  department: "Emergency Department — Trauma Bay"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    orthopedic_surgery: "in_house (managing fractures)"
+    pulmonology: "on_call, 20min response"
+    critical_care: "in_house"
+    neurology: "on_call, 25min response"
+
+patient:
+  age: 22
+  sex: M
+  chief_complaint: "Sudden trouble breathing, confused, rash appeared"
+  arrival_mode: "inpatient (admitted 36 hours ago, acute decompensation)"
+  esi_level: 1
+  allergies:
+    - "None known"
+  medications:
+    - "Morphine PCA"
+    - "Enoxaparin 40mg daily (DVT prophylaxis)"
+    - "Cefazolin 2g Q8H (surgical prophylaxis)"
+  past_medical_history:
+    - "Bilateral femur shaft fractures from MVC 36 hours ago"
+    - "External fixation placed under general anesthesia 30 hours ago"
+    - "No other injuries (head CT at admission negative, C-spine cleared)"
+    - "Previously healthy, no medical history"
+  social_history:
+    - "College student"
+    - "Non-smoker"
+    - "Social alcohol"
+  vitals:
+    heart_rate: 134
+    blood_pressure: "104/62"
+    respiratory_rate: 32
+    spo2: 84
+    temperature: 38.6
+    gcs: 12
+    gcs_breakdown: "E3 V3 M6"
+  exam_findings:
+    general: "Young male in acute respiratory distress, confused, agitated, pulling at monitors"
+    skin: "Petechial rash across the anterior chest, bilateral axillae, and conjunctivae. Rash is non-blanching, pinpoint, in a classic distribution (non-dependent areas)."
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs"
+    pulmonary: "Bilateral crackles, diffuse, no wheezing. Using accessory muscles. Tachypneic."
+    neurological: "Confused, oriented to person only, following simple commands inconsistently. No focal motor deficits. No lateralizing signs."
+    extremities: "Bilateral lower extremity external fixators in place, surgical sites clean"
+    eyes: "Petechiae visible on bilateral conjunctivae. Fundoscopy: cotton-wool spots and scattered retinal hemorrhages (Purtscher-like retinopathy)"
+  labs:
+    cbc:
+      wbc: 14.8
+      hemoglobin: 10.2
+      platelets: 98
+      platelets_36h_ago: 240
+    bmp:
+      sodium: 138
+      potassium: 4.0
+      creatinine: 1.0
+      glucose: 132
+    abg:
+      ph: 7.38
+      pco2: 30
+      po2: 52
+      hco3: 20
+      fio2: 0.21
+      pf_ratio: 248
+    lipase: 42
+    ldh: 680
+    fibrinogen: 180
+    d_dimer: 2400
+    urinalysis: "Fat globules present on Sudan stain"
+  imaging:
+    chest_xray:
+      result: "Bilateral diffuse alveolar opacities in a 'snowstorm' pattern. No focal consolidation. No pleural effusions. No pneumothorax. Cardiac silhouette normal. Pattern consistent with ARDS or fat embolism syndrome."
+      read_by: "Dr. James Park, Radiology"
+    ct_head:
+      result: "No acute hemorrhage. No mass. Diffuse cerebral edema (mild). No prior comparison for acute changes."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-036-C01
+    assertion: "Agent identified the classic triad: respiratory distress + neurological changes + petechial rash"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-036-C02
+    assertion: "Agent recognized the temporal relationship: symptoms 24-72 hours after long bone fracture"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-036-C03
+    assertion: "Agent diagnosed fat embolism syndrome, not generic ARDS or PE"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-036-C04
+    assertion: "Agent differentiated FES from PE: petechial rash and neurological changes are not features of PE, D-dimer is non-specific post-trauma"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-036-C05
+    assertion: "Agent noted the thrombocytopenia (240 → 98) as supportive of FES (fat globules consume platelets)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-036-C06
+    assertion: "Agent noted fat globules on urinalysis as confirmatory"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-036-C07
+    assertion: "Agent initiated high-flow oxygen or non-invasive ventilation, preparing for intubation if needed"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-036-C08
+    assertion: "Agent applied lung-protective ventilation strategy (low tidal volume 6 mL/kg IBW if intubated)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-036-C09
+    assertion: "Agent consulted orthopedics regarding early definitive fracture fixation (reduces ongoing fat embolization)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-036-C10
+    assertion: "Agent ordered continuous pulse oximetry and serial ABGs to monitor respiratory status"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-036-C11
+    assertion: "Agent arranged ICU admission for close monitoring of respiratory and neurological status"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-036-C12
+    assertion: "Agent noted the retinal findings (cotton-wool spots) as consistent with FES"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-036-C13
+    assertion: "Agent documented FES diagnosis using Gurd's criteria, differentiation from other causes of ARDS, and management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize the triad: respiratory distress + confusion + petechiae after bilateral femur fractures"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Labs — thrombocytopenia, fat globuluria, elevated LDH"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Diagnose FES, not generic ARDS or PE"
+    tools: []
+    critical: true
+    reasoning: "Petechiae in axillae/conjunctivae + neuro changes + hypoxia 24-72h after long bone fracture = FES. ARDS does not cause petechiae. PE does not cause petechiae or confusion."
+  - step: 4
+    action: "Oxygen support, ICU, consult ortho for definitive fixation, supportive care"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "fat_embolism:ards"
+  openem_condition: "fat_embolism"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Fat embolism syndrome (FES) presents 24-72 hours after long bone fracture with the classic triad: respiratory distress + neurological changes + petechial rash (in non-dependent areas: axillae, chest, conjunctivae). Unlike generic ARDS, FES has petechiae, acute confusion, retinal changes, and thrombocytopenia from fat globule consumption. Fat globules in urine are confirmatory. Gurd's criteria: 1 major + 4 minor, or 2 major criteria. Treatment is primarily supportive. Early definitive fracture fixation reduces ongoing fat embolization. No specific antidote exists."

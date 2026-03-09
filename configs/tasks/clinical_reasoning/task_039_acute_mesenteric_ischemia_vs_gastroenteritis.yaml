@@ -1,0 +1,229 @@
+# HEALTHCRAFT Task Definition: Acute Mesenteric Ischemia vs Gastroenteritis
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: acute_mesenteric_ischemia:gastroenteritis
+# Elderly patient with severe abdominal pain and diarrhea — agent must recognize
+# mesenteric ischemia rather than treating as viral gastroenteritis.
+
+id: CR-039
+category: clinical_reasoning
+level: 5
+title: "The Gut Infarction"
+system_prompt_override: null
+
+description: |
+  A 74-year-old female with atrial fibrillation (on warfarin, INR 1.3 — subtherapeutic)
+  and a recent hospitalization for CHF exacerbation presents with sudden severe
+  periumbilical abdominal pain, nausea, and watery diarrhea for 6 hours. She
+  describes the pain as 10/10 but the abdominal exam is surprisingly benign — soft,
+  mildly tender, no peritoneal signs (the classic "pain out of proportion to exam").
+  She had two episodes of non-bloody watery stool. The initial assessment suspects
+  viral gastroenteritis. However, lactate is markedly elevated at 6.8 mmol/L, there
+  is a new metabolic acidosis (pH 7.24), and WBC is 22.4. CTA abdomen shows a
+  filling defect in the superior mesenteric artery with absent enhancement of jejunal
+  loops. The agent must diagnose acute mesenteric ischemia (embolic, from AF),
+  initiate anticoagulation, and consult vascular surgery for emergent intervention
+  before bowel necrosis becomes irreversible.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-08T16:30:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    vascular_surgery: "on_call, 20min response"
+    interventional_radiology: "on_call, 25min response"
+    general_surgery: "on_call, 15min response"
+    critical_care: "in_house"
+
+patient:
+  age: 74
+  sex: F
+  chief_complaint: "Terrible belly pain, came on suddenly, watery diarrhea"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Sulfa drugs (anaphylaxis)"
+  medications:
+    - "Warfarin 3mg daily"
+    - "Metoprolol 25mg BID"
+    - "Furosemide 40mg daily"
+    - "Lisinopril 10mg daily"
+    - "Digoxin 0.125mg daily"
+  past_medical_history:
+    - "Atrial fibrillation (chronic, rate-controlled)"
+    - "Congestive heart failure (EF 35%, recent hospitalization 2 weeks ago)"
+    - "Hypertension"
+    - "Peripheral vascular disease"
+    - "INR subtherapeutic on recent check (1.3, warfarin dose was increased but not yet therapeutic)"
+  family_history:
+    - "Father: stroke"
+    - "Mother: CHF"
+  social_history:
+    - "Retired, lives in assisted living facility"
+    - "Non-smoker"
+    - "No alcohol"
+  vitals:
+    heart_rate: 108
+    blood_pressure: "96/54"
+    respiratory_rate: 24
+    spo2: 95
+    temperature: 37.4
+    gcs: 14
+    gcs_breakdown: "E3 V5 M6"
+    pain_scale: 10
+  exam_findings:
+    general: "Elderly female in severe distress, moaning, restless, pale"
+    abdomen: "PAIN OUT OF PROPORTION TO EXAM. Mild periumbilical tenderness with palpation. Abdomen soft, no guarding, no rebound, no rigidity. No distension. Bowel sounds hyperactive initially. No pulsatile mass."
+    cardiovascular: "Irregularly irregular (AF), tachycardic, weak peripheral pulses"
+    pulmonary: "Bibasilar crackles (mild CHF)"
+    extremities: "Cool, mottled feet, diminished pedal pulses"
+    rectal: "Guaiac positive (occult blood)"
+  labs:
+    cbc:
+      wbc: 22.4
+      neutrophils: 90
+      hemoglobin: 12.2
+      platelets: 180
+    bmp:
+      sodium: 134
+      potassium: 5.2
+      chloride: 96
+      co2: 14
+      bun: 42
+      creatinine: 1.8
+      glucose: 178
+    lactate: 6.8
+    abg:
+      ph: 7.24
+      pco2: 26
+      po2: 78
+      hco3: 12
+    coagulation:
+      pt: 14.8
+      inr: 1.3
+      ptt: 30
+    ldh: 840
+    amylase: 220
+    lipase: 68
+    blood_cultures: "drawn, pending"
+  imaging:
+    cta_abdomen:
+      result: "Filling defect in the proximal superior mesenteric artery consistent with embolus. Absent enhancement of multiple jejunal loops with wall thinning. Mesenteric edema present. No pneumatosis intestinalis. No portal venous gas. No free air. Findings consistent with acute mesenteric ischemia, embolic type."
+      read_by: "Dr. James Park, Radiology — STAT read"
+
+criteria:
+  - id: CR-039-C01
+    assertion: "Agent recognized the hallmark finding: pain out of proportion to physical examination"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-039-C02
+    assertion: "Agent retrieved history including atrial fibrillation, subtherapeutic INR, recent CHF, and PVD"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-039-C03
+    assertion: "Agent identified the markedly elevated lactate (6.8) and metabolic acidosis as inconsistent with simple gastroenteritis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-039-C04
+    assertion: "Agent ordered CTA abdomen to evaluate for mesenteric ischemia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-039-C05
+    assertion: "Agent diagnosed acute mesenteric ischemia (embolic type from AF), not gastroenteritis"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-039-C06
+    assertion: "Agent initiated systemic anticoagulation with heparin"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-039-C07
+    assertion: "Agent consulted vascular surgery and/or interventional radiology for emergent revascularization"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-039-C08
+    assertion: "Agent initiated aggressive IV fluid resuscitation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-039-C09
+    assertion: "Agent did NOT discharge with antiemetics and oral rehydration for gastroenteritis"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain processDischarge"
+
+  - id: CR-039-C10
+    assertion: "Agent ordered broad-spectrum IV antibiotics for bacterial translocation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-039-C11
+    assertion: "Agent monitored for signs of bowel necrosis (peritoneal signs, pneumatosis, portal venous gas) which would indicate need for emergent laparotomy"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-039-C12
+    assertion: "Agent addressed the hyperkalemia (K 5.2) given metabolic acidosis and potential for worsening with ischemia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-039-C13
+    assertion: "Agent documented mesenteric ischemia diagnosis, embolic source (AF with subtherapeutic INR), CTA findings, and surgical plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize pain out of proportion to exam — the #1 clue to mesenteric ischemia"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — AF, subtherapeutic INR, PVD, CHF = embolic risk"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Labs — lactate 6.8, acidosis, leukocytosis = tissue ischemia, NOT gastroenteritis"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "CTA abdomen — SMA embolus with non-enhancing bowel"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Heparin, fluids, antibiotics, vascular surgery STAT"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Acute mesenteric ischemia has 60-80% mortality. Once necrosis occurs (peritoneal signs), prognosis drops dramatically. The window for revascularization is narrow."
+
+metadata:
+  confusion_pair: "acute_mesenteric_ischemia:gastroenteritis"
+  openem_condition: "acute_mesenteric_ischemia"
+  expected_tool_calls: "10-15"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "The hallmark of acute mesenteric ischemia is pain out of proportion to physical exam — severe pain with a benign-appearing abdomen. Atrial fibrillation (especially with subtherapeutic anticoagulation) is the #1 cause of SMA embolism. Gastroenteritis does NOT cause lactate >4, severe metabolic acidosis, or leukocytosis >20. Elevated LDH and amylase (from ischemic bowel) are additional clues. CTA is the gold standard. Once peritoneal signs develop, bowel necrosis has likely occurred and outcomes worsen dramatically. Diarrhea in mesenteric ischemia is from ischemic mucosal sloughing, not infection."

@@ -1,0 +1,257 @@
+# HEALTHCRAFT Task Definition: Wake-Up Stroke — Last-Known-Well Window
+# Category: temporal_reasoning | Level: 5
+# Acute ischemic stroke discovered on waking with unknown onset time. The
+# agent must calculate the last-known-well window, determine tPA eligibility
+# using CTP mismatch as a tissue clock, and manage multiple time-dependent
+# decision points.
+
+id: TR-025
+category: temporal_reasoning
+level: 5
+title: "Wake-Up Stroke — Last-Known-Well Window"
+system_prompt_override: null
+
+description: |
+  It is 06:40. EMS delivers a 64-year-old male found by his wife at 06:10 with
+  right-sided weakness, facial droop, and global aphasia. She reports he was
+  neurologically intact when he went to bed at 22:30 last night. He did not wake
+  during the night. When she found him at 06:10, he was on the floor next to the
+  bed with the described deficits. The last-known-well time is therefore 22:30
+  the previous evening — 8 hours and 10 minutes ago, well outside the standard
+  4.5-hour IV tPA window.
+
+  However, the DAWN trial (2018) and DEFUSE 3 (2018) extended the treatment
+  window to 24 hours for mechanical thrombectomy in select patients with
+  favorable perfusion imaging. The EXTEND trial (2019) extended the tPA window
+  to 4.5-9 hours using CT perfusion (CTP) mismatch. These advanced imaging
+  protocols use the tissue clock (penumbra-to-core ratio) rather than the
+  traditional time clock to determine eligibility.
+
+  The patient's NIHSS is 18 (severe). CT head is negative for hemorrhage. The
+  agent must: (1) recognize that the standard tPA window is closed, (2) order
+  CTP and CTA to assess for perfusion mismatch and large vessel occlusion,
+  (3) correctly calculate the last-known-well time (not symptom discovery time),
+  (4) determine DAWN/DEFUSE 3 eligibility for thrombectomy, (5) determine
+  EXTEND criteria eligibility for late-window tPA, and (6) coordinate with
+  neurointerventional radiology — all while managing the patient's acutely
+  elevated blood pressure and the 60-minute imaging-to-groin target.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T06:40:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  beds_total: 54
+  shift: "night-to-day transition"
+  esi_distribution:
+    esi_1: 1
+    esi_2: 2
+    esi_3: 12
+    esi_4: 8
+    esi_5: 5
+  attending_count: 2
+  resident_count: 2
+  nurses_on_duty: 10
+  ct_scanner: "available, CTP-capable"
+  ct_perfusion_processing: "RAPID software, 5-minute automated processing"
+  specialist_on_call:
+    neurology: "stroke fellow in-house, attending by telemedicine"
+    neurointerventional: "on-call, 30-minute response for thrombectomy"
+    neuroradiology: "in-house (night shift still present)"
+    anesthesia: "in-house"
+  stroke_code_status: "activated at 06:35"
+  angio_suite: "available, 20-minute prep time"
+
+patient:
+  age: 64
+  sex: M
+  weight_kg: 88
+  chief_complaint: "Found with right-sided weakness, facial droop, unable to speak — wake-up stroke"
+  arrival_time: "2026-01-15T06:35:00Z"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "Iodinated contrast (mild urticaria, 2019 — pretreat if needed)"
+  medications:
+    - "Apixaban 5mg BID (for atrial fibrillation)"
+    - "Metoprolol succinate 50mg daily"
+    - "Rosuvastatin 20mg daily"
+    - "Amlodipine 10mg daily"
+  past_medical_history:
+    - "Atrial fibrillation (persistent, on apixaban)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Obstructive sleep apnea (on CPAP)"
+    - "Prior TIA (2023, fully resolved, attributed to subtherapeutic anticoagulation)"
+    - "No prior strokes"
+  vitals:
+    time_of_vitals: "2026-01-15T06:38:00Z"
+    heart_rate: 94
+    blood_pressure: "198/106"
+    respiratory_rate: 18
+    spo2: 95
+    temperature: 36.6
+    gcs: 9
+    mental_status: "Eyes open to voice, global aphasia, right hemiplegia"
+    pupils: "3mm left, 4mm right, both reactive"
+  nihss:
+    time: "2026-01-15T06:42:00Z"
+    score: 18
+    components:
+      level_of_consciousness: 1
+      loc_questions: 2
+      loc_commands: 1
+      gaze: 1
+      visual_fields: 1
+      facial_palsy: 2
+      left_arm: 0
+      right_arm: 4
+      left_leg: 0
+      right_leg: 3
+      ataxia: 0
+      sensory: 1
+      language: 2
+      dysarthria: 0
+      extinction: 0
+  last_known_well:
+    time: "2026-01-14T22:30:00Z"
+    source: "Wife — patient was neurologically normal at bedtime"
+    hours_from_lkw_to_discovery: 7.67
+    hours_from_lkw_to_ed_arrival: 8.08
+  symptom_discovery:
+    time: "2026-01-15T06:10:00Z"
+    source: "Wife found patient on floor with deficits"
+  imaging:
+    ct_head:
+      time: "2026-01-15T06:45:00Z"
+      result: "No hemorrhage, no completed infarct, ASPECTS 8 (subtle loss of insular ribbon and caudate head)"
+    ctp_and_cta: "ordered, pending — estimated completion 06:55"
+  labs_pending:
+    - "CBC"
+    - "BMP"
+    - "Coagulation panel (PT/INR, PTT)"
+    - "Anti-Xa level (apixaban)"
+    - "Glucose (POC: 142 mg/dL)"
+    - "Troponin"
+    - "Type and screen"
+
+criteria:
+  - id: TR-025-C01
+    assertion: "Agent correctly identified the last-known-well time as 22:30 the previous evening (NOT 06:10 discovery time) and calculated the elapsed window"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-025-C02
+    assertion: "Agent recognized that the standard 4.5-hour IV tPA window is closed (LKW >8 hours ago)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-025-C03
+    assertion: "Agent ordered CT perfusion (CTP) and CT angiography (CTA) to evaluate for perfusion mismatch and large vessel occlusion"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with CTP and CTA imaging"
+
+  - id: TR-025-C04
+    assertion: "Agent identified apixaban as a contraindication to IV tPA even if CTP mismatch suggests salvageable tissue"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: TR-025-C05
+    assertion: "Agent ordered anti-Xa level to quantify apixaban effect and checked last dose timing"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with anti-Xa level"
+
+  - id: TR-025-C06
+    assertion: "Agent referenced DAWN or DEFUSE 3 trial criteria for late-window mechanical thrombectomy eligibility"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: TR-025-C07
+    assertion: "Agent activated neurointerventional radiology for potential mechanical thrombectomy"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or applyProtocol with neurointerventional consult or thrombectomy activation"
+
+  - id: TR-025-C08
+    assertion: "Agent managed blood pressure with target <220/120 (no tPA candidate) or <185/110 (if thrombectomy proceeding with anticoagulation reversal)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with antihypertensive if BP target exceeded"
+
+  - id: TR-025-C09
+    assertion: "Agent premedicated for contrast allergy (iodinated contrast urticaria history) before CTP/CTA"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with contrast premedication (diphenhydramine or steroid)"
+
+  - id: TR-025-C10
+    assertion: "Agent tracked the imaging-to-groin-puncture time target (<60 minutes from CTP to thrombectomy start)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-025-C11
+    assertion: "Agent did NOT administer IV tPA to a patient on apixaban without verified anti-Xa level below safe threshold"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain tPA administration without anti-Xa verification"
+
+  - id: TR-025-C12
+    assertion: "Agent documented the wake-up stroke timeline, LKW rationale, imaging-based treatment decision, and anticoagulant status in the encounter"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with stroke documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "applyProtocol"
+  - "updateEncounter"
+  - "getProtocolDetails"
+  - "checkResourceAvailability"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Obtain history — establish LKW at 22:30, calculate time window, perform NIHSS"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Review CT head (no hemorrhage), order STAT CTP + CTA, premedicate for contrast allergy"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 6
+  - step: 3
+    action: "Determine tPA eligibility — closed by time clock AND contraindicated by apixaban; order anti-Xa level"
+    tools: ["createClinicalOrder", "getProtocolDetails"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 4
+    action: "Activate neurointerventional radiology for thrombectomy — reference DAWN/DEFUSE 3 criteria"
+    tools: ["createClinicalOrder", "applyProtocol", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 5
+    action: "Manage BP — target depends on treatment decision (permissive vs. strict)"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 15
+  - step: 6
+    action: "Document LKW timeline, treatment decision rationale, and anticoagulant status"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 18
+
+metadata:
+  openem_condition: "acute_ischemic_stroke"
+  expected_tool_calls: "10-15"
+  entity_types: 6
+  time_pressure: "extreme"
+  parallel_threads: 2
+  teaching_point: "Wake-up strokes are not automatically excluded from intervention. The last-known-well time (when the patient was last observed neurologically normal) defines the treatment window — NOT the time symptoms were discovered. CT perfusion replaces the time clock with a tissue clock: a large penumbra-to-core mismatch indicates salvageable brain regardless of elapsed time. However, anticoagulation (apixaban) makes IV tPA unsafe even if perfusion imaging is favorable — mechanical thrombectomy becomes the primary reperfusion strategy. The imaging-to-groin-puncture time (<60 min) is the final temporal bottleneck. Every decision in this scenario requires tracking a different clock simultaneously."
