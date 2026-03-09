@@ -64,6 +64,68 @@ class AnthropicClient:
                     "anthropic package required: pip install anthropic"
                 )
 
+    def _convert_messages(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
+        """Convert generic messages to Anthropic format.
+
+        Anthropic requires:
+        - System message as separate 'system' parameter
+        - Assistant tool calls as content blocks (not 'tool_calls' field)
+        - Tool results as role='user' with tool_result content blocks
+        """
+        system_msg = None
+        converted = []
+
+        for msg in messages:
+            role = msg["role"]
+
+            if role == "system":
+                system_msg = msg["content"]
+                continue
+
+            if role == "assistant":
+                content_blocks: list[dict[str, Any]] = []
+                if msg.get("content"):
+                    content_blocks.append({"type": "text", "text": msg["content"]})
+                for tc in msg.get("tool_calls", []):
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "input": tc.get("arguments", {}),
+                    })
+                converted.append({
+                    "role": "assistant",
+                    "content": content_blocks if content_blocks else msg.get("content", ""),
+                })
+
+            elif role == "tool":
+                # Anthropic: tool results go in role=user with tool_result blocks
+                # Merge consecutive tool results into one user message
+                tool_block = {
+                    "type": "tool_result",
+                    "tool_use_id": msg.get("tool_call_id", ""),
+                    "content": msg.get("content", ""),
+                }
+                if converted and converted[-1].get("_tool_results"):
+                    converted[-1]["content"].append(tool_block)
+                else:
+                    converted.append({
+                        "role": "user",
+                        "content": [tool_block],
+                        "_tool_results": True,
+                    })
+
+            else:
+                converted.append({"role": role, "content": msg.get("content", "")})
+
+        # Strip internal markers
+        for msg in converted:
+            msg.pop("_tool_results", None)
+
+        return system_msg, converted
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -73,24 +135,17 @@ class AnthropicClient:
     ) -> dict[str, Any]:
         self._ensure_client()
 
+        system_msg, converted_messages = self._convert_messages(messages)
+
         kwargs: dict[str, Any] = {
             "model": self._model,
-            "messages": messages,
+            "messages": converted_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
 
-        # Extract system message
-        system_msg = None
-        filtered_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_msg = msg["content"]
-            else:
-                filtered_messages.append(msg)
         if system_msg:
             kwargs["system"] = system_msg
-            kwargs["messages"] = filtered_messages
 
         if tools:
             kwargs["tools"] = [
@@ -141,6 +196,50 @@ class OpenAIClient:
                     "openai package required: pip install openai"
                 )
 
+    def _convert_messages(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Convert generic messages to OpenAI format.
+
+        OpenAI requires:
+        - Assistant tool_calls with type='function' and function wrapper
+        - Tool call arguments as JSON strings (not dicts)
+        - Tool results as role='tool' with tool_call_id
+        """
+        converted = []
+        for msg in messages:
+            role = msg["role"]
+
+            if role == "assistant" and msg.get("tool_calls"):
+                oai_tool_calls = []
+                for tc in msg["tool_calls"]:
+                    args = tc.get("arguments", {})
+                    if isinstance(args, dict):
+                        args = json.dumps(args)
+                    oai_tool_calls.append({
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": args,
+                        },
+                    })
+                converted.append({
+                    "role": "assistant",
+                    "content": msg.get("content") or None,
+                    "tool_calls": oai_tool_calls,
+                })
+            elif role == "tool":
+                converted.append({
+                    "role": "tool",
+                    "tool_call_id": msg.get("tool_call_id", ""),
+                    "content": msg.get("content", ""),
+                })
+            else:
+                converted.append(msg)
+
+        return converted
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -150,9 +249,11 @@ class OpenAIClient:
     ) -> dict[str, Any]:
         self._ensure_client()
 
+        converted_messages = self._convert_messages(messages)
+
         kwargs: dict[str, Any] = {
             "model": self._model,
-            "messages": messages,
+            "messages": converted_messages,
             "temperature": temperature,
             "max_completion_tokens": max_tokens,
         }
