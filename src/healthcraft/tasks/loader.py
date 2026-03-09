@@ -13,8 +13,8 @@ import yaml
 class Task:
     """Immutable task definition loaded from YAML.
 
-    Each task defines a clinical scenario with expected tools, rubric
-    dimensions, and initial world state configuration.
+    Each task defines a clinical scenario with binary evaluation criteria
+    (Corecraft Eq. 1), expected tools, and initial world state configuration.
     """
 
     id: str
@@ -24,8 +24,11 @@ class Task:
     description: str
     initial_state: dict[str, Any]
     expected_tools: tuple[str, ...]
-    rubric: dict[str, Any]
+    criteria: tuple[dict[str, Any], ...]
     metadata: dict[str, Any]
+    system_prompt_override: str | None = None
+    # Kept for backward compatibility / diagnostic analysis
+    rubric: dict[str, Any] | None = None
 
 
 # --- Schema validation ---
@@ -55,10 +58,27 @@ def _validate_task_dict(data: dict[str, Any], source: str = "") -> list[str]:
         if not isinstance(level, int) or not (1 <= level <= 5):
             errors.append(f"{prefix}level must be an integer 1-5, got: {level}")
 
-    if "rubric" in data:
-        rubric = data["rubric"]
-        if not isinstance(rubric, dict):
-            errors.append(f"{prefix}rubric must be a dict")
+    # Validate criteria if present
+    if "criteria" in data:
+        criteria = data["criteria"]
+        if not isinstance(criteria, list):
+            errors.append(f"{prefix}criteria must be a list")
+        else:
+            for i, criterion in enumerate(criteria):
+                if not isinstance(criterion, dict):
+                    errors.append(f"{prefix}criteria[{i}] must be a dict")
+                    continue
+                if "id" not in criterion:
+                    errors.append(f"{prefix}criteria[{i}] missing 'id'")
+                if "assertion" not in criterion:
+                    errors.append(f"{prefix}criteria[{i}] missing 'assertion'")
+                if "verification" not in criterion:
+                    errors.append(f"{prefix}criteria[{i}] missing 'verification'")
+                elif criterion["verification"] not in ("world_state", "llm_judge", "pattern"):
+                    errors.append(
+                        f"{prefix}criteria[{i}] verification must be "
+                        f"world_state/llm_judge/pattern, got: {criterion['verification']}"
+                    )
 
     return errors
 
@@ -89,11 +109,15 @@ def load_task(path: Path) -> Task:
     if errors:
         raise ValueError("Task validation failed:\n" + "\n".join(errors))
 
-    # Support both naming conventions:
-    #   initial_state / setting   (world state context)
-    #   expected_tools / tools_required   (tool list)
+    # Support both naming conventions for world state context
     initial_state = data.get("initial_state") or data.get("setting", {})
+
+    # Support both naming conventions for expected tools
     expected_tools = data.get("expected_tools") or data.get("tools_required", ())
+
+    # Parse criteria (new binary format)
+    raw_criteria = data.get("criteria", [])
+    criteria = tuple(raw_criteria)
 
     return Task(
         id=data["id"],
@@ -103,8 +127,10 @@ def load_task(path: Path) -> Task:
         description=data["description"],
         initial_state=initial_state,
         expected_tools=tuple(expected_tools),
-        rubric=data.get("rubric", {}),
+        criteria=criteria,
         metadata=data.get("metadata", {}),
+        system_prompt_override=data.get("system_prompt_override"),
+        rubric=data.get("rubric"),
     )
 
 
@@ -138,7 +164,6 @@ def load_tasks(directory: Path) -> list[Task]:
             errors.append(str(e))
 
     if errors:
-        # Log but don't fail -- partial loading is acceptable
         import warnings
 
         for err in errors:

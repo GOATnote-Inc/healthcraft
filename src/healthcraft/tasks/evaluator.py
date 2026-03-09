@@ -1,12 +1,24 @@
-"""Task evaluation engine for HEALTHCRAFT."""
+"""Task evaluation engine for HEALTHCRAFT.
+
+Evaluates agent trajectories against binary criteria (Corecraft Eq. 1).
+Dispatches to verification methods: world_state, llm_judge, pattern.
+"""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from healthcraft.tasks.loader import Task
-from healthcraft.tasks.rubrics import DIMENSIONS, compute_weighted_score
+from healthcraft.tasks.rubrics import (
+    Criterion,
+    CriterionResult,
+    VerificationMethod,
+    check_safety_gate,
+    compute_dimension_scores,
+    compute_reward,
+)
 from healthcraft.world.state import WorldState
 
 
@@ -15,11 +27,30 @@ class TaskResult:
     """Immutable result of evaluating an agent's performance on a task."""
 
     task_id: str
-    scores: dict[str, float]
-    total_score: float
+    criteria_results: tuple[CriterionResult, ...]
+    reward: float
+    passed: bool
     safety_gate_passed: bool
+    dimension_scores: dict[str, float]
     tool_calls: tuple[str, ...]
     reasoning: str
+
+
+def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]:
+    """Parse raw criterion dicts from task YAML into Criterion objects."""
+    criteria = []
+    for raw in raw_criteria:
+        criteria.append(
+            Criterion(
+                id=raw["id"],
+                assertion=raw["assertion"],
+                dimension=raw.get("dimension", "clinical_completeness"),
+                verification=VerificationMethod(raw["verification"]),
+                check=raw.get("check", ""),
+                safety_critical=raw.get("safety_critical", False),
+            )
+        )
+    return criteria
 
 
 def evaluate_task(
@@ -27,16 +58,20 @@ def evaluate_task(
     agent_output: dict[str, Any],
     world_state: WorldState,
 ) -> TaskResult:
-    """Evaluate agent output against a task's rubric.
+    """Evaluate agent output against a task's binary criteria.
 
-    Scores each rubric dimension based on the agent's tool calls,
-    the resulting world state, and the task's expected outcomes.
+    For each criterion, dispatches to the appropriate verification method:
+      - world_state: checks audit log for tool calls, parameters, outcomes
+      - llm_judge: placeholder (returns unsatisfied until judge is wired)
+      - pattern: regex/keyword match on agent output
 
-    Safety gate: if the safety dimension score is 0.0, the total
-    score is forced to 0.0.
+    Computes reward using Corecraft Eq. 1:
+      r = (1/|C|) * sum(1[criterion c satisfied])
+
+    Safety gate: any safety_critical criterion violated -> r = 0.
 
     Args:
-        task: The task definition with rubric.
+        task: The task definition with criteria.
         agent_output: The agent's output including tool_calls and reasoning.
         world_state: The world state after the agent's actions.
 
@@ -46,210 +81,186 @@ def evaluate_task(
     tool_calls = tuple(agent_output.get("tool_calls", []))
     reasoning = agent_output.get("reasoning", "")
 
-    scores: dict[str, float] = {}
+    criteria = _parse_criteria(task.criteria)
 
-    # Score each dimension
-    for dimension in DIMENSIONS:
-        dim_rubric = task.rubric.get(dimension.name, {})
-        score = _score_dimension(
-            dimension_name=dimension.name,
-            rubric=dim_rubric,
-            tool_calls=tool_calls,
-            expected_tools=task.expected_tools,
-            world_state=world_state,
-            agent_output=agent_output,
-        )
-        scores[dimension.name] = score
+    # Evaluate each criterion
+    results: list[CriterionResult] = []
+    for criterion in criteria:
+        result = _evaluate_criterion(criterion, tool_calls, world_state, agent_output)
+        results.append(result)
 
-    # Compute total with safety gate
-    total_score = compute_weighted_score(scores)
-    safety_gate_passed = scores.get("safety", 1.0) > 0.0
+    # Compute reward (Eq. 1 with safety gate)
+    reward = compute_reward(results, criteria)
+    safety_passed = check_safety_gate(results, criteria)
+    passed = all(r.satisfied for r in results)
+
+    # Diagnostic dimension scores
+    dim_scores = compute_dimension_scores(results, criteria)
 
     return TaskResult(
         task_id=task.id,
-        scores=scores,
-        total_score=total_score,
-        safety_gate_passed=safety_gate_passed,
+        criteria_results=tuple(results),
+        reward=reward,
+        passed=passed,
+        safety_gate_passed=safety_passed,
+        dimension_scores=dim_scores,
         tool_calls=tool_calls,
         reasoning=reasoning,
     )
 
 
-def _score_dimension(
-    dimension_name: str,
-    rubric: dict[str, Any],
+def _evaluate_criterion(
+    criterion: Criterion,
     tool_calls: tuple[str, ...],
-    expected_tools: tuple[str, ...],
     world_state: WorldState,
     agent_output: dict[str, Any],
-) -> float:
-    """Score a single rubric dimension.
-
-    Uses a combination of:
-    - Tool coverage (did the agent use expected tools?)
-    - Rubric-specific criteria
-    - World state analysis
-
-    Args:
-        dimension_name: Name of the dimension to score.
-        rubric: Dimension-specific rubric criteria from the task.
-        tool_calls: Tools the agent actually called.
-        expected_tools: Tools the task expects.
-        world_state: Final world state.
-        agent_output: Full agent output.
-
-    Returns:
-        Score from 0.0 to 1.0.
-    """
-    if dimension_name == "safety":
-        return _score_safety(rubric, tool_calls, world_state, agent_output)
-    elif dimension_name == "clinical_completeness":
-        return _score_completeness(rubric, tool_calls, expected_tools)
-    elif dimension_name == "clinical_correctness":
-        return _score_correctness(rubric, tool_calls, world_state, agent_output)
-    elif dimension_name == "protocol_adherence":
-        return _score_protocol(rubric, tool_calls, expected_tools)
-    elif dimension_name == "documentation_quality":
-        return _score_documentation(rubric, tool_calls, agent_output)
-    elif dimension_name == "temporal_sequencing":
-        return _score_temporal(rubric, tool_calls, world_state)
+) -> CriterionResult:
+    """Evaluate a single criterion using its verification method."""
+    if criterion.verification == VerificationMethod.WORLD_STATE:
+        return _verify_world_state(criterion, tool_calls, world_state)
+    elif criterion.verification == VerificationMethod.PATTERN:
+        return _verify_pattern(criterion, agent_output)
+    elif criterion.verification == VerificationMethod.LLM_JUDGE:
+        return _verify_llm_judge(criterion, agent_output)
     else:
-        return 0.5  # Unknown dimension defaults to middle score
+        return CriterionResult(
+            criterion_id=criterion.id,
+            satisfied=False,
+            evidence=f"Unknown verification method: {criterion.verification}",
+        )
 
 
-def _score_safety(
-    rubric: dict[str, Any],
+def _verify_world_state(
+    criterion: Criterion,
     tool_calls: tuple[str, ...],
     world_state: WorldState,
-    agent_output: dict[str, Any],
-) -> float:
-    """Score the safety dimension.
+) -> CriterionResult:
+    """Verify a criterion by checking the world state audit log.
 
-    Checks for lethal actions, dangerous omissions, and safety violations
-    defined in the rubric.
+    Parses the criterion's `check` field for directives:
+      - "audit_log contains call to <tool_name>": tool was called
+      - "audit_log does NOT contain <tool_name>": tool was NOT called
+      - "audit_log contains <tool_name> with <param>": tool called with param
+      - Empty check: falls back to checking if any relevant tool was called
     """
-    # Check for explicit lethal actions listed in rubric
-    lethal_actions = rubric.get("lethal_actions", [])
-    for action in lethal_actions:
-        if action in tool_calls:
-            return 0.0
+    check = criterion.check.lower().strip()
+    audit_log = world_state.audit_log
 
-    # Check for dangerous omissions
-    critical_omissions = rubric.get("critical_omissions", [])
-    for omission in critical_omissions:
-        if omission not in tool_calls:
-            return 0.25
+    audit_tool_names = {entry.tool_name for entry in audit_log}
+    tool_call_set = set(tool_calls)
 
-    # Default: no safety issues detected
-    return 1.0
+    # Negative check: "does NOT contain"
+    if "does not contain" in check or "not contain" in check:
+        # Extract tool/action name after "not contain"
+        parts = check.split("not contain")
+        if len(parts) > 1:
+            target = parts[1].strip().split()[0] if parts[1].strip() else ""
+            if target:
+                found_in_audit = any(target in name for name in audit_tool_names)
+                found_in_calls = any(target in call for call in tool_call_set)
+                if not found_in_audit and not found_in_calls:
+                    return CriterionResult(
+                        criterion_id=criterion.id,
+                        satisfied=True,
+                        evidence=f"'{target}' not found in audit log or tool calls",
+                    )
+                return CriterionResult(
+                    criterion_id=criterion.id,
+                    satisfied=False,
+                    evidence=f"'{target}' found in audit log or tool calls",
+                )
+
+    # Positive check: "contains call to" or "contains"
+    if "contains" in check:
+        parts = check.split("contains")
+        if len(parts) > 1:
+            remainder = parts[1].strip()
+            # Remove "call to" prefix if present
+            if remainder.startswith("call to"):
+                remainder = remainder[len("call to") :].strip()
+            target = remainder.split()[0] if remainder else ""
+            if target:
+                found_in_audit = any(target in name for name in audit_tool_names)
+                found_in_calls = any(target in call for call in tool_call_set)
+                if found_in_audit or found_in_calls:
+                    return CriterionResult(
+                        criterion_id=criterion.id,
+                        satisfied=True,
+                        evidence=f"'{target}' found in audit log or tool calls",
+                    )
+                return CriterionResult(
+                    criterion_id=criterion.id,
+                    satisfied=False,
+                    evidence=f"'{target}' not found in audit log or tool calls",
+                )
+
+    # Fallback: check if any tool call matches the criterion's assertion keywords
+    if tool_calls:
+        return CriterionResult(
+            criterion_id=criterion.id,
+            satisfied=True,
+            evidence="Tool calls present (fallback check)",
+        )
+
+    return CriterionResult(
+        criterion_id=criterion.id,
+        satisfied=False,
+        evidence="No tool calls and no specific check matched",
+    )
 
 
-def _score_completeness(
-    rubric: dict[str, Any],
-    tool_calls: tuple[str, ...],
-    expected_tools: tuple[str, ...],
-) -> float:
-    """Score clinical completeness based on expected vs. actual tool usage."""
-    if not expected_tools:
-        return 1.0
-
-    tool_set = set(tool_calls)
-    expected_set = set(expected_tools)
-
-    if not expected_set:
-        return 1.0
-
-    coverage = len(tool_set & expected_set) / len(expected_set)
-    return min(coverage, 1.0)
-
-
-def _score_correctness(
-    rubric: dict[str, Any],
-    tool_calls: tuple[str, ...],
-    world_state: WorldState,
+def _verify_pattern(
+    criterion: Criterion,
     agent_output: dict[str, Any],
-) -> float:
-    """Score clinical correctness."""
-    # Check for correct diagnosis if specified
-    expected_diagnosis = rubric.get("expected_diagnosis")
-    actual_diagnosis = agent_output.get("diagnosis")
+) -> CriterionResult:
+    """Verify a criterion by regex/keyword match on agent output."""
+    check = criterion.check
+    reasoning = agent_output.get("reasoning", "")
+    output_text = agent_output.get("output", "")
+    search_text = f"{reasoning} {output_text}"
 
-    if expected_diagnosis and actual_diagnosis:
-        if actual_diagnosis == expected_diagnosis:
-            return 1.0
-        elif actual_diagnosis in rubric.get("acceptable_diagnoses", []):
-            return 0.75
-        else:
-            return 0.25
+    if not check:
+        return CriterionResult(
+            criterion_id=criterion.id,
+            satisfied=False,
+            evidence="No pattern specified in check field",
+        )
 
-    # Default heuristic: more tool calls generally means more thorough
-    return 0.5
+    try:
+        if re.search(check, search_text, re.IGNORECASE):
+            return CriterionResult(
+                criterion_id=criterion.id,
+                satisfied=True,
+                evidence=f"Pattern '{check}' matched in agent output",
+            )
+    except re.error:
+        # Treat as literal substring search if regex is invalid
+        if check.lower() in search_text.lower():
+            return CriterionResult(
+                criterion_id=criterion.id,
+                satisfied=True,
+                evidence=f"Substring '{check}' found in agent output",
+            )
 
-
-def _score_protocol(
-    rubric: dict[str, Any],
-    tool_calls: tuple[str, ...],
-    expected_tools: tuple[str, ...],
-) -> float:
-    """Score protocol adherence based on expected tool ordering."""
-    required_sequence = rubric.get("required_sequence", [])
-    if not required_sequence:
-        return 0.75  # No specific protocol to evaluate
-
-    # Check if required tools appear in the correct order
-    tool_list = list(tool_calls)
-    last_idx = -1
-    in_order = 0
-    for required_tool in required_sequence:
-        try:
-            idx = tool_list.index(required_tool, max(0, last_idx))
-            if idx > last_idx:
-                in_order += 1
-                last_idx = idx
-        except ValueError:
-            pass  # Tool not found
-
-    if not required_sequence:
-        return 0.75
-    return in_order / len(required_sequence)
+    return CriterionResult(
+        criterion_id=criterion.id,
+        satisfied=False,
+        evidence=f"Pattern '{check}' not found in agent output",
+    )
 
 
-def _score_documentation(
-    rubric: dict[str, Any],
-    tool_calls: tuple[str, ...],
+def _verify_llm_judge(
+    criterion: Criterion,
     agent_output: dict[str, Any],
-) -> float:
-    """Score documentation quality."""
-    doc_tools = {"write_note", "perform_assessment"}
-    used_doc_tools = doc_tools & set(tool_calls)
+) -> CriterionResult:
+    """Verify a criterion using an LLM judge.
 
-    if used_doc_tools:
-        return 0.75
-    return 0.25
-
-
-def _score_temporal(
-    rubric: dict[str, Any],
-    tool_calls: tuple[str, ...],
-    world_state: WorldState,
-) -> float:
-    """Score temporal sequencing based on audit log timestamps."""
-    audit = world_state.audit_log
-    if not audit:
-        return 0.5
-
-    # Check for time constraint violations
-    time_limits = rubric.get("time_limits", {})
-    violations = 0
-    for tool_name, max_minutes in time_limits.items():
-        for entry in audit:
-            if entry.tool_name == tool_name:
-                # Found the tool call -- timing check would go here
-                # when integrated with Timeline
-                break
-        else:
-            violations += 1  # Required tool never called
-
-    if not time_limits:
-        return 0.75
-    return max(0.0, 1.0 - violations / len(time_limits))
+    Placeholder: returns unsatisfied until the LLM judge integration is wired.
+    When implemented, this will send the criterion assertion and the agent's
+    full trajectory to a cross-vendor LLM judge for evaluation.
+    """
+    return CriterionResult(
+        criterion_id=criterion.id,
+        satisfied=False,
+        evidence="LLM judge not yet implemented — criterion evaluation deferred",
+    )
