@@ -375,19 +375,23 @@ def get_patient_history(world, params):
 
     data = _serialize(patient)
 
-    # Collect allergies for this patient
-    allergies = []
+    # Collect allergies for this patient from dedicated allergy entities.
+    # If none exist, preserve the Patient dataclass's own allergy data.
+    allergy_entities = []
     for _, allergy in world.list_entities("allergy").items():
         if _get(allergy, "patient_id") == patient_id:
-            allergies.append(_serialize(allergy))
-    data["allergies"] = allergies
+            allergy_entities.append(_serialize(allergy))
+    if allergy_entities:
+        data["allergies"] = allergy_entities
 
-    # Collect medications for this patient
-    medications = []
+    # Collect medications for this patient from dedicated medication entities.
+    # If none exist, preserve the Patient dataclass's own medication data.
+    med_entities = []
     for _, med in world.list_entities("medication").items():
         if _get(med, "patient_id") == patient_id:
-            medications.append(_serialize(med))
-    data["medications"] = medications
+            med_entities.append(_serialize(med))
+    if med_entities:
+        data["medications"] = med_entities
 
     # Collect encounter IDs for this patient
     encounter_ids = []

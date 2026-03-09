@@ -26,6 +26,7 @@ class Task:
     expected_tools: tuple[str, ...]
     criteria: tuple[dict[str, Any], ...]
     metadata: dict[str, Any]
+    patient: dict[str, Any] | None = None
     system_prompt_override: str | None = None
     # Kept for backward compatibility / diagnostic analysis
     rubric: dict[str, Any] | None = None
@@ -129,6 +130,7 @@ def load_task(path: Path) -> Task:
         expected_tools=tuple(expected_tools),
         criteria=criteria,
         metadata=data.get("metadata", {}),
+        patient=data.get("patient"),
         system_prompt_override=data.get("system_prompt_override"),
         rubric=data.get("rubric"),
     )

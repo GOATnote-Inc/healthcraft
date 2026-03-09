@@ -28,6 +28,7 @@ from healthcraft.llm.agent import create_client, run_agent_task
 from healthcraft.llm.judge import LLMJudge, select_judge_model
 from healthcraft.mcp.server import create_server
 from healthcraft.tasks.evaluator import evaluate_task
+from healthcraft.tasks.inject import inject_task_patient
 from healthcraft.tasks.loader import Task, load_task, load_tasks
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod
 from healthcraft.trajectory import (
@@ -184,6 +185,11 @@ def run_frontier_evaluation(
 
             # Seed fresh world state for each trial
             world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
+
+            # Inject task-described patient into world state
+            if task.patient:
+                inject_task_patient(world, task.id, task.patient, task.initial_state)
+
             server = create_server(world)
 
             # Load system prompt
