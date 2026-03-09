@@ -146,8 +146,9 @@ def _verify_world_state(
     check = criterion.check.lower().strip()
     audit_log = world_state.audit_log
 
-    audit_tool_names = {entry.tool_name for entry in audit_log}
-    tool_call_set = set(tool_calls)
+    # Case-insensitive tool name sets for matching against lowered check string
+    audit_tool_names = {entry.tool_name.lower() for entry in audit_log}
+    tool_call_set = {tc.lower() for tc in tool_calls}
 
     # Negative check: "does NOT contain"
     if "does not contain" in check or "not contain" in check:
