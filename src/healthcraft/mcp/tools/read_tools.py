@@ -301,32 +301,55 @@ def get_encounter_details(world, params):
 def get_condition_details(world, params):
     """Return full clinical knowledge for a condition.
 
-    Tries with "CK-" prefix first, then the raw condition_id.
+    Tries condition_id first (with CK- prefix), then falls back to
+    condition_name substring search.
 
     Params:
-        condition_id (required)
+        condition_id (str): Direct condition ID lookup.
+        condition_name (str): Condition name for substring search fallback.
     """
     condition_id = params.get("condition_id")
-    if not condition_id:
-        return _error("invalid_params", "condition_id is required")
+    condition_name = params.get("condition_name")
 
-    # Try with CK- prefix first
-    prefixed = f"CK-{condition_id}" if not condition_id.startswith("CK-") else condition_id
-    entity = world.get_entity("clinical_knowledge", prefixed)
+    if not condition_id and not condition_name:
+        return _error("invalid_params", "condition_id or condition_name is required")
 
-    # Fall back to raw ID
-    if entity is None:
-        entity = world.get_entity("clinical_knowledge", condition_id)
+    entity = None
 
-    # Fall back to searching by condition_id field
-    if entity is None:
+    if condition_id:
+        # Try with CK- prefix first (case-sensitive, then lowercase)
+        prefixed = f"CK-{condition_id}" if not condition_id.startswith("CK-") else condition_id
+        entity = world.get_entity("clinical_knowledge", prefixed)
+        if entity is None:
+            entity = world.get_entity("clinical_knowledge", prefixed.lower())
+
+        # Fall back to raw ID
+        if entity is None:
+            entity = world.get_entity("clinical_knowledge", condition_id)
+        if entity is None:
+            entity = world.get_entity("clinical_knowledge", condition_id.lower())
+
+        # Fall back to case-insensitive search by condition_id field
+        if entity is None:
+            query_lower = condition_id.lower()
+            for _, ck in world.list_entities("clinical_knowledge").items():
+                ck_cid = _get(ck, "condition_id")
+                if ck_cid and ck_cid.lower() == query_lower:
+                    entity = ck
+                    break
+
+    # Fall back to condition_name substring search
+    if entity is None and condition_name:
+        query = condition_name.lower()
         for _, ck in world.list_entities("clinical_knowledge").items():
-            if _get(ck, "condition_id") == condition_id:
+            name = _get(ck, "condition_name", _get(ck, "name", ""))
+            if name and query in str(name).lower():
                 entity = ck
                 break
 
     if entity is None:
-        return _error("not_found", f"Condition {condition_id} not found")
+        lookup = condition_id or condition_name
+        return _error("not_found", f"Condition '{lookup}' not found")
 
     return _ok(_serialize(entity))
 

@@ -188,12 +188,75 @@ class WorldSeeder:
             world.put_entity(EntityType.ENCOUNTER.value, encounter.id, encounter)
 
     def _generate_clinical_knowledge(self, world: WorldState, config: dict[str, Any]) -> None:
-        """Load clinical knowledge entities into world state."""
+        """Load clinical knowledge entities into world state.
+
+        When the config specifies ``source: "openem"`` and the OpenEM package
+        is installed, loads condition data from the OpenEM corpus frontmatter.
+        Otherwise falls back to the 5 bundled conditions.
+        """
         from healthcraft.entities.clinical_knowledge import load_clinical_knowledge
 
-        knowledge = load_clinical_knowledge()
+        ck_config = self._entity_config(config, "clinical_knowledge")
+        condition_map = None
+
+        if ck_config.get("source") == "openem":
+            condition_map = self._load_openem_conditions()
+
+        knowledge = load_clinical_knowledge(condition_map=condition_map)
         for ck_id, ck in knowledge.items():
             world.put_entity(EntityType.CLINICAL_KNOWLEDGE.value, ck.id, ck)
+
+    @staticmethod
+    def _load_openem_conditions() -> dict[str, dict[str, Any]] | None:
+        """Load structured condition data from OpenEM corpus frontmatter.
+
+        Returns:
+            Dict of condition_id -> condition data, or None if OpenEM is
+            unavailable or loading fails.
+        """
+        try:
+            from openem.conditions import _CONDITIONS_DIR, _extract_frontmatter
+        except ImportError:
+            return None
+
+        if not _CONDITIONS_DIR.is_dir():
+            return None
+
+        conditions: dict[str, dict[str, Any]] = {}
+        for md_file in sorted(_CONDITIONS_DIR.glob("*.md")):
+            text = md_file.read_text(encoding="utf-8")
+            fm = _extract_frontmatter(text)
+            if not fm:
+                continue
+            cid = fm.get("id", "")
+            if not cid:
+                continue
+
+            icd10_raw = fm.get("icd10", "")
+            if isinstance(icd10_raw, list):
+                icd10_raw = icd10_raw[0] if icd10_raw else ""
+
+            tth = fm.get("time_to_harm", "")
+            if isinstance(tth, dict):
+                tth = tth.get("typical", str(tth))
+
+            conditions[cid] = {
+                "condition_id": cid,
+                "condition_name": fm.get("condition", cid),
+                "icd10": icd10_raw,
+                "esi": fm.get("esi", 3),
+                "time_to_harm": tth,
+                "category": fm.get("category", ""),
+                "confusion_pairs": fm.get("confusion_pairs", []),
+                "decision_rules": fm.get("decision_rules", []),
+                "critical_actions": fm.get("critical_actions", []),
+                "differentials": fm.get("differentials", []),
+                "workup": fm.get("workup", []),
+                "treatment": fm.get("treatment", []),
+                "pitfalls": fm.get("pitfalls", []),
+            }
+
+        return conditions if conditions else None
 
     def _generate_protocols(self, world: WorldState) -> None:
         """Load protocol entities into world state."""
