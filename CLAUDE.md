@@ -12,12 +12,30 @@ Environments") to emergency medicine. Public repo, Apache 2.0, GOATnote-Inc/heal
 This project adapts Corecraft's architecture to emergency medicine. Key paper
 sections and how we map them:
 
-- **Section 3 (World Building):** 14 entity types with 5,000+ entities → our entity graph
+- **Section 3 (World Building):** 14 entity types with 2,500+ entities → our 14 types, 3,987 entities (seed=42)
 - **Section 4 (Task Design):** Binary criteria rubrics with Eq. 1 reward → our dual-layer rubric
 - **Section 5 (MCP Tools):** 23 tools + 1 new (runDecisionRule) = 24 camelCase MCP tools
 - **Section 5.5 (Noise):** Pagination limits, conflicting timestamps, incomplete records
 - **Table 2 (Docker):** Self-contained Docker bundle (PostgreSQL + MCP server + task engine)
 - **Eq. 1:** r = (1/|C|) × Σ 1[criterion c satisfied] — this is the ONLY reward signal
+
+## Workflow Rules
+
+1. **After code changes:** Run `make test` (or single test file for speed)
+2. **Before completion:** Run `make lint`
+3. **Before commit:** Stage files by name, never `git add -A`
+4. **Results are immutable:** Never modify files in `results/`
+
+## Quick Reference
+
+```bash
+make test          # pytest tests/ -q
+make lint          # ruff check + format check
+make smoke         # Seed world, start MCP, run 5 tasks
+make eval          # Run evaluation (simulated agent)
+make docker-up     # docker compose up -d --build
+set -a && source .env && set +a   # Load API keys
+```
 
 ## Rubric Architecture: Dual-Layer
 
@@ -116,7 +134,7 @@ This file is the source of truth for tool discovery by MCP clients. Every tool
 must have: name, description, parameters (with types, patterns, constraints),
 and return schema.
 
-## Entity Graph (14 types, 5,000+ entities)
+## Entity Graph (14 types, 3,987 entities at seed=42)
 
 ### Implementation order (dependency-driven)
 
@@ -156,6 +174,29 @@ Per Corecraft Section 5.5 ("the 'noise' of real enterprise data"):
 - **Red herrings:** Irrelevant abnormal findings in entity data
 
 Noise is seeded deterministically so evaluations are reproducible.
+
+## Frontier Model Failure Patterns
+
+Corecraft Section 4.1 identifies three recurring failure patterns that our
+environment is designed to expose. HEALTHCRAFT tasks deliberately test these:
+
+1. **Poor Search Strategy:** Models default to generic keyword searches rather
+   than reasoning about which tool calls would most efficiently narrow the
+   search space. EM example: searching for "chest pain" instead of first
+   retrieving the specific patient's encounter, then querying relevant labs.
+
+2. **Failure to Paginate Through Incomplete Results:** Search tools return
+   max 10 results with no `hasMore` signal. Models accept truncated results
+   as complete rather than issuing follow-up queries. EM example: retrieving
+   only the first 10 encounters when a patient has 15+ prior visits.
+
+3. **Incomplete Exploration of Available Tools:** Models anchor on the first
+   plausible tool rather than considering alternatives. EM example: using
+   only `getEncounterDetails` to reconstruct a medication list when
+   `getPatientHistory` provides a consolidated view.
+
+These patterns map to rubric criteria: search strategy → `clinical_completeness`,
+pagination → `clinical_completeness`, tool exploration → `protocol_adherence`.
 
 ## Trajectory Format
 
@@ -245,16 +286,17 @@ metadata:
   entity_types: 7
 ```
 
-### Scale targets (155+ tasks)
+### Task inventory (195 tasks)
 
 | Category | Count | Source |
 |----------|-------|--------|
-| Information Retrieval | 30+ | Entity lookups, search patterns |
-| Clinical Communication | 25+ | Discharge, consult, transfer, MDM |
-| Clinical Reasoning | 40+ | Confusion pairs, differentials |
-| Multi-Step Workflows | 25+ | Protocol bundles, complex dispositions |
-| Temporal Reasoning | 15+ | Overlapping protocols, triage under load |
-| Safety-Critical Judgment | 20+ | EMTALA, capacity, protocol override |
+| Clinical Reasoning | 50 | OpenEM confusion pairs, differentials |
+| Multi-Step Workflows | 33 | Protocol bundles, complex dispositions |
+| Information Retrieval | 30 | Entity lookups, search patterns |
+| Clinical Communication | 30 | Discharge, consult, transfer, MDM |
+| Safety-Critical Judgment | 27 | EMTALA, capacity, protocol override |
+| Temporal Reasoning | 25 | Overlapping protocols, triage under load |
+| **Total** | **195** | 2,241 criteria (515 safety-critical) |
 
 ### Task generation sources
 
@@ -275,14 +317,72 @@ docker/
 
 Matches Corecraft Table 2. Self-contained: `docker compose up` starts everything.
 
+## RL Training Integration
+
+Per Corecraft Figure 1 and Section 5.2, the Docker bundle plugs into an RL
+training loop. The architecture has three stages operating in a continuous loop:
+
+```
+Weight Sync → Training (Megatron) → Data Buffer (Bridge) → Rollout (SGLang)
+                                                                ↓
+                                              HEALTHCRAFT Docker Container
+                                              [Tools/Schemas + Entities/World DB]
+                                                                ↓
+                                                           Trajectory
+                                                                ↓
+                                              LLM Judge (Rubric-based grading)
+                                                                ↓
+                                                            Rewards
+                                                                ↓
+                                              → back to Training (Megatron)
+```
+
+**Rollout generation:** 16 rollouts per training prompt. Each rollout interacts
+with its own stateful Docker container. Tool calls route to the MCP server
+inside the container. The container maintains world state for the duration.
+
+**Reward computation:** Eq. 1 from completed trajectories. Binary criteria
+provide dense reward signal while maintaining interpretable task-level metrics.
+
+**Training update:** GRPO with adaptive clipping (Corecraft Section 5.3).
+Megatron reads batches from buffer, computes policy gradients, syncs weights
+back to SGLang rollout engine.
+
+**Training/eval split:** Corecraft uses 1000 training + 150 held-out eval tasks.
+HEALTHCRAFT's 195 tasks can serve as the eval set; training tasks should be
+authored separately at 5-10x scale for RL training.
+
 ## Evaluation Protocol
 
 - **Frontier models:** Claude Opus 4.6, GPT-5.2, Gemini 3.1 Pro (minimum 3)
-- **Trials:** 5 per model per task (Pass^k methodology from LostBench)
-- **Judging:** Cross-vendor (never self-judge)
-- **Target:** <35% task pass rate (Corecraft's best was 30.80%)
+- **Trials:** 5 per model per task (Pass^k methodology from LostBench/τ²-Bench)
+- **Judging:** Cross-vendor (never self-judge). GPT judges Claude; Claude judges GPT.
+- **Target:** <35% task pass rate (Corecraft Table 1: best was 30.80%)
 - **Results:** Append to `results/index.yaml`
 - **RL integration:** 16 rollouts per prompt (Corecraft Section 5.2)
+- **API keys:** `.env` file (gitignored). Load with `set -a && source .env && set +a`
+
+### Evaluation Metrics (from τ²-Bench, Corecraft Table 5)
+
+| Metric | Definition |
+|--------|-----------|
+| Pass@1 | Mean pass rate across runs (expected single-attempt performance) |
+| Pass@3 | Fraction of tasks passed on at least one of 3 runs (best-case) |
+| Pass³ | Fraction of tasks passed on ALL 3 runs (worst-case reliability) |
+| Pass^k | success_rate^k — P(all k trials succeed). Primary deployment metric |
+
+### Reference: Corecraft Table 1 (Frontier Model Performance)
+
+| Model | Task Pass Rate |
+|-------|---------------|
+| Claude Opus 4.6 (Adaptive + Max Reasoning) | 30.80% |
+| GPT-5.2 (High Reasoning) | 29.70% |
+| Gemini 3.1 Pro | 27.20% |
+| Claude Opus 4.6 (High Reasoning) | 26.20% |
+| DeepSeek v3.2 Thinking | 24.10% |
+| Claude Opus 4.6 | 22.10% |
+
+Our target: comparable difficulty (<35% for best frontier model).
 
 ## Key Directories
 
@@ -359,3 +459,25 @@ make docker-up   # Docker compose
 8. Prefer `world_state` verification over `llm_judge` where deterministic checks are possible
 9. camelCase for MCP tool names, snake_case for Python internals
 10. Noise injection must be seeded and deterministic
+
+## Modification Zones
+
+| Zone | Safety | Notes |
+|------|--------|-------|
+| `src/healthcraft/` | Safe | Core source code |
+| `tests/` | Safe | Test code |
+| `scripts/` | Safe | Utility scripts |
+| `configs/tasks/` | Protected | Task definitions affect evaluation correctness |
+| `configs/world/` | Protected | World seed affects all downstream entities |
+| `configs/schemas/` | Protected | Schema changes affect validation |
+| `system-prompts/` | Protected | System prompt changes affect agent behavior |
+| `results/` | Immutable | Append-only. Never modify existing result files |
+
+## Context Compaction
+
+When Claude Code compacts this conversation, preserve:
+1. Current task and acceptance criteria
+2. Files modified in this session
+3. Any result directories created
+4. Unfinished work and next steps
+5. API key status (loaded or not)
