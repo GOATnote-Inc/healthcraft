@@ -1,0 +1,190 @@
+# HEALTHCRAFT Task Definition: Staff Workload and Assignment Lookup
+# Category: information_retrieval | Level: 2
+# Agent must assess nursing workload distribution and recommend reassignment
+# when a critical patient arrives and one zone is dangerously overloaded.
+
+id: IR-027
+category: information_retrieval
+level: 2
+title: "Staff Workload and Assignment Lookup"
+system_prompt_override: null
+
+description: |
+  The charge nurse requests a workload assessment at 19:00 during a busy
+  evening shift. Night shift is 2 hours away and one nurse just called out
+  sick. The ED is divided into 4 zones (A-D), each staffed by 2 RNs. A
+  STEMI patient is arriving in 8 minutes and will need a dedicated nurse.
+  Zone C currently has the highest-acuity patients (including 2 on
+  vasopressor drips and 1 on BiPAP) but is staffed at the same ratio as
+  Zone D, which has mostly ESI-4 and ESI-5 patients. The agent must
+  retrieve the current staffing assignments, patient acuity distribution
+  by zone, and recommend a rebalancing plan before the STEMI arrives.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T19:00:00Z"
+  department: "Emergency Department"
+  census: 44
+  beds_available: 10
+  attending_on_duty: "Dr. David Patel"
+  staffing:
+    current_shift: "evening (15:00-23:00)"
+    night_shift_start: "23:00"
+    callout: "RN Mike Torres (night shift) called in sick, no replacement found"
+    zones:
+      zone_a:
+        beds: "1-14"
+        rn_assigned: ["RN Patricia Coleman", "RN James Liu"]
+        patients: 12
+        acuity_mix:
+          esi_1: 0
+          esi_2: 2
+          esi_3: 6
+          esi_4: 3
+          esi_5: 1
+        critical_patients: []
+        workload_score: "moderate"
+      zone_b:
+        beds: "15-28"
+        rn_assigned: ["RN Diana Reyes", "RN Tom Hawkins"]
+        patients: 11
+        acuity_mix:
+          esi_1: 0
+          esi_2: 1
+          esi_3: 5
+          esi_4: 4
+          esi_5: 1
+        critical_patients: []
+        workload_score: "moderate"
+      zone_c:
+        beds: "29-42 (includes Resus Bay 1-2)"
+        rn_assigned: ["RN Angela Torres", "RN Kevin Park"]
+        patients: 13
+        acuity_mix:
+          esi_1: 2
+          esi_2: 4
+          esi_3: 5
+          esi_4: 2
+          esi_5: 0
+        critical_patients:
+          - "Bed 29: Septic shock on norepinephrine drip (requires 1:1 or 1:2 ratio)"
+          - "Bed 30: CHF exacerbation on BiPAP (requires frequent assessment)"
+          - "Bed 31: Cardiogenic shock on dobutamine drip (requires 1:1 or 1:2 ratio)"
+          - "Resus Bay 1: Post-intubation, mechanically ventilated (requires 1:1)"
+        workload_score: "dangerously_overloaded"
+      zone_d:
+        beds: "43-54"
+        rn_assigned: ["RN Sarah Blake", "RN Maria Santos"]
+        patients: 8
+        acuity_mix:
+          esi_1: 0
+          esi_2: 0
+          esi_3: 2
+          esi_4: 4
+          esi_5: 2
+        critical_patients: []
+        workload_score: "light"
+  incoming:
+    patient: "STEMI, 58M, cath lab activated, ETA 8 minutes"
+    needs: "Dedicated RN for resuscitation bay"
+
+criteria:
+  - id: IR-027-C01
+    assertion: "Agent retrieved the current staffing assignments and zone configurations"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability or searchAvailableResources"
+
+  - id: IR-027-C02
+    assertion: "Agent retrieved the patient census and acuity distribution by zone"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: IR-027-C03
+    assertion: "Agent identified Zone C as dangerously overloaded (13 patients including 4 critical, 2 RNs)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-027-C04
+    assertion: "Agent identified Zone D as underloaded (8 low-acuity patients, 2 RNs)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-027-C05
+    assertion: "Agent recommended moving at least 1 RN from Zone D to Zone C to support the critical patients"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-027-C06
+    assertion: "Agent identified the need for a dedicated RN for the incoming STEMI and recommended a specific assignment"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-027-C07
+    assertion: "Agent flagged that the night shift callout leaves a staffing gap and recommended mitigation (agency nurse, extend evening shift, etc.)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-027-C08
+    assertion: "Agent recognized that 4 critical patients in Zone C each require 1:1 or 1:2 nursing ratios, meaning Zone C needs at least 3 RNs"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-027-C09
+    assertion: "Agent provided a specific reassignment plan with named nurses and new zone assignments"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "checkResourceAvailability"
+  - "searchEncounters"
+  - "searchAvailableResources"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve current staffing assignments and zone configurations"
+    tools: ["checkResourceAvailability", "searchAvailableResources"]
+    critical: true
+  - step: 2
+    action: "Retrieve patient census and acuity distribution by zone"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 3
+    action: "Analyze workload distribution and develop reassignment plan"
+    tools: []
+    critical: true
+    reasoning: |
+      Current state:
+      - Zone C: 2 RNs for 13 patients (4 critical) = UNSAFE
+        - Critical patients need 1:1 or 1:2 ratios
+        - Minimum 3 RNs needed for Zone C alone
+      - Zone D: 2 RNs for 8 low-acuity patients = overstaffed
+      - Incoming STEMI needs a dedicated RN in Resus Bay 2
+
+      Recommended reassignment:
+      1. Move RN Maria Santos from Zone D to Zone C (she takes the
+         2 vasopressor drip patients)
+      2. RN Angela Torres takes the ventilated patient (1:1)
+      3. RN Kevin Park takes the BiPAP patient + the 5 ESI-3 patients
+      4. RN Sarah Blake covers all of Zone D alone (8 low-acuity, safe
+         at 1:8 for ESI-4/5)
+      5. For the STEMI: Pull RN Diana Reyes from Zone B to staff Resus
+         Bay 2 for the STEMI arrival, RN Tom Hawkins covers Zone B alone
+         temporarily (11 patients, moderate acuity, manageable short-term)
+
+      Night shift gap: With the callout, night shift will be short 1 RN.
+      Recommend calling agency or offering overtime to an evening RN.
+  - step: 4
+    action: "Communicate reassignment plan to charge nurse"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: null
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Staffing ratios must match patient acuity, not just patient count. Critical patients on drips, ventilators, or BiPAP require 1:1 or 1:2 nursing ratios. A zone with 2 nurses and 4 critical patients is a patient safety crisis regardless of how many nurses are in the low-acuity zone. Always factor incoming high-acuity patients into staffing decisions."

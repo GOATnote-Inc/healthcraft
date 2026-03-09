@@ -1,0 +1,167 @@
+# HEALTHCRAFT Task Definition: Nurse Delegation and Task Assignment
+# Category: clinical_communication | Level: 3
+# Agent must document clear nursing task assignments for multiple
+# simultaneous patients during a busy shift with appropriate prioritization.
+
+id: CC-022
+category: clinical_communication
+level: 3
+title: "Nurse Delegation and Task Assignment"
+system_prompt_override: null
+
+description: |
+  It is 03:00 during a night shift. The ED has 4 patients requiring
+  simultaneous nursing actions, and only 2 nurses are available after one
+  called in sick. The charge nurse asks the physician to prioritize and
+  clearly document task assignments. The patients are: (1) a septic patient
+  whose blood pressure is dropping and needs vasopressor titration; (2) a
+  chest pain patient who needs serial troponins and is due for a repeat ECG;
+  (3) a pediatric asthma patient whose parents are threatening to leave AMA
+  because of the wait; (4) a post-laceration repair patient ready for
+  discharge who needs wound care instructions and tetanus. The agent must
+  prioritize based on acuity, assign tasks clearly, document the delegation,
+  and ensure nothing safety-critical falls through the cracks.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T03:00:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. James Rivera"
+  nursing_staff:
+    - name: "RN Patricia Okafor"
+      experience: "12 years ED"
+      current_assignment: "Beds 1-8 (critical care trained)"
+    - name: "RN Tyler Nguyen"
+      experience: "2 years ED"
+      current_assignment: "Beds 9-18"
+  charge_nurse: "RN Sandra Mills (supervisory only, not available for direct care)"
+
+patients_requiring_action:
+  - bed: 3
+    summary: "68M, septic shock, MAP dropping to 58 on current norepinephrine dose"
+    acuity: critical
+    needed_actions:
+      - "Titrate norepinephrine to MAP > 65"
+      - "Repeat lactate (4 hours since last)"
+      - "Reassess mental status"
+    time_sensitivity: "immediate"
+
+  - bed: 7
+    summary: "54F, chest pain, troponin #1 negative, due for repeat troponin and ECG"
+    acuity: high
+    needed_actions:
+      - "Draw repeat troponin (3-hour protocol)"
+      - "Repeat 12-lead ECG"
+      - "Reassess pain level"
+    time_sensitivity: "within 30 minutes"
+
+  - bed: 12
+    summary: "6F, moderate asthma exacerbation, improving on nebs, parents frustrated"
+    acuity: moderate
+    needed_actions:
+      - "Administer third albuterol nebulizer"
+      - "Reassess respiratory status post-neb"
+      - "Communicate plan to parents"
+    time_sensitivity: "within 45 minutes"
+
+  - bed: 15
+    summary: "32M, post-laceration repair (forearm), medically cleared for discharge"
+    acuity: low
+    needed_actions:
+      - "Wound care instructions"
+      - "Tetanus vaccine administration"
+      - "Discharge paperwork"
+    time_sensitivity: "within 1 hour"
+
+criteria:
+  - id: CC-022-C01
+    assertion: "Agent retrieved encounter details for all four patients"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-022-C02
+    assertion: "Agent prioritized the septic patient (Bed 3) as the highest priority requiring immediate intervention"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-022-C03
+    assertion: "Agent assigned the septic patient to the critical-care-trained nurse (RN Okafor)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-022-C04
+    assertion: "Agent ensured the chest pain troponin draw would not be missed despite lower priority than sepsis"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-022-C05
+    assertion: "Agent addressed the AMA risk for the pediatric patient with a communication plan for the parents"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-022-C06
+    assertion: "Agent provided specific, actionable task assignments (not vague directives) for each nurse"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-022-C07
+    assertion: "Agent matched task complexity to nurse experience level (vasopressor titration to experienced nurse)"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-022-C08
+    assertion: "Agent set explicit time targets for each task and a re-evaluation checkpoint"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CC-022-C09
+    assertion: "Agent created clinical orders for the time-sensitive tasks (vasopressor titration, troponin draw, nebulizer)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-022-C10
+    assertion: "Agent documented the task delegation and prioritization rationale in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "checkResourceAvailability"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review status of all four patients to confirm acuity"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Verify available nursing staff and competencies"
+    tools: ["checkResourceAvailability"]
+    critical: false
+  - step: 3
+    action: "Assign tasks by priority: sepsis first, then troponin, then asthma, then discharge"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Enter time-sensitive orders"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Document task delegation with rationale"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "sepsis"
+  expected_tool_calls: "5-8"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Task delegation in a short-staffed ED requires explicit prioritization, matching competency to task complexity, and documentation. Vasopressor titration goes to the critical-care nurse. Time-sensitive labs (serial troponins) must not be deferred indefinitely. Frustrated families need communication, not just medical treatment. Every delegation must include what, who, when, and an escalation trigger."

@@ -1,0 +1,194 @@
+# HEALTHCRAFT Task Definition: Treatment-Contraindication Cross-Reference
+# Category: information_retrieval | Level: 3
+# Agent must cross-reference a proposed treatment plan against multiple
+# patient-specific contraindications hidden across different data sources.
+
+id: IR-019
+category: information_retrieval
+level: 3
+title: "Treatment-Contraindication Cross-Reference"
+system_prompt_override: null
+
+description: |
+  A 58-year-old man presents with a new-onset atrial fibrillation with rapid
+  ventricular response (HR 148). He is hemodynamically stable (BP 132/82).
+  The attending plans to initiate rate control with IV diltiazem, chemical
+  cardioversion with IV amiodarone if rate control fails, and start
+  anticoagulation with heparin followed by warfarin for stroke prophylaxis.
+  However, the patient's history — spread across the medication list, problem
+  list, prior encounters, and allergy record — contains multiple
+  contraindications to this plan. The agent must retrieve all relevant patient
+  data, cross-reference it against the proposed treatment, and identify every
+  contraindication before medications are administered.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T07:30:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Lisa Johnson"
+
+patient:
+  age: 58
+  sex: M
+  chief_complaint: "Palpitations, lightheadedness for 3 hours"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 4"
+  allergies:
+    - name: "Amiodarone"
+      reaction: "Thyrotoxicosis requiring thyroidectomy (2023)"
+      severity: "severe"
+      year_reported: 2023
+      verified: true
+    - name: "Shellfish"
+      reaction: "Hives"
+      severity: "mild"
+      year_reported: 2010
+      verified: false
+  medications:
+    - "Metoprolol succinate 100mg daily"
+    - "Tamsulosin 0.4mg daily"
+    - "Sildenafil 50mg PRN"
+    - "Apixaban 5mg BID"
+    - "Levothyroxine 175mcg daily"
+    - "Lisinopril 20mg daily"
+  past_medical_history:
+    - "Hypertension"
+    - "BPH (benign prostatic hyperplasia)"
+    - "Amiodarone-induced thyrotoxicosis (2023) — required total thyroidectomy"
+    - "Post-thyroidectomy hypothyroidism (on levothyroxine)"
+    - "Erectile dysfunction"
+    - "History of heparin-induced thrombocytopenia (HIT) — 2021 during hospitalization for DVT"
+    - "Prior DVT left leg (2021, treated with apixaban)"
+  vitals:
+    heart_rate: 148
+    blood_pressure: "132/82"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 2
+  ecg:
+    interpretation: "Atrial fibrillation with rapid ventricular response, rate 148, no acute ST changes"
+  labs:
+    tsh: 2.4
+    troponin_i: 0.01
+    bmp: "within normal limits"
+    cbc: "Platelets 188, Hgb 14.2"
+  proposed_treatment:
+    - medication: "Diltiazem 20mg IV bolus, then 5-15 mg/hr drip"
+      indication: "Rate control"
+    - medication: "Amiodarone 150mg IV over 10 min if needed"
+      indication: "Chemical cardioversion"
+    - medication: "Heparin 80 units/kg bolus, then 18 units/kg/hr drip"
+      indication: "Anticoagulation"
+    - medication: "Warfarin 5mg PO, overlap with heparin"
+      indication: "Long-term anticoagulation"
+
+criteria:
+  - id: IR-019-C01
+    assertion: "Agent retrieved the patient's allergy list including the amiodarone allergy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: IR-019-C02
+    assertion: "Agent identified that amiodarone is absolutely contraindicated (prior amiodarone-induced thyrotoxicosis)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-019-C03
+    assertion: "Agent identified that heparin is contraindicated due to prior HIT"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-019-C04
+    assertion: "Agent identified that the patient is already on apixaban for prior DVT, making the proposed warfarin/heparin redundant and potentially harmful"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-019-C05
+    assertion: "Agent identified the diltiazem-metoprolol interaction risk (dual AV nodal blockade, risk of severe bradycardia)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-019-C06
+    assertion: "Agent cross-referenced the drug interaction between sildenafil and potential IV medications"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-019-C07
+    assertion: "Agent recommended an alternative rate control strategy accounting for all contraindications"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-019-C08
+    assertion: "Agent recommended a non-heparin anticoagulation strategy (e.g., continue apixaban or use argatroban/bivalirudin if parenteral needed)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-019-C09
+    assertion: "Agent looked up the clinical knowledge base for alternative cardioversion agents"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to searchClinicalKnowledge"
+
+  - id: IR-019-C10
+    assertion: "Agent communicated all identified contraindications to the attending before any medications were given"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getEncounterDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve complete patient history including allergies, medications, and problem list"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Cross-reference proposed treatment plan against patient data"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+    reasoning: |
+      Contraindications found:
+      1. AMIODARONE: Documented allergy — caused thyrotoxicosis requiring
+         thyroidectomy. Absolute contraindication. Never re-challenge.
+      2. HEPARIN: History of HIT (2021). Absolute contraindication.
+         Re-exposure risks catastrophic platelet-mediated thrombosis.
+      3. WARFARIN + existing APIXABAN: Patient already anticoagulated with
+         apixaban for prior DVT. Adding warfarin/heparin creates dual
+         anticoagulation with hemorrhage risk.
+      4. DILTIAZEM + METOPROLOL: Patient on metoprolol 100mg daily. IV
+         diltiazem on top of a beta-blocker risks severe bradycardia,
+         heart block, or hypotension. Use with extreme caution or choose
+         one class.
+      5. SILDENAFIL: No direct interaction with proposed drugs, but
+         important to note for hypotension risk if IV vasodilators used.
+
+      Safe alternatives:
+      - Rate control: Cautious IV diltiazem (reduce dose, monitor for
+        bradycardia given metoprolol) OR hold metoprolol and use diltiazem
+        alone.
+      - Cardioversion: Procainamide, flecainide (if no structural heart
+        disease), or electrical cardioversion.
+      - Anticoagulation: Continue apixaban. If parenteral needed,
+        argatroban or bivalirudin (direct thrombin inhibitors safe in HIT).
+  - step: 3
+    action: "Flag all contraindications to the attending and recommend alternatives"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "atrial_fibrillation"
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "A proposed treatment plan can contain multiple hidden contraindications distributed across allergies, medication lists, and problem lists. Systematic cross-referencing before medication administration prevents catastrophic errors. HIT and amiodarone-induced thyrotoxicosis are absolute contraindications that must never be re-challenged."

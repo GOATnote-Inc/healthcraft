@@ -1,0 +1,201 @@
+# HEALTHCRAFT Task Definition: Medication Timing Conflict
+# Category: temporal_reasoning | Level: 3
+# Two drugs requiring temporal spacing administered to the same patient.
+# The agent must identify the conflict, resequence administration, and
+# prevent a harmful drug-drug interaction.
+
+id: TR-011
+category: temporal_reasoning
+level: 3
+title: "Medication Timing Conflict"
+system_prompt_override: null
+
+description: |
+  It is 16:20. A 63-year-old female in Bed 22 was admitted 3 hours ago for
+  atrial fibrillation with rapid ventricular response (RVR). She received IV
+  diltiazem 20mg at 15:45 with partial rate control (HR dropped from 154 to
+  112). The cardiology consult now recommends starting IV amiodarone for
+  refractory RVR. However, the patient also has a scheduled dose of oral
+  metoprolol 50mg due at 16:30 (her home medication, auto-populated by the
+  admission reconciliation system). Administering IV amiodarone and a
+  beta-blocker in close temporal proximity risks profound bradycardia and
+  hypotension. Additionally, the diltiazem given 35 minutes ago has an
+  elimination half-life of 3-4 hours, meaning significant calcium channel
+  blockade remains. The agent must identify the three-drug temporal collision,
+  hold the metoprolol, determine safe amiodarone initiation timing relative
+  to the diltiazem, and set up appropriate monitoring.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:20:00Z"
+  department: "Emergency Department"
+  census: 42
+  beds_available: 12
+  beds_total: 54
+  shift: "day"
+  esi_distribution:
+    esi_1: 0
+    esi_2: 4
+    esi_3: 19
+    esi_4: 13
+    esi_5: 6
+  attending_count: 2
+  resident_count: 3
+  nurses_on_duty: 11
+  pharmacy_status: "on-site"
+  cardiology_consult:
+    status: "completed"
+    recommendation: "Start IV amiodarone 150mg over 10 min, then 1mg/min drip"
+    time: "2026-01-15T16:15:00Z"
+
+patient:
+  age: 63
+  sex: F
+  chief_complaint: "Palpitations, lightheadedness, atrial fibrillation with RVR"
+  arrival_time: "2026-01-15T13:20:00Z"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Sulfa drugs (rash)"
+  medications:
+    - "Metoprolol tartrate 50mg BID (home med, next dose due 16:30)"
+    - "Warfarin 5mg daily"
+    - "Lisinopril 20mg daily"
+    - "Atorvastatin 40mg daily"
+    - "IV Diltiazem 20mg bolus (administered 15:45 today)"
+  past_medical_history:
+    - "Paroxysmal atrial fibrillation (diagnosed 2023)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "GERD"
+    - "Prior cardioversion (2024, successful)"
+  vitals:
+    time_of_vitals: "2026-01-15T16:15:00Z"
+    heart_rate: 112
+    blood_pressure: "108/68"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 36.9
+    gcs: 15
+  vitals_at_presentation:
+    time_of_vitals: "2026-01-15T13:20:00Z"
+    heart_rate: 154
+    blood_pressure: "92/58"
+    respiratory_rate: 22
+    spo2: 96
+    temperature: 37.1
+    gcs: 15
+  labs_available:
+    tsh: "2.1 mIU/L (normal)"
+    potassium: "3.8 mEq/L"
+    magnesium: "1.6 mg/dL (low-normal)"
+    inr: "2.4 (therapeutic)"
+    troponin: "0.03 ng/mL (normal)"
+    bnp: "480 pg/mL (mildly elevated)"
+    creatinine: "0.9 mg/dL"
+  ecg:
+    rhythm: "Atrial fibrillation"
+    rate: 112
+    intervals: "No acute ST changes"
+    prior_ecg: "AF with rate 154 at presentation"
+
+criteria:
+  - id: TR-011-C01
+    assertion: "Agent identified the temporal conflict between IV diltiazem (given 35 min ago), scheduled metoprolol (due in 10 min), and proposed IV amiodarone"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-011-C02
+    assertion: "Agent held or cancelled the scheduled metoprolol 50mg dose"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with hold or cancel for metoprolol"
+
+  - id: TR-011-C03
+    assertion: "Agent did NOT administer metoprolol concurrently with IV amiodarone and residual diltiazem effect"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain metoprolol administration within 2 hours of diltiazem"
+
+  - id: TR-011-C04
+    assertion: "Agent recognized that diltiazem's 3-4 hour half-life means significant residual calcium channel blockade"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-011-C05
+    assertion: "Agent reviewed the patient's medication administration record and encounter timeline"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails and getPatientHistory"
+
+  - id: TR-011-C06
+    assertion: "Agent ordered continuous cardiac monitoring before initiating amiodarone"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with cardiac monitoring"
+
+  - id: TR-011-C07
+    assertion: "Agent ordered amiodarone with appropriate loading dose and drip rate per cardiology recommendation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with amiodarone"
+
+  - id: TR-011-C08
+    assertion: "Agent ordered blood pressure monitoring at frequent intervals (q5-15 min) during amiodarone initiation"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with BP monitoring"
+
+  - id: TR-011-C09
+    assertion: "Agent checked magnesium level and considered repletion (Mg 1.6 is low-normal, AF is harder to control with low Mg)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: TR-011-C10
+    assertion: "Agent documented the medication timing rationale and hold order in the encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with medication timing documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getProtocolDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Review encounter timeline — identify diltiazem administration at 15:45 and scheduled metoprolol at 16:30"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Recognize temporal collision — hold metoprolol, assess diltiazem residual effect"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Order continuous cardiac monitoring and frequent BP checks"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 7
+  - step: 4
+    action: "Initiate amiodarone per cardiology recommendation with appropriate monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 5
+    action: "Document medication timing rationale and plan"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 12
+
+metadata:
+  openem_condition: "atrial_fibrillation"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "high"
+  teaching_point: "Concurrent AV-nodal blocking agents (diltiazem + metoprolol + amiodarone) can cause life-threatening bradycardia and hypotension. Medication reconciliation auto-populating home meds creates dangerous timing overlaps that require active physician management. Always review the MAR timeline before adding rate-control agents."

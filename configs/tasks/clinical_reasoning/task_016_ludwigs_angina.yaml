@@ -1,0 +1,212 @@
+# HEALTHCRAFT Task Definition: Ludwig's Angina
+# Category: clinical_reasoning | Level: 4
+# Floor of mouth infection threatening airway. Agent must recognize the
+# impending airway compromise and manage proactively before obstruction.
+
+id: CR-016
+category: clinical_reasoning
+level: 4
+title: "Ludwig's Angina"
+system_prompt_override: null
+
+description: |
+  A 44-year-old male presents with progressive jaw swelling, severe sore throat,
+  and difficulty swallowing over the past 2 days following a dental extraction of
+  a lower molar 4 days ago. He now reports difficulty breathing when lying flat
+  and has a muffled "hot potato" voice. On exam, there is bilateral submandibular
+  induration with woody, board-like swelling of the floor of the mouth. The
+  tongue is elevated and protruding. The patient is sitting upright, leaning
+  forward, and drooling. The agent must recognize Ludwig's angina with impending
+  airway compromise, secure the airway proactively (call anesthesia for
+  fiberoptic or awake intubation), start IV antibiotics, and consult ENT/OMFS
+  for surgical drainage.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-20T17:30:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    ent: "on_call, 25min response"
+    oral_maxillofacial_surgery: "on_call, 30min response"
+    anesthesiology: "in_house"
+
+patient:
+  age: 44
+  sex: M
+  chief_complaint: "Jaw swelling, can't swallow, hard to breathe"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "Clindamycin (C. difficile colitis)"
+  medications:
+    - "Amoxicillin 500mg TID (prescribed post-extraction, patient reports taking inconsistently)"
+    - "Ibuprofen 600mg PRN"
+  past_medical_history:
+    - "Type 2 Diabetes Mellitus (poorly controlled, A1c 10.2%)"
+    - "Dental caries (multiple)"
+    - "Lower left second molar extraction 4 days ago"
+    - "No prior deep space neck infections"
+  social_history:
+    - "Construction worker"
+    - "Smoker (15 pack-years)"
+    - "Moderate alcohol use"
+    - "No IV drug use"
+  vitals:
+    heart_rate: 114
+    blood_pressure: "148/88"
+    respiratory_rate: 24
+    spo2: 93
+    temperature: 39.2
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    general: "Toxic-appearing male, sitting upright, leaning forward, drooling, in obvious distress"
+    heent:
+      voice: "Muffled 'hot potato' voice"
+      mouth: "Limited mouth opening (trismus, ~2 cm inter-incisor distance), tongue elevated and protruding, sublingual and submandibular swelling bilateral, floor of mouth indurated and elevated"
+      neck: "Bilateral submandibular swelling, woody induration ('bull neck' appearance), no fluctuance, tender to palpation, no crepitus"
+      airway: "Visible posterior pharyngeal wall partially obscured by tongue elevation, no visible abscess or uvular deviation"
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Mild stridor on inspiration, otherwise clear bilaterally"
+    abdomen: "Soft, non-tender"
+    skin: "Warm, erythematous overlying submandibular swelling"
+  labs:
+    cbc:
+      wbc: 22.4
+      neutrophils: 90
+      bands: 8
+      hemoglobin: 13.8
+      platelets: 310
+    bmp:
+      sodium: 138
+      potassium: 4.1
+      creatinine: 1.0
+      glucose: 342
+    crp: 28.4
+    crp_units: "mg/dL (normal <0.5)"
+    lactate: 2.6
+    blood_cultures: "drawn, pending"
+  imaging:
+    ct_neck_with_contrast:
+      result: "Diffuse edema and inflammatory stranding of the bilateral submandibular, sublingual, and submental spaces. Floor of mouth markedly thickened and elevated. Mild narrowing of the oropharyngeal airway. No discrete drainable abscess. No gas in the soft tissues. No involvement of the retropharyngeal or parapharyngeal spaces."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-016-C01
+    assertion: "Agent reviewed exam findings including trismus, tongue elevation, hot potato voice, and stridor"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-016-C02
+    assertion: "Agent retrieved history including recent dental extraction, poorly controlled diabetes, and inconsistent antibiotic use"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-016-C03
+    assertion: "Agent diagnosed Ludwig's angina"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-016-C04
+    assertion: "Agent recognized the impending airway compromise (stridor, drooling, tongue protrusion)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-016-C05
+    assertion: "Agent called anesthesiology for airway management (fiberoptic or awake intubation) proactively"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C06
+    assertion: "Agent did NOT attempt blind oral intubation or rapid sequence intubation (high failure risk with trismus and distorted anatomy)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-016-C07
+    assertion: "Agent started IV broad-spectrum antibiotics covering oral anaerobes (e.g., ampicillin-sulbactam or piperacillin-tazobactam)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C08
+    assertion: "Agent consulted ENT or OMFS for surgical evaluation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C09
+    assertion: "Agent ordered CT neck with contrast to evaluate extent of infection and abscess"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C10
+    assertion: "Agent managed the hyperglycemia (glucose 342) as a contributing factor"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-016-C11
+    assertion: "Agent kept patient upright (not supine) to protect airway"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-016-C12
+    assertion: "Agent had cricothyrotomy setup at bedside as backup airway plan"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CR-016-C13
+    assertion: "Agent documented airway assessment, Ludwig's angina diagnosis, and airway management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess airway — stridor, drooling, tongue elevation, hot potato voice"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — dental extraction, diabetes, incomplete antibiotics"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Call anesthesiology to bedside for airway management, set up cricothyrotomy kit"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Ludwig's angina can progress to complete airway obstruction rapidly. Standard RSI has high failure rate due to trismus and distorted anatomy."
+  - step: 4
+    action: "IV antibiotics — ampicillin-sulbactam or pip-tazo (cover oral anaerobes)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "CT neck with contrast, consult ENT/OMFS"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Manage hyperglycemia, keep patient upright"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "ludwigs_angina_vs_peritonsillar_abscess"
+  openem_condition: "ludwigs_angina"
+  expected_tool_calls: "6-10"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Ludwig's angina is a bilateral submandibular space infection that elevates the tongue and can obstruct the airway. Stridor and drooling are signs of impending obstruction. Proactive airway management is essential — do NOT wait for complete obstruction. Awake fiberoptic intubation is preferred; surgical airway must be immediately available. Risk factors: dental infection, diabetes, immunocompromise."

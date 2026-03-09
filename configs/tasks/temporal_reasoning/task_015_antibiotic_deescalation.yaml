@@ -1,0 +1,221 @@
+# HEALTHCRAFT Task Definition: Antibiotic De-escalation Timing
+# Category: temporal_reasoning | Level: 3
+# Culture results are back and broad-spectrum antibiotics must be narrowed.
+# The agent must interpret culture data, time the de-escalation correctly,
+# and avoid premature or delayed narrowing.
+
+id: TR-015
+category: temporal_reasoning
+level: 3
+title: "Antibiotic De-escalation Timing"
+system_prompt_override: null
+
+description: |
+  It is 09:00. A 68-year-old male in Bed 15 was admitted 36 hours ago with
+  community-acquired pneumonia and sepsis. He was started empirically on
+  vancomycin 1.5g IV q12h and piperacillin-tazobactam 4.5g IV q6h at 21:00
+  two days ago. Blood cultures drawn at 20:45 two days ago are now final:
+  2/2 bottles growing Streptococcus pneumoniae, susceptible to penicillin
+  (MIC 0.06), ceftriaxone, and levofloxacin. Sputum culture also shows
+  S. pneumoniae. MRSA nasal screen from admission is negative. The patient
+  has improved clinically — afebrile for 18 hours, lactate normalized, off
+  vasopressors since yesterday. However, the vancomycin trough drawn at 06:00
+  today returned at 28.4 mcg/mL (supratherapeutic, target 15-20), and the
+  patient's creatinine has risen from 1.1 to 1.6 mg/dL. The agent must
+  recognize the window for de-escalation, narrow antibiotics appropriately,
+  address the vancomycin toxicity, and set up a monitoring plan for the
+  antibiotic transition.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T09:00:00Z"
+  department: "Emergency Department"
+  census: 40
+  beds_available: 14
+  beds_total: 54
+  shift: "day"
+  esi_distribution:
+    esi_1: 0
+    esi_2: 4
+    esi_3: 18
+    esi_4: 12
+    esi_5: 6
+  attending_count: 2
+  resident_count: 3
+  nurses_on_duty: 12
+  pharmacy_status: "on-site"
+  infectious_disease_on_call:
+    status: "available for phone consult"
+    response_time: "15 minutes"
+  antibiotic_timeline:
+    - time: "2026-01-13T20:45:00Z"
+      event: "Blood cultures drawn (2 sets)"
+    - time: "2026-01-13T21:00:00Z"
+      event: "Vancomycin 1.5g IV and piperacillin-tazobactam 4.5g IV started"
+    - time: "2026-01-14T06:00:00Z"
+      event: "Blood cultures: gram-positive cocci in pairs (preliminary)"
+    - time: "2026-01-14T18:00:00Z"
+      event: "Afebrile, lactate 1.2 (normalized), vasopressors discontinued"
+    - time: "2026-01-15T06:00:00Z"
+      event: "Vancomycin trough: 28.4 mcg/mL (supratherapeutic)"
+    - time: "2026-01-15T08:30:00Z"
+      event: "Final culture: S. pneumoniae, penicillin MIC 0.06, full susceptibilities available"
+
+patient:
+  age: 68
+  sex: M
+  chief_complaint: "Cough, fever, dyspnea for 3 days"
+  arrival_time: "2026-01-13T20:00:00Z"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies: []
+  medications:
+    - "Vancomycin 1.5g IV q12h (started 2026-01-13 21:00)"
+    - "Piperacillin-tazobactam 4.5g IV q6h (started 2026-01-13 21:00)"
+    - "NS at 125 mL/hr"
+    - "Metformin 1000mg BID (home med, held)"
+    - "Amlodipine 10mg daily (home med)"
+    - "Atorvastatin 40mg daily (home med)"
+  past_medical_history:
+    - "Type 2 Diabetes"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "COPD (moderate, on tiotropium)"
+    - "No prior MRSA infections"
+    - "Pneumococcal vaccine: PPSV23 received 2022"
+  vitals:
+    time_of_vitals: "2026-01-15T08:45:00Z"
+    heart_rate: 82
+    blood_pressure: "128/74"
+    respiratory_rate: 18
+    spo2: 95
+    temperature: 37.0
+    gcs: 15
+    oxygen: "2L nasal cannula"
+  vitals_at_presentation:
+    time_of_vitals: "2026-01-13T20:00:00Z"
+    heart_rate: 118
+    blood_pressure: "82/48"
+    respiratory_rate: 28
+    spo2: 88
+    temperature: 39.6
+    gcs: 14
+  labs_available:
+    blood_cultures: "2/2 S. pneumoniae, penicillin MIC 0.06, ceftriaxone susceptible, levofloxacin susceptible"
+    sputum_culture: "S. pneumoniae, moderate growth"
+    mrsa_nasal_screen: "Negative"
+    vancomycin_trough: "28.4 mcg/mL (drawn 06:00, supratherapeutic)"
+    creatinine_current: "1.6 mg/dL"
+    creatinine_admission: "1.1 mg/dL"
+    creatinine_yesterday: "1.3 mg/dL"
+    bun: "32 mg/dL"
+    wbc: "11.2 (down from 22.8 at admission)"
+    lactate: "1.2 mmol/L (normalized, was 4.8 at admission)"
+    procalcitonin: "2.1 ng/mL (down from 38 at admission)"
+    chest_xray: "Right lower lobe consolidation, stable from admission"
+
+criteria:
+  - id: TR-015-C01
+    assertion: "Agent reviewed the culture results and identified S. pneumoniae with penicillin susceptibility (MIC 0.06)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails reviewing culture results"
+
+  - id: TR-015-C02
+    assertion: "Agent discontinued vancomycin based on negative MRSA screen and susceptible S. pneumoniae"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with vancomycin discontinuation"
+
+  - id: TR-015-C03
+    assertion: "Agent discontinued piperacillin-tazobactam and narrowed to targeted therapy (e.g., ceftriaxone, ampicillin, or penicillin)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with antibiotic de-escalation"
+
+  - id: TR-015-C04
+    assertion: "Agent recognized vancomycin toxicity (trough 28.4, rising creatinine 1.1→1.3→1.6) and did NOT continue vancomycin"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain continued vancomycin dosing after culture finalization"
+
+  - id: TR-015-C05
+    assertion: "Agent ordered monitoring for vancomycin-induced nephrotoxicity (serial creatinine, urine output)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with renal monitoring"
+
+  - id: TR-015-C06
+    assertion: "Agent recognized the clinical improvement trend (afebrile 18 hrs, lactate normalized, WBC trending down) supporting de-escalation"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-015-C07
+    assertion: "Agent timed the antibiotic switch to avoid a gap in coverage (discontinued broad-spectrum only after starting targeted therapy)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log shows targeted antibiotic order created before or simultaneously with broad-spectrum discontinuation"
+
+  - id: TR-015-C08
+    assertion: "Agent ensured adequate IV hydration given the rising creatinine and vancomycin toxicity"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with IV fluids"
+
+  - id: TR-015-C09
+    assertion: "Agent documented the rationale for de-escalation including culture data, clinical trajectory, and vancomycin toxicity"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with de-escalation documentation"
+
+  - id: TR-015-C10
+    assertion: "Agent planned total antibiotic duration (typically 5-7 days for uncomplicated pneumococcal pneumonia with bacteremia)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getConditionDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Review culture results, susceptibilities, and MRSA screen"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Review clinical trajectory — temperature curve, lactate trend, WBC trend"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Recognize vancomycin toxicity — supratherapeutic trough + rising creatinine"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 7
+  - step: 4
+    action: "Order targeted antibiotic (ceftriaxone), then discontinue vancomycin and pip-tazo"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 5
+    action: "Order renal monitoring and IV hydration"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 6
+    action: "Document de-escalation rationale and antibiotic plan"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "pneumonia"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "moderate"
+  teaching_point: "Antibiotic de-escalation when culture data allows is a patient safety intervention, not optional stewardship. Continuing unnecessary broad-spectrum antibiotics exposes patients to toxicity (here, vancomycin nephrotoxicity), Clostridioides difficile risk, and resistance selection. The de-escalation must be timed to avoid coverage gaps — start the narrow agent before stopping the broad one."

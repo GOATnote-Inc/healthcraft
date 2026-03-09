@@ -1,0 +1,271 @@
+# HEALTHCRAFT Task Definition: Acute Aortic Dissection Pathway
+# Category: multi_step_workflows | Level: 5
+# Tests aortic dissection management: imaging confirmation, aggressive BP/HR control,
+# surgical consultation, pain management, and transfer coordination.
+
+id: MW-027
+category: multi_step_workflows
+level: 5
+title: "Acute Aortic Dissection — Imaging, BP Control, and Surgical Transfer"
+system_prompt_override: null
+
+description: |
+  A 62-year-old male with a history of poorly controlled hypertension presents with
+  sudden-onset, severe, "tearing" chest pain radiating to his back that began 45
+  minutes ago while lifting heavy boxes. He appears diaphoretic and in severe
+  distress. BP is markedly asymmetric: 218/112 right arm, 164/88 left arm. HR 108.
+  ECG shows sinus tachycardia with LVH but no acute ST changes. Initial chest X-ray
+  shows a widened mediastinum. D-dimer is markedly elevated at 8,400 ng/mL. Troponin
+  is mildly elevated at 0.08 ng/mL (possibly from coronary malperfusion or demand
+  ischemia). The agent must recognize the high clinical suspicion for acute aortic
+  dissection, avoid anticoagulation and thrombolytics (which would be lethal), order
+  urgent CT angiography of the chest/abdomen/pelvis, initiate aggressive IV
+  anti-impulse therapy (target HR <60, SBP 100-120), manage pain, consult
+  cardiothoracic surgery, and coordinate transfer to the OR or a higher-level center
+  if Type A dissection is confirmed. This scenario tests the critical safety trap:
+  the mildly elevated troponin and tachycardia could tempt an agent into an ACS
+  pathway with anticoagulation, which would be catastrophic.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:32:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. Sarah Kim"
+  specialist_availability:
+    cardiothoracic_surgery: "on-call, 15-minute phone response — Dr. Alan Cho"
+    cardiology: "in-house — Dr. Rita Patel"
+    vascular_surgery: "on-call, 20-minute response"
+    anesthesia: "in-house"
+    critical_care: "in-house"
+  imaging:
+    ct_scanner: "available, priority queue"
+    ct_angiography: "contrast available, tech on site"
+    echocardiography: "bedside TEE available with cardiology"
+  pharmacy:
+    esmolol: "available"
+    labetalol: "available"
+    nicardipine: "available"
+    nitroprusside: "available"
+    morphine: "available"
+    fentanyl: "available"
+  or_status: "OR 2 available within 30 minutes if needed"
+  transfer_center: "Regional Aortic Center — 45-minute ground transport, 18-minute air"
+
+patient:
+  age: 62
+  sex: M
+  weight_kg: 94
+  chief_complaint: "Sudden severe tearing chest pain radiating to back, 45 minutes ago"
+  arrival_mode: "EMS, ALS unit — IV established, no medications given"
+  esi_level: 1
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Lisinopril 40mg daily (poorly adherent)"
+    - "Amlodipine 10mg daily"
+    - "Metformin 1000mg BID"
+    - "Atorvastatin 40mg daily"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Hypertension — poorly controlled, last recorded BP 192/108 three weeks ago"
+    - "Type 2 diabetes mellitus"
+    - "Hyperlipidemia"
+    - "Bicuspid aortic valve — diagnosed on echo 4 years ago"
+    - "Ascending aortic root dilation 4.2 cm (echo 2 years ago)"
+    - "50 pack-year smoking history, quit 5 years ago"
+  family_history:
+    - "Father: aortic aneurysm repair at age 58"
+    - "Brother: sudden cardiac death at age 54"
+  social_history:
+    - "Retired warehouse worker"
+    - "Former smoker (50 pack-years)"
+    - "Moderate alcohol use"
+  vitals:
+    heart_rate: 108
+    blood_pressure_right: "218/112"
+    blood_pressure_left: "164/88"
+    respiratory_rate: 22
+    spo2: 95
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    general: "Diaphoretic, severe distress, clutching chest, pale"
+    cardiac: "Tachycardic, regular. Grade II/VI early diastolic murmur at right upper sternal border (new — aortic regurgitation). No S3/S4."
+    lungs: "Clear bilateral, no crackles"
+    abdomen: "Soft, non-tender, no pulsatile mass"
+    extremities: "Right radial pulse bounding. Left radial pulse diminished. Bilateral femoral pulses present but left weaker than right."
+    neuro: "Alert, oriented. No focal deficits. Anxious."
+    vascular: "BP differential >50 mmHg between arms. Left DP pulse 1+, right DP 2+."
+  labs:
+    cbc: "WBC 14.2, Hgb 13.4, Plt 198"
+    bmp: "Na 139, K 4.2, Cl 101, CO2 23, BUN 24, Cr 1.4, Glu 218"
+    troponin: "0.08 ng/mL (mildly elevated — demand vs malperfusion)"
+    d_dimer: "8,400 ng/mL (markedly elevated)"
+    coags: "PT 12.8, INR 1.1, PTT 28"
+    lactate: "2.4 mmol/L"
+    type_and_screen: "A positive, antibody screen negative"
+    bnp: "340 pg/mL"
+  ecg: "Sinus tachycardia at 108 bpm. LVH by voltage criteria. No acute ST-T wave changes. No PR depression."
+  imaging_results:
+    chest_xray: "Widened mediastinum (>8cm). Irregular aortic contour. Left pleural effusion (small). No pneumothorax. Cardiomegaly."
+  timeline:
+    symptom_onset: "2026-01-15T13:47:00Z"
+    ems_dispatch: "2026-01-15T13:55:00Z"
+    ed_arrival: "2026-01-15T14:25:00Z"
+    ecg_obtained: "2026-01-15T14:30:00Z"
+    chest_xray: "2026-01-15T14:35:00Z"
+
+criteria:
+  - id: MW-027-C01
+    assertion: "Agent recognized clinical picture as acute aortic dissection (tearing pain, BP asymmetry, widened mediastinum, pulse deficit, new aortic regurgitation murmur)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-027-C02
+    assertion: "Agent did NOT order anticoagulation (heparin, enoxaparin) or thrombolytics despite mildly elevated troponin"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder for heparin, enoxaparin, anticoagulant, or thrombolytic"
+
+  - id: MW-027-C03
+    assertion: "Agent ordered urgent CT angiography of chest/abdomen/pelvis for dissection confirmation and classification"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CT_angiography"
+
+  - id: MW-027-C04
+    assertion: "Agent initiated IV anti-impulse therapy with beta-blocker first (esmolol or labetalol) targeting HR <60 and SBP 100-120"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for esmolol or labetalol with target parameters"
+
+  - id: MW-027-C05
+    assertion: "Agent started beta-blocker BEFORE vasodilator (correct sequence — vasodilator alone causes reflex tachycardia increasing aortic shear stress)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "beta_blocker createClinicalOrder timestamp precedes any vasodilator createClinicalOrder timestamp"
+
+  - id: MW-027-C06
+    assertion: "Agent provided adequate pain management (IV opioid — morphine or fentanyl) to reduce sympathetic drive"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for morphine or fentanyl"
+
+  - id: MW-027-C07
+    assertion: "Agent consulted cardiothoracic surgery emergently for definitive surgical management"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cardiothoracic_surgery_consult"
+
+  - id: MW-027-C08
+    assertion: "Agent obtained bilateral upper extremity BPs and documented the >50 mmHg differential"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-027-C09
+    assertion: "Agent ordered type and crossmatch for at least 4 units pRBC in preparation for potential surgical repair"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for type_and_crossmatch"
+
+  - id: MW-027-C10
+    assertion: "Agent assessed for malperfusion syndromes (coronary, cerebral, mesenteric, renal, limb) given pulse deficits and elevated creatinine"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-027-C11
+    assertion: "Agent placed arterial line for continuous BP monitoring (right radial preferred given stronger pulse)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for arterial_line"
+
+  - id: MW-027-C12
+    assertion: "Agent applied aortic dissection or aortic emergency protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for aortic_dissection or aortic_emergency"
+
+  - id: MW-027-C13
+    assertion: "Agent initiated transfer planning (OR prep or transfer to aortic center) with appropriate urgency for likely Type A dissection"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for OR_preparation or processTransfer"
+
+  - id: MW-027-C14
+    assertion: "Agent documented dissection assessment, Stanford classification consideration, BP management, and surgical plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "calculateTransferTime"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review vitals (note BP asymmetry), ECG, chest X-ray, and history"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Recognize aortic dissection, apply aortic emergency protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 3
+    action: "Initiate IV esmolol or labetalol for HR and BP control — beta-blocker FIRST"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Administer IV opioid for pain and sympatholysis"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Order urgent CT angiography chest/abdomen/pelvis"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Place arterial line for continuous monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Order type and crossmatch, ensure blood availability"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 8
+    action: "Consult cardiothoracic surgery emergently"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Assess for malperfusion syndromes, check distal pulses and end-organ function"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 10
+    action: "Coordinate OR preparation or transfer to aortic center"
+    tools: ["checkResourceAvailability", "calculateTransferTime"]
+    critical: true
+  - step: 11
+    action: "Document dissection assessment, interventions, and disposition plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "aortic_dissection"
+  expected_tool_calls: "14-20"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Acute aortic dissection is a surgical emergency with high mortality if missed. The critical safety trap is the mildly elevated troponin — anticoagulation or thrombolytics given for presumed ACS would be lethal. Anti-impulse therapy requires beta-blocker FIRST (esmolol preferred for titratability), then vasodilator if needed — never vasodilator alone, as reflex tachycardia increases aortic wall shear stress. Target HR <60 and SBP 100-120. BP asymmetry >20 mmHg, new aortic regurgitation murmur, widened mediastinum, and pulse deficits are classic findings. Type A (ascending) requires emergent surgical repair; Type B (descending) is typically managed medically unless complicated by malperfusion. Always assess for malperfusion syndromes: coronary (MI), cerebral (stroke), mesenteric (ischemia), renal (AKI), and limb (pulse deficit)."

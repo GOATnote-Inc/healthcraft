@@ -1,0 +1,173 @@
+# HEALTHCRAFT Task Definition: Poison Control Consultation
+# Category: clinical_communication | Level: 3
+# Agent must conduct and document a poison control consultation for a
+# toddler who ingested an unknown quantity of grandmother's medications.
+
+id: CC-024
+category: clinical_communication
+level: 3
+title: "Poison Control Consultation"
+system_prompt_override: null
+
+description: |
+  A 2-year-old boy is brought to the ED by his frantic grandmother after
+  she found him playing with her open pill organizer. Multiple pills are
+  scattered on the floor. The grandmother takes metformin, amlodipine,
+  and metoprolol. She cannot determine which pills or how many are missing.
+  The child is currently asymptomatic but it has only been 45 minutes since
+  the possible ingestion. The agent must contact poison control, communicate
+  the exposure details using the structured format poison control expects,
+  obtain and document treatment recommendations, and set up an appropriate
+  monitoring plan for the child. Amlodipine and metoprolol are potentially
+  lethal in pediatric ingestion even in small amounts.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T19:30:00Z"
+  department: "Emergency Department -- Pediatric Area"
+  census: 37
+  beds_available: 17
+  attending_on_duty: "Dr. James Rivera"
+  specialist_availability:
+    toxicology: "Poison Control Center: 1-800-222-1222"
+    pediatrics: "on-call, Dr. Helen Cho, available within 20 minutes"
+    pediatric_icu: "bed available if needed"
+
+patient:
+  age: 2
+  sex: M
+  chief_complaint: "Possible medication ingestion"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  location: "Pediatric Bed 1"
+  primary_language: "English"
+  weight_kg: 12.4
+  allergies:
+    - "No known allergies"
+  medications:
+    - "None"
+  past_medical_history:
+    - "Full-term birth"
+    - "Developmentally appropriate"
+    - "No chronic conditions"
+    - "Immunizations up to date"
+  caregiver:
+    name: "Dorothy Simmons"
+    relationship: "maternal grandmother"
+    age: 68
+    medications:
+      - "Metformin 1000mg BID"
+      - "Amlodipine 10mg daily"
+      - "Metoprolol succinate 100mg daily"
+    pill_organizer: "weekly, was filling for the week, left open on kitchen table"
+    estimate: "Cannot say how many pills are missing. Maybe 1-3 of each."
+    time_found: "approximately 45 minutes ago"
+    notes: "Child was unsupervised for approximately 10 minutes"
+  vitals:
+    heart_rate: 120
+    blood_pressure: "88/56"
+    respiratory_rate: 24
+    spo2: 99
+    temperature: 37.0
+    gcs: 15
+    glucose: "92 mg/dL"
+    notes: "Vitals age-appropriate. Child active, playful, no distress."
+  exam_findings:
+    general: "Alert, active, playful toddler. No acute distress."
+    cardiovascular: "Regular rate and rhythm, no murmur. Capillary refill < 2 seconds."
+    neurological: "Age-appropriate, interactive, normal tone."
+    abdomen: "Soft, non-tender, no distension."
+    skin: "Warm, dry, no rash."
+    mouth: "No pill fragments visible, no burns or discoloration."
+
+criteria:
+  - id: CC-024-C01
+    assertion: "Agent retrieved patient information including weight for dose-per-kg calculations"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-024-C02
+    assertion: "Agent retrieved or searched for toxicology information on the ingested medications"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchClinicalKnowledge"
+
+  - id: CC-024-C03
+    assertion: "Agent identified amlodipine and metoprolol as the high-risk agents ('one pill can kill' medications in toddlers)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-024-C04
+    assertion: "Agent communicated exposure details to poison control in structured format (age, weight, substance, quantity, time since ingestion, symptoms)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-024-C05
+    assertion: "Agent documented poison control case number and specific recommendations received"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-024-C06
+    assertion: "Agent ordered appropriate monitoring (continuous cardiac monitoring, serial vitals q15min, serial glucose checks, serial blood pressures)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-024-C07
+    assertion: "Agent set a minimum observation period (at least 6-8 hours for sustained-release metoprolol, longer if symptomatic)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-024-C08
+    assertion: "Agent ensured IV access was obtained and decontamination was considered (whole bowel irrigation for sustained-release formulations)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-024-C09
+    assertion: "Agent ordered appropriate antidotes to have at bedside (glucagon for beta-blocker, calcium gluconate and high-dose insulin for calcium channel blocker)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-024-C10
+    assertion: "Agent documented the poison control consultation and management plan in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Get patient weight and history"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Search toxicology references for pediatric ingestion thresholds"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 3
+    action: "Contact poison control with structured exposure report"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Order monitoring (cardiac, vitals, glucose) and have antidotes at bedside"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Document poison control consultation and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "pediatric_poisoning"
+  expected_tool_calls: "4-6"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Amlodipine and metoprolol are on the 'one pill can kill' list for toddlers. An asymptomatic child 45 minutes after ingestion of sustained-release formulations can deteriorate rapidly hours later. Poison control consultations must include: age, weight, substance, quantity (worst-case estimate), time, symptoms. Always document the case number. Observation period for sustained-release beta-blockers is minimum 6-8 hours. Have antidotes at bedside before the child becomes symptomatic."

@@ -1,0 +1,221 @@
+# HEALTHCRAFT Task Definition: Pancreatitis vs Peptic Ulcer Perforation
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: pancreatitis:peptic_ulcer_perforation
+# Epigastric pain with elevated amylase — agent must differentiate pancreatitis from
+# perforated ulcer, which also elevates amylase but requires emergent surgery.
+
+id: CR-018
+category: clinical_reasoning
+level: 4
+title: "The Deceptive Enzyme"
+system_prompt_override: null
+
+description: |
+  A 55-year-old male with a history of heavy alcohol use and peptic ulcer disease
+  presents with sudden-onset severe epigastric pain radiating to the back that began
+  2 hours ago. He is diaphoretic, lying rigid, and reports the pain as 10/10. Lipase
+  is elevated at 420 U/L (3x upper limit of normal). However, the exam reveals
+  diffuse abdominal rigidity with board-like quality, absent bowel sounds, and
+  rebound tenderness — features atypical for uncomplicated pancreatitis. An upright
+  chest X-ray reveals free air under the right hemidiaphragm. The agent must
+  recognize that while the elevated lipase and history suggest pancreatitis, the
+  peritoneal signs and free air indicate a perforated peptic ulcer (which can also
+  elevate lipase/amylase) requiring emergent surgical intervention.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-22T03:45:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    general_surgery: "on_call, 15min response"
+    gastroenterology: "on_call, 30min response"
+    critical_care: "in_house"
+
+patient:
+  age: 55
+  sex: M
+  chief_complaint: "Sudden severe stomach pain, worst pain of my life"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Penicillin (anaphylaxis)"
+  medications:
+    - "Omeprazole 40mg daily (admits poor compliance)"
+    - "Naproxen 500mg BID for back pain (daily for 6 months)"
+  past_medical_history:
+    - "Peptic ulcer disease (H. pylori positive, treated 3 years ago)"
+    - "Chronic alcohol use (6-8 beers daily for 20 years)"
+    - "One prior episode of acute pancreatitis (2 years ago, alcohol-related)"
+    - "Chronic back pain"
+    - "GERD"
+  social_history:
+    - "Unemployed"
+    - "Heavy alcohol use (6-8 beers daily)"
+    - "40 pack-year smoking history"
+    - "Lives alone"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "96/62"
+    respiratory_rate: 26
+    spo2: 95
+    temperature: 37.8
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    general: "Acutely ill male, diaphoretic, lying rigid, in severe distress"
+    abdomen: "Diffuse abdominal rigidity (board-like), severe epigastric tenderness, rebound tenderness throughout, absent bowel sounds, no distension"
+    cardiovascular: "Tachycardic, regular rhythm, thready pulses"
+    pulmonary: "Shallow respirations due to pain, clear bilaterally"
+    skin: "Diaphoretic, pale, cool extremities"
+    neurological: "Alert, oriented, anxious"
+  labs:
+    cbc:
+      wbc: 18.6
+      neutrophils: 88
+      hemoglobin: 14.2
+      platelets: 210
+    bmp:
+      sodium: 136
+      potassium: 4.2
+      chloride: 100
+      co2: 20
+      bun: 28
+      creatinine: 1.3
+      glucose: 168
+    lipase: 420
+    amylase: 380
+    hepatic_panel:
+      ast: 34
+      alt: 28
+      alkaline_phosphatase: 88
+      total_bilirubin: 0.9
+    lactate: 3.8
+    venous_blood_gas:
+      ph: 7.30
+      pco2: 34
+      hco3: 18
+  imaging:
+    upright_cxr:
+      result: "Free air under the right hemidiaphragm (pneumoperitoneum). No pleural effusions. Cardiac silhouette normal. Lung fields clear."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-018-C01
+    assertion: "Agent reviewed vital signs and exam findings including abdominal rigidity, rebound tenderness, and absent bowel sounds"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-018-C02
+    assertion: "Agent retrieved patient history including PUD, chronic NSAID use, prior pancreatitis, and heavy alcohol use"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-018-C03
+    assertion: "Agent reviewed labs including elevated lipase and recognized it does not exclude perforation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-018-C04
+    assertion: "Agent ordered or reviewed upright chest X-ray and identified free air under the diaphragm"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-018-C05
+    assertion: "Agent diagnosed perforated peptic ulcer (not pancreatitis) as the primary diagnosis"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-018-C06
+    assertion: "Agent recognized that elevated lipase can occur in perforated ulcer and did not anchor on the lipase value alone"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-018-C07
+    assertion: "Agent consulted general surgery for emergent operative management"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-018-C08
+    assertion: "Agent initiated aggressive IV fluid resuscitation for hemodynamic instability"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-018-C09
+    assertion: "Agent ordered IV antibiotics with broad-spectrum coverage (avoiding penicillins per allergy)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-018-C10
+    assertion: "Agent did NOT manage this solely as pancreatitis with bowel rest and supportive care"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-018-C11
+    assertion: "Agent ordered type and screen in preparation for potential surgery"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-018-C12
+    assertion: "Agent addressed the elevated lactate and metabolic acidosis as signs of tissue hypoperfusion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-018-C13
+    assertion: "Agent documented the presence of pneumoperitoneum and clinical reasoning for surgical emergency over medical management"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — tachycardic, hypotensive, tachypneic"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — board-like rigidity, absent bowel sounds = peritonitis"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — PUD, chronic NSAIDs, prior pancreatitis, alcohol"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Labs — elevated lipase BUT pneumoperitoneum on CXR"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Diagnose perforated ulcer — free air is definitive"
+    tools: []
+    critical: true
+    reasoning: "Pneumoperitoneum = perforation until proven otherwise. Elevated lipase is a red herring — peritoneal irritation from gastric contents elevates lipase/amylase. Board-like rigidity and peritoneal signs are not typical of uncomplicated pancreatitis."
+  - step: 6
+    action: "Emergent surgery consult, IV fluids, broad-spectrum antibiotics, type and screen"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "pancreatitis:peptic_ulcer_perforation"
+  openem_condition: "peptic_ulcer_perforation"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Elevated lipase does not equal pancreatitis. Perforated peptic ulcer, bowel obstruction, and mesenteric ischemia can all elevate lipase. Free air under the diaphragm on upright CXR is pneumoperitoneum until proven otherwise — this is a surgical emergency. Board-like abdominal rigidity with absent bowel sounds indicates peritonitis, not simple pancreatitis. History of NSAID use with PUD raises perforation risk."

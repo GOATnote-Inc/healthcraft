@@ -1,0 +1,191 @@
+# HEALTHCRAFT Task Definition: Multi-Patient Priority Triage Lookup
+# Category: information_retrieval | Level: 4
+# Agent must retrieve and prioritize information across 5 simultaneously
+# arriving patients from a mass casualty incident.
+
+id: IR-025
+category: information_retrieval
+level: 4
+title: "Multi-Patient Priority Triage Lookup"
+system_prompt_override: null
+
+description: |
+  A school bus collision results in 5 pediatric patients arriving
+  simultaneously by EMS. The ED has 4 available beds and 2 physicians.
+  Triage information from EMS is incomplete and partially contradictory.
+  The charge nurse needs the agent to pull together all available data on
+  each patient, establish triage priority using the JumpSTART (pediatric
+  MCI triage) methodology, and recommend bed and physician assignments.
+  One patient appears stable but has a mechanism suggesting occult injury.
+  Another is screaming loudly but has only minor injuries. Time pressure
+  is extreme — all 5 patients arrive within a 6-minute window.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-17T08:15:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 4
+  beds_total: 54
+  attending_on_duty: "Dr. Rachel Kim, Dr. James Okafor (both available)"
+  nursing_staff:
+    rn_count: 6
+    charge_nurse: "RN Sarah Blake"
+  resuscitation_bays:
+    bay_1: "available"
+    bay_2: "occupied (adult chest pain, stable)"
+
+incoming_patients:
+  - ems_id: "Patient A"
+    age: 8
+    sex: M
+    ems_report: "Unrestrained front passenger, thrown from seat. GCS 10 (E2V3M5). Right pupil sluggish. Vomited x2 in transport. HR 62, BP 128/84 — Cushing response suspected."
+    ems_triage: "Red — immediate"
+    actual_priority: 1
+    note: "Cushing triad (bradycardia + hypertension + irregular respirations) suggests elevated ICP"
+
+  - ems_id: "Patient B"
+    age: 10
+    sex: F
+    ems_report: "Restrained rear passenger. Screaming, crying. Abrasion to forehead. Moving all extremities. HR 110, BP 106/68. GCS 15."
+    ems_triage: "Yellow — delayed"
+    actual_priority: 4
+    note: "Distressed but minor injuries. Tachycardia likely from pain/anxiety."
+
+  - ems_id: "Patient C"
+    age: 7
+    sex: F
+    ems_report: "Restrained rear passenger. Quiet, lying still. Seat belt sign across abdomen. HR 128, BP 84/52. GCS 14. Complaining of belly pain."
+    ems_triage: "Yellow — delayed"
+    actual_priority: 2
+    note: "EMS under-triaged. Seat belt sign + tachycardia + hypotension = likely intra-abdominal injury. Needs immediate evaluation."
+
+  - ems_id: "Patient D"
+    age: 9
+    sex: M
+    ems_report: "Restrained rear passenger. Obvious deformity left forearm, no open wound. Fingers warm and pink. Distal pulses intact. HR 100, BP 108/72. GCS 15."
+    ems_triage: "Green — minor"
+    actual_priority: 5
+    note: "Isolated extremity fracture, neurovascularly intact. True minor."
+
+  - ems_id: "Patient E"
+    age: 6
+    sex: M
+    ems_report: "Unrestrained rear passenger. Found ambulatory at scene but now drowsy. Initially GCS 15, now GCS 13 (E3V4M6). No visible injuries. HR 90, BP 102/64."
+    ems_triage: "Green — minor"
+    actual_priority: 3
+    note: "EMS under-triaged. Declining GCS = possible occult TBI. Initially ambulatory (lucid interval) now deteriorating — classic epidural hematoma presentation."
+
+criteria:
+  - id: IR-025-C01
+    assertion: "Agent retrieved triage information for all 5 incoming patients"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters or getEncounterDetails"
+
+  - id: IR-025-C02
+    assertion: "Agent identified Patient A as the highest priority (Cushing triad, suspected elevated ICP)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-025-C03
+    assertion: "Agent recognized that Patient C was under-triaged by EMS (seat belt sign + hypotension = likely abdominal injury, should be Red/Immediate)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-025-C04
+    assertion: "Agent recognized that Patient E was under-triaged (declining GCS, possible lucid interval, possible epidural hematoma)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-025-C05
+    assertion: "Agent did NOT assign both physicians to the loudest/most distressed patient (Patient B) at the expense of sicker patients"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-025-C06
+    assertion: "Agent assigned the two resuscitation/acute beds to Patient A and Patient C as the two most critical"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-025-C07
+    assertion: "Agent recommended immediate CT head for Patient A and FAST exam or CT abdomen for Patient C"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-025-C08
+    assertion: "Agent flagged Patient E for close monitoring and repeat neurological assessment within 15 minutes"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-025-C09
+    assertion: "Agent addressed the bed shortage (5 patients, 4 beds) with a plan for the 5th patient"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-025-C10
+    assertion: "Agent recommended activating pediatric trauma or MCI protocols"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-025-C11
+    assertion: "Agent checked current resource availability (beds, imaging, blood bank) before making assignments"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+expected_tools:
+  - "searchEncounters"
+  - "getEncounterDetails"
+  - "checkResourceAvailability"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve all incoming patient triage data"
+    tools: ["searchEncounters", "getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Check current ED resource availability"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 3
+    action: "Re-triage all patients using JumpSTART methodology"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+    reasoning: |
+      Corrected triage priority:
+      1. Patient A (age 8, M): RED — GCS 10, Cushing triad, right pupil
+         sluggish. Imminent herniation risk. → Resus Bay 1, Dr. Kim,
+         stat CT head, neurosurgery consult.
+      2. Patient C (age 7, F): RED — Seat belt sign, HR 128, BP 84/52,
+         abdominal pain. Hemodynamic instability = likely solid organ
+         injury. → Resus Bay 2 (move stable chest pain patient), Dr. Okafor,
+         FAST exam → stat CT abdomen, activate MTP standby.
+      3. Patient E (age 6, M): YELLOW → watch for RED — Declining GCS
+         (15→13), initially ambulatory. Classic lucid interval pattern.
+         Possible epidural hematoma. → Acute bed, neuro checks q15 min,
+         CT head when Patient A cleared from scanner.
+      4. Patient B (age 10, F): YELLOW — Screaming, minor abrasion. GCS 15,
+         stable vitals. Anxiety > injury. → Acute bed, reassess after
+         critical patients stabilized.
+      5. Patient D (age 9, M): GREEN — Isolated forearm fracture, NV
+         intact. → Remaining bed or hallway with splint. X-ray when
+         resources available.
+
+      EMS under-triaged 2 of 5 patients. The "quiet" patients (C and E)
+      are sicker than the "loud" patient (B). This is a classic MCI
+      triage pitfall.
+  - step: 4
+    action: "Assign beds, physicians, and immediate workup for each patient"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "traumatic_brain_injury"
+  expected_tool_calls: "4-7"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "In pediatric MCI, the loudest patient is often not the sickest. Quiet children with abnormal vitals are the dangerous ones. EMS triage should always be verified on arrival. A declining GCS in an initially ambulatory trauma patient is an epidural hematoma until proven otherwise. Seat belt sign with hypotension requires immediate evaluation for intra-abdominal injury."

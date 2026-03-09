@@ -1,0 +1,222 @@
+# HEALTHCRAFT Task Definition: Addisonian Crisis
+# Category: clinical_reasoning | Level: 3
+# Hypotensive patient on chronic steroids with vague symptoms. Agent must
+# recognize adrenal insufficiency and initiate stress-dose steroids.
+
+id: CR-017
+category: clinical_reasoning
+level: 3
+title: "Addisonian Crisis"
+system_prompt_override: null
+
+description: |
+  A 56-year-old woman with a history of rheumatoid arthritis on chronic
+  prednisone presents with 3 days of worsening fatigue, nausea, diffuse
+  abdominal pain, and near-syncope this morning. She ran out of prednisone
+  5 days ago and did not refill it. Vitals reveal refractory hypotension
+  (BP 72/44) that is not responding to IV fluids alone. Labs show
+  hyponatremia (Na 126), hyperkalemia (K 5.9), hypoglycemia (glucose 54),
+  and an eosinophil count of 12%. The agent must recognize adrenal crisis
+  from abrupt steroid withdrawal, administer IV hydrocortisone 100mg
+  immediately, and provide aggressive fluid resuscitation with D5NS.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-22T09:00:00Z"
+  department: "Emergency Department"
+  census: 25
+  beds_available: 29
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    endocrinology: "on_call, 35min response"
+    critical_care: "on_call, 15min response"
+
+patient:
+  age: 56
+  sex: F
+  chief_complaint: "Feeling terrible, dizzy, stomach pain, almost fainted"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Aspirin (GI bleeding)"
+  medications:
+    - "Prednisone 15mg daily (for 4 years — ran out 5 days ago, did NOT taper)"
+    - "Methotrexate 15mg weekly"
+    - "Folic acid 1mg daily"
+    - "Omeprazole 20mg daily"
+    - "Calcium/Vitamin D"
+  past_medical_history:
+    - "Rheumatoid arthritis (severe, 12 years)"
+    - "Chronic low-dose prednisone dependence (4 years, 10-20mg daily)"
+    - "Osteoporosis (steroid-induced)"
+    - "GERD"
+    - "Hypothyroidism"
+    - "No prior adrenal crisis"
+  social_history:
+    - "Retired librarian"
+    - "Non-smoker, rare alcohol"
+    - "Recently changed insurance — gap in medication coverage"
+    - "Lives with husband"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "72/44"
+    respiratory_rate: 22
+    spo2: 97
+    temperature: 36.0
+    gcs: 14
+    gcs_breakdown:
+      eye: 4
+      verbal: 4
+      motor: 6
+    pain_scale: 6
+  exam_findings:
+    general: "Thin woman, lethargic, appears chronically ill, mildly confused"
+    heent: "Dry mucous membranes, no hyperpigmentation (secondary adrenal insufficiency)"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs, weak pulses, delayed capillary refill (4 sec)"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Diffuse mild tenderness, no guarding or rebound, hypoactive bowel sounds"
+    extremities: "Cushingoid features (moon facies, thin skin, easy bruising), no edema"
+    skin: "Thin, multiple ecchymoses, no hyperpigmentation"
+    musculoskeletal: "Bilateral ulnar deviation of hands (RA changes), joint swelling"
+    neurological: "Lethargic, oriented to person and place, mild confusion, no focal deficits"
+  labs:
+    bmp:
+      sodium: 126
+      potassium: 5.9
+      chloride: 94
+      co2: 18
+      bun: 32
+      creatinine: 1.4
+      glucose: 54
+    cbc:
+      wbc: 4.2
+      eosinophils: 12
+      eosinophils_note: "% (elevated — classic for adrenal insufficiency)"
+      hemoglobin: 11.2
+      platelets: 280
+    cortisol_random: 1.2
+    cortisol_units: "mcg/dL (normal AM 6-23; <3 diagnostic of adrenal insufficiency)"
+    tsh: 6.8
+    lactate: 3.4
+    venous_blood_gas:
+      ph: 7.32
+      pco2: 30
+      hco3: 16
+  ecg:
+    interpretation: "Sinus tachycardia at 118 bpm, peaked T-waves in V2-V4 (hyperkalemia), no ST changes"
+  response_to_initial_treatment:
+    fluids: "2L NS administered by EMS — BP remains 72/44"
+    note: "Hypotension refractory to volume resuscitation alone"
+
+criteria:
+  - id: CR-017-C01
+    assertion: "Agent reviewed vitals showing refractory hypotension despite 2L NS"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-017-C02
+    assertion: "Agent retrieved medication history and identified abrupt prednisone discontinuation 5 days ago"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-017-C03
+    assertion: "Agent reviewed labs showing classic adrenal crisis pattern (hyponatremia, hyperkalemia, hypoglycemia, eosinophilia)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-017-C04
+    assertion: "Agent diagnosed adrenal crisis (Addisonian crisis) from abrupt steroid withdrawal"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C05
+    assertion: "Agent administered IV hydrocortisone 100mg STAT (stress-dose steroids)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C06
+    assertion: "Agent ordered dextrose-containing IV fluids (D5NS) for hypoglycemia and volume"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C07
+    assertion: "Agent recognized that cortisol level <3 mcg/dL is diagnostic and did NOT delay steroids for ACTH stimulation test"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-017-C08
+    assertion: "Agent addressed the hyperkalemia (ECG changes, K 5.9)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C09
+    assertion: "Agent placed patient on continuous cardiac monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C10
+    assertion: "Agent consulted endocrinology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C11
+    assertion: "Agent recognized this is secondary adrenal insufficiency (no hyperpigmentation, chronic exogenous steroids suppressed HPA axis)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C12
+    assertion: "Agent documented adrenal crisis diagnosis, treatment, and plan for steroid taper after stabilization"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — refractory hypotension despite 2L fluids"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — chronic prednisone, abrupt discontinuation 5 days ago"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Labs — hyponatremia, hyperkalemia, hypoglycemia, eosinophilia, cortisol 1.2"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "IV hydrocortisone 100mg STAT — do NOT delay for cosyntropin test"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Adrenal crisis is rapidly fatal without steroid replacement. Cortisol <3 is diagnostic."
+  - step: 5
+    action: "D5NS for fluids and hypoglycemia, treat hyperkalemia, cardiac monitor"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult endocrinology, plan ICU admission"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "addisonian_crisis_vs_septic_shock"
+  openem_condition: "adrenal_crisis"
+  expected_tool_calls: "5-9"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "Any patient on chronic steroids (>3 weeks) who abruptly stops is at risk for adrenal crisis. The classic triad: refractory hypotension + hyponatremia + hyperkalemia. Eosinophilia and hypoglycemia are additional clues. Hydrocortisone 100mg IV is the treatment — do NOT delay for confirmatory testing. Secondary adrenal insufficiency (exogenous steroids) does NOT cause hyperpigmentation."

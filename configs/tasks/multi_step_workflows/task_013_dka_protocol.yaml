@@ -1,0 +1,253 @@
+# HEALTHCRAFT Task Definition: DKA Protocol
+# Category: multi_step_workflows | Level: 4
+# Tests DKA management: insulin drip, potassium replacement, fluid resuscitation,
+# anion gap monitoring, and ICU admission.
+
+id: MW-013
+category: multi_step_workflows
+level: 4
+title: "DKA Protocol"
+system_prompt_override: null
+
+description: |
+  A 19-year-old female with type 1 diabetes presents via EMS with nausea,
+  vomiting, abdominal pain, and altered mental status. Her insulin pump
+  malfunctioned 18 hours ago and she has not been able to administer insulin
+  since. Her blood glucose is 486 mg/dL, pH 7.08, bicarbonate 6, and anion gap
+  32. She is Kussmaul breathing with a fruity odor on her breath. Potassium is
+  5.8 (but expected to drop rapidly with insulin and fluids). She is moderately
+  dehydrated with dry mucous membranes and poor skin turgor. The agent must
+  execute the DKA protocol: aggressive isotonic fluid resuscitation, insulin drip
+  initiation (after confirming potassium >3.3), potassium replacement strategy,
+  serial metabolic monitoring for anion gap closure, transition to subcutaneous
+  insulin, and ICU admission for close monitoring.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-15T11:08:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 23
+  attending_on_duty: "Dr. James Okoro"
+  specialist_availability:
+    endocrinology: "on-call, available by phone"
+    critical_care: "in-house"
+  pharmacy:
+    regular_insulin: "available (drip and subcutaneous)"
+    potassium_chloride: "available (IV and oral)"
+    potassium_phosphate: "available"
+    sodium_bicarbonate: "available"
+  icu_beds_available: 3
+
+patient:
+  age: 19
+  sex: F
+  weight_kg: 56
+  chief_complaint: "Nausea, vomiting, abdominal pain, confusion — insulin pump malfunction"
+  arrival_mode: "EMS, BLS unit"
+  esi_level: 2
+  allergies: []
+  medications:
+    - "Insulin lispro via insulin pump (Omnipod) — malfunctioned 18 hours ago"
+    - "No other medications"
+  past_medical_history:
+    - "Type 1 diabetes mellitus (diagnosed age 8)"
+    - "Prior DKA episode age 14 (pump malfunction)"
+    - "HbA1c 7.2% (3 months ago)"
+  family_history:
+    - "Father: type 2 diabetes"
+    - "Mother: hypothyroidism"
+  social_history:
+    - "College freshman"
+    - "Lives in dormitory"
+    - "Non-smoker, no alcohol or drugs"
+    - "Normally well-controlled on pump"
+  vitals:
+    heart_rate: 124
+    blood_pressure: "98/58"
+    respiratory_rate: 32
+    respiratory_pattern: "Kussmaul (deep, rapid)"
+    spo2: 99
+    temperature: 36.8
+    gcs: 13
+    gcs_breakdown: "E3V4M6"
+    pain_scale: 6
+  exam_findings:
+    general: "Young female, lethargic, Kussmaul breathing, fruity breath odor, appears dehydrated"
+    skin: "Dry, poor turgor, tenting on forearms. Dry mucous membranes. Sunken eyes."
+    cardiac: "Tachycardic, regular. No murmurs."
+    lungs: "Clear bilaterally. Kussmaul breathing pattern — deep and rapid."
+    abdomen: "Diffusely tender, no rebound or guarding. Hypoactive bowel sounds. No organomegaly."
+    neuro: "GCS 13 (E3V4M6). Oriented to person and place, not time. No focal deficits."
+    insulin_pump: "Omnipod on right upper arm — site erythematous, pump alarming 'occlusion' error"
+  labs:
+    poc_glucose: "486 mg/dL"
+    bmp: "Na 128, K 5.8, Cl 92, CO2 6, BUN 32, Cr 1.4, Glu 486"
+    corrected_sodium: "Na corrected for glucose = 134 (add 1.6 per 100mg/dL glucose above 100)"
+    anion_gap: "32 (calculated: 128 - 92 - 6 = 30; with correction ~32)"
+    abg: "pH 7.08, pCO2 16, pO2 112, HCO3 5, BE -22"
+    serum_ketones: "beta-hydroxybutyrate 8.4 mmol/L (critical, >3.0)"
+    cbc: "WBC 18.4 (stress leukocytosis), Hgb 15.8 (hemoconcentration), Plt 310"
+    phosphate: "1.8 mg/dL (low, will drop further with insulin)"
+    magnesium: "1.4 mEq/L (low)"
+    lipase: "48 U/L (normal)"
+    urinalysis: "Glucose 4+, ketones 4+, specific gravity 1.035"
+    hba1c: "7.2% (prior, 3 months ago)"
+    serum_osmolality: "312 mOsm/kg (elevated)"
+  timeline:
+    pump_malfunction: "2026-02-14T17:00:00Z"
+    symptoms_onset: "2026-02-15T04:00:00Z"
+    nausea_vomiting_onset: "2026-02-15T06:00:00Z"
+    found_confused: "2026-02-15T10:30:00Z"
+    ed_arrival: "2026-02-15T11:02:00Z"
+
+criteria:
+  - id: MW-013-C01
+    assertion: "Agent initiated aggressive IV fluid resuscitation with isotonic crystalloid (NS or LR) — 1-1.5L in first hour"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV crystalloid bolus"
+
+  - id: MW-013-C02
+    assertion: "Agent confirmed potassium >3.3 mEq/L BEFORE initiating insulin drip"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-013-C03
+    assertion: "Agent ordered regular insulin drip at 0.1 units/kg/hr (approximately 5.6 units/hr for 56 kg) or 0.14 units/kg/hr"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for insulin_drip with rate"
+
+  - id: MW-013-C04
+    assertion: "Agent ordered potassium replacement strategy anticipating K+ drop with insulin (target K 4.0-5.0)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for potassium_replacement"
+
+  - id: MW-013-C05
+    assertion: "Agent ordered serial BMP (at least every 2 hours) to monitor anion gap closure, potassium, and glucose"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for serial_metabolic_panel"
+
+  - id: MW-013-C06
+    assertion: "Agent planned dextrose addition to IV fluids when glucose reaches 200-250 mg/dL (to prevent hypoglycemia while continuing insulin for gap closure)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-013-C07
+    assertion: "Agent addressed phosphate depletion (1.8 mg/dL, will drop with insulin)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for phosphate_replacement"
+
+  - id: MW-013-C08
+    assertion: "Agent addressed hypomagnesemia (Mg 1.4)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for magnesium_replacement"
+
+  - id: MW-013-C09
+    assertion: "Agent removed malfunctioning insulin pump"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-013-C10
+    assertion: "Agent did NOT order sodium bicarbonate (pH 7.08 — controversial, but ADA guidelines do not recommend unless pH <6.9)"
+    dimension: safety
+    verification: llm_judge
+
+  - id: MW-013-C11
+    assertion: "Agent arranged ICU admission for insulin drip management and frequent monitoring"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU admission or checkResourceAvailability for ICU"
+
+  - id: MW-013-C12
+    assertion: "Agent consulted endocrinology for insulin pump malfunction and DKA management"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for endocrinology"
+
+  - id: MW-013-C13
+    assertion: "Agent applied DKA protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for DKA"
+
+  - id: MW-013-C14
+    assertion: "Agent documented DKA severity, anion gap, insulin drip parameters, and monitoring plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with DKA documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "runDecisionRule"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve encounter details, confirm DKA diagnosis: glucose 486, pH 7.08, AG 32"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Retrieve patient history: T1DM, pump malfunction, prior DKA"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Apply DKA protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 4
+    action: "Initiate aggressive IV fluid resuscitation (NS 1-1.5L first hour)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Confirm K >3.3, then start insulin drip at 0.1 units/kg/hr"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order potassium replacement protocol (K will drop rapidly)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Order phosphate and magnesium replacement"
+    tools: ["createClinicalOrder", "createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Order serial BMP every 2 hours for gap monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Consult endocrinology for pump malfunction management"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 10
+    action: "Arrange ICU admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 11
+    action: "Document DKA severity, treatment plan, monitoring intervals"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "diabetic_ketoacidosis"
+  expected_tool_calls: "11-15"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "DKA management priorities: 1) Fluid resuscitation first (1-1.5L NS hour 1). 2) Check K+ before insulin — if K <3.3, replace before insulin (insulin drives K intracellular → fatal hypokalemia). 3) Insulin drip 0.1 units/kg/hr. 4) Monitor AG every 2h — continue insulin until AG closes, NOT until glucose normalizes. 5) Add dextrose to IVF when glucose <250 to allow continued insulin for gap closure. 6) Bicarbonate only if pH <6.9. 7) Watch for cerebral edema (especially in young patients)."

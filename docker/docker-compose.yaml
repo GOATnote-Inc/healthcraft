@@ -41,5 +41,26 @@ services:
     volumes:
       - ../configs:/app/configs:ro
 
+  task-engine:
+    build:
+      context: ..
+      dockerfile: docker/task-engine/Dockerfile
+    container_name: healthcraft-task-engine
+    environment:
+      HEALTHCRAFT_SEED: "42"
+      HEALTHCRAFT_SEED_CONFIG: /app/configs/world/mercy_point_v1.yaml
+      HEALTHCRAFT_MODEL: "simulated"
+      HEALTHCRAFT_TRIALS: "5"
+      HEALTHCRAFT_MCP_URL: "http://mcp-server:8000"
+      HEALTHCRAFT_LOG_LEVEL: INFO
+    depends_on:
+      mcp-server:
+        condition: service_started
+    volumes:
+      - eval-results:/app/results
+      - ../configs:/app/configs:ro
+      - ../system-prompts:/app/system-prompts:ro
+
 volumes:
   world-state-data:
+  eval-results:

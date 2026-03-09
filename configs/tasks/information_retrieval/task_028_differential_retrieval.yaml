@@ -1,0 +1,179 @@
+# HEALTHCRAFT Task Definition: Condition Differential Retrieval
+# Category: information_retrieval | Level: 3
+# Agent must retrieve clinical knowledge on a broad differential for
+# an undifferentiated complaint and narrow it using available data.
+
+id: IR-028
+category: information_retrieval
+level: 3
+title: "Condition Differential Retrieval"
+system_prompt_override: null
+
+description: |
+  A 26-year-old woman presents with acute-onset severe headache described as
+  "the worst headache of my life" that started 4 hours ago during exercise.
+  She has neck stiffness and photophobia. She is afebrile. The attending asks
+  the agent to retrieve clinical knowledge on the differential diagnosis for
+  thunderclap headache, identify the critical "cannot-miss" diagnoses, and
+  determine which diagnostic tests are indicated for each. The challenge is
+  distinguishing the life-threatening causes (subarachnoid hemorrhage,
+  cerebral venous thrombosis, cervical artery dissection, pituitary apoplexy)
+  from the benign (exertional headache, primary thunderclap headache) using
+  available clinical data.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-17T11:00:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Lisa Johnson"
+
+patient:
+  age: 26
+  sex: F
+  chief_complaint: "Worst headache of my life, sudden onset during exercise"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  location: "Bed 7"
+  allergies: []
+  medications:
+    - "Combined oral contraceptive pill (ethinyl estradiol/norgestimate)"
+    - "Ibuprofen PRN"
+  past_medical_history:
+    - "Migraine without aura (occasional, typically gradual onset)"
+    - "No prior thunderclap headache"
+    - "No recent head trauma"
+    - "No family history of aneurysm or SAH"
+  social_history:
+    - "Non-smoker"
+    - "Exercises regularly (was doing CrossFit when headache started)"
+    - "2 alcoholic drinks per week"
+    - "On OCP for 3 years"
+  vitals:
+    heart_rate: 78
+    blood_pressure: "128/76"
+    respiratory_rate: 14
+    spo2: 99
+    temperature: 36.9
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    neurological: "Alert, oriented x4. Neck stiffness with flexion. Photophobia. No focal deficits. Pupils equal and reactive. Cranial nerves intact. No papilledema on fundoscopy."
+    general: "In obvious distress from pain, lying in darkened room with eyes closed"
+  labs:
+    cbc: "WBC 9.2, Hgb 13.8, Plt 244"
+    bmp: "within normal limits"
+    coagulation: "PT 12.4, INR 1.0"
+  imaging:
+    ct_head_noncontrast: "No acute intracranial hemorrhage. No mass effect. No midline shift. Normal ventricles."
+
+criteria:
+  - id: IR-028-C01
+    assertion: "Agent retrieved clinical knowledge on thunderclap headache differential diagnosis"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchClinicalKnowledge"
+
+  - id: IR-028-C02
+    assertion: "Agent identified subarachnoid hemorrhage as the primary cannot-miss diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-028-C03
+    assertion: "Agent recognized that a negative CT head does NOT rule out SAH (sensitivity ~93% at 6 hours, drops with time) and recommended lumbar puncture"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-028-C04
+    assertion: "Agent identified cerebral venous thrombosis as a differential given the patient's OCP use as a risk factor"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-028-C05
+    assertion: "Agent identified cervical artery dissection as a differential given exertional onset"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-028-C06
+    assertion: "Agent recommended CT angiography (CTA head/neck) to evaluate for aneurysm, dissection, and venous thrombosis"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-028-C07
+    assertion: "Agent retrieved reference material on LP interpretation for SAH (xanthochromia, RBC count, opening pressure)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchReferenceMaterials or searchClinicalKnowledge"
+
+  - id: IR-028-C08
+    assertion: "Agent noted that migraine history does NOT make this presentation benign — thunderclap headache in a migraine patient still requires SAH workup"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-028-C09
+    assertion: "Agent listed at least 4 conditions in the thunderclap headache differential"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-028-C10
+    assertion: "Agent did NOT recommend discharge based on the negative CT alone"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getConditionDetails"
+  - "getReferenceArticle"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve differential diagnosis for thunderclap headache"
+    tools: ["searchClinicalKnowledge", "getConditionDetails"]
+    critical: true
+  - step: 2
+    action: "Retrieve diagnostic criteria and workup for each critical diagnosis"
+    tools: ["searchReferenceMaterials"]
+    critical: true
+    reasoning: |
+      Thunderclap headache differential:
+      CRITICAL (cannot-miss):
+      1. Subarachnoid hemorrhage (SAH): Classic presentation. CT
+         sensitivity ~93% at 6h, ~85% at 12h, drops further. Negative
+         CT at 4 hours does NOT rule out. LP required.
+      2. Cerebral venous thrombosis (CVT): OCP use is a major risk
+         factor. Can present with thunderclap. CTA/CTV needed.
+      3. Cervical artery dissection: Exertional onset (CrossFit) is a
+         risk factor. CTA head and neck indicated.
+      4. Pituitary apoplexy: Rare but catastrophic. CT may miss. MRI
+         gold standard if suspected.
+      5. Reversible cerebral vasoconstriction syndrome (RCVS):
+         Recurrent thunderclap headaches, often exertional. CTA shows
+         multifocal narrowing.
+
+      LESS CRITICAL:
+      6. Primary exertional headache: Diagnosis of exclusion only.
+      7. Primary thunderclap headache: Diagnosis of exclusion only.
+      8. Hypertensive emergency: BP 128/76 — not the cause here.
+
+      Workup plan:
+      - LP (if CT negative for SAH — which it is)
+      - CTA head and neck (aneurysm, dissection, venous thrombosis)
+      - CTV if CTA inconclusive for venous thrombosis
+      - The patient's OCP use and exertional onset create two distinct
+        risk vectors that must both be evaluated.
+  - step: 3
+    action: "Synthesize findings and recommend comprehensive workup"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "subarachnoid_hemorrhage"
+  expected_tool_calls: "3-6"
+  entity_types: 3
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Thunderclap headache ('worst headache of life') is SAH until proven otherwise. A negative CT head does NOT rule out SAH — LP is required if CT is negative within 6 hours (and mandatory after 6 hours). OCP use adds cerebral venous thrombosis to the differential. Exertional onset adds cervical artery dissection. Never attribute thunderclap headache to migraine without completing the full workup."

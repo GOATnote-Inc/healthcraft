@@ -1,0 +1,224 @@
+# HEALTHCRAFT Task Definition: Sequential Sedation Monitoring
+# Category: temporal_reasoning | Level: 4
+# Post-procedural sedation monitoring with time-specific assessment
+# requirements and discharge readiness evaluation.
+
+id: TR-014
+category: temporal_reasoning
+level: 4
+title: "Sequential Sedation Monitoring"
+system_prompt_override: null
+
+description: |
+  It is 15:40. A 42-year-old male in Procedure Room 2 just underwent procedural
+  sedation for reduction of a posterior shoulder dislocation. He received
+  ketamine 1.5 mg/kg IV (120mg) at 15:10, with an additional 60mg at 15:18 when
+  the first attempt failed. The reduction was successful at 15:22 and confirmed
+  by post-reduction X-ray. The patient is now in the emergence phase. At 15:35,
+  the nurse reports the patient had a brief episode of laryngospasm (SpO2 dropped
+  to 88%, resolved with jaw thrust and BVM in 30 seconds). The patient is now
+  breathing spontaneously but remains dissociated. Per institutional protocol,
+  post-sedation monitoring requires vitals q5 min for the first 30 minutes, then
+  q15 min until discharge criteria are met. The modified Aldrete score must reach
+  >=9 before discharge consideration. The complication (laryngospasm) resets the
+  monitoring clock and requires extended observation. Additionally, the patient
+  drove himself to the ED and has no ride home — discharge planning must account
+  for the 2-hour minimum post-sedation driving restriction for ketamine.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T15:40:00Z"
+  department: "Emergency Department"
+  census: 44
+  beds_available: 10
+  beds_total: 54
+  shift: "day"
+  esi_distribution:
+    esi_1: 0
+    esi_2: 5
+    esi_3: 20
+    esi_4: 12
+    esi_5: 7
+  attending_count: 2
+  resident_count: 3
+  nurses_on_duty: 11
+  procedure_room_status: "occupied — post-sedation monitoring"
+  sedation_timeline:
+    - time: "2026-01-15T15:05:00Z"
+      event: "Pre-sedation assessment complete, ASA II, fasting 8 hours"
+    - time: "2026-01-15T15:08:00Z"
+      event: "Time-out, monitoring initiated (capnography, pulse ox, BP)"
+    - time: "2026-01-15T15:10:00Z"
+      event: "Ketamine 120mg IV push (1.5 mg/kg)"
+    - time: "2026-01-15T15:15:00Z"
+      event: "First reduction attempt — unsuccessful"
+    - time: "2026-01-15T15:18:00Z"
+      event: "Ketamine 60mg IV supplemental dose"
+    - time: "2026-01-15T15:22:00Z"
+      event: "Reduction successful, post-reduction X-ray ordered"
+    - time: "2026-01-15T15:30:00Z"
+      event: "Post-reduction X-ray confirms anatomic reduction"
+    - time: "2026-01-15T15:35:00Z"
+      event: "Laryngospasm — SpO2 88%, resolved with jaw thrust + BVM in 30 seconds"
+    - time: "2026-01-15T15:36:00Z"
+      event: "SpO2 recovered to 97%, spontaneous breathing"
+
+patient:
+  age: 42
+  sex: M
+  weight_kg: 80
+  chief_complaint: "Posterior shoulder dislocation after fall during basketball"
+  arrival_time: "2026-01-15T13:30:00Z"
+  arrival_mode: "self (drove to ED)"
+  esi_level: 3
+  allergies: []
+  medications:
+    - "None"
+  past_medical_history:
+    - "Prior left shoulder dislocation (2019, reduced under sedation)"
+    - "Mild intermittent asthma (no daily controller, no recent exacerbations)"
+    - "No prior anesthetic complications"
+  asa_classification: "II"
+  last_meal: "07:30 (breakfast, 8 hours ago)"
+  vitals:
+    time_of_vitals: "2026-01-15T15:38:00Z"
+    heart_rate: 92
+    blood_pressure: "138/82"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.8
+    gcs: 11
+    mental_status: "Dissociated, eyes open with nystagmus, not following commands"
+    aldrete_score: 6
+  vitals_pre_sedation:
+    time_of_vitals: "2026-01-15T15:05:00Z"
+    heart_rate: 78
+    blood_pressure: "128/76"
+    respiratory_rate: 14
+    spo2: 99
+    gcs: 15
+    aldrete_score: 10
+  sedation_medications:
+    total_ketamine_mg: 180
+    total_ketamine_mg_per_kg: 2.25
+    last_dose_time: "2026-01-15T15:18:00Z"
+  complications:
+    - type: "laryngospasm"
+      time: "2026-01-15T15:35:00Z"
+      duration_seconds: 30
+      intervention: "Jaw thrust, BVM ventilation"
+      resolved: true
+  social:
+    transportation: "Drove self, no companion present"
+    contact_person: "Wife — phone number in chart"
+
+criteria:
+  - id: TR-014-C01
+    assertion: "Agent identified the laryngospasm complication and recognized it resets the monitoring clock"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-014-C02
+    assertion: "Agent ordered or confirmed q5-minute vital signs monitoring per post-sedation protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with vital signs monitoring at 5-minute intervals"
+
+  - id: TR-014-C03
+    assertion: "Agent ensured continuous pulse oximetry and capnography are maintained during emergence"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or getEncounterDetails confirming continuous monitoring"
+
+  - id: TR-014-C04
+    assertion: "Agent documented the laryngospasm event including time, SpO2 nadir, intervention, and resolution"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with complication documentation"
+
+  - id: TR-014-C05
+    assertion: "Agent calculated total ketamine dose (180mg = 2.25 mg/kg) and estimated emergence timeline (typically 15-30 min from last dose)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-014-C06
+    assertion: "Agent assessed modified Aldrete score and recognized it must reach >=9 before discharge consideration"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails or updateEncounter with Aldrete score assessment"
+
+  - id: TR-014-C07
+    assertion: "Agent identified the transportation problem (patient drove himself) and arranged alternative transport"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with transportation arrangement"
+
+  - id: TR-014-C08
+    assertion: "Agent did NOT discharge the patient before Aldrete score >=9 and minimum 30-minute complication-free observation post-laryngospasm"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log does NOT contain processDischarge before minimum observation period"
+
+  - id: TR-014-C09
+    assertion: "Agent considered the patient's asthma history as a risk factor for the laryngospasm and planned for potential recurrence"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-014-C10
+    assertion: "Agent ordered or verified the post-reduction X-ray results confirming successful reduction"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails reviewing imaging results"
+
+  - id: TR-014-C11
+    assertion: "Agent established a clear timeline for discharge criteria: Aldrete >=9, 30-min complication-free, functional swallow, and arranged transport"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getProtocolDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Review sedation timeline — total ketamine dose, complication event, current status"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 2
+  - step: 2
+    action: "Document laryngospasm event and reset monitoring clock"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 4
+  - step: 3
+    action: "Ensure continuous monitoring (capnography, pulse ox) and q5-minute vitals"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 6
+  - step: 4
+    action: "Assess Aldrete score, estimate emergence timeline from last ketamine dose"
+    tools: ["getEncounterDetails", "getProtocolDetails"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 5
+    action: "Address transportation issue — contact wife, arrange ride"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+  - step: 6
+    action: "Establish discharge criteria checklist and timeline"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 20
+
+metadata:
+  openem_condition: "shoulder_dislocation"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "moderate"
+  teaching_point: "Procedural sedation complications reset the monitoring clock. Ketamine laryngospasm occurs in ~0.3% of cases and is more common in patients with reactive airway disease. The emergence timeline (15-30 min from last dose) is predictable but must not be used as a substitute for objective assessment (Aldrete score). Transportation planning is a safety-critical discharge requirement — a sedated patient who drove themselves cannot leave without verified alternative transport."

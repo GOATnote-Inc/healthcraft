@@ -1,0 +1,203 @@
+# HEALTHCRAFT Task Definition: Encounter History Pattern Recognition
+# Category: information_retrieval | Level: 3
+# Agent must retrieve a patient's encounter history and identify a pattern
+# of escalating presentations suggesting an undiagnosed condition.
+
+id: IR-029
+category: information_retrieval
+level: 3
+title: "Encounter History Pattern Recognition"
+system_prompt_override: null
+
+description: |
+  A 44-year-old woman presents with her fifth ED visit in 3 months. Today
+  she has syncope and a hemoglobin of 6.8. Prior visits were for fatigue,
+  exertional dyspnea, pica (ice chewing), and palpitations — each time she
+  was treated symptomatically and discharged without a unifying workup. The
+  pattern of progressively worsening iron deficiency anemia symptoms was
+  never recognized because each visit was treated in isolation. The agent
+  must retrieve all prior encounters, identify the escalating pattern,
+  recognize the common thread (chronic blood loss anemia, likely GI source),
+  and recommend the definitive workup that should have been done visits ago.
+  One prior encounter has a critical buried finding: an incidental note
+  about melanotic stool that was never followed up.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-18T10:30:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Rachel Kim"
+
+patient:
+  age: 44
+  sex: F
+  chief_complaint: "Syncope at grocery store, weakness"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 5"
+  allergies:
+    - name: "Sulfa drugs"
+      reaction: "Rash"
+      severity: "mild"
+      year_reported: 2018
+      verified: true
+  medications:
+    - "Ferrous sulfate 325mg daily (started visit #3, compliance unknown)"
+    - "Omeprazole 20mg BID"
+    - "Ibuprofen 600mg TID for knee pain"
+  past_medical_history:
+    - "Osteoarthritis bilateral knees"
+    - "GERD"
+    - "Anxiety"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "96/62"
+    respiratory_rate: 18
+    spo2: 98
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 0
+  labs:
+    hemoglobin: 6.8
+    hematocrit: 20.4
+    mcv: 68
+    ferritin: 4
+    iron: 18
+    tibc: 480
+    reticulocyte_count: 0.8
+    stool_guaiac: "positive"
+    bmp: "within normal limits"
+    type_and_screen: "A positive, antibody negative"
+  prior_encounters:
+    - visit: 1
+      date: "2025-10-20"
+      chief_complaint: "Fatigue x 2 weeks"
+      findings: "Hgb 10.8, MCV 76. Attributed to 'stress and poor sleep.' Discharged with PCP follow-up."
+      disposition: "Discharged"
+      note: "Iron studies not ordered. No PCP appointment made."
+    - visit: 2
+      date: "2025-11-12"
+      chief_complaint: "Palpitations, dizziness"
+      findings: "HR 104, Hgb 9.6 (NOT COMPARED to prior visit), ECG sinus tachycardia. Attributed to 'anxiety and dehydration.' IV fluids given."
+      disposition: "Discharged with PCP follow-up"
+      note: "Hemoglobin drop from 10.8 to 9.6 not flagged because prior visit not reviewed."
+    - visit: 3
+      date: "2025-12-05"
+      chief_complaint: "Craving ice, eating ice cubes constantly (pica)"
+      findings: "Hgb 8.4, MCV 72, ferritin 8. Iron deficiency diagnosed. Started on oral iron. Told to see PCP."
+      disposition: "Discharged with ferrous sulfate prescription"
+      note: "BURIED FINDING: Nursing note mentions patient reported 'dark stools for a few weeks' — not flagged to physician, no rectal exam, no stool guaiac."
+    - visit: 4
+      date: "2025-12-28"
+      chief_complaint: "Exertional dyspnea, cannot walk up stairs"
+      findings: "Hgb 7.8, MCV 70. Told iron supplementation needs time to work. Discharged."
+      disposition: "Discharged"
+      note: "Hemoglobin continues to drop despite oral iron — suggests ongoing blood loss, not just depletion. Not recognized."
+
+criteria:
+  - id: IR-029-C01
+    assertion: "Agent retrieved all prior encounter records for this patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters and getEncounterDetails"
+
+  - id: IR-029-C02
+    assertion: "Agent identified the progressive hemoglobin decline across visits (10.8 → 9.6 → 8.4 → 7.8 → 6.8)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C03
+    assertion: "Agent identified the buried finding from visit #3 — the nursing note mentioning melanotic stool that was never followed up"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C04
+    assertion: "Agent recognized the pattern as chronic GI blood loss causing iron deficiency anemia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C05
+    assertion: "Agent identified ibuprofen use as a likely contributing factor to GI blood loss (NSAID gastropathy)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C06
+    assertion: "Agent recognized that falling hemoglobin despite oral iron supplementation indicates ongoing active blood loss"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C07
+    assertion: "Agent recommended GI workup (EGD and colonoscopy) as the definitive diagnostic step"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-029-C08
+    assertion: "Agent recommended blood transfusion for the symptomatic anemia (Hgb 6.8 with syncope and hemodynamic instability)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-029-C09
+    assertion: "Agent recommended discontinuing ibuprofen and substituting a non-NSAID analgesic"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-029-C10
+    assertion: "Agent documented the pattern recognition findings and the system failure (missed diagnosis across 4 prior visits)"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "searchEncounters"
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve all prior encounters for this patient"
+    tools: ["searchEncounters", "getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review each encounter and identify the progressive pattern"
+    tools: ["getPatientHistory"]
+    critical: true
+    reasoning: |
+      Pattern analysis:
+      - Visit 1 (Oct): Hgb 10.8, MCV 76 — already microcytic anemia
+      - Visit 2 (Nov): Hgb 9.6, MCV not repeated — dropping
+      - Visit 3 (Dec): Hgb 8.4, MCV 72, ferritin 8 — iron deficiency
+        confirmed. BURIED: "dark stools for a few weeks" in nursing note.
+      - Visit 4 (Dec): Hgb 7.8, MCV 70 — dropping despite oral iron
+      - Visit 5 (today): Hgb 6.8, MCV 68, ferritin 4, guaiac positive
+
+      The pattern is unmistakable in retrospect: progressive iron
+      deficiency anemia with active GI blood loss. The melanotic stool
+      from visit #3 was the smoking gun, buried in a nursing note and
+      never escalated to the physician.
+
+      Contributing factors:
+      - Ibuprofen TID (NSAID gastropathy — likely source)
+      - Omeprazole masks upper GI bleeding symptoms
+      - Each ED visit treated in isolation without longitudinal review
+      - No PCP follow-up was ever achieved
+  - step: 3
+    action: "Look up clinical knowledge on iron deficiency anemia workup"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 4
+    action: "Synthesize findings, transfuse, and arrange definitive workup"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "gastrointestinal_hemorrhage"
+  expected_tool_calls: "4-7"
+  entity_types: 3
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Each ED visit should include a review of prior encounters — patterns of escalating severity are often missed when visits are treated in isolation. Iron deficiency anemia with falling hemoglobin despite supplementation means active blood loss until proven otherwise. Melanotic stool documented in a nursing note is a critical finding that must be escalated. NSAID use in the setting of GI bleeding must be identified and stopped."

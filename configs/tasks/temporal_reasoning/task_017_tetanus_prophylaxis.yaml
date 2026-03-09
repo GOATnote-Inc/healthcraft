@@ -1,0 +1,199 @@
+# HEALTHCRAFT Task Definition: Tetanus Prophylaxis Timing Decision
+# Category: temporal_reasoning | Level: 3
+# Wound age and immunization history create a time-dependent prophylaxis
+# decision matrix. The agent must assess wound chronology, vaccination
+# status, and wound characteristics to make the correct tetanus decision.
+
+id: TR-017
+category: temporal_reasoning
+level: 3
+title: "Tetanus Prophylaxis Timing Decision"
+system_prompt_override: null
+
+description: |
+  It is 20:30. A 54-year-old male presents to the ED with a deep puncture wound
+  to his right foot sustained while working in his garden. The critical temporal
+  complexity: the patient states the injury occurred "yesterday afternoon" but
+  he only came in tonight because the wound is now red, swollen, and painful.
+  On further questioning, the injury was at approximately 14:00 yesterday —
+  making the wound approximately 30 hours old. The wound was contaminated with
+  soil and has not been cleaned. His tetanus vaccination history is uncertain:
+  he "thinks" he had a tetanus shot about 8 years ago when he cut his hand, but
+  he changed primary care providers and has no records. His wife recalls it was
+  actually for their son, not him. A dirty wound older than 6 hours in a patient
+  with uncertain vaccination status presents a specific tetanus prophylaxis
+  decision: both Tdap and tetanus immune globulin (TIG) may be indicated. The
+  wound also needs debridement, irrigation, and infection assessment given the
+  30-hour delay and current signs of cellulitis. Antibiotics for the wound
+  infection must also be timed appropriately.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T20:30:00Z"
+  department: "Emergency Department"
+  census: 40
+  beds_available: 14
+  beds_total: 54
+  shift: "evening"
+  esi_distribution:
+    esi_1: 0
+    esi_2: 3
+    esi_3: 17
+    esi_4: 13
+    esi_5: 7
+  attending_count: 2
+  resident_count: 2
+  nurses_on_duty: 10
+  pharmacy_status: "on-site"
+  tetanus_supply:
+    tdap_available: true
+    tig_available: true
+    tig_dose: "250 units IM"
+
+patient:
+  age: 54
+  sex: M
+  chief_complaint: "Puncture wound right foot, now red and swollen"
+  arrival_time: "2026-01-15T20:15:00Z"
+  arrival_mode: "walk-in (wife drove)"
+  esi_level: 3
+  allergies:
+    - "Codeine (nausea)"
+  medications:
+    - "Lisinopril 10mg daily"
+    - "Metformin 500mg BID"
+  past_medical_history:
+    - "Type 2 Diabetes (A1c 7.8%)"
+    - "Hypertension"
+    - "No immunosuppressive conditions"
+    - "Tetanus vaccination: UNCERTAIN — patient thinks ~8 years ago, wife disputes this"
+  social_history:
+    occupation: "Retired teacher, avid gardener"
+    tetanus_risk_factors: "Gardening in soil, barefoot"
+  vitals:
+    time_of_vitals: "2026-01-15T20:20:00Z"
+    heart_rate: 88
+    blood_pressure: "142/86"
+    respiratory_rate: 16
+    spo2: 98
+    temperature: 37.8
+    gcs: 15
+  wound_assessment:
+    location: "Plantar surface right foot, mid-arch"
+    type: "Deep puncture wound"
+    depth: "Approximately 2 cm"
+    contamination: "Soil contaminated, garden debris visible"
+    wound_age_hours: 30
+    time_of_injury: "2026-01-14T14:00:00Z (estimated)"
+    current_signs: "Erythema 3cm surrounding wound, edema, warmth, seropurulent drainage"
+    tetanus_prone: true
+    foreign_body: "Cannot rule out retained foreign body"
+    prior_cleaning: "Patient rinsed with garden hose, no antiseptic"
+  labs_available:
+    wbc: "12.8 (mildly elevated)"
+    glucose: "218 mg/dL"
+    creatinine: "1.0 mg/dL"
+    esr: "not yet ordered"
+    crp: "not yet ordered"
+
+criteria:
+  - id: TR-017-C01
+    assertion: "Agent established the wound chronology — 30 hours old, contaminated, tetanus-prone"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-017-C02
+    assertion: "Agent assessed the tetanus vaccination history and recognized it as uncertain/unreliable"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory reviewing immunization records"
+
+  - id: TR-017-C03
+    assertion: "Agent ordered Tdap vaccine for uncertain immunization status with a tetanus-prone wound"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with Tdap"
+
+  - id: TR-017-C04
+    assertion: "Agent ordered tetanus immune globulin (TIG) given uncertain vaccination + tetanus-prone wound per CDC guidelines"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with TIG"
+
+  - id: TR-017-C05
+    assertion: "Agent administered Tdap and TIG at different injection sites (per CDC recommendation)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: TR-017-C06
+    assertion: "Agent ordered wound exploration, irrigation, and debridement for the 30-hour-old contaminated wound"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with wound care"
+
+  - id: TR-017-C07
+    assertion: "Agent ordered imaging (X-ray of foot) to evaluate for retained foreign body"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with foot X-ray"
+
+  - id: TR-017-C08
+    assertion: "Agent started antibiotics for the wound infection (cellulitis with soil contamination)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with antibiotic for wound infection"
+
+  - id: TR-017-C09
+    assertion: "Agent recognized the patient's diabetes as a risk factor for wound infection and poor healing"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-017-C10
+    assertion: "Agent did NOT close the wound primarily (contaminated puncture wound >24 hours old requires healing by secondary intention)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain wound closure or suturing order"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getProtocolDetails"
+  - "getConditionDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Establish wound timeline — 30 hours old, soil contaminated, tetanus-prone"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Review immunization history — uncertain tetanus status"
+    tools: ["getPatientHistory"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Order Tdap + TIG (different sites) per CDC guidelines for uncertain vaccination + dirty wound"
+    tools: ["createClinicalOrder", "getProtocolDetails"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 4
+    action: "Order foot X-ray, wound irrigation/debridement, antibiotics"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 5
+    action: "Document wound assessment, tetanus decision rationale, and follow-up plan"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "wound_infection"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "moderate"
+  teaching_point: "The tetanus prophylaxis decision is a 2x2 matrix: (clean vs. dirty wound) x (vaccinated vs. unvaccinated/uncertain). A dirty wound in a patient with uncertain vaccination status requires BOTH Tdap and TIG. Wound age >6 hours with soil contamination is high-risk. A 30-hour-old contaminated puncture wound in a diabetic patient should never be primarily closed — it requires debridement, irrigation, antibiotics, and secondary intention healing."

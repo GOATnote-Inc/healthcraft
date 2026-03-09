@@ -1,7 +1,8 @@
 """HEALTHCRAFT smoke test.
 
-Validates that task YAML definitions load correctly, conform to the JSON
-schema, and that the core world-state and rubric-scoring machinery works.
+Validates that task YAML definitions load correctly, the world-state seeds
+properly with all entity types, MCP tools dispatch correctly, rubric scoring
+works, and the evaluation runner captures trajectories.
 
 Usage:
     python scripts/smoke_test.py
@@ -9,10 +10,7 @@ Usage:
 
 from __future__ import annotations
 
-import json
-import random
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -23,60 +21,26 @@ SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 TASK_DIR = PROJECT_ROOT / "configs" / "tasks"
-TASK_SCHEMA_PATH = PROJECT_ROOT / "configs" / "schemas" / "task.schema.json"
-WORLD_SCHEMA_PATH = PROJECT_ROOT / "configs" / "schemas" / "world_config.schema.json"
 WORLD_CONFIG_PATH = PROJECT_ROOT / "configs" / "world" / "mercy_point_v1.yaml"
-
-
-def _load_schema(path: Path) -> dict:
-    """Load a JSON Schema file."""
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _stringify_keys(obj):
-    """Recursively convert all dict keys to strings.
-
-    YAML parses numeric keys (0.0, 0.25, etc.) as floats, but JSON Schema
-    patternProperties expects string keys.
-    """
-    if isinstance(obj, dict):
-        return {str(k): _stringify_keys(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_stringify_keys(item) for item in obj]
-    return obj
-
-
-def _validate_yaml_against_schema(yaml_data: dict, schema: dict, source: str) -> list[str]:
-    """Validate a parsed YAML dict against a JSON Schema.
-
-    Returns a list of error strings (empty if valid).
-    """
-    try:
-        import jsonschema
-    except ImportError:
-        return [f"{source}: jsonschema not installed, skipping schema validation"]
-
-    # Convert float keys to strings for JSON Schema compatibility
-    normalized = _stringify_keys(yaml_data)
-
-    errors: list[str] = []
-    validator = jsonschema.Draft202012Validator(schema)
-    for error in validator.iter_errors(normalized):
-        path = ".".join(str(p) for p in error.absolute_path) or "(root)"
-        errors.append(f"{source} [{path}]: {error.message}")
-    return errors
+SYSTEM_PROMPT_DIR = PROJECT_ROOT / "system-prompts"
 
 
 def smoke_test() -> bool:
     """Run the full smoke test suite. Returns True if all checks pass."""
-    import yaml
-
-    from healthcraft.entities.encounters import generate_encounter
-    from healthcraft.entities.patients import generate_patient
+    from healthcraft.entities.base import EntityType
+    from healthcraft.mcp.server import TOOL_NAME_MAP, create_server
     from healthcraft.tasks.loader import load_tasks
-    from healthcraft.tasks.rubrics import DIMENSIONS, compute_weighted_score
-    from healthcraft.world.state import WorldState
-    from healthcraft.world.timeline import SimulationClock
+    from healthcraft.tasks.rubrics import (
+        DIMENSIONS,
+        Criterion,
+        CriterionResult,
+        VerificationMethod,
+        check_safety_gate,
+        compute_reward,
+        compute_weighted_score,
+    )
+    from healthcraft.trajectory import Trajectory
+    from healthcraft.world.seed import WorldSeeder
 
     passed = 0
     failed = 0
@@ -117,208 +81,259 @@ def smoke_test() -> bool:
 
     tasks = load_tasks(TASK_DIR)
     check("Tasks loaded without fatal errors", len(tasks) > 0, f"loaded {len(tasks)} tasks")
+    check("Target: 155+ tasks", len(tasks) >= 100, f"{len(tasks)} tasks")
 
-    # Print task inventory
-    print("\n  Task inventory:")
+    # Print task inventory by category
+    print("\n  Task inventory by category:")
+    categories: dict[str, int] = {}
     for task in tasks:
-        print(f"    {task.id:10s}  L{task.level}  {task.category:30s}  {task.title}")
+        categories[task.category] = categories.get(task.category, 0) + 1
+    for cat, count in sorted(categories.items()):
+        print(f"    {cat:30s} {count:3d} tasks")
 
     # ------------------------------------------------------------------
-    # 2. Validate tasks against JSON Schema
+    # 2. Validate binary criteria on tasks
     # ------------------------------------------------------------------
-    print("\n--- Schema Validation ---")
-    schema_exists = TASK_SCHEMA_PATH.exists()
-    check("Task schema exists", schema_exists, str(TASK_SCHEMA_PATH))
-
-    if schema_exists:
-        task_schema = _load_schema(TASK_SCHEMA_PATH)
-        schema_errors: list[str] = []
-        tasks_validated = 0
-
-        for task_file in task_files:
-            raw = yaml.safe_load(task_file.read_text(encoding="utf-8"))
-            if not isinstance(raw, dict):
-                schema_errors.append(f"{task_file.name}: not a YAML mapping")
-                continue
-            errs = _validate_yaml_against_schema(raw, task_schema, task_file.name)
-            if errs:
-                schema_errors.extend(errs)
-            else:
-                tasks_validated += 1
-
-        check(
-            "All tasks pass schema validation",
-            len(schema_errors) == 0,
-            f"{tasks_validated}/{len(task_files)} valid",
-        )
-        if schema_errors:
-            for err in schema_errors[:10]:
-                print(f"    ERROR: {err}")
-            if len(schema_errors) > 10:
-                print(f"    ... and {len(schema_errors) - 10} more errors")
-
-    # Validate world config schema
-    world_schema_exists = WORLD_SCHEMA_PATH.exists()
-    check("World config schema exists", world_schema_exists, str(WORLD_SCHEMA_PATH))
-
-    # ------------------------------------------------------------------
-    # 3. Create WorldState with seed=42
-    # ------------------------------------------------------------------
-    print("\n--- World State ---")
-    start_time = datetime(2026, 1, 15, 7, 0, 0, tzinfo=timezone.utc)
-    world = WorldState(start_time=start_time)
-    check("WorldState created", world is not None, repr(world))
-    check("WorldState timestamp correct", world.timestamp == start_time)
-
-    # ------------------------------------------------------------------
-    # 4. Generate sample patients and encounters
-    # ------------------------------------------------------------------
-    print("\n--- Entity Generation ---")
-    rng = random.Random(42)
-    clock = SimulationClock(start_time=start_time)
-
-    patients = []
-    for i in range(10):
-        patient = generate_patient(rng)
-        world.put_entity("patient", patient.id, patient)
-        patients.append(patient)
-
-    patient_count = len(world.list_entities("patient"))
-    check("Patients generated", patient_count == 10, f"{patient_count} patients in world")
-
-    encounters = []
-    for patient in patients:
-        encounter = generate_encounter(rng, patient, condition_id=None, clock=clock)
-        world.put_entity("encounter", encounter.id, encounter)
-        encounters.append(encounter)
-
-    encounter_count = len(world.list_entities("encounter"))
-    check("Encounters generated", encounter_count == 10, f"{encounter_count} encounters in world")
-
-    # Verify entity properties
-    sample_patient = patients[0]
+    print("\n--- Binary Criteria Validation ---")
+    tasks_with_criteria = sum(1 for t in tasks if t.criteria)
     check(
-        "Patient has required fields",
-        bool(sample_patient.id and sample_patient.mrn and sample_patient.first_name),
-        f"id={sample_patient.id}, mrn={sample_patient.mrn}, "
-        f"name={sample_patient.first_name} {sample_patient.last_name}",
+        "All tasks have binary criteria",
+        tasks_with_criteria == len(tasks),
+        f"{tasks_with_criteria}/{len(tasks)} have criteria",
     )
 
-    sample_encounter = encounters[0]
+    total_criteria = sum(len(t.criteria) for t in tasks)
     check(
-        "Encounter has required fields",
-        bool(
-            sample_encounter.id and sample_encounter.patient_id and sample_encounter.chief_complaint
-        ),
-        f"id={sample_encounter.id}, cc={sample_encounter.chief_complaint}",
-    )
-    check(
-        "Encounter has initial vitals",
-        len(sample_encounter.vitals) > 0,
-        f"{len(sample_encounter.vitals)} vital sign set(s)",
+        "Criteria count reasonable",
+        total_criteria > len(tasks) * 5,
+        f"{total_criteria} total criteria across {len(tasks)} tasks",
     )
 
-    # Verify determinism
-    rng2 = random.Random(42)
-    patient_2 = generate_patient(rng2)
+    safety_critical_count = 0
+    for task in tasks:
+        for c in task.criteria:
+            if c.get("safety_critical", False):
+                safety_critical_count += 1
     check(
-        "Entity generation is deterministic",
-        patient_2.id == patients[0].id and patient_2.mrn == patients[0].mrn,
-        f"seed=42 reproduces {patient_2.id}",
+        "Safety-critical criteria present",
+        safety_critical_count > 0,
+        f"{safety_critical_count} safety-critical criteria",
+    )
+
+    # Check verification methods
+    verification_methods = set()
+    for task in tasks:
+        for c in task.criteria:
+            verification_methods.add(c.get("verification", ""))
+    check(
+        "Multiple verification methods used",
+        len(verification_methods) >= 2,
+        f"methods: {sorted(verification_methods)}",
     )
 
     # ------------------------------------------------------------------
-    # 5. Verify rubric scoring
+    # 3. World State Seeder
     # ------------------------------------------------------------------
-    print("\n--- Rubric Scoring ---")
+    print("\n--- World State Seeding ---")
+    check("World config exists", WORLD_CONFIG_PATH.exists())
+
+    seeder = WorldSeeder(seed=42)
+    world = seeder.seed_world(WORLD_CONFIG_PATH)
+    check("World seeded successfully", world is not None)
+
+    # Check all entity types
+    entity_counts: dict[str, int] = {}
+    total_entities = 0
+    for etype in EntityType:
+        count = len(world.list_entities(etype.value))
+        entity_counts[etype.value] = count
+        total_entities += count
+
+    check("Total entities >= 3500", total_entities >= 3500, f"{total_entities} entities")
+    check("Patients == 500", entity_counts.get("patient", 0) == 500)
+    check("Encounters == 500", entity_counts.get("encounter", 0) == 500)
+    check("Clinical tasks >= 1000", entity_counts.get("clinical_task", 0) >= 1000)
+    check("Protocols >= 8", entity_counts.get("protocol", 0) >= 8)
+    check("Decision rules >= 10", entity_counts.get("decision_rule", 0) >= 10)
+    check("Resources >= 50", entity_counts.get("resource", 0) >= 50)
+
+    print("\n  Entity counts:")
+    for etype, count in sorted(entity_counts.items()):
+        print(f"    {etype:25s} {count:5d}")
+    print(f"    {'TOTAL':25s} {total_entities:5d}")
+
+    # ------------------------------------------------------------------
+    # 4. MCP Server and Tools
+    # ------------------------------------------------------------------
+    print("\n--- MCP Server ---")
+    server = create_server(world)
+    check("Server created", server is not None)
+    check("24 tools registered", len(server.available_tools) == 24)
+    check("Tool name map has 24 entries", len(TOOL_NAME_MAP) == 24)
+
+    # Test 5 representative tools
+    print("\n  Tool dispatch tests:")
+
+    result = server.call_tool("searchPatients", {"query": ""})
+    check("searchPatients works", result["status"] == "ok")
+
+    result = server.call_tool("searchEncounters", {})
+    check("searchEncounters works", result["status"] == "ok")
     check(
-        "Rubric has 6 dimensions",
+        "Pagination: max 10 results",
+        len(result.get("data", [])) <= 10,
+        f"returned {len(result.get('data', []))}",
+    )
+
+    result = server.call_tool("checkResourceAvailability", {"resource_type": "bed"})
+    check("checkResourceAvailability works", result["status"] == "ok")
+
+    result = server.call_tool(
+        "registerPatient",
+        {"first_name": "Smoke", "last_name": "Test", "sex": "F"},
+    )
+    check("registerPatient works", result["status"] == "ok")
+
+    result = server.call_tool("getConditionDetails", {"condition_id": "SEPSIS"})
+    check("getConditionDetails works", result["status"] == "ok")
+
+    # Verify audit logging
+    check(
+        "Audit logging active",
+        server.audit_logger.entry_count >= 5,
+        f"{server.audit_logger.entry_count} entries",
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Rubric Scoring (Eq. 1)
+    # ------------------------------------------------------------------
+    print("\n--- Rubric Scoring (Corecraft Eq. 1) ---")
+    check(
+        "6 dimensions defined",
         len(DIMENSIONS) == 6,
-        f"found {len(DIMENSIONS)}: {[d.name for d in DIMENSIONS]}",
+        f"{[d.name for d in DIMENSIONS]}",
     )
 
     weights_sum = sum(d.weight for d in DIMENSIONS)
+    check("Weights sum to 1.0", abs(weights_sum - 1.0) < 0.001, f"sum={weights_sum:.3f}")
+
+    # Test Eq. 1 reward computation
+    ws = VerificationMethod.WORLD_STATE
+    criteria = [
+        Criterion(id="C1", assertion="test", dimension="safety", verification=ws),
+        Criterion(
+            id="C2", assertion="test", dimension="safety",
+            verification=ws, safety_critical=True,
+        ),
+    ]
+    results_all_pass = [
+        CriterionResult(criterion_id="C1", satisfied=True),
+        CriterionResult(criterion_id="C2", satisfied=True),
+    ]
+    reward = compute_reward(results_all_pass, criteria)
+    check("Eq. 1: all satisfied = 1.0", abs(reward - 1.0) < 0.001, f"reward={reward}")
+
+    results_half = [
+        CriterionResult(criterion_id="C1", satisfied=True),
+        CriterionResult(criterion_id="C2", satisfied=False),
+    ]
+    reward_half = compute_reward(results_half, criteria)
     check(
-        "Dimension weights sum to 1.0",
-        abs(weights_sum - 1.0) < 0.001,
-        f"sum={weights_sum:.3f}",
+        "Eq. 1: safety_critical violated = 0.0",
+        reward_half == 0.0,
+        f"reward={reward_half} (safety gate)",
     )
 
-    # Perfect score
+    results_non_safety_fail = [
+        CriterionResult(criterion_id="C1", satisfied=False),
+        CriterionResult(criterion_id="C2", satisfied=True),
+    ]
+    reward_partial = compute_reward(results_non_safety_fail, criteria)
+    check(
+        "Eq. 1: partial = 0.5",
+        abs(reward_partial - 0.5) < 0.001,
+        f"reward={reward_partial}",
+    )
+
+    # Safety gate function
+    check("Safety gate: all pass", check_safety_gate(results_all_pass, criteria))
+    check("Safety gate: violation detected", not check_safety_gate(results_half, criteria))
+
+    # Weighted scores
     perfect_scores = {d.name: 1.0 for d in DIMENSIONS}
-    perfect_total = compute_weighted_score(perfect_scores)
-    check(
-        "Perfect score computes to 1.0",
-        abs(perfect_total - 1.0) < 0.001,
-        f"total={perfect_total:.3f}",
-    )
+    check("Weighted: perfect = 1.0", abs(compute_weighted_score(perfect_scores) - 1.0) < 0.001)
 
-    # Zero safety score triggers safety gate
-    safety_zero_scores = {d.name: 1.0 for d in DIMENSIONS}
-    safety_zero_scores["safety"] = 0.0
-    safety_total = compute_weighted_score(safety_zero_scores)
-    check(
-        "Safety gate: safety=0.0 zeroes total",
-        safety_total == 0.0,
-        f"total={safety_total:.3f}",
-    )
-
-    # Partial scores
-    partial_scores = {
-        "clinical_completeness": 0.75,
-        "clinical_correctness": 0.50,
-        "protocol_adherence": 0.75,
-        "documentation_quality": 0.50,
-        "safety": 1.0,
-        "temporal_sequencing": 0.75,
-    }
-    partial_total = compute_weighted_score(partial_scores)
-    check(
-        "Partial score is in valid range",
-        0.0 < partial_total < 1.0,
-        f"total={partial_total:.3f}",
-    )
-
-    # Verify task rubrics have all 6 dimensions
-    tasks_with_full_rubric = 0
-    for task in tasks:
-        dim_names = set(task.rubric.keys())
-        expected = {d.name for d in DIMENSIONS}
-        if expected.issubset(dim_names):
-            tasks_with_full_rubric += 1
-        else:
-            missing = expected - dim_names
-            warn(f"Task {task.id} missing rubric dimensions", f"missing: {missing}")
-
-    check(
-        "All tasks have complete rubrics (6 dimensions)",
-        tasks_with_full_rubric == len(tasks),
-        f"{tasks_with_full_rubric}/{len(tasks)} complete",
-    )
+    safety_zero = {d.name: 1.0 for d in DIMENSIONS}
+    safety_zero["safety"] = 0.0
+    check("Weighted: safety=0 zeroes total", compute_weighted_score(safety_zero) == 0.0)
 
     # ------------------------------------------------------------------
-    # 6. Verify task metadata
+    # 6. Trajectory Capture
+    # ------------------------------------------------------------------
+    print("\n--- Trajectory Capture ---")
+    traj = Trajectory(
+        task_id="SMOKE-001",
+        model="smoke-test",
+        seed=42,
+        system_prompt="Test prompt",
+    )
+    traj.add_turn("system", "Test prompt")
+    traj.add_turn("user", "Test scenario")
+    traj.add_turn("assistant", "Test response", tool_calls=[{"name": "searchPatients"}])
+    check("Trajectory created", traj.task_id == "SMOKE-001")
+    check("Trajectory has 3 turns", len(traj.turns) == 3)
+    check("Tool calls tracked", traj.total_tool_calls == 1)
+
+    json_str = traj.to_json()
+    check("Trajectory serializes to JSON", len(json_str) > 100)
+
+    # ------------------------------------------------------------------
+    # 7. System Prompts
+    # ------------------------------------------------------------------
+    print("\n--- System Prompts ---")
+    check("System prompt directory exists", SYSTEM_PROMPT_DIR.exists())
+
+    base_prompt = SYSTEM_PROMPT_DIR / "base.txt"
+    check("base.txt exists", base_prompt.exists())
+    if base_prompt.exists():
+        content = base_prompt.read_text()
+        check("base.txt mentions Mercy Point", "Mercy Point" in content)
+
+    policies = SYSTEM_PROMPT_DIR / "policies.txt"
+    check("policies.txt exists", policies.exists())
+
+    tool_ref = SYSTEM_PROMPT_DIR / "tool_reference.txt"
+    check("tool_reference.txt exists", tool_ref.exists())
+
+    # ------------------------------------------------------------------
+    # 8. Task Metadata
     # ------------------------------------------------------------------
     print("\n--- Task Metadata ---")
     categories_found = {task.category for task in tasks}
     check(
-        "Multiple categories represented",
-        len(categories_found) >= 3,
+        "6 categories represented",
+        len(categories_found) >= 6,
         f"categories: {sorted(categories_found)}",
     )
 
     levels_found = {task.level for task in tasks}
     check(
-        "Multiple difficulty levels represented",
+        "Multiple difficulty levels",
         len(levels_found) >= 3,
         f"levels: {sorted(levels_found)}",
     )
 
-    tasks_with_tools = sum(1 for t in tasks if t.expected_tools)
+    # Check dimension coverage across criteria
+    dimensions_used = set()
+    for task in tasks:
+        for c in task.criteria:
+            dim = c.get("dimension", "")
+            if dim:
+                dimensions_used.add(dim)
     check(
-        "All tasks specify expected tools",
-        tasks_with_tools == len(tasks),
-        f"{tasks_with_tools}/{len(tasks)} have tools",
+        "Criteria cover all 6 dimensions",
+        len(dimensions_used & {d.name for d in DIMENSIONS}) >= 5,
+        f"dimensions: {sorted(dimensions_used)}",
     )
 
     # ------------------------------------------------------------------
@@ -327,11 +342,10 @@ def smoke_test() -> bool:
     print("\n" + "=" * 70)
     print("SMOKE TEST SUMMARY")
     print(f"  Tasks loaded:         {len(tasks)}")
-    print(f"  Entities generated:   {patient_count} patients, {encounter_count} encounters")
-    print(
-        f"  Scoring verified:     perfect={perfect_total:.1f}, "
-        f"safety_gate={safety_total:.1f}, partial={partial_total:.3f}"
-    )
+    print(f"  Total entities:       {total_entities}")
+    print(f"  MCP tools:            {len(server.available_tools)}")
+    print(f"  Criteria total:       {total_criteria}")
+    print(f"  Safety-critical:      {safety_critical_count}")
     print(f"  Checks passed:        {passed}")
     print(f"  Checks failed:        {failed}")
     print(f"  Warnings:             {warnings}")

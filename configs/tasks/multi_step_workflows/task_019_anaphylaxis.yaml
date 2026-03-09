@@ -1,0 +1,232 @@
+# HEALTHCRAFT Task Definition: Anaphylaxis Protocol
+# Category: multi_step_workflows | Level: 3
+# Tests anaphylaxis management: epinephrine administration, IV fluids,
+# adjunctive therapy, observation, and disposition planning.
+
+id: MW-019
+category: multi_step_workflows
+level: 3
+title: "Anaphylaxis — Epinephrine, Monitoring, and Disposition"
+system_prompt_override: null
+
+description: |
+  A 32-year-old female presents to the ED with rapidly progressive facial
+  swelling, diffuse urticaria, wheezing, and throat tightness that began 20
+  minutes after eating shrimp pad thai at a restaurant. She has a known shellfish
+  allergy but did not realize the dish contained shrimp. She used her EpiPen
+  (epinephrine 0.3mg IM) in the restaurant parking lot with partial improvement,
+  but symptoms are worsening again. On arrival she has angioedema of the lips and
+  tongue, stridor, diffuse urticaria, bilateral wheezing, HR 118, BP 88/52, and
+  SpO2 91%. This represents anaphylaxis with biphasic risk. The agent must
+  administer repeat IM epinephrine, establish IV access, initiate aggressive fluid
+  resuscitation, start adjunctive therapies (H1/H2 blockers, corticosteroids,
+  albuterol), monitor for biphasic reaction, and determine appropriate observation
+  period and disposition.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T19:22:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    allergy_immunology: "on-call, phone only"
+    critical_care: "in-house"
+    anesthesia: "on-call, 10-minute response (for difficult airway)"
+  pharmacy:
+    epinephrine: "available — 1:1000 for IM, 1:10000 for IV"
+    diphenhydramine: "available"
+    famotidine: "available"
+    methylprednisolone: "available"
+    albuterol: "available"
+    glucagon: "available (for beta-blocker refractory)"
+
+patient:
+  age: 32
+  sex: F
+  weight_kg: 65
+  chief_complaint: "Allergic reaction with throat swelling, difficulty breathing, hives after shellfish ingestion"
+  arrival_mode: "Private vehicle, husband drove"
+  esi_level: 1
+  allergies:
+    - "Shellfish (known anaphylaxis — carries EpiPen)"
+    - "Amoxicillin (childhood rash)"
+  medications:
+    - "Oral contraceptive pill"
+    - "Cetirizine 10mg daily (seasonal allergies)"
+    - "EpiPen 0.3mg — USED 20 minutes ago"
+  past_medical_history:
+    - "Shellfish allergy — diagnosed age 8, prior anaphylaxis age 22"
+    - "Seasonal allergic rhinitis"
+    - "No asthma"
+    - "No cardiac history"
+  social_history:
+    - "Software engineer"
+    - "Non-smoker"
+    - "Occasional wine"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "88/52"
+    respiratory_rate: 28
+    spo2: 91
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 5
+  exam_findings:
+    general: "Anxious, distressed, voice muffled, sitting upright"
+    head: "Angioedema — lips swollen, tongue edematous, uvula swollen"
+    neck: "Inspiratory stridor audible. No JVD."
+    lungs: "Bilateral diffuse expiratory wheezes, poor air movement"
+    cardiac: "Tachycardic, regular, no murmurs"
+    skin: "Diffuse urticaria — confluent wheals over trunk, extremities, face. Flushed. Warm."
+    abdomen: "Mild diffuse cramping pain, no guarding"
+  labs:
+    poc_glucose: "118 mg/dL"
+    cbc: "WBC 12.2, Hgb 13.8, Plt 280"
+    bmp: "Na 138, K 4.0, Cl 102, CO2 22, BUN 14, Cr 0.8"
+    tryptase: "ordered — results pending (baseline comparison)"
+  timeline:
+    shellfish_ingestion: "2026-01-15T18:45:00Z"
+    symptom_onset: "2026-01-15T19:05:00Z"
+    epipen_used: "2026-01-15T19:08:00Z"
+    symptom_recurrence: "2026-01-15T19:15:00Z"
+    ed_arrival: "2026-01-15T19:20:00Z"
+
+criteria:
+  - id: MW-019-C01
+    assertion: "Agent administered repeat IM epinephrine (0.3-0.5mg of 1:1000 in lateral thigh) as first intervention"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for epinephrine_IM as first medication order"
+
+  - id: MW-019-C02
+    assertion: "Agent placed patient supine with legs elevated (or seated upright if respiratory distress predominant — clinical judgment)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-019-C03
+    assertion: "Agent established large-bore IV access and initiated aggressive crystalloid fluid bolus (1-2L NS for hypotension)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_access and IV_fluid_bolus"
+
+  - id: MW-019-C04
+    assertion: "Agent administered H1 antihistamine (diphenhydramine 50mg IV)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for H1_antihistamine"
+
+  - id: MW-019-C05
+    assertion: "Agent administered H2 antihistamine (famotidine 20mg IV)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for H2_antihistamine"
+
+  - id: MW-019-C06
+    assertion: "Agent administered corticosteroid (methylprednisolone 125mg IV or equivalent) for biphasic reaction prevention"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for corticosteroid"
+
+  - id: MW-019-C07
+    assertion: "Agent ordered inhaled albuterol for bronchospasm"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for albuterol_nebulizer"
+
+  - id: MW-019-C08
+    assertion: "Agent monitored for airway compromise and had plan for definitive airway management if stridor worsened"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-019-C09
+    assertion: "Agent ordered tryptase level for anaphylaxis confirmation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for tryptase"
+
+  - id: MW-019-C10
+    assertion: "Agent applied anaphylaxis protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for anaphylaxis"
+
+  - id: MW-019-C11
+    assertion: "Agent planned minimum 4-6 hour observation period for biphasic reaction risk (severe initial presentation with hypotension)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-019-C12
+    assertion: "Agent prescribed EpiPen for discharge and referred to allergy/immunology for follow-up"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for EpiPen_prescription and allergy_referral"
+
+  - id: MW-019-C13
+    assertion: "Agent documented anaphylaxis event, allergen, interventions, response to treatment, and observation plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, confirm anaphylaxis, review allergen and EpiPen use"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Administer repeat IM epinephrine immediately"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Establish IV access, start fluid bolus"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Apply anaphylaxis protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 5
+    action: "Administer adjunctive therapy: H1, H2 blockers, corticosteroids, albuterol"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order tryptase level"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 7
+    action: "Monitor airway, plan for intubation if worsening"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 8
+    action: "Observe 4-6 hours for biphasic reaction"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Prescribe EpiPen, refer to allergy"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Document anaphylaxis event and disposition"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "anaphylaxis"
+  expected_tool_calls: "10-14"
+  entity_types: 6
+  time_pressure: "critical"
+  cognitive_load: "moderate"
+  teaching_point: "Epinephrine IM is the FIRST and most important treatment for anaphylaxis — there is no contraindication in anaphylaxis. Repeat every 5-15 minutes if symptoms persist. H1/H2 blockers and corticosteroids are adjunctive only and should never delay epinephrine. Biphasic reactions occur in up to 20% of cases, typically 1-72 hours after initial reaction — observe severe presentations for minimum 4-6 hours. All patients should be discharged with an EpiPen prescription and allergy referral."

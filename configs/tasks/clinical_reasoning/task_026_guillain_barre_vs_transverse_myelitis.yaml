@@ -1,0 +1,215 @@
+# HEALTHCRAFT Task Definition: Guillain-Barre vs Transverse Myelitis
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: guillain_barre:transverse_myelitis
+# Patient with ascending weakness — agent must differentiate GBS (peripheral) from
+# transverse myelitis (central) as management and prognosis differ significantly.
+
+id: CR-026
+category: clinical_reasoning
+level: 4
+title: "The Ascending Paralysis"
+system_prompt_override: null
+
+description: |
+  A 34-year-old male presents with progressive bilateral leg weakness over 3 days
+  that has now spread to involve his arms. He reports tingling in his feet and hands.
+  He had a Campylobacter gastroenteritis 2 weeks ago. On exam, he has symmetric
+  flaccid weakness (3/5 in legs, 4/5 in arms), absent deep tendon reflexes in all
+  extremities, and intact sensation to pinprick. There is no sensory level, no bowel
+  or bladder dysfunction, and no back pain. Forced vital capacity is 1.8L (predicted
+  4.2L, 43% predicted). CSF shows albuminocytologic dissociation (protein 128 mg/dL,
+  WBC 2 cells/uL). MRI spine is normal. The agent must diagnose Guillain-Barre
+  syndrome based on ascending flaccid paralysis, areflexia, antecedent infection,
+  normal MRI, and CSF findings, and recognize the impending respiratory failure
+  requiring ICU admission and IVIG or plasmapheresis.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-18T11:30:00Z"
+  department: "Emergency Department"
+  census: 25
+  beds_available: 29
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    neurology: "on_call, 20min response"
+    critical_care: "in_house"
+    pulmonology: "on_call, 25min response"
+
+patient:
+  age: 34
+  sex: M
+  chief_complaint: "Can't feel my feet, legs getting weaker, now my hands are weak too"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "None known"
+  medications:
+    - "None"
+  past_medical_history:
+    - "Campylobacter jejuni gastroenteritis 2 weeks ago (culture confirmed, treated with azithromycin)"
+    - "No prior neurological issues"
+    - "No autoimmune diseases"
+    - "No recent vaccinations"
+  family_history:
+    - "No neurological diseases"
+    - "Mother: type 2 diabetes"
+  social_history:
+    - "Software engineer"
+    - "Non-smoker"
+    - "Occasional alcohol"
+    - "No recent travel"
+  vitals:
+    heart_rate: 104
+    blood_pressure: "148/92"
+    respiratory_rate: 24
+    spo2: 94
+    temperature: 37.1
+    gcs: 15
+    pain_scale: 3
+  exam_findings:
+    general: "Anxious male in mild respiratory distress, speaking in shorter sentences"
+    neurological:
+      mental_status: "Alert, oriented x4"
+      cranial_nerves: "Intact, no facial weakness, no bulbar symptoms"
+      motor: "Symmetric flaccid weakness: upper extremities 4/5 bilaterally, lower extremities 3/5 bilaterally. No fasciculations."
+      reflexes: "Absent patellar, Achilles, biceps, and brachioradialis reflexes bilaterally. Plantar responses absent."
+      sensory: "Paresthesias in glove-and-stocking distribution. Intact pinprick, proprioception, and vibration. No sensory level."
+      gait: "Unable to ambulate without assistance"
+      bladder: "No urinary retention, no incontinence"
+    cardiovascular: "Tachycardic, regular rhythm, BP labile (fluctuating 110-160 systolic)"
+    pulmonary: "Shallow breaths, reduced air entry at bases, using accessory muscles. FVC 1.8L (43% predicted). NIF -28 cmH2O (normal > -60)."
+  labs:
+    cbc:
+      wbc: 8.4
+      hemoglobin: 14.2
+      platelets: 270
+    bmp:
+      sodium: 141
+      potassium: 4.3
+      creatinine: 0.9
+      glucose: 96
+    csf:
+      opening_pressure: 14
+      protein: 128
+      glucose: 62
+      wbc: 2
+      rbc: 0
+      gram_stain: "no organisms"
+      culture: "pending"
+  imaging:
+    mri_spine:
+      result: "No cord compression, no signal abnormality in the spinal cord. No transverse myelitis pattern. Mild enhancement of the cauda equina nerve roots on post-contrast sequences (suggestive of inflammatory radiculopathy). No disc herniation."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-026-C01
+    assertion: "Agent reviewed neurological exam including ascending weakness pattern, areflexia, and intact sensation without sensory level"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-026-C02
+    assertion: "Agent retrieved history including preceding Campylobacter infection 2 weeks prior"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-026-C03
+    assertion: "Agent diagnosed Guillain-Barre syndrome based on ascending flaccid paralysis, areflexia, antecedent infection, and CSF albuminocytologic dissociation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-026-C04
+    assertion: "Agent differentiated GBS from transverse myelitis: no sensory level, no cord abnormality on MRI, areflexia (not hyperreflexia), no bladder dysfunction"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-026-C05
+    assertion: "Agent recognized impending respiratory failure (FVC 43%, NIF -28) and arranged ICU admission"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-026-C06
+    assertion: "Agent ordered serial FVC and NIF measurements to monitor respiratory status"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-026-C07
+    assertion: "Agent initiated IVIG or plasmapheresis as disease-modifying treatment"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-026-C08
+    assertion: "Agent consulted neurology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-026-C09
+    assertion: "Agent recognized autonomic instability (labile BP, tachycardia) as a feature of GBS"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-026-C10
+    assertion: "Agent did NOT administer IV steroids (steroids are NOT effective in GBS and may be harmful)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_steroids_gbs"
+
+  - id: CR-026-C11
+    assertion: "Agent prepared for potential intubation given declining respiratory parameters"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-026-C12
+    assertion: "Agent ordered nerve conduction studies/EMG to confirm the diagnosis"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-026-C13
+    assertion: "Agent documented GBS criteria, respiratory monitoring plan, and differentiation from transverse myelitis"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Neuro exam — ascending flaccid weakness, areflexia, no sensory level"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — Campylobacter infection 2 weeks ago"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Respiratory assessment — FVC 43%, NIF -28 → impending respiratory failure"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "CSF — albuminocytologic dissociation. MRI spine — no cord lesion"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Diagnose GBS, ICU admission, IVIG, serial FVC monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "guillain_barre:transverse_myelitis"
+  openem_condition: "guillain_barre"
+  expected_tool_calls: "8-14"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "GBS vs transverse myelitis: GBS has ascending flaccid weakness with areflexia, no sensory level, CSF albuminocytologic dissociation, and normal MRI cord. Transverse myelitis has a distinct sensory level, hyperreflexia below the level, bladder dysfunction, and T2 cord signal on MRI. Campylobacter jejuni is the most common antecedent infection in GBS. FVC <20 mL/kg or NIF weaker than -30 cmH2O are criteria for intubation. IVIG and plasmapheresis are equally effective; steroids are NOT effective in GBS. Autonomic instability can cause sudden cardiac death."

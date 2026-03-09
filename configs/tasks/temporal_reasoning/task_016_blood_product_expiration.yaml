@@ -1,0 +1,245 @@
+# HEALTHCRAFT Task Definition: Blood Product Expiration Tracking
+# Category: temporal_reasoning | Level: 5
+# Massive transfusion protocol with multiple blood products having different
+# expiration windows. The agent must track product timing, maintain ratios,
+# and prevent administration of expired products during a chaotic resuscitation.
+
+id: TR-016
+category: temporal_reasoning
+level: 5
+title: "Blood Product Expiration Tracking"
+system_prompt_override: null
+
+description: |
+  It is 03:25. A 31-year-old male in Trauma Bay 1 arrived 40 minutes ago after
+  a penetrating abdominal injury (gunshot wound). Massive transfusion protocol
+  (MTP) was activated at 02:50. The patient has received MTP Pack 1 (6 units
+  pRBC, 6 units FFP, 1 unit platelets) and is now on Pack 2. The situation is
+  complicated by the following temporal factors:
+
+  1. Two units of FFP from Pack 2 were thawed at 02:55 but not yet hung — thawed
+     FFP expires 24 hours after thawing, but more critically, these units have
+     been at room temperature for 30 minutes (max 30 min at room temp before
+     infusion must begin or product is wasted).
+  2. The platelet unit from Pack 2 was issued at 03:00 but platelets must be
+     transfused within 4 hours of issue. The surgical team has diverted to a
+     second GSW patient who just arrived, delaying the OR.
+  3. The patient's most recent TEG/ROTEM (drawn at 03:10) shows a fibrinogen
+     level of 1.1 g/L (critically low), requiring cryoprecipitate — which takes
+     30 minutes to thaw from frozen.
+  4. The blood bank has 8 O-negative units remaining; hospital policy requires
+     maintaining a 4-unit reserve for other emergencies.
+
+  The agent must manage product timing, prevent expired product administration,
+  order cryoprecipitate with lead time, maintain MTP ratios, and balance this
+  patient's needs against hospital-wide blood supply.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T03:25:00Z"
+  department: "Emergency Department — Trauma Bay 1"
+  census: 46
+  beds_available: 8
+  beds_total: 54
+  shift: "night"
+  attending_count: 1
+  resident_count: 2
+  nurses_on_duty: 9
+  trauma_team_status: "activated, split between two patients"
+  or_status: "occupied — second GSW patient undergoing damage control"
+  or_availability: "estimated 45-60 minutes for Patient 1"
+  blood_bank:
+    o_negative_units: 8
+    o_negative_reserve_policy: 4
+    type_and_screen: "pending (sample sent 02:50, estimated 30 min)"
+    crossmatch_status: "not yet available"
+    cryoprecipitate_frozen: 10
+    cryo_thaw_time_minutes: 30
+  mtp_timeline:
+    - time: "2026-01-15T02:45:00Z"
+      event: "Patient arrival, GSW abdomen, GCS 14, BP 72/40"
+    - time: "2026-01-15T02:50:00Z"
+      event: "MTP activated, Pack 1 issued"
+    - time: "2026-01-15T02:52:00Z"
+      event: "Pack 1 pRBC units 1-2 started"
+    - time: "2026-01-15T02:55:00Z"
+      event: "Pack 2 FFP thawed (2 units removed from blood warmer)"
+    - time: "2026-01-15T03:00:00Z"
+      event: "Pack 1 complete. Pack 2 pRBC and platelets issued"
+    - time: "2026-01-15T03:05:00Z"
+      event: "Pack 2 pRBC units 1-2 started"
+    - time: "2026-01-15T03:10:00Z"
+      event: "TEG drawn — results at 03:20 show fibrinogen 1.1 g/L"
+    - time: "2026-01-15T03:15:00Z"
+      event: "Second GSW patient arrives, trauma surgery diverted to OR"
+    - time: "2026-01-15T03:20:00Z"
+      event: "TEG results available"
+
+patient:
+  age: 31
+  sex: M
+  weight_kg: 85
+  chief_complaint: "Gunshot wound to abdomen"
+  arrival_time: "2026-01-15T02:45:00Z"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies: []
+  medications: []
+  past_medical_history:
+    - "No significant past medical history"
+    - "No prior surgeries"
+    - "Blood type: unknown (type and screen pending)"
+  vitals:
+    time_of_vitals: "2026-01-15T03:20:00Z"
+    heart_rate: 132
+    blood_pressure: "84/52"
+    respiratory_rate: 26
+    spo2: 94
+    temperature: 35.2
+    gcs: 13
+  vitals_at_arrival:
+    time_of_vitals: "2026-01-15T02:45:00Z"
+    heart_rate: 142
+    blood_pressure: "72/40"
+    respiratory_rate: 30
+    spo2: 91
+    temperature: 35.8
+    gcs: 14
+  labs_available:
+    hemoglobin: "7.2 g/dL (was 6.1 pre-transfusion)"
+    platelets: "98,000"
+    inr: "1.8"
+    fibrinogen: "1.1 g/L (critically low, normal >2.0)"
+    lactate: "6.4 mmol/L (was 8.2 at arrival)"
+    ph: "7.22"
+    base_deficit: "-8"
+    ionized_calcium: "0.92 mmol/L (low — citrate effect from transfusion)"
+    potassium: "4.8 mEq/L"
+    teg_rotem:
+      clot_formation_time: "prolonged"
+      maximum_amplitude: "reduced"
+      fibrinolysis: "none"
+  fast_exam: "Positive — large volume free fluid in Morrison's pouch and pelvis"
+  injuries:
+    - "GSW left lower quadrant, no exit wound"
+    - "Suspected hollow viscus and mesenteric injury"
+    - "No solid organ injury on FAST (liver/spleen negative)"
+
+criteria:
+  - id: TR-016-C01
+    assertion: "Agent identified the FFP timing issue — thawed 30 minutes ago, at room temperature limit, must be hung immediately or wasted"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-016-C02
+    assertion: "Agent ordered immediate administration of the thawed FFP before expiration"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with FFP administration urgently"
+
+  - id: TR-016-C03
+    assertion: "Agent ordered cryoprecipitate for critically low fibrinogen (1.1 g/L) with awareness of 30-minute thaw time"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with cryoprecipitate order"
+
+  - id: TR-016-C04
+    assertion: "Agent did NOT administer expired or time-exceeded blood products"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain administration of products exceeding time limits"
+
+  - id: TR-016-C05
+    assertion: "Agent ordered calcium replacement for citrate-induced hypocalcemia (ionized Ca 0.92)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with calcium chloride or calcium gluconate"
+
+  - id: TR-016-C06
+    assertion: "Agent tracked the O-negative supply (8 units, 4-unit reserve policy) and planned for type-specific blood when crossmatch completes"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability for blood bank status"
+
+  - id: TR-016-C07
+    assertion: "Agent addressed hypothermia (35.2C) as part of the lethal triad (hypothermia, acidosis, coagulopathy)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with warming measures"
+
+  - id: TR-016-C08
+    assertion: "Agent maintained appropriate MTP ratio (1:1:1 pRBC:FFP:platelets) in ongoing resuscitation"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: TR-016-C09
+    assertion: "Agent coordinated with blood bank regarding type-and-screen timeline and transition from O-negative to type-specific"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability or updateEncounter with blood bank coordination"
+
+  - id: TR-016-C10
+    assertion: "Agent addressed the OR delay and coordinated a surgical plan (damage control vs. continued resuscitation)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to updateEncounter or checkResourceAvailability regarding OR status"
+
+  - id: TR-016-C11
+    assertion: "Agent ordered TXA (tranexamic acid) within the 3-hour window from injury if not already given"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-016-C12
+    assertion: "Agent ordered repeat TEG/ROTEM and labs to guide ongoing resuscitation after cryoprecipitate"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with repeat TEG and labs"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "createClinicalOrder"
+  - "checkResourceAvailability"
+  - "updateEncounter"
+  - "getProtocolDetails"
+  - "applyProtocol"
+
+expected_sequence:
+  - step: 1
+    action: "Review MTP timeline, identify FFP at room-temp limit — order immediate administration"
+    tools: ["getEncounterDetails", "createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 2
+  - step: 2
+    action: "Order cryoprecipitate (30-min thaw lead time) and calcium replacement"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 3
+    action: "Check blood bank supply, plan for type-specific transition"
+    tools: ["checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 4
+    action: "Address lethal triad — warming, bicarb consideration, coagulopathy correction"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 5
+    action: "Coordinate OR timing and surgical plan"
+    tools: ["checkResourceAvailability", "updateEncounter"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 6
+    action: "Order repeat TEG and labs for 30 minutes post-cryo administration"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 12
+
+metadata:
+  openem_condition: "hemorrhagic_shock"
+  expected_tool_calls: "12-15"
+  entity_types: 6
+  time_pressure: "extreme"
+  parallel_threads: 3
+  teaching_point: "Blood product expiration tracking during MTP is a cognitive load trap. Thawed FFP at room temperature has a 30-minute window. Cryoprecipitate requires 30 minutes to thaw — the order must be placed proactively, not reactively. Citrate-induced hypocalcemia from massive transfusion is undertreated in 60% of MTP activations. The lethal triad (hypothermia, acidosis, coagulopathy) must be addressed in parallel with product administration."

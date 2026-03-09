@@ -1,0 +1,175 @@
+# HEALTHCRAFT Task Definition: Social Worker Referral Documentation
+# Category: clinical_communication | Level: 3
+# Agent must identify social determinants of health and generate a
+# comprehensive social work referral for a frequent ED visitor.
+
+id: CC-020
+category: clinical_communication
+level: 3
+title: "Social Worker Referral Documentation"
+system_prompt_override: null
+
+description: |
+  A 67-year-old woman presents to the ED for the fourth time in six weeks
+  with COPD exacerbation. She is medically stable and will be discharged,
+  but nursing has flagged multiple social concerns: she cannot afford her
+  inhalers, has been skipping meals, her home heat was shut off last week,
+  and she has no transportation to her pulmonologist. She lives alone and
+  her only family is an estranged adult son. The agent must generate a
+  structured social work referral that documents the social determinants
+  of health driving her recurrent ED visits, identifies specific resources
+  needed, and communicates the clinical-social intersection to the social
+  worker.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T11:20:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Sarah Chen"
+  support_services:
+    social_work: "Diane Kowalski, LCSW, on-duty"
+    case_management: "available"
+    patient_navigator: "available"
+
+patient:
+  age: 67
+  sex: F
+  chief_complaint: "Worsening shortness of breath x 2 days"
+  arrival_mode: "EMS (called 911 because could not breathe)"
+  esi_level: 3
+  location: "Bed 22"
+  primary_language: "English"
+  allergies:
+    - "Codeine (nausea)"
+  medications:
+    - "Tiotropium 18mcg inhaled daily (reports not taking -- cannot afford refill)"
+    - "Albuterol MDI PRN (last filled 3 months ago, using expired inhaler)"
+    - "Fluticasone/salmeterol 250/50 BID (not taking -- cannot afford)"
+    - "Lisinopril 10mg daily"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "COPD (GOLD stage III, on home O2 2L NC)"
+    - "Hypertension"
+    - "GERD"
+    - "Osteoporosis"
+    - "Depression (untreated -- declined referral previously)"
+  social_history:
+    - "Retired cafeteria worker"
+    - "Lives alone in second-floor walk-up apartment"
+    - "Fixed income: Social Security only ($1,340/month)"
+    - "Medicare Part A and B, no Part D (medication gap)"
+    - "Home heat shut off 1 week ago (behind on utility bills)"
+    - "No car, no reliable transportation"
+    - "One adult son, estranged (lives out of state)"
+    - "No other family or close friends nearby"
+    - "Missed last 3 pulmonology appointments (transportation)"
+    - "Reports skipping meals to afford medications"
+    - "PHQ-2 positive (score 4/6) on nursing screen today"
+  prior_ed_visits:
+    - date: "2025-12-05"
+      diagnosis: "COPD exacerbation"
+      disposition: "discharged"
+    - date: "2025-12-19"
+      diagnosis: "COPD exacerbation"
+      disposition: "discharged"
+    - date: "2026-01-03"
+      diagnosis: "COPD exacerbation, dehydration"
+      disposition: "observation 23 hours, discharged"
+  vitals:
+    heart_rate: 92
+    blood_pressure: "148/86"
+    respiratory_rate: 22
+    spo2: 93
+    temperature: 37.0
+    gcs: 15
+    notes: "On 2L NC, improved from arrival SpO2 88%"
+
+criteria:
+  - id: CC-020-C01
+    assertion: "Agent retrieved patient history including social history and prior ED visits"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-020-C02
+    assertion: "Agent retrieved encounter history to identify the pattern of recurrent visits"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: CC-020-C03
+    assertion: "Agent identified and documented specific social determinants: medication access, food insecurity, housing (heat), transportation, social isolation"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-020-C04
+    assertion: "Agent connected the social determinants to the clinical problem (recurrent COPD exacerbations driven by medication non-adherence due to cost)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-020-C05
+    assertion: "Agent identified the positive PHQ-2 screen and included mental health referral need"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-020-C06
+    assertion: "Agent identified specific resource needs: medication assistance programs, Medicare Part D enrollment, utility assistance (LIHEAP), food programs (SNAP/Meals on Wheels), transportation (medical transport)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-020-C07
+    assertion: "Agent generated a formal social work consultation order"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-020-C08
+    assertion: "Agent documented the referral with sufficient detail for the social worker to act without re-interviewing the patient from scratch"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-020-C09
+    assertion: "Agent addressed the patient's safety concern (no heat in winter) as an urgent referral component"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-020-C10
+    assertion: "Agent documented the social work referral in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchEncounters"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, social history, and medication list"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Search prior encounters to establish pattern of recurrent visits"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 3
+    action: "Generate social work referral with specific SDOH issues and resource needs"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Document the referral and clinical-social assessment in the record"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "copd_exacerbation"
+  expected_tool_calls: "4-6"
+  entity_types: 4
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: "Recurrent ED visits are often driven by social determinants, not clinical complexity. A social work referral must go beyond 'needs help' -- it should identify specific SDOH domains, connect them to the clinical problem, and name actionable resources. A patient living without heat in winter is a safety concern, not just a social issue."

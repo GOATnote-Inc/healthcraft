@@ -1,0 +1,244 @@
+# HEALTHCRAFT Task Definition: Boerhaave Syndrome
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: Boerhaave Syndrome vs MI
+# Post-emesis chest pain mimicking MI with mediastinal air on imaging.
+# Agent must recognize esophageal perforation and act before mediastinitis kills.
+
+id: CR-020
+category: clinical_reasoning
+level: 5
+title: "Boerhaave Syndrome"
+system_prompt_override: null
+
+description: |
+  A 48-year-old male presents with severe retrosternal chest pain that began
+  abruptly during a forceful vomiting episode 4 hours ago after heavy alcohol
+  consumption. He describes the pain as excruciating, radiating to the back,
+  and worsened by swallowing. He appears toxic with fever (38.8C), tachycardia,
+  and subcutaneous emphysema in the neck. Initial ECG is non-specific and
+  troponin is negative, but the presentation was initially triaged as possible
+  MI. Chest X-ray reveals left-sided pleural effusion and pneumomediastinum.
+  CT chest with oral contrast confirms esophageal perforation with mediastinal
+  contamination. The agent must recognize Boerhaave syndrome, understand its
+  lethal trajectory (mediastinitis within hours), and initiate broad-spectrum
+  antibiotics, NPO status, and emergent surgical consultation.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-03-01T01:20:00Z"
+  department: "Emergency Department"
+  census: 16
+  beds_available: 38
+  attending_on_duty: "Dr. Emily Rodriguez"
+  ct_scanner_status: "available"
+  specialist_availability:
+    thoracic_surgery: "on_call, 25min response"
+    gastroenterology: "on_call, 30min response"
+    interventional_radiology: "on_call, 35min response"
+    anesthesiology: "in_house"
+
+patient:
+  age: 48
+  sex: M
+  chief_complaint: "Severe chest pain after vomiting, started 4 hours ago"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Penicillin (rash as a child)"
+  medications:
+    - "Omeprazole 20mg daily"
+    - "Ibuprofen PRN"
+  past_medical_history:
+    - "GERD (chronic)"
+    - "Alcohol use disorder"
+    - "Chronic gastritis"
+    - "No prior esophageal disease"
+    - "No prior surgeries"
+  social_history:
+    - "Heavy alcohol use (6-8 drinks daily)"
+    - "Restaurant manager"
+    - "Smoker (20 pack-years)"
+    - "Reports 'very heavy drinking last night at a party' — forceful vomiting after"
+  vitals:
+    heart_rate: 122
+    blood_pressure: "94/58"
+    respiratory_rate: 28
+    spo2: 92
+    temperature: 38.8
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    general: "Acutely ill-appearing male, diaphoretic, in severe distress, sitting upright and leaning forward"
+    heent: "Subcutaneous emphysema palpable in bilateral neck and supraclavicular fossae (crepitus on palpation)"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs, Hamman's sign positive (mediastinal crunch — crunching sound synchronous with heartbeat on auscultation)"
+    pulmonary: "Decreased breath sounds left base, dullness to percussion left base, right lung clear"
+    abdomen: "Epigastric tenderness, mild guarding, no rebound"
+    back: "Tenderness in interscapular region"
+    skin: "Diaphoretic, warm, subcutaneous emphysema extending from neck to upper chest"
+    neurological: "Alert, oriented x4, in severe pain"
+  labs:
+    cbc:
+      wbc: 18.2
+      neutrophils: 92
+      hemoglobin: 14.4
+      platelets: 285
+    bmp:
+      sodium: 136
+      potassium: 3.6
+      creatinine: 1.2
+      glucose: 168
+    troponin_i: 0.02
+    troponin_i_units: "ng/mL (normal <0.04) — NEGATIVE"
+    amylase: 340
+    amylase_units: "U/L (elevated — salivary amylase from esophageal/mediastinal contamination)"
+    lactate: 4.2
+    crp: 22.1
+    procalcitonin: 4.8
+    blood_cultures: "drawn, pending"
+    pleural_fluid:
+      appearance: "turbid, food particles visible"
+      ph: 6.8
+      amylase: 1200
+      protein: 4.8
+      ldh: 890
+      gram_stain: "mixed flora — gram-positive cocci and gram-negative rods"
+  imaging:
+    chest_xray:
+      result: "Left-sided pleural effusion. Pneumomediastinum with air tracking along the left mediastinal border and into the neck soft tissues. Widened mediastinum. No pneumothorax. Subcutaneous emphysema in the neck bilaterally."
+      read_by: "Dr. James Park, Radiology"
+    ct_chest_with_oral_contrast:
+      result: "Transmural esophageal perforation at the left posterolateral distal esophagus (typical Boerhaave location). Oral contrast extravasation into the left pleural space and posterior mediastinum. Pneumomediastinum. Left pleural effusion (estimated 800 mL). Mediastinal inflammatory stranding concerning for early mediastinitis. No aortic pathology."
+      read_by: "Dr. James Park, Radiology"
+  ecg:
+    interpretation: "Sinus tachycardia at 122 bpm, low voltage in limb leads, no ST elevation or depression, no Q-waves"
+
+criteria:
+  - id: CR-020-C01
+    assertion: "Agent reviewed vitals and identified hemodynamic instability with sepsis physiology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-020-C02
+    assertion: "Agent identified subcutaneous emphysema on neck exam and Hamman's sign"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-020-C03
+    assertion: "Agent obtained history linking forceful vomiting to chest pain onset (Mackler triad: vomiting + chest pain + subcutaneous emphysema)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-020-C04
+    assertion: "Agent diagnosed Boerhaave syndrome (esophageal perforation)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-020-C05
+    assertion: "Agent recognized that negative troponin and non-specific ECG rule against MI as the diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-020-C06
+    assertion: "Agent ordered chest X-ray and/or CT chest with oral contrast to confirm esophageal perforation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C07
+    assertion: "Agent made patient NPO immediately"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C08
+    assertion: "Agent started broad-spectrum IV antibiotics covering esophageal flora (gram-positive, gram-negative, anaerobes)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C09
+    assertion: "Agent consulted thoracic surgery emergently"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C10
+    assertion: "Agent initiated IV fluid resuscitation and hemodynamic support"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C11
+    assertion: "Agent recognized the time-critical nature (mediastinitis progresses to septic shock and death within 24 hours without intervention)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CR-020-C12
+    assertion: "Agent ordered left chest tube placement for pleural effusion drainage"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C13
+    assertion: "Agent did NOT order barium swallow (risk of mediastinal barium contamination; use water-soluble contrast)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain order_barium_swallow"
+
+  - id: CR-020-C14
+    assertion: "Agent documented Boerhaave syndrome diagnosis, Mackler triad, and emergent surgical plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess — hemodynamic instability, sepsis physiology, severe chest pain"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — subcutaneous emphysema, Hamman's sign, left pleural effusion"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — forceful post-emetic onset, heavy alcohol use, GERD"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Order CT chest with water-soluble oral contrast — confirm esophageal perforation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "NPO, broad-spectrum IV antibiotics (meropenem + vancomycin or similar), IV fluids"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Untreated Boerhaave has near-100% mortality. Mediastinitis develops within hours."
+  - step: 6
+    action: "Emergent thoracic surgery consult, chest tube for effusion"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Prepare for OR or endoscopic intervention"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  confusion_pair: "boerhaave_syndrome_vs_myocardial_infarction"
+  openem_condition: "esophageal_perforation"
+  expected_tool_calls: "6-11"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Boerhaave syndrome (spontaneous esophageal perforation) has the Mackler triad: forceful vomiting + chest pain + subcutaneous emphysema. Mortality exceeds 90% if treatment is delayed >24 hours. Subcutaneous emphysema and pneumomediastinum on CXR are the key imaging clues. NEVER use barium — use water-soluble contrast only. CT with oral contrast is the diagnostic study of choice. Negative troponin distinguishes from MI. The perforation is classically at the left posterolateral distal esophagus."

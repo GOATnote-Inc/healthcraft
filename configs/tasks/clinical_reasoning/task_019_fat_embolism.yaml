@@ -1,0 +1,228 @@
+# HEALTHCRAFT Task Definition: Fat Embolism Syndrome
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: Fat Embolism vs PE vs Pneumonia
+# Post-orthopedic surgery patient with respiratory distress, petechiae, and
+# neurological changes. Agent must recognize the classic triad.
+
+id: CR-019
+category: clinical_reasoning
+level: 4
+title: "Fat Embolism Syndrome"
+system_prompt_override: null
+
+description: |
+  A 28-year-old male, 36 hours post-operative from intramedullary nailing of a
+  right femur fracture sustained in a motorcycle accident, develops acute
+  dyspnea, confusion, and tachycardia on the orthopedic floor. He was doing
+  well post-operatively until he became agitated and hypoxic. On exam, there
+  is a petechial rash across the chest, axillae, and conjunctivae — the
+  pathognomonic finding of fat embolism syndrome. CTA chest is negative for
+  pulmonary embolism but shows bilateral diffuse ground-glass opacities. The
+  agent must recognize the Gurd criteria triad (respiratory distress + neurological
+  changes + petechiae), differentiate from PE and pneumonia, and initiate
+  supportive care with high-flow oxygen and ICU transfer.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-26T06:30:00Z"
+  department: "Emergency Department"
+  census: 20
+  beds_available: 34
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    pulmonology: "on_call, 20min response"
+    critical_care: "in_house"
+    orthopedic_surgery: "in_house (managing the patient)"
+
+patient:
+  age: 28
+  sex: M
+  chief_complaint: "Acute respiratory distress and confusion, 36 hours post-op femur fixation"
+  arrival_mode: "Internal transfer from orthopedic floor"
+  esi_level: 2
+  allergies:
+    - "NKDA"
+  medications:
+    - "Morphine PCA"
+    - "Cefazolin 1g IV q8h (surgical prophylaxis)"
+    - "Enoxaparin 40mg SQ daily (DVT prophylaxis — started 12 hours post-op)"
+    - "Ketorolac 15mg IV q6h"
+  past_medical_history:
+    - "No significant past medical history"
+    - "Right femoral shaft fracture (motorcycle accident 2 days ago)"
+    - "Intramedullary nail fixation of right femur (36 hours ago)"
+    - "No complications intra-operatively"
+  social_history:
+    - "Motorcycle enthusiast"
+    - "Non-smoker"
+    - "Social alcohol"
+    - "No illicit drugs"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "102/64"
+    respiratory_rate: 32
+    spo2: 84
+    temperature: 38.6
+    gcs: 12
+    gcs_breakdown:
+      eye: 3
+      verbal: 4
+      motor: 5
+  exam_findings:
+    general: "Young male, agitated, confused, visibly dyspneic, diaphoretic"
+    heent: "Bilateral conjunctival petechiae, no scleral icterus"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs"
+    pulmonary: "Bilateral diffuse crackles, no focal consolidation, tachypneic"
+    abdomen: "Soft, non-tender"
+    extremities: "Right lower extremity in post-operative splint, surgical site clean/dry/intact, no calf swelling or asymmetry"
+    skin: "PETECHIAL RASH across anterior chest, bilateral axillae, and neck — non-blanching, not present on admission or post-op day 1"
+    neurological: "Agitated, oriented to person only, following intermittent commands, no focal motor deficits, no lateralizing signs"
+  labs:
+    cbc:
+      wbc: 14.2
+      hemoglobin: 10.8
+      platelets: 88
+      platelets_note: "was 240 on admission"
+    bmp:
+      sodium: 138
+      potassium: 4.2
+      creatinine: 1.0
+    lipase: 280
+    lipase_units: "U/L (elevated — lipase elevation common in FES)"
+    d_dimer: 1840
+    d_dimer_units: "ng/mL FEU (elevated but nonspecific post-operatively)"
+    arterial_blood_gas:
+      ph: 7.44
+      pco2: 30
+      po2: 52
+      hco3: 22
+      pao2_fio2_ratio: 104
+      interpretation: "Respiratory alkalosis with severe hypoxemia, P/F ratio 104 (consistent with moderate ARDS)"
+    troponin_i: 0.08
+    fat_globules_urine: "Present"
+    retinal_exam: "Cotton-wool spots noted on bedside fundoscopy"
+  imaging:
+    cta_chest:
+      result: "No pulmonary embolism. Bilateral diffuse ground-glass opacities consistent with non-cardiogenic pulmonary edema or ARDS. No consolidation. No pleural effusion."
+      read_by: "Dr. James Park, Radiology"
+    chest_xray:
+      result: "Bilateral diffuse fluffy infiltrates ('snowstorm' pattern). No focal consolidation. No effusion. Heart size normal."
+    ct_head_noncontrast:
+      result: "No acute intracranial hemorrhage. Multiple scattered punctate areas of restricted diffusion on DWI (if MRI obtained) — classic 'starfield' pattern."
+
+criteria:
+  - id: CR-019-C01
+    assertion: "Agent reviewed vitals including severe hypoxemia (SpO2 84%), tachycardia, and fever"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-019-C02
+    assertion: "Agent identified the petechial rash on chest, axillae, and conjunctivae"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-019-C03
+    assertion: "Agent retrieved surgical history (femur fracture, intramedullary nailing 36 hours ago)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-019-C04
+    assertion: "Agent diagnosed fat embolism syndrome using Gurd criteria (respiratory distress + neurological changes + petechiae)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-019-C05
+    assertion: "Agent differentiated FES from PE (CTA negative for PE, presentation is bilateral/diffuse, petechiae present)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-019-C06
+    assertion: "Agent differentiated FES from hospital-acquired pneumonia (no focal consolidation, petechiae, timing post long-bone fixation)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-019-C07
+    assertion: "Agent initiated high-flow oxygen or non-invasive ventilation"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-019-C08
+    assertion: "Agent recognized thrombocytopenia (88 from 240) as supportive of FES"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-019-C09
+    assertion: "Agent arranged ICU transfer for respiratory monitoring"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-019-C10
+    assertion: "Agent consulted pulmonology or critical care"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-019-C11
+    assertion: "Agent ordered supportive labs including CBC trending, ABG, and lipase"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-019-C12
+    assertion: "Agent recognized treatment is primarily supportive (no specific antidote for FES)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-019-C13
+    assertion: "Agent documented the fat embolism syndrome diagnosis, Gurd criteria, and management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess — severe hypoxemia, confusion, tachycardia 36 hours post-op"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — identify petechiae (chest, axillae, conjunctivae)"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — femur fracture, intramedullary nailing, timeline"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Review imaging — CTA negative for PE, bilateral GGOs"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Diagnose FES — Gurd criteria met (3/3 major: respiratory, neuro, petechiae)"
+    tools: []
+    critical: true
+    reasoning: "Long bone fracture fixation + 24-72 hour lucid interval + petechiae + respiratory failure + encephalopathy = classic FES"
+  - step: 6
+    action: "High-flow O2, ICU transfer, supportive care, consult pulm/critical care"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "fat_embolism_vs_pulmonary_embolism"
+  openem_condition: "fat_embolism_syndrome"
+  expected_tool_calls: "5-9"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Fat embolism syndrome presents 24-72 hours after long bone fracture with the Gurd triad: respiratory distress, neurological changes, and petechial rash. Petechiae on the chest, axillae, and conjunctivae are pathognomonic. CTA is NEGATIVE for PE. Thrombocytopenia and elevated lipase are supportive findings. Treatment is entirely supportive — there is no specific antidote. Intramedullary nailing of femur fractures is the highest-risk procedure."

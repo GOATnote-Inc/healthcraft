@@ -1,0 +1,163 @@
+# HEALTHCRAFT Task Definition: Quality Improvement Incident Report
+# Category: clinical_communication | Level: 3
+# Agent must document a QI incident report after a near-miss medication
+# error, capturing root cause analysis and system-level recommendations.
+
+id: CC-029
+category: clinical_communication
+level: 3
+title: "Quality Improvement Incident Report"
+system_prompt_override: null
+
+description: |
+  A near-miss medication error occurred during a busy shift. A 9-year-old
+  boy (32 kg) with an allergic reaction was ordered epinephrine 0.3mg IM
+  (correct dose for his weight). The nurse drew up epinephrine from a
+  1:1,000 vial but a second nurse noticed the syringe was labeled 1:10,000
+  (the cardiac code concentration) -- the wrong vial had been stocked in
+  the anaphylaxis kit. The error was caught before administration. The child
+  received the correct epinephrine and is doing well. The agent must generate
+  a QI incident report that documents what happened, performs a root cause
+  analysis, identifies contributing factors (system and human), proposes
+  corrective actions, and protects the report under QI privilege. The report
+  must be factual, non-punitive, and focused on system improvement.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:00:00Z"
+  department: "Emergency Department"
+  census: 39
+  beds_available: 15
+  attending_on_duty: "Dr. Michael Park"
+  qi_contacts:
+    qi_director: "Dr. Nadia Petrova"
+    risk_management: "Jennifer Blackwell, JD"
+    pharmacy_director: "PharmD Robert Tanaka"
+    nursing_director: "Maureen O'Brien, RN, MSN"
+
+incident_details:
+  what_happened: |
+    Epinephrine 1:10,000 (0.1 mg/mL, cardiac concentration) vial was found
+    in the anaphylaxis medication kit where epinephrine 1:1,000 (1 mg/mL,
+    IM concentration) should have been stocked. RN Sarah Lin drew up
+    epinephrine from the kit vial. RN Derek Thompson (double-checking nurse)
+    noticed the concentration discrepancy before administration. Correct vial
+    was obtained from the Pyxis and the dose was administered without delay.
+  patient_impact: "None -- error caught before administration"
+  time_of_near_miss: "15:22:00"
+  nurses_involved:
+    - name: "RN Sarah Lin"
+      role: "primary nurse, drew up medication"
+      experience: "4 years ED"
+    - name: "RN Derek Thompson"
+      role: "double-check nurse, caught the error"
+      experience: "8 years ED"
+  contributing_factors:
+    - "Similar vial appearance between 1:1,000 and 1:10,000 concentrations"
+    - "Anaphylaxis kit was restocked by a float nurse unfamiliar with kit contents"
+    - "Kit restocking checklist exists but was not initialed"
+    - "High census (44 patients at time of incident) -- cognitive load elevated"
+    - "1:10,000 and 1:1,000 vials stored adjacent in Pyxis"
+  potential_harm: |
+    If the 1:10,000 concentration had been administered at the volume calculated
+    for 1:1,000, the patient would have received 1/10th the intended dose (0.03mg
+    instead of 0.3mg). Underdosing in anaphylaxis could result in treatment
+    failure and cardiovascular collapse. The more dangerous error would be if a
+    code dose was drawn from a 1:1,000 vial -- 10x overdose.
+
+patient:
+  age: 9
+  sex: M
+  weight_kg: 32
+  chief_complaint: "Allergic reaction -- lip swelling, hives after eating cashews"
+  diagnosis: "Anaphylaxis"
+  outcome: "Treated successfully with correct epinephrine, discharged in good condition"
+
+criteria:
+  - id: CC-029-C01
+    assertion: "Agent retrieved the encounter details for the involved patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-029-C02
+    assertion: "Agent documented a factual, chronological account of the incident without assigning individual blame"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-029-C03
+    assertion: "Agent identified the root cause (look-alike vials stocked incorrectly due to process failure, not individual error)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-029-C04
+    assertion: "Agent identified system-level contributing factors (similar packaging, Pyxis storage adjacency, checklist non-compliance, float nurse unfamiliarity)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-029-C05
+    assertion: "Agent acknowledged the successful catch by the double-check nurse as a system safety success"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-029-C06
+    assertion: "Agent proposed specific corrective actions (separate storage, tall-man lettering, kit restocking by trained staff only, checklist enforcement, barcode scanning)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-029-C07
+    assertion: "Agent classified the incident severity and type appropriately (near-miss, medication error, wrong concentration)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-029-C08
+    assertion: "Agent marked the report as QI-privileged and noted appropriate distribution (QI director, risk management, pharmacy director)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-029-C09
+    assertion: "Agent did NOT include individually punitive language or recommend disciplinary action for the nurse who drew up the medication"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-029-C10
+    assertion: "Agent documented the QI report in the appropriate system"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "searchClinicalKnowledge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review encounter details and incident timeline"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Search for medication safety guidelines and look-alike/sound-alike protocols"
+    tools: ["searchClinicalKnowledge"]
+    critical: false
+  - step: 3
+    action: "Construct root cause analysis with contributing factors"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Draft QI incident report with corrective actions"
+    tools: []
+    critical: true
+  - step: 5
+    action: "Document and submit the QI report"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "anaphylaxis"
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: "QI reports exist to improve systems, not punish individuals. Look-alike medication errors are a known failure mode (ISMP high-alert medication list). Root cause analysis should trace from the proximate cause (wrong vial) to the system cause (similar packaging, adjacent storage, checklist failure). The double-check process worked -- celebrate that. Corrective actions should target system design (barcode scanning, physical separation, tall-man lettering), not just reminding staff to be careful."

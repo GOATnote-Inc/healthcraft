@@ -1,0 +1,221 @@
+# HEALTHCRAFT Task Definition: Cholecystitis vs Biliary Colic
+# Category: clinical_reasoning | Level: 3
+# Confusion pair: cholecystitis:biliary_colic
+# Patient with RUQ pain — agent must distinguish surgical cholecystitis from
+# self-limited biliary colic to avoid delayed intervention or unnecessary discharge.
+
+id: CR-017
+category: clinical_reasoning
+level: 3
+title: "The Persistent Stone"
+system_prompt_override: null
+
+description: |
+  A 46-year-old female presents with severe right upper quadrant pain that began
+  8 hours ago after a large fatty meal. She reports prior episodes of similar pain
+  lasting 30-60 minutes that resolved spontaneously, but this episode has persisted
+  and worsened. She has nausea and one episode of vomiting. Temperature is 38.6°C.
+  On exam, there is RUQ tenderness with a positive Murphy's sign (inspiratory arrest
+  with deep palpation of the RUQ). WBC is 15.2 with left shift. RUQ ultrasound shows
+  gallbladder wall thickening (5mm), pericholecystic fluid, a 1.2cm gallstone
+  impacted in the gallbladder neck, and a sonographic Murphy's sign. Common bile duct
+  is 4mm (normal). The agent must recognize that this is acute cholecystitis (not
+  simple biliary colic) requiring IV antibiotics, surgical consultation, and admission
+  rather than pain management and outpatient follow-up.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-20T21:15:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    general_surgery: "on_call, 20min response"
+    gastroenterology: "on_call, 30min response"
+    radiology: "in_house"
+
+patient:
+  age: 46
+  sex: F
+  chief_complaint: "Severe right upper belly pain for 8 hours, won't go away"
+  arrival_mode: "private vehicle"
+  esi_level: 3
+  allergies:
+    - "Sulfa drugs (rash)"
+  medications:
+    - "Oral contraceptive pills"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "Known cholelithiasis diagnosed 2 years ago (declined elective cholecystectomy)"
+    - "3-4 prior episodes of postprandial RUQ pain lasting < 1 hour"
+    - "GERD"
+    - "Obesity (BMI 34)"
+  family_history:
+    - "Mother: cholecystectomy at age 50"
+    - "Father: type 2 diabetes"
+  social_history:
+    - "Accountant"
+    - "Social alcohol use"
+    - "Non-smoker"
+  vitals:
+    heart_rate: 96
+    blood_pressure: "142/86"
+    respiratory_rate: 18
+    spo2: 98
+    temperature: 38.6
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Obese female in moderate distress, lying still, guarding abdomen"
+    abdomen: "RUQ tenderness with positive Murphy's sign (inspiratory arrest on deep palpation), mild voluntary guarding, no rebound tenderness, no peritoneal signs, no palpable mass, bowel sounds present"
+    cardiovascular: "Regular rate and rhythm, no murmurs"
+    pulmonary: "Clear bilaterally"
+    skin: "No jaundice, no scleral icterus"
+  labs:
+    cbc:
+      wbc: 15.2
+      neutrophils: 84
+      bands: 6
+      hemoglobin: 14.0
+      platelets: 245
+    bmp:
+      sodium: 140
+      potassium: 3.9
+      chloride: 103
+      co2: 24
+      bun: 16
+      creatinine: 0.8
+      glucose: 112
+    hepatic_panel:
+      ast: 42
+      alt: 38
+      alkaline_phosphatase: 105
+      total_bilirubin: 1.4
+      direct_bilirubin: 0.5
+      albumin: 3.8
+    lipase: 45
+    crp: 6.8
+    crp_units: "mg/dL (normal <0.5)"
+  imaging:
+    ruq_ultrasound:
+      result: "Gallbladder distended with wall thickening measuring 5mm (abnormal >3mm). 1.2cm echogenic focus with posterior acoustic shadowing impacted in the gallbladder neck. Pericholecystic fluid present. Positive sonographic Murphy's sign. Common bile duct measures 4mm (normal). No intrahepatic biliary dilation. Liver parenchyma normal."
+      read_by: "Dr. James Park, Radiology"
+
+criteria:
+  - id: CR-017-C01
+    assertion: "Agent reviewed vital signs and exam findings including positive Murphy's sign and fever"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-017-C02
+    assertion: "Agent retrieved patient history including known cholelithiasis and prior biliary colic episodes"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-017-C03
+    assertion: "Agent reviewed labs including leukocytosis, mildly elevated LFTs, and elevated CRP"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-017-C04
+    assertion: "Agent reviewed ultrasound and identified gallbladder wall thickening, impacted stone, pericholecystic fluid, and sonographic Murphy's sign as diagnostic of acute cholecystitis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C05
+    assertion: "Agent diagnosed acute cholecystitis, not biliary colic"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C06
+    assertion: "Agent distinguished this presentation from prior biliary colic episodes based on duration >6 hours, fever, leukocytosis, and imaging findings"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C07
+    assertion: "Agent consulted general surgery for cholecystectomy"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C08
+    assertion: "Agent did NOT discharge the patient with outpatient surgery follow-up"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain processDischarge"
+
+  - id: CR-017-C09
+    assertion: "Agent ordered IV antibiotics covering enteric organisms (e.g., piperacillin-tazobactam, ceftriaxone + metronidazole)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C10
+    assertion: "Agent ordered IV fluids and made patient NPO"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C11
+    assertion: "Agent provided appropriate analgesia (IV ketorolac, morphine, or hydromorphone)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-017-C12
+    assertion: "Agent considered and excluded choledocholithiasis based on normal CBD diameter and mildly elevated bilirubin"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-017-C13
+    assertion: "Agent documented clinical reasoning differentiating cholecystitis from biliary colic"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals and exam — fever, positive Murphy's sign, RUQ tenderness"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — known gallstones, prior colic episodes, prolonged current episode"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Labs — leukocytosis, elevated CRP, mild LFT elevation"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Ultrasound — wall thickening, pericholecystic fluid, impacted stone"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Diagnose cholecystitis — not biliary colic"
+    tools: []
+    critical: true
+    reasoning: "Biliary colic resolves within 6 hours, lacks fever, has normal WBC, and no gallbladder wall changes. This patient has all features of acute cholecystitis."
+  - step: 6
+    action: "IV antibiotics, NPO, analgesia, surgical consult"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "cholecystitis:biliary_colic"
+  openem_condition: "cholecystitis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Biliary colic is self-limited (<6 hours), afebrile, with normal WBC and no gallbladder wall changes. Acute cholecystitis features persistent pain >6 hours, fever, leukocytosis, and ultrasound findings of wall thickening, pericholecystic fluid, and sonographic Murphy's sign. A patient with known gallstones and a prior history of colic is at risk of being mislabeled as 'another episode of colic' when they present with cholecystitis."

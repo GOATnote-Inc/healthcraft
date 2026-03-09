@@ -1,0 +1,158 @@
+# HEALTHCRAFT Task Definition: Ambulance Diversion Communication
+# Category: clinical_communication | Level: 4
+# Agent must manage communication around an ambulance diversion decision
+# when the ED is at capacity, balancing patient safety with system-level
+# resource management.
+
+id: CC-027
+category: clinical_communication
+level: 4
+title: "Ambulance Diversion Communication"
+system_prompt_override: null
+
+description: |
+  Mercy Point ED is overwhelmed: all 54 beds are occupied, 8 patients are
+  boarding for inpatient beds, the waiting room has 22 patients, and 3 are
+  on hallway stretchers. The resuscitation bay has one spot open. Two nurses
+  have called in sick and the night shift replacement is 90 minutes away.
+  EMS dispatch is calling with three incoming ambulances: (1) a 70-year-old
+  with chest pain and ST elevation on the prehospital 12-lead (STEMI), ETA
+  8 minutes; (2) a 25-year-old with an isolated ankle injury from a basketball
+  game, ETA 12 minutes; (3) a 55-year-old nursing home patient with altered
+  mental status and a fever, ETA 15 minutes. The agent must communicate
+  diversion decisions for each ambulance, ensuring EMTALA compliance, and
+  coordinate with the bed manager, nursing supervisor, and EMS dispatch.
+  The nearest alternative hospital is 18 minutes further.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T22:30:00Z"
+  department: "Emergency Department"
+  census: 54
+  beds_available: 0
+  resus_bay_available: 1
+  hallway_patients: 3
+  waiting_room: 22
+  boarding_patients: 8
+  attending_on_duty: "Dr. James Rivera"
+  nursing_staff_deficit: "2 nurses short, replacement ETA 90 minutes"
+  bed_manager: "Sonya Parker, on phone"
+  ems_dispatch: "County EMS Dispatch, Supervisor Kevin Ortiz on line"
+  nearest_alternative:
+    name: "St. Catherine Medical Center"
+    distance: "18 minutes further by ambulance"
+    status: "accepting, not on diversion"
+    capabilities: "STEMI-capable with cath lab"
+
+incoming_ambulances:
+  - unit: "Medic 7"
+    patient_summary: "70M, chest pain 1 hour, ST elevation V1-V4 on prehospital 12-lead"
+    acuity: "STEMI -- time-critical, needs cath lab"
+    eta_minutes: 8
+
+  - unit: "Medic 12"
+    patient_summary: "25M, isolated ankle injury from basketball, ambulatory at scene"
+    acuity: "non-emergent"
+    eta_minutes: 12
+
+  - unit: "Medic 3"
+    patient_summary: "55F, nursing home resident, AMS and fever x 12 hours, BP 96/58"
+    acuity: "high -- possible sepsis"
+    eta_minutes: 15
+
+criteria:
+  - id: CC-027-C01
+    assertion: "Agent checked current resource availability (beds, staff, resus bay)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: CC-027-C02
+    assertion: "Agent accepted the STEMI patient (Medic 7) -- EMTALA requires accepting emergency medical conditions when the facility has specialized capability"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-027-C03
+    assertion: "Agent appropriately diverted or rerouted the ankle injury patient (Medic 12) to the alternative facility"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-027-C04
+    assertion: "Agent made a defensible decision for the sepsis patient (Medic 3), weighing the risk of diversion delay against ED capacity"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-027-C05
+    assertion: "Agent activated the cath lab for the incoming STEMI"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-027-C06
+    assertion: "Agent communicated clear diversion decisions to EMS dispatch with rationale"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-027-C07
+    assertion: "Agent coordinated with the bed manager to identify capacity solutions (expedite discharges, transfer boarders, open overflow)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-027-C08
+    assertion: "Agent did NOT divert a patient with an unstable emergency medical condition in violation of EMTALA"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-027-C09
+    assertion: "Agent verified the alternative facility's capability and acceptance status before diverting"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-027-C10
+    assertion: "Agent documented all diversion decisions, rationale, and communications in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "checkResourceAvailability"
+  - "getEncounterDetails"
+  - "createClinicalOrder"
+  - "calculateTransferTime"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess current ED capacity (beds, staff, resus, boarding)"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 2
+    action: "Review incoming ambulance details"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Calculate transfer time to alternative for diversion candidates"
+    tools: ["calculateTransferTime"]
+    critical: false
+  - step: 4
+    action: "Accept STEMI, activate cath lab"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Communicate diversion decisions to EMS dispatch and bed manager"
+    tools: []
+    critical: true
+  - step: 6
+    action: "Document all decisions and rationale"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "stemi"
+  expected_tool_calls: "5-7"
+  entity_types: 6
+  time_pressure: "extreme"
+  cognitive_load: "extreme"
+  teaching_point: "Ambulance diversion requires balancing individual patient safety against system capacity. EMTALA prohibits diverting patients with emergency medical conditions if the facility has the capability to treat them -- a STEMI patient must be accepted at a STEMI-capable center regardless of census. Non-emergent patients can be diverted. Sepsis patients require clinical judgment: is the 18-minute additional transport time more dangerous than an overwhelmed ED? Document every decision and rationale."

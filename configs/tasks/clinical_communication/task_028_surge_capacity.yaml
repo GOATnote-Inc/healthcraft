@@ -1,0 +1,164 @@
+# HEALTHCRAFT Task Definition: Surge Capacity Notification
+# Category: clinical_communication | Level: 4
+# Agent must initiate and communicate a surge capacity protocol after a
+# multi-vehicle accident generates a mass casualty influx.
+
+id: CC-028
+category: clinical_communication
+level: 4
+title: "Surge Capacity Notification"
+system_prompt_override: null
+
+description: |
+  A multi-vehicle pileup on the interstate has generated 14 casualties.
+  EMS is transporting patients to three hospitals. Mercy Point is receiving
+  7 patients: 2 critical (one with pelvic fracture and hemorrhagic shock,
+  one with traumatic brain injury GCS 6), 3 urgent (extremity fractures,
+  lacerations needing procedural sedation), and 2 minor (contusions,
+  anxiety). The first ambulance arrives in 10 minutes. The ED currently
+  has 38 patients, 12 open beds, 4 nurses, 1 attending, and 1 resident.
+  The agent must activate the hospital surge protocol, triage the incoming
+  patients before arrival, assign physical spaces, request additional
+  staffing, communicate with hospital administration and the incident
+  commander, and ensure existing patients are not abandoned.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T08:15:00Z"
+  department: "Emergency Department"
+  census: 38
+  beds_available: 12
+  resus_bays_available: 2
+  attending_on_duty: "Dr. Sarah Chen"
+  resident_on_duty: "Dr. Fatima Al-Rashidi (PGY-3)"
+  nursing_staff: 4
+  incident_details:
+    type: "Multi-vehicle accident, interstate pileup"
+    total_casualties: 14
+    patients_to_mercy_point: 7
+    first_arrival_eta: 10
+  hospital_resources:
+    or_status: "2 of 4 rooms available"
+    blood_bank: "type O available, MTP can be activated"
+    icu_beds: "1 available"
+    hospital_admin_on_call: "VP of Operations, Diana Nguyen"
+    ems_incident_commander: "Battalion Chief Marcus Webb"
+
+incoming_patients:
+  - triage_tag: "Red-1"
+    summary: "38F, pelvic fracture with hemorrhagic shock, BP 70/40, HR 140"
+    needs: "MTP, resuscitation bay, surgical consult, pelvic binder"
+  - triage_tag: "Red-2"
+    summary: "52M, TBI with GCS 6, intubated in field, left pupil fixed and dilated"
+    needs: "Resuscitation bay, neurosurgery, CT head, possible craniotomy"
+  - triage_tag: "Yellow-1"
+    summary: "27M, open tib-fib fracture, hemodynamically stable"
+    needs: "Ortho consult, procedural sedation for reduction, antibiotics"
+  - triage_tag: "Yellow-2"
+    summary: "44F, facial lacerations (deep), stable, needs repair"
+    needs: "Laceration repair, CT face to rule out fracture"
+  - triage_tag: "Yellow-3"
+    summary: "19M, shoulder dislocation, radially intact, in pain"
+    needs: "Procedural sedation for reduction"
+  - triage_tag: "Green-1"
+    summary: "35F, chest wall contusion, minor abrasions, anxious"
+    needs: "Observation, chest X-ray, reassurance"
+  - triage_tag: "Green-2"
+    summary: "62M, seatbelt contusion, back pain, ambulatory"
+    needs: "Evaluation, imaging prn, disposition"
+
+criteria:
+  - id: CC-028-C01
+    assertion: "Agent checked current hospital resource availability (beds, OR, ICU, blood bank, staffing)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: CC-028-C02
+    assertion: "Agent activated the hospital surge or mass casualty protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-028-C03
+    assertion: "Agent assigned the two critical patients (Red-1, Red-2) to the resuscitation bays"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-028-C04
+    assertion: "Agent activated massive transfusion protocol for the hemorrhagic shock patient"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-028-C05
+    assertion: "Agent requested additional staffing (off-duty physicians, nurses, surgical teams)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-028-C06
+    assertion: "Agent communicated with hospital administration (VP Nguyen) about surge activation"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-028-C07
+    assertion: "Agent identified a plan for existing ED patients (expedite discharges, redistribute to other providers, avoid abandonment)"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-028-C08
+    assertion: "Agent assigned physical spaces for all 7 incoming patients with appropriate acuity matching"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-028-C09
+    assertion: "Agent communicated the triage plan and bed assignments to nursing staff using a structured format"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-028-C10
+    assertion: "Agent addressed the neurosurgery need for Red-2 (TBI with fixed pupil -- may need transfer if no neurosurgery available)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-028-C11
+    assertion: "Agent documented the surge activation, patient assignments, and resource requests in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "checkResourceAvailability"
+  - "createClinicalOrder"
+  - "searchAvailableResources"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess current capacity: beds, resus, OR, ICU, blood, staffing"
+    tools: ["checkResourceAvailability", "searchAvailableResources"]
+    critical: true
+  - step: 2
+    action: "Activate surge protocol and MTP for Red-1"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Assign spaces and resources for all 7 incoming patients"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Communicate plan to nursing, administration, and EMS incident commander"
+    tools: []
+    critical: true
+  - step: 5
+    action: "Document surge activation and all assignments"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "polytrauma"
+  expected_tool_calls: "5-8"
+  entity_types: 7
+  time_pressure: "extreme"
+  cognitive_load: "extreme"
+  teaching_point: "Surge capacity is about doing the most good for the most people. Critical patients (Red) go to resus bays. Green patients can wait in chairs. The biggest communication failure in MCI is not notifying hospital administration early enough -- they control staffing, OR, and ICU. Existing patients must not be abandoned. Request help before you need it. A structured triage board with space assignments prevents chaos when the ambulances arrive."

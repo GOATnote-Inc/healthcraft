@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -e ".[mcp,docker]"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "healthcraft.mcp.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "healthcraft.mcp.app:app", "--host", "0.0.0.0", "--port", "8000"]

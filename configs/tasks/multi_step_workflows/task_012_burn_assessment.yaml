@@ -1,0 +1,253 @@
+# HEALTHCRAFT Task Definition: Burn Assessment
+# Category: multi_step_workflows | Level: 4
+# Tests burn management: Rule of Nines TBSA calculation, Parkland formula
+# fluid resuscitation, airway assessment, and burn center transfer.
+
+id: MW-012
+category: multi_step_workflows
+level: 4
+title: "Burn Assessment"
+system_prompt_override: null
+
+description: |
+  A 35-year-old male firefighter is brought by EMS after being trapped in a
+  structure fire for approximately 10 minutes before rescue. He was wearing full
+  turnout gear but his SCBA ran out of air in the final 2-3 minutes. He has
+  partial and full-thickness burns to his face, neck, anterior chest, bilateral
+  upper extremities, and circumferential burns to his right forearm. He has soot
+  in his nares and oropharynx, singed nasal hairs, a hoarse voice, and an
+  inspiratory stridor that is worsening. His weight is 90 kg. The agent must
+  perform Rule of Nines TBSA calculation, initiate Parkland formula fluid
+  resuscitation, perform early airway assessment and secure the airway before
+  edema progresses, evaluate for inhalation injury, assess for compartment
+  syndrome from circumferential burns, and coordinate transfer to a verified
+  burn center.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-12T03:22:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    burn_surgery: "no burn center on-site — nearest is Regional Burn Center, 45 minutes by ground"
+    general_surgery: "on-call, 15-minute response"
+    anesthesia: "on-call, 10-minute response"
+    critical_care: "in-house"
+  transfer_options:
+    regional_burn_center:
+      name: "Metro Regional Burn Center"
+      distance: "45 minutes by ground, 20 minutes by air"
+      beds_available: "accepting — 2 burn ICU beds open"
+      helicopter: "available, launch in 15 minutes"
+
+patient:
+  age: 35
+  sex: M
+  weight_kg: 90
+  chief_complaint: "Structure fire exposure, burns to face/chest/arms, inhalation injury"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "No known allergies"
+  medications: []
+  past_medical_history:
+    - "None — healthy, active-duty firefighter"
+    - "Physical fitness: excellent"
+  family_history:
+    - "Non-contributory"
+  social_history:
+    - "Firefighter, 12 years experience"
+    - "Non-smoker"
+    - "Social drinker"
+    - "Married, two children"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "138/82"
+    respiratory_rate: 26
+    spo2: 93
+    temperature: 37.8
+    gcs: 14
+    gcs_breakdown: "E4V4M6"
+    pain_scale: 8
+    carboxyhemoglobin: "18%"
+  exam_findings:
+    airway: "Soot deposits in nares and oropharynx. Singed nasal hairs. Hoarse voice. Inspiratory stridor — worsening over past 10 minutes. Facial edema progressing. Uvula edematous."
+    face: "Partial-thickness burns to entire face (forehead, cheeks, nose, chin). Bilateral periorbital edema. Eyebrows singed. Corneas clear on brief exam."
+    neck: "Partial-thickness burns circumferential. Edema progressing."
+    chest: "Full-thickness burns anterior chest (leathery, insensate, white/waxy). Partial-thickness burns extending to flanks. Chest wall compliance decreased."
+    upper_extremities: |
+      Right arm: Circumferential full-thickness burns from mid-upper arm to hand.
+      Right forearm: tense, digits cool, capillary refill 4 seconds, radial pulse
+      palpable but diminished. Concern for compartment syndrome.
+      Left arm: Partial-thickness burns from shoulder to wrist (sparing hand).
+    lower_extremities: "Unburned — protected by turnout gear"
+    lungs: "Bilateral scattered wheezes and rhonchi. No stridor on auscultation (stridor audible without stethoscope)"
+  burn_assessment:
+    rule_of_nines:
+      head_and_neck: "9% (full face + neck)"
+      anterior_chest: "9% (anterior trunk partial/full thickness)"
+      right_arm: "9% (circumferential full thickness)"
+      left_arm: "6% (partial thickness, hand spared — approximately 2/3 of arm)"
+      total_tbsa_estimate: "33%"
+      full_thickness_tbsa: "approximately 20%"
+    burn_depth:
+      partial_thickness: "Face, neck, left arm, chest flanks"
+      full_thickness: "Anterior chest central, right arm circumferential"
+  labs:
+    cbc: "WBC 16.2, Hgb 17.8 (hemoconcentration), Plt 240"
+    bmp: "Na 142, K 5.0, Cl 104, CO2 20, BUN 18, Cr 1.0, Glu 186"
+    abg: "pH 7.32, pCO2 34, pO2 88 (on 100% NRB), HCO3 18, COHb 18%, MetHgb 1.2%"
+    lactate: "4.2 mmol/L"
+    ua: "Dark amber, myoglobin pending"
+    ck: "1,240 U/L (elevated — muscle injury)"
+  timeline:
+    fire_entrapment: "2026-02-12T02:45:00Z"
+    scba_air_depleted: "2026-02-12T02:52:00Z"
+    rescue_extrication: "2026-02-12T02:55:00Z"
+    ems_contact: "2026-02-12T02:58:00Z"
+    ed_arrival: "2026-02-12T03:18:00Z"
+
+criteria:
+  - id: MW-012-C01
+    assertion: "Agent identified worsening stridor and facial/airway edema as indication for immediate intubation before further edema progression"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for intubation as early intervention"
+
+  - id: MW-012-C02
+    assertion: "Agent performed Rule of Nines TBSA calculation (approximately 33%)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-012-C03
+    assertion: "Agent calculated Parkland formula fluid resuscitation (4 mL x kg x %TBSA = 4 x 90 x 33 = 11,880 mL over 24h, half in first 8 hours)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for crystalloid_resuscitation"
+
+  - id: MW-012-C04
+    assertion: "Agent ordered Parkland fluids from TIME OF BURN (02:45), not time of arrival"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-012-C05
+    assertion: "Agent identified elevated carboxyhemoglobin (18%) and initiated high-flow oxygen therapy (100% FiO2)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for high_flow_oxygen or 100%_FiO2"
+
+  - id: MW-012-C06
+    assertion: "Agent identified circumferential right forearm burns with diminished perfusion as compartment syndrome risk requiring escharotomy evaluation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for escharotomy_evaluation or surgery_consult for escharotomy"
+
+  - id: MW-012-C07
+    assertion: "Agent ordered urine output monitoring with Foley catheter (target 0.5-1 mL/kg/hr = 45-90 mL/hr)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for foley_catheter"
+
+  - id: MW-012-C08
+    assertion: "Agent initiated transfer to verified burn center for >20% TBSA burns"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains processTransfer to burn_center or calculateTransferTime"
+
+  - id: MW-012-C09
+    assertion: "Agent addressed pain management appropriate for burn patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for analgesia"
+
+  - id: MW-012-C10
+    assertion: "Agent ordered serial labs including CK for rhabdomyolysis monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat CK or myoglobin"
+
+  - id: MW-012-C11
+    assertion: "Agent applied burn protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for burn_management"
+
+  - id: MW-012-C12
+    assertion: "Agent prioritized airway management BEFORE fluid resuscitation and transfer planning"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "intubation createClinicalOrder timestamp precedes fluid and transfer orders"
+
+  - id: MW-012-C13
+    assertion: "Agent documented burn assessment including TBSA, depth, and distribution"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with burn documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "processTransfer"
+  - "calculateTransferTime"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review EMS report, identify inhalation injury signs"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Secure airway IMMEDIATELY — intubate before edema worsens"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Initiate 100% FiO2 for CO poisoning (COHb 18%)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Calculate TBSA using Rule of Nines"
+    tools: ["searchReferenceMaterials"]
+    critical: true
+  - step: 5
+    action: "Apply Parkland formula: 4 x 90 x 33 = 11,880 mL, half in first 8 hours from burn time"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Apply burn protocol, place Foley for UOP monitoring"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Evaluate right forearm for escharotomy (circumferential + diminished perfusion)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Order pain management and serial labs"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 9
+    action: "Coordinate burn center transfer — calculate transfer time, confirm bed"
+    tools: ["calculateTransferTime", "checkResourceAvailability", "processTransfer"]
+    critical: true
+  - step: 10
+    action: "Document burn assessment: TBSA, depth, distribution, interventions"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "major_burn_injury"
+  expected_tool_calls: "10-15"
+  entity_types: 8
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Burn airway management: intubate EARLY with any signs of inhalation injury (stridor, soot, singed hairs, hoarse voice) — airway edema progresses rapidly and can become impossible to manage. Parkland formula: 4 mL x kg x %TBSA, half in first 8 hours from TIME OF BURN (not hospital arrival). Circumferential full-thickness burns require escharotomy evaluation. Transfer criteria to burn center: >20% TBSA, full-thickness >10%, inhalation injury, circumferential burns."

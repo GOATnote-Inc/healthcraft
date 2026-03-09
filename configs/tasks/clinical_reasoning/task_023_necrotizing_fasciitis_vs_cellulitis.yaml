@@ -1,0 +1,216 @@
+# HEALTHCRAFT Task Definition: Necrotizing Fasciitis vs Cellulitis
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: necrotizing_fasciitis:cellulitis
+# Patient with a rapidly progressive soft tissue infection — agent must differentiate
+# necrotizing fasciitis from simple cellulitis. Delay in surgical debridement is lethal.
+
+id: CR-023
+category: clinical_reasoning
+level: 5
+title: "The Flesh Eater"
+system_prompt_override: null
+
+description: |
+  A 62-year-old diabetic male presents with rapidly progressive left lower leg
+  redness, swelling, and excruciating pain that began 36 hours ago from a small
+  laceration sustained while gardening. He was seen at urgent care yesterday and
+  started on oral cephalexin for cellulitis, but the area has doubled in size
+  overnight. On exam, the skin is tense and dusky with hemorrhagic bullae, there
+  is crepitus on palpation, and the pain is disproportionate to the visible findings.
+  Notably, there are areas of cutaneous anesthesia within the erythematous zone.
+  WBC is 24.2 with bandemia, lactate is 4.6, and CRP is 32. CT of the leg shows
+  gas tracking along fascial planes. The agent must recognize necrotizing fasciitis
+  (not progressive cellulitis), consult surgery emergently for operative debridement,
+  and initiate broad-spectrum IV antibiotics including clindamycin for toxin suppression.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-12T22:30:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 23
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    general_surgery: "on_call, 15min response"
+    orthopedic_surgery: "on_call, 25min response"
+    critical_care: "in_house"
+    infectious_disease: "on_call, 30min response"
+
+patient:
+  age: 62
+  sex: M
+  chief_complaint: "Leg is getting worse fast, spreading redness, terrible pain"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Sulfa drugs (rash)"
+  medications:
+    - "Metformin 1000mg BID"
+    - "Glipizide 10mg BID"
+    - "Lisinopril 20mg daily"
+    - "Cephalexin 500mg QID (started yesterday)"
+  past_medical_history:
+    - "Type 2 Diabetes Mellitus (poorly controlled, A1c 9.8%)"
+    - "Hypertension"
+    - "Peripheral vascular disease"
+    - "Obesity (BMI 38)"
+    - "Small laceration left shin 3 days ago while gardening"
+    - "Seen at urgent care yesterday, diagnosed with cellulitis"
+  social_history:
+    - "Retired teacher"
+    - "Non-smoker"
+    - "Occasional alcohol"
+  vitals:
+    heart_rate: 122
+    blood_pressure: "88/56"
+    respiratory_rate: 24
+    spo2: 94
+    temperature: 39.4
+    gcs: 14
+    gcs_breakdown: "E3 V5 M6"
+    pain_scale: 10
+  exam_findings:
+    general: "Toxic-appearing, diaphoretic, confused about timeline of events"
+    left_lower_extremity: "Diffuse erythema from ankle to knee with irregular, violaceous borders. Skin tense and woody. Two hemorrhagic bullae (3cm and 5cm) over the anterior shin. Crepitus palpable along the medial calf. Areas of cutaneous anesthesia within the erythematous zone. Pain disproportionate to examination — patient screams with light touch. Foul-smelling serosanguineous drainage from the laceration. Demarcation line drawn by urgent care yesterday now 12cm proximal."
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Tachypneic, clear bilaterally"
+    abdomen: "Soft, non-tender"
+    right_lower_extremity: "Normal"
+  labs:
+    cbc:
+      wbc: 24.2
+      neutrophils: 86
+      bands: 14
+      hemoglobin: 11.8
+      platelets: 98
+    bmp:
+      sodium: 131
+      potassium: 4.8
+      chloride: 96
+      co2: 18
+      bun: 38
+      creatinine: 2.1
+      glucose: 348
+    crp: 32
+    crp_units: "mg/dL (normal <0.5)"
+    lactate: 4.6
+    coagulation:
+      pt: 16.2
+      inr: 1.4
+      ptt: 38
+    blood_cultures: "drawn, pending"
+  imaging:
+    ct_left_lower_extremity:
+      result: "Extensive soft tissue gas tracking along the deep fascial planes of the left lower leg, predominantly in the anterior and lateral compartments. Diffuse subcutaneous edema and fascial thickening. No abscess cavity. Findings highly concerning for necrotizing fasciitis."
+      read_by: "Dr. James Park, Radiology — STAT read"
+
+criteria:
+  - id: CR-023-C01
+    assertion: "Agent reviewed exam findings including hemorrhagic bullae, crepitus, pain disproportionate to exam, and cutaneous anesthesia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-023-C02
+    assertion: "Agent retrieved history including diabetes, recent laceration, and failed oral antibiotics"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-023-C03
+    assertion: "Agent diagnosed necrotizing fasciitis, not progressive cellulitis"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-023-C04
+    assertion: "Agent identified key features distinguishing nec fasc from cellulitis: crepitus, bullae, cutaneous anesthesia, pain out of proportion, rapid progression, systemic toxicity"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-023-C05
+    assertion: "Agent consulted surgery EMERGENTLY for operative debridement"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-023-C06
+    assertion: "Agent started broad-spectrum IV antibiotics including clindamycin (toxin suppression) and a carbapenem or pip-tazo"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-023-C07
+    assertion: "Agent initiated aggressive IV fluid resuscitation for septic shock (hypotension, tachycardia, elevated lactate)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-023-C08
+    assertion: "Agent did NOT continue oral antibiotics alone or recommend outpatient IV antibiotics"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-023-C09
+    assertion: "Agent recognized and addressed the DIC (thrombocytopenia, elevated INR/PTT)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-023-C10
+    assertion: "Agent managed the hyperglycemia with insulin"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-023-C11
+    assertion: "Agent reviewed CT showing gas in fascial planes as confirming necrotizing process"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-023-C12
+    assertion: "Agent calculated or acknowledged LRINEC score elements (WBC, Hgb, Na, glucose, creatinine, CRP)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-023-C13
+    assertion: "Agent documented clinical reasoning for necrotizing fasciitis over cellulitis, surgical urgency, and sepsis management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize red flags — crepitus, bullae, cutaneous anesthesia, pain disproportionate"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — diabetes, laceration, rapid progression despite antibiotics"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "CT — gas in fascial planes confirms necrotizing process"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Surgery STAT, IV antibiotics (including clindamycin), aggressive fluids"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Every hour of delay in surgical debridement increases mortality. This is not a medical disease — it is a surgical emergency."
+
+metadata:
+  confusion_pair: "necrotizing_fasciitis:cellulitis"
+  openem_condition: "necrotizing_fasciitis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Necrotizing fasciitis mimics cellulitis early but has key distinguishing features: pain out of proportion, rapid progression despite antibiotics, hemorrhagic bullae, crepitus (gas in tissues), cutaneous anesthesia (nerve destruction), and systemic toxicity. LRINEC score >6 suggests necrotizing fasciitis. Gas on imaging is pathognomonic but absent in many cases. The ONLY definitive treatment is surgical debridement — antibiotics alone are insufficient. Clindamycin suppresses toxin production. Mortality increases ~7.6% per hour of surgical delay."

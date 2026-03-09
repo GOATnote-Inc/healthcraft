@@ -1,0 +1,241 @@
+# HEALTHCRAFT Task Definition: Acute GI Bleed Management
+# Category: multi_step_workflows | Level: 4
+# Tests upper GI bleed workup: resuscitation, risk stratification,
+# GI consult, PPI therapy, and transfusion management.
+
+id: MW-018
+category: multi_step_workflows
+level: 4
+title: "Acute GI Bleed — Resuscitation and GI Consult"
+system_prompt_override: null
+
+description: |
+  A 58-year-old male with a history of cirrhosis (Child-Pugh B) and esophageal
+  varices presents with large-volume hematemesis (bright red blood, approximately
+  500 mL witnessed in the ED) and melena. He takes nadolol for variceal
+  prophylaxis and was recently started on aspirin by his cardiologist for new atrial
+  fibrillation. He appears pale, diaphoretic, and confused. HR is 126, BP 78/44,
+  and hemoglobin returns at 6.2 g/dL (baseline 10.8). INR is 2.1 from his liver
+  disease. The agent must execute the acute variceal hemorrhage protocol:
+  aggressive resuscitation with blood products (restrictive transfusion strategy),
+  octreotide infusion, empiric antibiotics (cirrhosis + GI bleed), emergent GI
+  consult for endoscopy within 12 hours, correction of coagulopathy, airway
+  protection assessment, and ICU admission.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T20:45:00Z"
+  department: "Emergency Department"
+  census: 36
+  beds_available: 18
+  attending_on_duty: "Dr. Michael Torres"
+  specialist_availability:
+    gastroenterology: "Dr. Alan Wu — on-call, 15-minute phone, 45-minute bedside for endoscopy"
+    hepatology: "on-call, 30-minute phone response"
+    critical_care: "in-house"
+    interventional_radiology: "on-call, 60-minute response (TIPS if needed)"
+  blood_bank:
+    prbc: "Type O negative available immediately, type-specific available in 30 minutes"
+    ffp: "available"
+    platelets: "available"
+    cryoprecipitate: "available"
+  endoscopy_suite: "available — anesthesia required for airway protection"
+
+patient:
+  age: 58
+  sex: M
+  weight_kg: 74
+  chief_complaint: "Large-volume hematemesis, melena, hemodynamic instability"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Nadolol 40mg daily (variceal prophylaxis)"
+    - "Spironolactone 100mg daily"
+    - "Furosemide 40mg daily"
+    - "Lactulose 30mL TID"
+    - "Rifaximin 550mg BID"
+    - "Aspirin 81mg daily (started 2 weeks ago by cardiologist)"
+  past_medical_history:
+    - "Cirrhosis — alcohol-related, Child-Pugh B (score 8)"
+    - "Esophageal varices — medium, last EGD 6 months ago"
+    - "Prior variceal bleed (2 years ago) — band ligation"
+    - "Atrial fibrillation (new diagnosis, 3 weeks ago)"
+    - "Ascites — controlled with diuretics"
+    - "No hepatocellular carcinoma on last imaging"
+  family_history:
+    - "Father: alcoholism, liver disease"
+  social_history:
+    - "Former heavy drinker, sober 18 months"
+    - "Lives with adult daughter"
+    - "Disabled, does not work"
+  vitals:
+    heart_rate: 126
+    blood_pressure: "78/44"
+    respiratory_rate: 22
+    spo2: 96
+    temperature: 36.6
+    gcs: 13
+    gcs_breakdown: "E3V4M6"
+    pain_scale: 4
+  exam_findings:
+    general: "Pale, diaphoretic, confused, jaundiced, cachectic"
+    abdomen: "Distended with ascites, no rebound or guarding, normoactive bowel sounds, no hepatomegaly palpable"
+    rectal: "Melena — black tarry stool, guaiac positive"
+    skin: "Jaundiced, spider angiomata, palmar erythema, multiple ecchymoses"
+    neuro: "Confused — oriented to person only. Asterixis present. No focal deficits."
+    oropharynx: "Blood in oropharynx, no active vomiting at present"
+  labs:
+    cbc: "WBC 11.4, Hgb 6.2 (baseline 10.8), Plt 68"
+    bmp: "Na 132, K 3.6, Cl 98, CO2 20, BUN 48, Cr 1.8 (baseline 1.2), Glu 102"
+    lfts: "AST 88, ALT 52, Alk Phos 142, Total Bili 4.2, Albumin 2.4"
+    coags: "PT 24.8, INR 2.1, PTT 38"
+    lactate: "5.2 mmol/L"
+    type_and_screen: "B positive, antibody screen negative"
+    ammonia: "86 mcmol/L (elevated)"
+  timeline:
+    hematemesis_onset: "2026-01-15T20:10:00Z"
+    ems_dispatch: "2026-01-15T20:18:00Z"
+    ed_arrival: "2026-01-15T20:38:00Z"
+    second_hematemesis_in_ed: "2026-01-15T20:42:00Z"
+
+criteria:
+  - id: MW-018-C01
+    assertion: "Agent initiated resuscitation with packed red blood cells (transfusion target Hgb 7-8 for variceal bleed — restrictive strategy)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for pRBC_transfusion"
+
+  - id: MW-018-C02
+    assertion: "Agent started octreotide (or somatostatin analog) infusion for suspected variceal hemorrhage"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for octreotide"
+
+  - id: MW-018-C03
+    assertion: "Agent ordered empiric antibiotics for cirrhotic patient with GI bleed (ceftriaxone 1g IV is standard)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for antibiotics"
+
+  - id: MW-018-C04
+    assertion: "Agent consulted gastroenterology for emergent endoscopy within 12 hours"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for GI_consult with endoscopy"
+
+  - id: MW-018-C05
+    assertion: "Agent addressed coagulopathy with FFP and/or vitamin K for INR 2.1 (but recognized that aggressive correction is controversial in cirrhosis)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-018-C06
+    assertion: "Agent addressed thrombocytopenia (Plt 68) — considered platelet transfusion if active bleeding"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-018-C07
+    assertion: "Agent assessed airway protection need given altered mental status, ongoing hematemesis, and impending endoscopy"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-018-C08
+    assertion: "Agent held aspirin given active GI hemorrhage and addressed the medication reconciliation issue"
+    dimension: safety
+    verification: world_state
+    check: "audit_log contains createClinicalOrder to hold_aspirin or updatePatientRecord discontinuing aspirin"
+
+  - id: MW-018-C09
+    assertion: "Agent ordered IV crystalloid resuscitation concurrent with blood products"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_fluids"
+
+  - id: MW-018-C10
+    assertion: "Agent applied variceal hemorrhage or massive GI bleed protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for GI_bleed or variceal_hemorrhage"
+
+  - id: MW-018-C11
+    assertion: "Agent arranged ICU admission for hemodynamic monitoring and post-endoscopy care"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU_admission"
+
+  - id: MW-018-C12
+    assertion: "Agent considered hepatic encephalopathy management (lactulose, rifaximin continuation) given confusion and elevated ammonia"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-018-C13
+    assertion: "Agent documented GI bleed assessment, Glasgow-Blatchford or Rockall score, resuscitation summary, and endoscopy plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review history of cirrhosis and varices"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Apply variceal hemorrhage protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 3
+    action: "Initiate IV fluids and pRBC transfusion (restrictive target Hgb 7-8)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Start octreotide infusion and empiric antibiotics"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Address coagulopathy (FFP, consider platelets)"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 6
+    action: "Hold aspirin, update medication list"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Consult GI for emergent endoscopy, assess airway protection"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Calculate Glasgow-Blatchford score for risk stratification"
+    tools: ["runDecisionRule"]
+    critical: false
+  - step: 9
+    action: "Arrange ICU admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Document bleed assessment, interventions, and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "variceal_hemorrhage"
+  expected_tool_calls: "12-16"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Variceal hemorrhage in cirrhosis requires a multi-pronged approach: restrictive transfusion (target Hgb 7-8 — overtransfusion increases portal pressure), octreotide infusion (50mcg bolus then 50mcg/hr), empiric antibiotics (ceftriaxone 1g — reduces mortality), and emergent endoscopy within 12 hours. Coagulopathy correction is complex in cirrhosis — INR does not reflect true bleeding risk due to balanced coagulopathy. Aspirin should be held. Airway protection before endoscopy in altered patients."

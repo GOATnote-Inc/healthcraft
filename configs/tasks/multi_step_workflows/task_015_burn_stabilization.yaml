@@ -1,0 +1,236 @@
+# HEALTHCRAFT Task Definition: Burn Patient Stabilization and Transfer
+# Category: multi_step_workflows | Level: 4
+# Tests burn resuscitation with Parkland formula, airway management,
+# escharotomy assessment, and inter-facility transfer coordination.
+
+id: MW-015
+category: multi_step_workflows
+level: 4
+title: "Burn Stabilization — Fluid Resuscitation and Transfer"
+system_prompt_override: null
+
+description: |
+  A 42-year-old male is brought by EMS after a propane grill explosion on his back
+  deck. He was engulfed in flame for approximately 15-20 seconds before bystanders
+  extinguished him with a garden hose. He has deep partial-thickness and
+  full-thickness burns to his bilateral upper extremities (circumferential to both
+  forearms), anterior trunk, and face. He has no signs of inhalation injury — he
+  was outdoors, voice is clear, no stridor, no carbonaceous sputum. Weight is
+  estimated at 85 kg. Estimated TBSA is 40%. Burns occurred at 16:45, he arrives
+  at 17:30. This facility does not have a burn center. The agent must calculate
+  Parkland formula resuscitation from time of burn, establish large-bore IV access,
+  place Foley catheter for UOP monitoring, evaluate circumferential extremity
+  burns for compartment syndrome requiring escharotomy, manage pain, and coordinate
+  helicopter transfer to a verified burn center 90 miles away.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T17:30:00Z"
+  department: "Emergency Department"
+  census: 26
+  beds_available: 28
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    burn_surgery: "NOT available on-site — nearest burn center 90 miles"
+    general_surgery: "on-call, 15-minute response — can perform escharotomy if needed"
+    anesthesia: "on-call, 10-minute response"
+  transfer_options:
+    regional_burn_center:
+      name: "University Burn Center"
+      distance: "90 miles, 50 minutes by helicopter"
+      beds_available: "accepting — 3 burn ICU beds open"
+      helicopter: "available, launch in 20 minutes"
+      ground_transport: "90 minutes — not preferred"
+  pharmacy:
+    morphine: "available"
+    ketamine: "available"
+    lactated_ringers: "available — 20L in stock"
+
+patient:
+  age: 42
+  sex: M
+  weight_kg: 85
+  chief_complaint: "Propane grill explosion, extensive burns bilateral arms/trunk/face"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "Sulfa drugs (hives)"
+  medications:
+    - "Lisinopril 10mg daily"
+    - "Metformin 500mg BID"
+  past_medical_history:
+    - "Type 2 diabetes (well-controlled, HbA1c 6.8%)"
+    - "Hypertension"
+    - "No prior surgeries"
+  vitals:
+    heart_rate: 122
+    blood_pressure: "142/88"
+    respiratory_rate: 22
+    spo2: 98
+    temperature: 36.4
+    gcs: 15
+    pain_scale: 10
+  exam_findings:
+    airway: "Clear voice, no stridor, no soot, no singed hairs, no facial edema"
+    face: "Superficial partial-thickness burns to forehead, bilateral cheeks, nose. Eyebrows intact. Eyelids spared."
+    anterior_trunk: "Deep partial-thickness and full-thickness burns from nipple line to umbilicus. Mixed pattern — white waxy areas (full thickness) interspersed with blistering erythematous areas (deep partial)."
+    upper_extremities: |
+      Bilateral forearms: Circumferential full-thickness burns wrist to elbow.
+      Right hand: Deep partial-thickness, edema progressing, grip weak.
+      Left hand: Deep partial-thickness, similar to right.
+      Bilateral upper arms: Partial-thickness burns, non-circumferential.
+      Right radial pulse: palpable but diminished, Doppler signal present.
+      Left radial pulse: palpable but diminished, Doppler signal present.
+    lower_extremities: "Unburned"
+    lungs: "Clear bilateral, good air entry"
+  burn_assessment:
+    rule_of_nines:
+      face: "4.5% (partial thickness)"
+      anterior_trunk: "18% (mixed deep partial and full thickness)"
+      right_arm: "9% (circumferential full thickness forearm, partial upper arm)"
+      left_arm: "9% (circumferential full thickness forearm, partial upper arm)"
+      total_tbsa: "40%"
+      full_thickness_tbsa: "approximately 22%"
+  labs:
+    cbc: "WBC 12.4, Hgb 16.8 (hemoconcentration), Plt 210"
+    bmp: "Na 140, K 4.8, Cl 102, CO2 22, BUN 20, Cr 1.0, Glu 210"
+    lactate: "3.2 mmol/L"
+    coags: "PT 12.4, INR 1.0"
+    type_and_screen: "A positive, antibody screen negative"
+  timeline:
+    burn_event: "2026-01-15T16:45:00Z"
+    ems_arrival: "2026-01-15T17:05:00Z"
+    ed_arrival: "2026-01-15T17:30:00Z"
+
+criteria:
+  - id: MW-015-C01
+    assertion: "Agent calculated Parkland formula from TIME OF BURN (16:45), not time of arrival — 4 x 85 x 40 = 13,600 mL over 24h, half (6,800 mL) in first 8 hours from burn"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-015-C02
+    assertion: "Agent ordered Lactated Ringer's (preferred) or NS for burn resuscitation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for crystalloid_resuscitation with LR"
+
+  - id: MW-015-C03
+    assertion: "Agent ordered Foley catheter for urine output monitoring (target 0.5-1 mL/kg/hr = 42-85 mL/hr)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for foley_catheter"
+
+  - id: MW-015-C04
+    assertion: "Agent identified circumferential forearm burns as risk for compartment syndrome and ordered vascular assessment or surgery consult for escharotomy evaluation"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for escharotomy_evaluation or surgery_consult"
+
+  - id: MW-015-C05
+    assertion: "Agent initiated pain management appropriate for major burns (IV opioids, consider ketamine for procedural pain)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for analgesia"
+
+  - id: MW-015-C06
+    assertion: "Agent established 2 large-bore IV access sites in unburned tissue"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_access"
+
+  - id: MW-015-C07
+    assertion: "Agent initiated transfer to verified burn center via helicopter for >20% TBSA burns"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains processTransfer or calculateTransferTime for burn_center"
+
+  - id: MW-015-C08
+    assertion: "Agent contacted burn center before transfer to confirm acceptance and provide TBSA, burn depth, and resuscitation status"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: MW-015-C09
+    assertion: "Agent applied burn resuscitation protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for burn_resuscitation"
+
+  - id: MW-015-C10
+    assertion: "Agent addressed tetanus prophylaxis for burn injury"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for tetanus"
+
+  - id: MW-015-C11
+    assertion: "Agent ordered serial lactate and metabolic panel for resuscitation adequacy monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat_labs"
+
+  - id: MW-015-C12
+    assertion: "Agent documented TBSA calculation, burn depth map, fluid resuscitation rate, and transfer plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with burn documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "processTransfer"
+  - "calculateTransferTime"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, calculate TBSA using Rule of Nines"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Establish IV access in unburned tissue, apply burn protocol"
+    tools: ["createClinicalOrder", "applyProtocol"]
+    critical: true
+  - step: 3
+    action: "Calculate Parkland formula from burn time, start LR resuscitation"
+    tools: ["createClinicalOrder", "searchReferenceMaterials"]
+    critical: true
+  - step: 4
+    action: "Place Foley catheter for UOP monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Evaluate circumferential burns, consult surgery for escharotomy"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Pain management with IV opioids/ketamine"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Tetanus prophylaxis and serial labs"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 8
+    action: "Contact burn center, initiate helicopter transfer"
+    tools: ["calculateTransferTime", "processTransfer", "checkResourceAvailability"]
+    critical: true
+  - step: 9
+    action: "Document burn assessment and transfer plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "major_burn_injury"
+  expected_tool_calls: "12-16"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Parkland formula: 4 mL x kg x %TBSA over 24 hours, with half given in the first 8 hours from TIME OF BURN (not arrival). Lactated Ringer's is preferred. Urine output (0.5-1 mL/kg/hr) is the best guide for resuscitation adequacy. Circumferential full-thickness burns can cause compartment syndrome — monitor distal pulses and consider escharotomy. ABA burn center transfer criteria include: >20% TBSA, full-thickness >10%, burns to face/hands/feet/genitalia/joints, circumferential burns, and inhalation injury."

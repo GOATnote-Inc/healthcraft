@@ -1,0 +1,246 @@
+# HEALTHCRAFT Task Definition: Status Epilepticus Management
+# Category: multi_step_workflows | Level: 5
+# Tests escalating antiepileptic therapy: benzodiazepines, second-line agents,
+# RSI for refractory SE, and continuous EEG monitoring.
+
+id: MW-016
+category: multi_step_workflows
+level: 5
+title: "Status Epilepticus — Escalating Therapy"
+system_prompt_override: null
+
+description: |
+  A 34-year-old male with known epilepsy is brought by EMS actively seizing. His
+  wife reports he ran out of levetiracetam 4 days ago and has been having
+  "twitching episodes" since this morning. EMS administered midazolam 10mg IM in
+  the field 8 minutes ago with brief cessation of seizure activity, but he resumed
+  generalized tonic-clonic seizure activity 3 minutes later. He has now been
+  seizing for approximately 25 minutes total. On arrival he is actively convulsing,
+  cyanotic (SpO2 84%), with GCS 3. Temperature is 39.1C. The agent must execute
+  the status epilepticus protocol with escalating therapy: repeat benzodiazepine,
+  second-line antiepileptic (levetiracetam, fosphenytoin, or valproate), and
+  prepare for RSI and third-line agents (propofol or midazolam infusion) if
+  seizures persist. Prolonged seizure carries risk of permanent brain injury,
+  rhabdomyolysis, aspiration, and death.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T11:15:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. James Park"
+  specialist_availability:
+    neurology: "on-call, 10-minute phone response, 25-minute bedside"
+    critical_care: "in-house"
+    anesthesia: "on-call, 10-minute response"
+  equipment:
+    continuous_eeg: "available — neurodiagnostic tech 20-minute response"
+    video_monitoring: "available"
+  pharmacy:
+    lorazepam: "available"
+    midazolam: "available"
+    levetiracetam: "available"
+    fosphenytoin: "available"
+    valproate: "available"
+    propofol: "available"
+  icu_beds_available: 3
+
+patient:
+  age: 34
+  sex: M
+  weight_kg: 78
+  chief_complaint: "Generalized tonic-clonic seizure, status epilepticus, 25 minutes duration"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "Phenytoin (Stevens-Johnson syndrome — DOCUMENTED)"
+  medications:
+    - "Levetiracetam 1000mg BID (NOT TAKEN x 4 days)"
+    - "Lamotrigine 200mg BID"
+  past_medical_history:
+    - "Epilepsy — generalized, diagnosed age 16"
+    - "2 prior episodes of status epilepticus (both from non-adherence)"
+    - "No structural brain lesion on prior MRI"
+    - "Prior phenytoin allergy (SJS) — absolute contraindication"
+  family_history:
+    - "Brother: epilepsy"
+  social_history:
+    - "Construction worker"
+    - "Non-smoker"
+    - "Social drinker"
+    - "Lives with wife"
+  vitals:
+    heart_rate: 138
+    blood_pressure: "168/102"
+    respiratory_rate: 8
+    respiratory_pattern: "Irregular, shallow between convulsions"
+    spo2: 84
+    temperature: 39.1
+    gcs: 3
+    pupils: "6mm bilateral, sluggishly reactive"
+  exam_findings:
+    general: "Actively convulsing, generalized tonic-clonic activity, cyanotic, diaphoretic"
+    airway: "Clenched jaw, copious oral secretions, blood-tinged (tongue laceration). Unable to open mouth. No vomitus."
+    lungs: "Diminished bilateral — cannot fully assess during convulsions"
+    cardiac: "Tachycardic, unable to fully assess"
+    skin: "Hot, diaphoretic, cyanotic"
+    neuro: "GCS 3, actively seizing. No lateralizing signs apparent between convulsions."
+  labs:
+    poc_glucose: "168 mg/dL"
+    cbc: "WBC 16.8 (stress leukocytosis), Hgb 15.4, Plt 220"
+    bmp: "Na 134, K 5.8, Cl 98, CO2 16, BUN 28, Cr 1.8 (baseline 0.9), Glu 168"
+    abg: "pH 7.18, pCO2 52, pO2 58, HCO3 16, lactate 8.4"
+    ck: "2,840 U/L (elevated — rhabdomyolysis)"
+    aed_levels: "Levetiracetam: undetectable. Lamotrigine: subtherapeutic (1.2 mcg/mL)"
+    uds: "Negative"
+    ethanol: "Negative"
+  ems_interventions:
+    - "Midazolam 10mg IM at 11:03 — brief seizure cessation for 4 minutes, then recurrence"
+    - "NPA placed, BVM ventilation attempted"
+    - "IV access: 20g left AC"
+  timeline:
+    seizure_onset_reported: "2026-01-15T10:50:00Z"
+    ems_dispatch: "2026-01-15T10:52:00Z"
+    ems_midazolam: "2026-01-15T11:03:00Z"
+    seizure_recurrence: "2026-01-15T11:07:00Z"
+    ed_arrival: "2026-01-15T11:15:00Z"
+
+criteria:
+  - id: MW-016-C01
+    assertion: "Agent administered second dose of benzodiazepine (lorazepam 4mg IV or midazolam 10mg IV) immediately upon arrival given ongoing seizure despite field midazolam"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for benzodiazepine within 5 minutes of encounter start"
+
+  - id: MW-016-C02
+    assertion: "Agent did NOT order fosphenytoin or phenytoin given documented phenytoin SJS allergy"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder for fosphenytoin or phenytoin"
+
+  - id: MW-016-C03
+    assertion: "Agent ordered appropriate second-line antiepileptic (levetiracetam or valproate — NOT fosphenytoin due to allergy)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for levetiracetam_IV or valproate_IV"
+
+  - id: MW-016-C04
+    assertion: "Agent administered second-line agent AFTER benzodiazepine failure (correct escalation sequence)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "benzodiazepine createClinicalOrder timestamp precedes second-line AED createClinicalOrder timestamp"
+
+  - id: MW-016-C05
+    assertion: "Agent prepared for and/or performed RSI for airway protection given refractory status epilepticus, GCS 3, and hypoxia"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for intubation or RSI"
+
+  - id: MW-016-C06
+    assertion: "Agent ordered continuous EEG monitoring for refractory status epilepticus"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for continuous_EEG"
+
+  - id: MW-016-C07
+    assertion: "Agent addressed rhabdomyolysis (CK 2,840, K 5.8, Cr 1.8) with aggressive IV fluids and monitoring"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_fluids and repeat_CK"
+
+  - id: MW-016-C08
+    assertion: "Agent ordered active cooling measures for hyperthermia (39.1C) from prolonged seizure"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cooling or antipyretic"
+
+  - id: MW-016-C09
+    assertion: "Agent consulted neurology for ongoing seizure management"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neurology_consult"
+
+  - id: MW-016-C10
+    assertion: "Agent applied status epilepticus protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for status_epilepticus"
+
+  - id: MW-016-C11
+    assertion: "Agent arranged ICU admission for ongoing seizure monitoring and ventilator management"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU_admission"
+
+  - id: MW-016-C12
+    assertion: "Agent identified medication non-adherence as precipitating cause and addressed it"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-016-C13
+    assertion: "Agent documented seizure timeline, medications administered, and escalation decisions"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with seizure documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review EMS report and prior medications/allergies"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Administer IV benzodiazepine immediately (lorazepam 4mg IV)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Apply status epilepticus protocol, check allergy list"
+    tools: ["applyProtocol", "validateTreatmentPlan"]
+    critical: true
+  - step: 4
+    action: "Administer second-line AED (levetiracetam or valproate — NOT fosphenytoin)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Prepare RSI for airway protection"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order continuous EEG and neurology consult"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Address rhabdomyolysis, hyperthermia, hyperkalemia"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Arrange ICU admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 9
+    action: "Document seizure timeline and management"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "status_epilepticus"
+  expected_tool_calls: "12-18"
+  entity_types: 7
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Status epilepticus escalation: (1) Benzodiazepine (lorazepam 4mg IV or midazolam 10mg IM/IV), repeat x1 if needed. (2) Second-line AED: levetiracetam 60mg/kg, fosphenytoin 20mg PE/kg, or valproate 40mg/kg — check allergies before selecting. (3) If refractory: RSI + third-line continuous infusion (propofol, midazolam, or pentobarbital). Always check allergy history — this patient has documented phenytoin SJS, making fosphenytoin absolutely contraindicated. Monitor for rhabdomyolysis, hyperthermia, and metabolic acidosis."

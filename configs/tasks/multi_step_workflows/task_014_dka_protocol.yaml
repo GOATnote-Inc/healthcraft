@@ -1,0 +1,239 @@
+# HEALTHCRAFT Task Definition: Diabetic Ketoacidosis Protocol
+# Category: multi_step_workflows | Level: 4
+# Tests DKA management: insulin drip initiation, fluid resuscitation,
+# electrolyte monitoring, anion gap closure, and transition to SQ insulin.
+
+id: MW-014
+category: multi_step_workflows
+level: 4
+title: "Diabetic Ketoacidosis — Insulin Drip and Monitoring"
+system_prompt_override: null
+
+description: |
+  A 28-year-old female with type 1 diabetes presents with nausea, vomiting,
+  abdominal pain, and rapid breathing for the past 8 hours. She ran out of her
+  insulin 3 days ago due to a lapse in insurance coverage. She is tachypneic with
+  Kussmaul respirations, fruity breath odor, and appears dehydrated. Blood glucose
+  is 486 mg/dL, pH 7.12, bicarbonate 8, anion gap 28, positive serum ketones.
+  Potassium is 5.4 (expected to drop with insulin). The agent must execute the
+  ADA DKA protocol: aggressive IV fluid resuscitation, insulin drip initiation
+  (NOT bolus in this case per current guidelines), potassium replacement when K
+  drops below 5.3, serial metabolic panels every 2 hours, monitoring for anion
+  gap closure, transition to subcutaneous insulin with overlap, and identification
+  of the precipitating cause.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T22:15:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Michael Torres"
+  specialist_availability:
+    endocrinology: "on-call, 30-minute phone response"
+    critical_care: "in-house"
+    social_work: "on-call — for insurance/access issues"
+  pharmacy:
+    regular_insulin: "available"
+    potassium_chloride: "available"
+    potassium_phosphate: "available"
+  icu_beds_available: 4
+
+patient:
+  age: 28
+  sex: F
+  weight_kg: 62
+  chief_complaint: "Nausea, vomiting, abdominal pain, rapid breathing x 8 hours"
+  arrival_mode: "Private vehicle, walked in"
+  esi_level: 2
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Insulin glargine 22 units nightly (NOT TAKEN x 3 days)"
+    - "Insulin lispro per carb counting (NOT TAKEN x 3 days)"
+    - "Oral contraceptive pill"
+  past_medical_history:
+    - "Type 1 diabetes mellitus — diagnosed age 12"
+    - "2 prior DKA episodes (last 2 years ago)"
+    - "No chronic complications documented"
+  family_history:
+    - "Mother: type 1 diabetes"
+  social_history:
+    - "Graduate student"
+    - "Insurance lapsed 1 week ago — could not afford insulin"
+    - "Non-smoker, no alcohol, no drugs"
+    - "Lives alone"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "98/62"
+    respiratory_rate: 28
+    respiratory_pattern: "Kussmaul — deep, rapid, labored"
+    spo2: 99
+    temperature: 37.2
+    gcs: 15
+    pain_scale: 6
+  exam_findings:
+    general: "Young female, ill-appearing, dehydrated, Kussmaul respirations, fruity breath odor"
+    eyes: "Sunken, dry conjunctivae"
+    mouth: "Dry mucous membranes, acetone breath"
+    cardiac: "Tachycardic, regular rhythm"
+    lungs: "Clear, rapid deep respirations"
+    abdomen: "Diffusely tender, no rebound or guarding, hypoactive bowel sounds"
+    skin: "Dry, poor turgor, tenting on forearms"
+    neuro: "Alert, oriented x4, no focal deficits"
+  labs:
+    poc_glucose: "486 mg/dL"
+    bmp: "Na 131, K 5.4, Cl 96, CO2 8, BUN 32, Cr 1.6, Glu 486"
+    corrected_sodium: "Na corrected = 137 (adding 1.6 per 100 mg/dL glucose above 100)"
+    anion_gap: "28 (Na - Cl - CO2 = 131 - 96 - 8 = 27; with corrected Na = 28)"
+    abg: "pH 7.12, pCO2 18, pO2 108, HCO3 8"
+    serum_ketones: "Strongly positive (beta-hydroxybutyrate 6.8 mmol/L)"
+    phosphate: "1.8 mg/dL (low)"
+    magnesium: "1.6 mg/dL (low-normal)"
+    cbc: "WBC 14.8 (stress response), Hgb 15.2 (hemoconcentration), Plt 290"
+    lipase: "42 U/L (normal)"
+    ua: "Ketones 3+, glucose 4+, no WBC"
+    hba1c: "12.4%"
+  timeline:
+    insulin_last_taken: "2026-01-12T22:00:00Z"
+    symptom_onset: "2026-01-15T14:00:00Z"
+    ed_arrival: "2026-01-15T22:05:00Z"
+    triage: "2026-01-15T22:10:00Z"
+
+criteria:
+  - id: MW-014-C01
+    assertion: "Agent identified DKA based on hyperglycemia, anion gap metabolic acidosis, and ketonemia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-014-C02
+    assertion: "Agent initiated aggressive IV fluid resuscitation with isotonic crystalloid (NS or LR) at 15-20 mL/kg/hr for first 1-2 hours"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_fluid_bolus with isotonic crystalloid"
+
+  - id: MW-014-C03
+    assertion: "Agent started continuous IV insulin infusion at 0.1-0.14 units/kg/hr (approximately 6-9 units/hr for 62 kg)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for insulin_drip"
+
+  - id: MW-014-C04
+    assertion: "Agent initiated IV fluids BEFORE starting insulin drip (volume first, then insulin)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "IV_fluid createClinicalOrder timestamp precedes insulin_drip createClinicalOrder timestamp"
+
+  - id: MW-014-C05
+    assertion: "Agent addressed potassium management — plan to add K replacement when K drops below 5.3 mEq/L, and hold insulin if K < 3.3"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-014-C06
+    assertion: "Agent ordered serial BMP every 1-2 hours for glucose, potassium, bicarbonate, and anion gap monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for serial_BMP or repeat_metabolic_panel"
+
+  - id: MW-014-C07
+    assertion: "Agent ordered addition of dextrose to IV fluids when glucose reaches 200-250 mg/dL (to prevent hypoglycemia while continuing insulin for gap closure)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: MW-014-C08
+    assertion: "Agent addressed phosphate replacement given low phosphate (1.8 mg/dL)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for phosphate_replacement"
+
+  - id: MW-014-C09
+    assertion: "Agent applied DKA protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for DKA"
+
+  - id: MW-014-C10
+    assertion: "Agent identified precipitating cause (insulin non-adherence due to insurance lapse) and initiated social work consult"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for social_work_consult"
+
+  - id: MW-014-C11
+    assertion: "Agent consulted endocrinology for insulin management and transition planning"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for endocrinology_consult"
+
+  - id: MW-014-C12
+    assertion: "Agent planned transition to subcutaneous insulin with 2-hour overlap before discontinuing drip"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-014-C13
+    assertion: "Agent documented DKA severity, precipitating cause, and treatment plan in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review labs, identify DKA"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Apply DKA protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 3
+    action: "Initiate aggressive IV fluid resuscitation (NS 1-1.5L first hour)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Start insulin drip 0.1-0.14 units/kg/hr after fluids initiated"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 5
+    action: "Order potassium replacement protocol and serial BMPs"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Address phosphate replacement"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 7
+    action: "Identify precipitant and consult social work for insurance issue"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult endocrinology"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Plan dextrose addition and transition to SQ insulin"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 10
+    action: "Document assessment, treatment, and disposition plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "diabetic_ketoacidosis"
+  expected_tool_calls: "12-16"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "DKA management follows a strict sequence: volume resuscitation first, then insulin drip. Current ADA guidelines recommend 0.1-0.14 units/kg/hr continuous infusion WITHOUT a bolus. Potassium must be monitored aggressively — insulin drives K intracellular, and hypokalemia can cause fatal arrhythmias. Hold insulin if K < 3.3. Add dextrose to IVF when glucose reaches 200-250 to prevent hypoglycemia while continuing insulin for anion gap closure. Gap closure (not glucose normalization) is the endpoint. Transition to SQ insulin requires 2-hour overlap with drip."

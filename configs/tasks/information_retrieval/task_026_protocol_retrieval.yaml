@@ -1,0 +1,180 @@
+# HEALTHCRAFT Task Definition: Protocol Step-by-Step Retrieval
+# Category: information_retrieval | Level: 2
+# Agent must retrieve and verify the massive transfusion protocol steps
+# for an actively hemorrhaging patient, handling a protocol version conflict.
+
+id: IR-026
+category: information_retrieval
+level: 2
+title: "Protocol Step-by-Step Retrieval"
+system_prompt_override: null
+
+description: |
+  A 38-year-old man arrives via helicopter after a penetrating abdominal
+  trauma (stab wound to the left upper quadrant). He is hypotensive with
+  active hemorrhage and meets criteria for massive transfusion protocol
+  (MTP) activation. The attending calls for MTP activation. The agent must
+  retrieve the facility's MTP protocol, provide the step-by-step sequence,
+  and coordinate with the blood bank. However, the facility's online
+  protocol database has two versions of the MTP: an outdated 2023 version
+  (still listed) and the current 2025 version. The agent must identify and
+  use the correct current version, and provide the key steps including
+  component ratios, lab monitoring intervals, and termination criteria.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T01:30:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Marcus Thompson"
+  blood_bank:
+    status: "open, technician on-site"
+    o_negative_available: 6
+    uncrossmatched_available: true
+    crossmatch_time: "45 minutes"
+  protocol_versions:
+    - version: "MTP-2023-v2"
+      status: "superseded"
+      ratio: "1:1:1 (pRBC:FFP:platelets)"
+      note: "Old version — did not include TXA or TEG-guided resuscitation"
+    - version: "MTP-2025-v1"
+      status: "current"
+      ratio: "1:1:1 with TXA 1g IV within 3 hours of injury"
+      note: "Current version — includes TXA, TEG/ROTEM-guided, calcium replacement"
+
+patient:
+  age: 38
+  sex: M
+  chief_complaint: "Stab wound to left upper quadrant, active hemorrhage"
+  arrival_mode: "Helicopter"
+  esi_level: 1
+  location: "Resuscitation Bay 1"
+  allergies: []
+  medications: []
+  past_medical_history:
+    - "No significant history"
+  vitals:
+    heart_rate: 132
+    blood_pressure: "76/42"
+    respiratory_rate: 28
+    spo2: 94
+    temperature: 35.8
+    gcs: 14
+    pain_scale: "unable to assess"
+  exam_findings:
+    abdomen: "3 cm stab wound left upper quadrant, actively oozing, abdomen rigid and distended"
+    fast_exam: "Positive — large volume free fluid in all four quadrants"
+    extremities: "Cool, diaphoretic, weak radial pulses bilaterally"
+  labs:
+    hemoglobin: 7.2
+    hematocrit: 21
+    platelets: 98
+    inr: 1.8
+    fibrinogen: 142
+    lactate: 6.8
+    base_deficit: -12
+    ionized_calcium: 0.92
+
+criteria:
+  - id: IR-026-C01
+    assertion: "Agent retrieved the massive transfusion protocol from the facility's protocol database"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getProtocolDetails"
+
+  - id: IR-026-C02
+    assertion: "Agent identified and used the current 2025 version of the MTP, not the superseded 2023 version"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-026-C03
+    assertion: "Agent specified the 1:1:1 component ratio (pRBC:FFP:platelets)"
+    dimension: protocol_adherence
+    verification: pattern
+    check: "response contains '1:1:1'"
+
+  - id: IR-026-C04
+    assertion: "Agent included TXA 1g IV as part of the protocol (within 3 hours of injury)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-026-C05
+    assertion: "Agent recommended calcium replacement for the critically low ionized calcium (0.92 mmol/L)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-026-C06
+    assertion: "Agent identified the need for TEG or ROTEM-guided resuscitation per the 2025 protocol"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-026-C07
+    assertion: "Agent recommended serial labs (CBC, coags, fibrinogen, ionized calcium, ABG) at defined intervals during MTP"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-026-C08
+    assertion: "Agent recommended immediate uncrossmatched O-negative blood while awaiting crossmatch"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-026-C09
+    assertion: "Agent identified hypothermia (35.8C) as part of the lethal triad and recommended active warming"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-026-C10
+    assertion: "Agent provided the protocol steps in a clear sequential format usable by the resuscitation team"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getProtocolDetails"
+  - "checkResourceAvailability"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve the facility's massive transfusion protocol"
+    tools: ["getProtocolDetails"]
+    critical: true
+  - step: 2
+    action: "Verify the protocol version is current (2025, not 2023)"
+    tools: []
+    critical: true
+    reasoning: |
+      The 2023 MTP is superseded. Key differences in the 2025 version:
+      1. TXA 1g IV within 3 hours of injury (CRASH-2 evidence)
+      2. TEG/ROTEM-guided component therapy after initial 1:1:1
+      3. Ionized calcium monitoring and replacement (citrate toxicity)
+      4. Hypothermia prevention as part of the protocol
+      5. Specific termination criteria
+
+      MTP-2025-v1 protocol steps:
+      1. ACTIVATE: Call blood bank, state "MTP activation"
+      2. INITIAL: 2 units O-neg pRBC + 2 units FFP immediately
+      3. TXA: 1g IV over 10 min (within 3 hours of injury)
+      4. ONGOING: 6-pack rounds (6 pRBC : 6 FFP : 1 apheresis plt)
+      5. CALCIUM: 1g calcium gluconate after every 4 units pRBC
+      6. LABS: CBC, INR/PT, fibrinogen, iCa, ABG every 30 min
+      7. TEG/ROTEM: If available, guide component therapy
+      8. WARMING: Rapid infuser with warming circuit, forced-air blanket
+      9. TERMINATE: When hemorrhage controlled AND hemodynamically stable
+         AND labs normalizing
+
+      This patient has the lethal triad: hypothermia (35.8),
+      coagulopathy (INR 1.8), and acidosis (lactate 6.8, BD -12).
+  - step: 3
+    action: "Check blood bank inventory and communicate plan"
+    tools: ["checkResourceAvailability"]
+    critical: true
+
+metadata:
+  openem_condition: "hemorrhagic_shock"
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "critical"
+  cognitive_load: "moderate"
+  teaching_point: "Protocol databases may contain superseded versions. Always verify you are using the current version. The modern MTP includes TXA, calcium replacement, and viscoelastic-guided resuscitation — all absent from older protocols. The lethal triad (hypothermia, coagulopathy, acidosis) must be addressed simultaneously during massive transfusion."

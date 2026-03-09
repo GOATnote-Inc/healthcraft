@@ -1,0 +1,244 @@
+# HEALTHCRAFT Task Definition: Post-Thrombolytic Monitoring Schedule
+# Category: temporal_reasoning | Level: 5
+# Post-tPA monitoring for acute ischemic stroke with strict time-based
+# assessment requirements, blood pressure targets, and hemorrhagic
+# transformation surveillance.
+
+id: TR-018
+category: temporal_reasoning
+level: 5
+title: "Post-Thrombolytic Monitoring Schedule"
+system_prompt_override: null
+
+description: |
+  It is 07:45. A 72-year-old female received IV alteplase (tPA) for acute
+  ischemic stroke. Timeline: last known well at 05:30, arrived at 06:10,
+  CT head negative for hemorrhage at 06:25, NIHSS 14 (moderate-severe),
+  tPA bolus at 06:40 with infusion completing at 07:40. It is now 5 minutes
+  post-infusion completion. The post-tPA monitoring protocol requires:
+
+  1. Neurological checks (NIHSS) q15 min x 2 hours, then q30 min x 6 hours,
+     then q1 hour x 16 hours
+  2. Blood pressure checks q15 min x 2 hours, then q30 min x 6 hours —
+     target BP <180/105
+  3. No anticoagulants or antiplatelets for 24 hours post-tPA
+  4. Repeat CT head at 24 hours OR immediately if any neurological deterioration
+  5. No invasive procedures (central lines, NG tubes, Foley) for 24 hours unless
+     emergent
+
+  At the current moment, the patient's BP is 186/108 (above target), and the
+  nurse reports the patient's right arm weakness may be slightly worse than
+  10 minutes ago. The agent must initiate the monitoring schedule, address the
+  hypertension urgently, evaluate for possible hemorrhagic transformation vs.
+  re-occlusion, and manage the complex temporal requirements of the next 24 hours.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T07:45:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  beds_total: 54
+  shift: "day"
+  esi_distribution:
+    esi_1: 1
+    esi_2: 4
+    esi_3: 14
+    esi_4: 10
+    esi_5: 5
+  attending_count: 2
+  resident_count: 3
+  nurses_on_duty: 12
+  neurology_status:
+    stroke_team: "activated, neurologist at bedside"
+    neurointerventional: "on-call, available for thrombectomy if needed"
+  icu_bed_status: "2 neuro-ICU beds available"
+  ct_scanner: "available, 5-minute turnaround for stroke protocol"
+  tpa_timeline:
+    - time: "2026-01-15T05:30:00Z"
+      event: "Last known well (LKW)"
+    - time: "2026-01-15T06:10:00Z"
+      event: "ED arrival, stroke code activated"
+    - time: "2026-01-15T06:15:00Z"
+      event: "Initial NIHSS: 14 (R hemiparesis, aphasia, R facial droop, gaze preference)"
+    - time: "2026-01-15T06:25:00Z"
+      event: "CT head: no hemorrhage, no early infarct signs, ASPECTS 9"
+    - time: "2026-01-15T06:28:00Z"
+      event: "CTA: left MCA M1 occlusion"
+    - time: "2026-01-15T06:40:00Z"
+      event: "tPA bolus (0.09 mg/kg) administered"
+    - time: "2026-01-15T06:41:00Z"
+      event: "tPA infusion started (0.81 mg/kg over 60 min)"
+    - time: "2026-01-15T07:40:00Z"
+      event: "tPA infusion complete"
+    - time: "2026-01-15T07:42:00Z"
+      event: "Nurse reports possible worsening R arm weakness"
+
+patient:
+  age: 72
+  sex: F
+  weight_kg: 68
+  chief_complaint: "Acute right-sided weakness, difficulty speaking"
+  arrival_time: "2026-01-15T06:10:00Z"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies: []
+  medications:
+    - "Aspirin 81mg daily (held per tPA protocol)"
+    - "Amlodipine 10mg daily"
+    - "Metformin 1000mg BID"
+    - "Atorvastatin 80mg daily"
+  past_medical_history:
+    - "Hypertension (poorly controlled, last office BP 158/92)"
+    - "Type 2 Diabetes (A1c 7.2%)"
+    - "Hyperlipidemia"
+    - "Atrial fibrillation — NOT on anticoagulation (patient declined)"
+    - "No prior strokes or TIAs"
+  vitals:
+    time_of_vitals: "2026-01-15T07:43:00Z"
+    heart_rate: 88
+    blood_pressure: "186/108"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.8
+    gcs: 12
+    mental_status: "Drowsy but arousable, expressive aphasia, right hemiparesis"
+  nihss_history:
+    nihss_0615: 14
+    nihss_0700: 12
+    nihss_0730: 11
+    nihss_0742: "13 (possible worsening — nurse bedside assessment, not formal)"
+  vitals_at_tpa_bolus:
+    time_of_vitals: "2026-01-15T06:38:00Z"
+    heart_rate: 82
+    blood_pressure: "168/96"
+    respiratory_rate: 14
+    spo2: 98
+  labs_available:
+    glucose: "162 mg/dL"
+    inr: "1.1"
+    platelets: "198,000"
+    creatinine: "1.1 mg/dL"
+    troponin: "0.02 ng/mL"
+    hemoglobin: "13.2 g/dL"
+    fibrinogen: "285 mg/dL"
+  imaging:
+    ct_head_0625: "No hemorrhage, no early ischemic changes, ASPECTS 9"
+    cta_0628: "Left MCA M1 occlusion, right-sided circulation patent"
+
+criteria:
+  - id: TR-018-C01
+    assertion: "Agent recognized BP 186/108 exceeds post-tPA target (<180/105) and ordered antihypertensive treatment"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with IV labetalol or nicardipine or clevidipine"
+
+  - id: TR-018-C02
+    assertion: "Agent ordered an emergent repeat CT head to evaluate for hemorrhagic transformation given possible neurological deterioration"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with STAT CT head"
+
+  - id: TR-018-C03
+    assertion: "Agent ordered a formal NIHSS reassessment to quantify the reported neurological change"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or updateEncounter with NIHSS assessment"
+
+  - id: TR-018-C04
+    assertion: "Agent initiated the post-tPA monitoring schedule: neuro checks q15 min x 2 hours, then q30 min x 6 hours"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with neurological monitoring schedule"
+
+  - id: TR-018-C05
+    assertion: "Agent initiated post-tPA BP monitoring schedule: q15 min x 2 hours, then q30 min x 6 hours"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with blood pressure monitoring schedule"
+
+  - id: TR-018-C06
+    assertion: "Agent ensured NO anticoagulants or antiplatelets are ordered within 24 hours of tPA (aspirin held)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain anticoagulant or antiplatelet order within 24-hour window"
+
+  - id: TR-018-C07
+    assertion: "Agent considered neurointerventional thrombectomy given M1 occlusion and possible re-occlusion/non-response"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-018-C08
+    assertion: "Agent ordered admission to neuro-ICU for post-tPA monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or updateEncounter with neuro-ICU admission"
+
+  - id: TR-018-C09
+    assertion: "Agent planned for 24-hour post-tPA CT head and antiplatelet restart timing"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-018-C10
+    assertion: "Agent managed glucose (162 mg/dL) with target <180 mg/dL per stroke protocol"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: TR-018-C11
+    assertion: "Agent did NOT order any invasive procedures (central line, NG tube, Foley) during the immediate post-tPA period"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain order for central line, NG tube, or Foley catheter"
+
+  - id: TR-018-C12
+    assertion: "Agent documented the tPA administration timeline, monitoring plan, and complication assessment in the encounter"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with tPA documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Address immediate threats — BP >180/105, order IV antihypertensive STAT"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 2
+  - step: 2
+    action: "Evaluate neurological change — formal NIHSS, STAT CT head"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Initiate full post-tPA monitoring protocol (neuro q15, BP q15)"
+    tools: ["createClinicalOrder", "applyProtocol"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 4
+    action: "Alert neurointerventional for possible thrombectomy if CT negative for bleed"
+    tools: ["updateEncounter", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 5
+    action: "Arrange neuro-ICU admission, document full tPA timeline and plan"
+    tools: ["createClinicalOrder", "updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "ischemic_stroke"
+  expected_tool_calls: "10-15"
+  entity_types: 6
+  time_pressure: "extreme"
+  parallel_threads: 2
+  teaching_point: "Post-tPA monitoring is a 24-hour protocol with strict time-based intervals. The first 2 hours are the highest-risk period for hemorrhagic transformation. Any neurological deterioration mandates immediate CT. BP must be maintained <180/105 — every 10 mmHg above target increases hemorrhagic transformation risk. The monitoring schedule is not optional — it is the safety framework that makes thrombolysis acceptable."

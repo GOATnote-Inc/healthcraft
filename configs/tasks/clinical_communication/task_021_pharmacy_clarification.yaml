@@ -1,0 +1,177 @@
+# HEALTHCRAFT Task Definition: Pharmacy Clarification Call
+# Category: clinical_communication | Level: 3
+# Agent must handle a pharmacy callback about a potentially dangerous
+# prescription error and communicate the clarification clearly.
+
+id: CC-021
+category: clinical_communication
+level: 3
+title: "Pharmacy Clarification Call"
+system_prompt_override: null
+
+description: |
+  The ED pharmacy calls back about an order for a 78-year-old woman being
+  discharged after a fall with a non-displaced radial fracture. The
+  pharmacist has flagged three issues: (1) the oxycodone dose ordered is
+  the standard adult dose but this patient weighs 45 kg and has a GFR of
+  32 -- dose reduction is needed; (2) the prescribed NSAID (ketorolac)
+  interacts with her existing warfarin and CKD; (3) the acetaminophen
+  dosing would exceed 2g/day when combined with the acetaminophen already
+  in her prescribed Percocet. The agent must resolve each issue, communicate
+  the corrected orders back to pharmacy, and document the medication
+  reconciliation. The patient also has a history of opioid use disorder
+  in remission (on medical record but easy to miss).
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:50:00Z"
+  department: "Emergency Department"
+  census: 41
+  beds_available: 13
+  attending_on_duty: "Dr. Michael Park"
+  pharmacy:
+    pharmacist: "PharmD Angela Chu"
+    callback_reason: "Multiple safety concerns with discharge prescriptions"
+
+patient:
+  age: 78
+  sex: F
+  chief_complaint: "Fall at home, right wrist pain"
+  arrival_mode: "walk-in (brought by daughter)"
+  esi_level: 4
+  location: "Fast Track Bed 3"
+  primary_language: "English"
+  weight_kg: 45
+  allergies:
+    - "Tramadol (seizure)"
+    - "Sulfa (rash)"
+  medications:
+    - "Warfarin 3mg daily (for atrial fibrillation)"
+    - "Metoprolol 50mg BID"
+    - "Furosemide 20mg daily"
+    - "Potassium chloride 20mEq daily"
+    - "Amlodipine 5mg daily"
+    - "Donepezil 10mg daily"
+  past_medical_history:
+    - "Atrial fibrillation (on warfarin)"
+    - "Hypertension"
+    - "Chronic kidney disease stage 3b (GFR 32)"
+    - "Mild cognitive impairment (on donepezil)"
+    - "Osteoporosis"
+    - "Opioid use disorder in remission (hydrocodone, 2019-2022, completed MAT program)"
+    - "Fall risk (recurrent falls, 3 in past 6 months)"
+  diagnosis:
+    primary: "Non-displaced distal radius fracture, right"
+    disposition: "discharge with splint and orthopedic follow-up"
+  original_prescriptions:
+    - medication: "Oxycodone 5mg PO q4h PRN pain"
+      issue: "Standard dose, not adjusted for weight (45kg) or renal function (GFR 32)"
+    - medication: "Ketorolac 10mg PO TID x 5 days"
+      issue: "Contraindicated: warfarin interaction (bleeding risk), CKD (nephrotoxicity)"
+    - medication: "Acetaminophen 1000mg PO q6h"
+      issue: "Combined with acetaminophen in Percocet would exceed 2g/day hepatic threshold in elderly"
+  pharmacy_concerns:
+    - "Oxycodone dose needs renal/weight adjustment (recommend 2.5mg q6h)"
+    - "Ketorolac absolutely contraindicated (warfarin + CKD)"
+    - "Acetaminophen total daily dose exceeds safe limit for elderly with polypharmacy"
+    - "Note: patient has history of OUD -- consider non-opioid alternatives"
+  labs:
+    inr: "2.4 (therapeutic range)"
+    creatinine: "1.8"
+    gfr: "32"
+    cbc: "WBC 7.2, Hgb 11.4, Plt 188"
+
+criteria:
+  - id: CC-021-C01
+    assertion: "Agent retrieved patient history including the OUD history, allergies, and current medications"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-021-C02
+    assertion: "Agent retrieved encounter details including renal function and current INR"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-021-C03
+    assertion: "Agent discontinued the ketorolac order (contraindicated with warfarin and CKD)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-021-C04
+    assertion: "Agent adjusted the oxycodone dose for renal impairment and low body weight (reduced dose and/or extended interval)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-021-C05
+    assertion: "Agent resolved the acetaminophen dosing overlap to keep total daily dose within safe limits"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-021-C06
+    assertion: "Agent acknowledged the OUD history and considered non-opioid alternatives or limited opioid supply"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-021-C07
+    assertion: "Agent checked for drug interactions using clinical knowledge resources"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to searchClinicalKnowledge"
+
+  - id: CC-021-C08
+    assertion: "Agent communicated the corrected orders back to pharmacy with rationale"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-021-C09
+    assertion: "Agent submitted corrected medication orders"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-021-C10
+    assertion: "Agent documented the pharmacy clarification, medication changes, and rationale in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "searchClinicalKnowledge"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history: medications, allergies, OUD history, comorbidities"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review labs (GFR, INR) and current encounter details"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Look up drug interactions and renal dosing guidelines"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 4
+    action: "Correct prescriptions: discontinue ketorolac, adjust opioid dose, fix acetaminophen overlap"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Document the pharmacy clarification and medication reconciliation"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "distal_radius_fracture"
+  expected_tool_calls: "5-7"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Pharmacy clarification calls are a safety net. Ketorolac in a patient on warfarin with CKD is a never-event. Opioid dosing in renal impairment and low weight requires adjustment. Acetaminophen overlap is a common and preventable error. OUD history should inform but not preclude pain management -- document the decision and rationale."

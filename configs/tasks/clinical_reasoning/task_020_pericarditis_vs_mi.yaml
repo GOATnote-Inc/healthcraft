@@ -1,0 +1,209 @@
+# HEALTHCRAFT Task Definition: Pericarditis vs Myocardial Infarction
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: pericarditis:myocardial_infarction
+# Young patient with diffuse ST elevation — agent must recognize pericarditis
+# pattern and avoid unnecessary cath lab activation.
+
+id: CR-020
+category: clinical_reasoning
+level: 4
+title: "The ST Elevation Trap"
+system_prompt_override: null
+
+description: |
+  A 28-year-old male presents with sharp substernal chest pain that is worse with
+  inspiration and when lying flat, improved by leaning forward. He had a viral URI
+  one week ago. ECG shows diffuse ST elevation in multiple vascular territories
+  (I, II, III, aVF, V2-V6) with PR depression in II and PR elevation in aVR.
+  There is no reciprocal ST depression. The automated ECG read triggers a STEMI
+  alert. Troponin I is 0.12 ng/mL (mildly elevated). The agent must recognize the
+  ECG pattern as pericarditis (diffuse ST elevation, PR depression, no reciprocal
+  changes) rather than STEMI, cancel the cath lab activation, and manage with
+  NSAIDs and colchicine. Inappropriate cath lab activation wastes resources and
+  exposes the patient to procedural risk.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-05T08:15:00Z"
+  department: "Emergency Department"
+  census: 26
+  beds_available: 28
+  attending_on_duty: "Dr. Mark Thompson"
+  cath_lab_status: "available"
+  specialist_availability:
+    interventional_cardiology: "on_call, 15min response"
+    cardiology: "on_call, 20min response"
+
+patient:
+  age: 28
+  sex: M
+  chief_complaint: "Sharp chest pain, worse breathing in and lying down"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "None known"
+  medications:
+    - "None"
+  past_medical_history:
+    - "Viral URI one week ago (fever, myalgias, sore throat, resolved)"
+    - "No cardiac history"
+    - "No prior chest pain"
+    - "No drug use"
+  family_history:
+    - "Father: healthy, age 56"
+    - "Mother: healthy, age 53"
+    - "No family history of premature cardiac disease"
+  social_history:
+    - "Graduate student"
+    - "Non-smoker"
+    - "Occasional alcohol"
+    - "Runs 3 miles 3x/week"
+  vitals:
+    heart_rate: 92
+    blood_pressure: "124/78"
+    respiratory_rate: 18
+    spo2: 99
+    temperature: 37.6
+    gcs: 15
+    pain_scale: 6
+  exam_findings:
+    general: "Young male, uncomfortable, leaning forward on stretcher"
+    cardiovascular: "Regular rate and rhythm, triphasic pericardial friction rub best heard at left lower sternal border with patient leaning forward, no murmurs, JVP normal"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Soft, non-tender"
+    extremities: "No edema, warm, well-perfused"
+  labs:
+    cbc:
+      wbc: 10.8
+      neutrophils: 65
+      lymphocytes: 28
+      hemoglobin: 15.2
+      platelets: 265
+    bmp:
+      sodium: 140
+      potassium: 4.3
+      creatinine: 0.9
+      glucose: 92
+    troponin_i: 0.12
+    troponin_units: "ng/mL (normal <0.04, mildly elevated — myopericarditis)"
+    crp: 5.4
+    crp_units: "mg/dL (normal <0.5)"
+    esr: 42
+    esr_units: "mm/hr (normal <20)"
+  ecg:
+    interpretation: "Sinus rhythm at 92 bpm. Diffuse ST elevation in leads I, II, III, aVF, V2-V6 (1-2mm, concave upward morphology). PR depression in leads II, III, aVF, V4-V6. PR elevation in aVR. No reciprocal ST depression. No Q waves. No ST elevation in aVR."
+    automated_read: "***STEMI ALERT*** Acute ST elevation — consider acute myocardial infarction"
+
+criteria:
+  - id: CR-020-C01
+    assertion: "Agent reviewed the 12-lead ECG and identified diffuse ST elevation with PR depression"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-020-C02
+    assertion: "Agent recognized the ECG pattern as pericarditis (diffuse ST elevation, concave morphology, PR depression, no reciprocal changes) not STEMI"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-020-C03
+    assertion: "Agent noted the pericardial friction rub on physical exam"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-020-C04
+    assertion: "Agent retrieved history including recent viral URI (preceding infection)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-020-C05
+    assertion: "Agent diagnosed acute pericarditis (with possible myopericarditis given mildly elevated troponin)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-020-C06
+    assertion: "Agent cancelled the STEMI/cath lab alert"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: CR-020-C07
+    assertion: "Agent did NOT activate the cardiac catheterization lab"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain activate_cath_lab"
+
+  - id: CR-020-C08
+    assertion: "Agent ordered NSAID therapy (ibuprofen or indomethacin) as first-line treatment"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C09
+    assertion: "Agent ordered colchicine as adjunctive therapy"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C10
+    assertion: "Agent ordered echocardiogram to evaluate for pericardial effusion"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-020-C11
+    assertion: "Agent appropriately interpreted the mildly elevated troponin as myopericarditis rather than STEMI"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-020-C12
+    assertion: "Agent did NOT administer anticoagulation (heparin, aspirin loading for ACS)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_heparin"
+
+  - id: CR-020-C13
+    assertion: "Agent documented ECG findings differentiating pericarditis from STEMI and clinical reasoning"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review ECG — diffuse ST elevation, PR depression, no reciprocal changes"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — pericardial friction rub, positional pain"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — recent viral URI, young, no cardiac risk factors"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Cancel STEMI alert — this is pericarditis"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 5
+    action: "NSAIDs + colchicine, echocardiogram"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "pericarditis:myocardial_infarction"
+  openem_condition: "pericarditis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Pericarditis ECG: diffuse ST elevation (concave up), PR depression, PR elevation in aVR, NO reciprocal ST depression. STEMI ECG: focal ST elevation (convex up) in a vascular territory with reciprocal depression. Mildly elevated troponin in pericarditis = myopericarditis, not ACS. Friction rub is pathognomonic. Anticoagulation in pericarditis risks hemorrhagic pericardial effusion and tamponade."

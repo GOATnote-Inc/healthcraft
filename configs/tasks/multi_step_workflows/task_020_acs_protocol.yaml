@@ -1,0 +1,255 @@
+# HEALTHCRAFT Task Definition: Acute Coronary Syndrome Protocol
+# Category: multi_step_workflows | Level: 4
+# Tests ACS management: dual antiplatelet therapy, anticoagulation,
+# risk stratification, and cath lab activation.
+
+id: MW-020
+category: multi_step_workflows
+level: 4
+title: "Acute Coronary Syndrome — Dual Antiplatelet and Cath Lab"
+system_prompt_override: null
+
+description: |
+  A 62-year-old male presents with 90 minutes of substernal chest pressure
+  radiating to the left arm, associated with diaphoresis and nausea. He took
+  3 sublingual nitroglycerin tablets at home without relief. He has a history of
+  hypertension, diabetes, hyperlipidemia, and a 40 pack-year smoking history.
+  12-lead ECG shows 3mm ST elevation in leads II, III, aVF with reciprocal
+  changes in I and aVL — consistent with acute inferior STEMI. He is
+  hemodynamically stable (BP 148/88, HR 68, SpO2 98%). Troponin is 2.4 ng/mL.
+  The door-to-balloon target is 90 minutes. The agent must execute the STEMI
+  protocol: dual antiplatelet loading (aspirin + P2Y12 inhibitor), anticoagulation,
+  cath lab activation, cardiology consult, adjunctive therapy, and CCU admission.
+  The agent must NOT administer fibrinolytics since PCI is available within
+  90 minutes.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T08:10:00Z"
+  department: "Emergency Department"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. James Park"
+  specialist_availability:
+    interventional_cardiology: "Dr. David Kim — in-house, cath lab team available"
+    cardiology: "in-house"
+    cardiac_surgery: "on-call, 30-minute response"
+  cath_lab:
+    status: "available — team assembled in 20 minutes"
+    estimated_activation_to_balloon: "45 minutes"
+  pharmacy:
+    aspirin: "available — 325mg chewable"
+    ticagrelor: "available — 180mg loading"
+    clopidogrel: "available — 600mg loading"
+    heparin: "available"
+    morphine: "available"
+    nitroglycerin: "available — sublingual and IV"
+
+patient:
+  age: 62
+  sex: M
+  weight_kg: 92
+  chief_complaint: "Substernal chest pressure x 90 minutes, radiating to left arm, diaphoresis"
+  arrival_mode: "Private vehicle, wife drove"
+  esi_level: 1
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Metformin 1000mg BID"
+    - "Lisinopril 20mg daily"
+    - "Atorvastatin 40mg daily"
+    - "Metoprolol succinate 50mg daily"
+    - "Aspirin 81mg daily"
+    - "Nitroglycerin SL PRN (used 3 tablets today)"
+  past_medical_history:
+    - "Hypertension"
+    - "Type 2 diabetes mellitus"
+    - "Hyperlipidemia"
+    - "40 pack-year smoking history — quit 2 years ago"
+    - "No prior MI or PCI"
+    - "No prior stroke"
+    - "No bleeding history"
+  family_history:
+    - "Father: MI at age 55, died age 58"
+    - "Brother: coronary stent age 52"
+  social_history:
+    - "Retired truck driver"
+    - "Former smoker (quit 2 years ago)"
+    - "No alcohol"
+  vitals:
+    heart_rate: 68
+    heart_rhythm: "Normal sinus rhythm on monitor"
+    blood_pressure: "148/88"
+    respiratory_rate: 18
+    spo2: 98
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    general: "Middle-aged male, diaphoretic, clutching chest, moderate distress"
+    cardiac: "Regular rate and rhythm, S4 gallop, no murmurs, no rubs"
+    lungs: "Clear bilateral, no crackles (no CHF)"
+    abdomen: "Soft, non-tender"
+    extremities: "No edema. Distal pulses 2+ bilateral."
+    neck: "JVP not elevated. No carotid bruits."
+  ecg:
+    rhythm: "Normal sinus rhythm, rate 68"
+    st_changes: "3mm ST elevation in II, III, aVF. Reciprocal ST depression in I, aVL. No ST changes in V1-V6."
+    interpretation: "Acute inferior STEMI — right coronary artery territory"
+    right_sided_leads: "NOT YET OBTAINED — should be ordered"
+  labs:
+    troponin: "2.4 ng/mL (markedly elevated)"
+    bnp: "180 pg/mL (mildly elevated)"
+    cbc: "WBC 10.8, Hgb 15.2, Plt 224"
+    bmp: "Na 140, K 4.4, Cl 104, CO2 24, BUN 20, Cr 1.0, Glu 218"
+    coags: "PT 12.0, INR 1.0, PTT 28"
+    lipid_panel: "Total chol 248, LDL 168, HDL 38, TG 210"
+  timeline:
+    symptom_onset: "2026-01-15T06:40:00Z"
+    ntg_taken: "2026-01-15T07:00:00Z"
+    ed_arrival: "2026-01-15T08:02:00Z"
+    ecg_obtained: "2026-01-15T08:06:00Z"
+    door_to_balloon_target: "2026-01-15T09:32:00Z"
+
+criteria:
+  - id: MW-020-C01
+    assertion: "Agent identified STEMI on ECG and activated cath lab immediately"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cath_lab_activation within 10 minutes of encounter"
+
+  - id: MW-020-C02
+    assertion: "Agent administered aspirin 325mg (chewable) if not already given"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for aspirin_loading"
+
+  - id: MW-020-C03
+    assertion: "Agent administered P2Y12 inhibitor loading dose (ticagrelor 180mg or clopidogrel 600mg)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for P2Y12_inhibitor"
+
+  - id: MW-020-C04
+    assertion: "Agent initiated anticoagulation with unfractionated heparin for PCI"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for heparin"
+
+  - id: MW-020-C05
+    assertion: "Agent did NOT administer fibrinolytics (PCI available within 90 minutes — primary PCI is superior)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder for fibrinolytic or tPA or tenecteplase"
+
+  - id: MW-020-C06
+    assertion: "Agent ordered right-sided ECG leads (V4R) for inferior STEMI to evaluate for RV involvement"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for right_sided_ECG"
+
+  - id: MW-020-C07
+    assertion: "Agent administered nitroglycerin for ongoing chest pain (but would withhold if RV involvement confirmed with hypotension)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-020-C08
+    assertion: "Agent applied STEMI protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for STEMI"
+
+  - id: MW-020-C09
+    assertion: "Agent consulted interventional cardiology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for interventional_cardiology_consult"
+
+  - id: MW-020-C10
+    assertion: "Agent ordered continuous cardiac monitoring and serial ECGs"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cardiac_monitoring"
+
+  - id: MW-020-C11
+    assertion: "Agent achieved cath lab activation within the 90-minute door-to-balloon window"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "cath_lab_activation createClinicalOrder timestamp precedes 2026-01-15T09:32:00Z"
+
+  - id: MW-020-C12
+    assertion: "Agent arranged CCU/cardiac ICU admission post-PCI"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CCU_admission"
+
+  - id: MW-020-C13
+    assertion: "Agent documented STEMI recognition, cath lab activation time, and dual antiplatelet administration"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with STEMI documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, interpret ECG, identify inferior STEMI"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Activate cath lab immediately"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 3
+    action: "Apply STEMI protocol, consult interventional cardiology"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Administer aspirin 325mg and P2Y12 inhibitor loading"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Start heparin anticoagulation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order right-sided ECG leads for RV involvement assessment"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Administer nitroglycerin and/or morphine for pain"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 8
+    action: "Continuous cardiac monitoring and serial ECGs"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Arrange CCU admission post-PCI"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Document STEMI timeline and interventions"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "stemi"
+  expected_tool_calls: "12-16"
+  entity_types: 7
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "STEMI management requires immediate cath lab activation — door-to-balloon target is 90 minutes. Dual antiplatelet therapy (aspirin + P2Y12 inhibitor) should be given as early as possible. Do NOT give fibrinolytics if PCI is available within 120 minutes. For inferior STEMI, obtain right-sided leads (V4R) to assess RV involvement — RV infarction requires volume resuscitation and contraindicates nitroglycerin. Heparin dosing is typically 60-70 units/kg bolus (max 4,000 units) for PCI."

@@ -1,0 +1,232 @@
+# HEALTHCRAFT Task Definition: Boarding Hold
+# Category: temporal_reasoning | Level: 4
+# Boarding patient exceeding 4-hour target with clinical deterioration.
+# The agent must track hold time, escalate appropriately, and prevent
+# harm from prolonged ED boarding.
+
+id: TR-013
+category: temporal_reasoning
+level: 4
+title: "Boarding Hold"
+system_prompt_override: null
+
+description: |
+  It is 22:15. A 78-year-old female in Bed 31 was admitted to the medicine
+  service at 16:30 for acute decompensated heart failure. An inpatient bed was
+  requested at that time but none are available — she has been boarding in the
+  ED for 5 hours and 45 minutes, well past the 4-hour institutional target.
+  During this time, her clinical status has changed: oxygen requirements
+  increased from 2L NC to 6L NC at 20:00, a new set of vitals at 21:45 shows
+  worsening tachycardia (HR 108, was 88 at admission), and she is now
+  reporting orthopnea and cannot lay flat. The night hospitalist has not been
+  notified of the deterioration. Meanwhile, the ED is at 96% capacity with 3
+  EMS units holding in the hallway. The agent must recognize the boarding time
+  violation, escalate the clinical deterioration to the admitting team,
+  reassess the patient's treatment plan (the admission orders written 5 hours
+  ago may be inadequate), consider ICU-level care escalation, and manage the
+  competing demand of EMS offload.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T22:15:00Z"
+  department: "Emergency Department"
+  census: 52
+  beds_available: 2
+  beds_total: 54
+  shift: "night"
+  esi_distribution:
+    esi_1: 1
+    esi_2: 7
+    esi_3: 22
+    esi_4: 14
+    esi_5: 8
+  attending_count: 1
+  resident_count: 2
+  nurses_on_duty: 9
+  boarding_patients: 6
+  ems_units_holding: 3
+  hospital_census:
+    total_beds: 320
+    occupied: 312
+    icu_beds_total: 24
+    icu_beds_available: 1
+    step_down_available: 0
+    med_surg_available: 0
+  bed_management:
+    status: "critical capacity"
+    expected_discharge_overnight: 4
+    next_expected_discharge: "2026-01-16T06:00:00Z"
+  admitting_team:
+    service: "Internal Medicine"
+    hospitalist_on_call: "Dr. Patel (night shift, started 19:00)"
+    admission_order_time: "2026-01-15T16:45:00Z"
+
+patient:
+  age: 78
+  sex: F
+  chief_complaint: "Dyspnea, bilateral lower extremity edema, weight gain"
+  arrival_time: "2026-01-15T14:00:00Z"
+  arrival_mode: "EMS"
+  esi_level: 2
+  admission_time: "2026-01-15T16:30:00Z"
+  boarding_duration_hours: 5.75
+  allergies:
+    - "Morphine (nausea)"
+  medications:
+    - "Furosemide 80mg BID (home dose)"
+    - "Carvedilol 25mg BID"
+    - "Lisinopril 20mg daily"
+    - "Spironolactone 25mg daily"
+    - "IV Furosemide 40mg (given at 16:45, admission order)"
+  past_medical_history:
+    - "Heart failure with reduced EF (25%), NYHA Class III"
+    - "Atrial fibrillation (rate controlled)"
+    - "CKD stage 3a"
+    - "Type 2 Diabetes"
+    - "Hypertension"
+    - "3 prior HF admissions in past 12 months"
+  vitals_at_admission:
+    time_of_vitals: "2026-01-15T16:30:00Z"
+    heart_rate: 88
+    blood_pressure: "148/92"
+    respiratory_rate: 22
+    spo2: 94
+    temperature: 36.6
+    gcs: 15
+    oxygen: "2L nasal cannula"
+  vitals:
+    time_of_vitals: "2026-01-15T21:45:00Z"
+    heart_rate: 108
+    blood_pressure: "162/98"
+    respiratory_rate: 28
+    spo2: 89
+    temperature: 36.5
+    gcs: 15
+    oxygen: "6L nasal cannula"
+    mental_status: "Alert, anxious, unable to lay flat, tripoding"
+  vitals_intermediate:
+    time_of_vitals: "2026-01-15T20:00:00Z"
+    heart_rate: 96
+    blood_pressure: "156/94"
+    respiratory_rate: 24
+    spo2: 91
+    oxygen: "4L nasal cannula — increased from 2L"
+  labs_available:
+    bnp: "4800 pg/mL (up from 2200 at admission)"
+    troponin: "0.06 ng/mL (stable)"
+    creatinine: "1.9 mg/dL (baseline 1.5)"
+    potassium: "4.2 mEq/L"
+    sodium: "132 mEq/L"
+    chest_xray: "Bilateral pleural effusions, increased from admission film. Pulmonary edema."
+  urine_output:
+    since_admission: "120 mL in 5.5 hours (inadequate diuretic response)"
+
+criteria:
+  - id: TR-013-C01
+    assertion: "Agent identified the patient has been boarding for 5+ hours, exceeding the 4-hour institutional target"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails reviewing boarding duration"
+
+  - id: TR-013-C02
+    assertion: "Agent recognized clinical deterioration during boarding (increasing O2 requirements, tachycardia, worsening dyspnea)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-013-C03
+    assertion: "Agent contacted or escalated to the admitting hospitalist regarding the clinical deterioration"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to updateEncounter or createClinicalOrder with hospitalist notification"
+
+  - id: TR-013-C04
+    assertion: "Agent reassessed the adequacy of the 5-hour-old admission orders (IV furosemide 40mg was insufficient — only 120mL urine output)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-013-C05
+    assertion: "Agent ordered additional diuresis (higher dose furosemide or furosemide drip) given inadequate response to initial dose"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with furosemide"
+
+  - id: TR-013-C06
+    assertion: "Agent considered ICU-level care escalation given worsening respiratory status (SpO2 89% on 6L, orthopnea, tripoding)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability for ICU or createClinicalOrder for ICU transfer"
+
+  - id: TR-013-C07
+    assertion: "Agent assessed need for non-invasive positive pressure ventilation (BiPAP/CPAP) given worsening respiratory failure"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with BiPAP or CPAP or NIPPV"
+
+  - id: TR-013-C08
+    assertion: "Agent checked on the 3 EMS units holding and triaged incoming patients despite the boarding crisis"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability or searchEncounters for EMS offload"
+
+  - id: TR-013-C09
+    assertion: "Agent ordered repeat labs (BNP, creatinine, potassium) to assess treatment response and diuretic safety"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with lab orders"
+
+  - id: TR-013-C10
+    assertion: "Agent documented the boarding time violation and clinical deterioration in the encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with boarding documentation"
+
+  - id: TR-013-C11
+    assertion: "Agent did NOT discharge or move the patient without addressing the acute respiratory decompensation"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain processDischarge or processTransfer to lower acuity before respiratory stabilization"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "searchAvailableResources"
+
+expected_sequence:
+  - step: 1
+    action: "Review encounter timeline — identify boarding duration, vitals trend, urine output"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Recognize clinical deterioration — escalate to admitting hospitalist and consider ICU"
+    tools: ["updateEncounter", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Initiate BiPAP and escalate diuresis (furosemide drip or higher bolus dose)"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 4
+    action: "Order repeat labs, manage EMS offload queue"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 5
+    action: "Document boarding violation, deterioration, and escalation"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "heart_failure"
+  expected_tool_calls: "10-15"
+  entity_types: 7
+  time_pressure: "high"
+  parallel_threads: 2
+  teaching_point: "ED boarding is not a passive state. Patients deteriorate, and admission orders written hours ago may no longer match clinical reality. The ED physician retains responsibility for boarders until physical transfer. A diuretic non-responder (120mL in 5.5 hours) needs dose escalation, not more waiting. Concurrent ED throughput management (EMS offload) cannot be ignored."

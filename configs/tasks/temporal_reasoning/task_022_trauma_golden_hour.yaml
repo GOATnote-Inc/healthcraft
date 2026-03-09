@@ -1,0 +1,236 @@
+# HEALTHCRAFT Task Definition: Trauma Golden Hour
+# Category: temporal_reasoning | Level: 4
+# High-mechanism MVC with evolving hemorrhagic shock. The agent must complete
+# primary survey, identify life threats, obtain CT imaging, and make an OR
+# decision — all within 60 minutes of arrival.
+
+id: TR-022
+category: temporal_reasoning
+level: 4
+title: "Trauma Golden Hour"
+system_prompt_override: null
+
+description: |
+  It is 22:08. EMS delivers a 29-year-old male, unrestrained driver in a
+  high-speed head-on MVC at approximately 60 mph. Positive steering wheel
+  deformity, starred windshield, prolonged extrication (18 minutes). GCS 13
+  in the field (E3V4M6), one 18g IV placed with 500mL NS running. The trauma
+  team has been activated (Level 1). The clock starts now — the golden hour
+  began at the time of injury, estimated at 21:35, meaning 33 minutes have
+  already elapsed. The patient has 27 minutes remaining before the golden hour
+  closes.
+
+  On primary survey: airway intact but patient is tachypneic, breath sounds
+  diminished on the left, abdomen is rigid and distended, pelvis is unstable
+  on compression, and the left femur is angulated mid-shaft. FAST exam is
+  positive in Morison's pouch and the left upper quadrant. The patient's BP
+  is 82/48 and falling despite the field fluid bolus. The agent must execute
+  a time-compressed trauma resuscitation: complete the primary survey, address
+  immediate life threats (chest decompression if tension physiology, pelvic
+  binder, massive transfusion), decide between CT and immediate OR, and
+  coordinate with the trauma surgeon — all against a relentless clock.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T22:08:00Z"
+  department: "Emergency Department — Trauma Bay 1"
+  census: 36
+  beds_available: 18
+  beds_total: 54
+  shift: "night"
+  esi_distribution:
+    esi_1: 1
+    esi_2: 3
+    esi_3: 15
+    esi_4: 11
+    esi_5: 6
+  attending_count: 2
+  resident_count: 2
+  nurses_on_duty: 10
+  trauma_team_status: "Level 1 activated, assembling"
+  blood_bank_status: "MTP cooler available, O-neg in trauma bay"
+  ct_scanner: "available, 3-minute transport from trauma bay"
+  or_status: "OR 2 available, 15-minute turnover"
+  estimated_injury_time: "2026-01-15T21:35:00Z"
+  golden_hour_closes: "2026-01-15T22:35:00Z"
+  specialist_on_call:
+    trauma_surgery: "in-house, en route to trauma bay (2 min)"
+    orthopedics: "on-call, 20-minute response"
+    neurosurgery: "on-call, 25-minute response"
+    anesthesia: "in-house"
+
+patient:
+  age: 29
+  sex: M
+  weight_kg: 85
+  chief_complaint: "High-speed MVC, unrestrained driver, prolonged extrication"
+  arrival_time: "2026-01-15T22:08:00Z"
+  arrival_mode: "EMS — ground ambulance"
+  esi_level: 1
+  allergies:
+    - "No known allergies"
+  medications:
+    - "None"
+  past_medical_history:
+    - "No significant medical history"
+    - "No prior surgeries"
+  vitals:
+    time_of_vitals: "2026-01-15T22:10:00Z"
+    heart_rate: 132
+    blood_pressure: "82/48"
+    respiratory_rate: 28
+    spo2: 91
+    temperature: 35.8
+    gcs: 13
+    mental_status: "Confused, follows commands inconsistently"
+  field_vitals:
+    time_of_vitals: "2026-01-15T21:50:00Z"
+    heart_rate: 118
+    blood_pressure: "96/62"
+    respiratory_rate: 24
+    spo2: 93
+    gcs: 13
+  primary_survey:
+    airway: "Patent, speaking in short phrases"
+    breathing: "Tachypneic, diminished breath sounds left chest, trachea midline"
+    circulation: "Tachycardic, weak radial pulses, abdomen rigid and distended, pelvis unstable on AP compression"
+    disability: "GCS 13 (E3V4M6), pupils equal and reactive"
+    exposure: "Left femur angulated mid-shaft, no open fractures, hypothermic (35.8°C)"
+  fast_exam:
+    rup: "Positive — free fluid in Morison's pouch"
+    lup: "Positive — free fluid in splenorenal recess"
+    pelvis: "Positive — free fluid"
+    cardiac: "No pericardial effusion"
+  labs_pending:
+    - "CBC"
+    - "BMP"
+    - "Coagulation panel"
+    - "Type and crossmatch"
+    - "Lactate"
+    - "ABG"
+    - "TEG/ROTEM"
+  field_interventions:
+    - "18g IV left AC, 500mL NS running"
+    - "Cervical collar applied"
+    - "Backboard"
+
+criteria:
+  - id: TR-022-C01
+    assertion: "Agent completed ATLS primary survey (ABCDE) in systematic order within 5 minutes of arrival"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails reviewing primary survey within 5 minutes of encounter start"
+
+  - id: TR-022-C02
+    assertion: "Agent activated massive transfusion protocol (MTP) given Class III-IV hemorrhagic shock (HR >120, BP <90 systolic, positive FAST)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to applyProtocol or createClinicalOrder with massive transfusion protocol"
+
+  - id: TR-022-C03
+    assertion: "Agent ordered pelvic binder application for unstable pelvis"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with pelvic binder"
+
+  - id: TR-022-C04
+    assertion: "Agent addressed left-sided diminished breath sounds — ordered chest X-ray or performed needle decompression / chest tube if tension physiology suspected"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with chest imaging or chest decompression"
+
+  - id: TR-022-C05
+    assertion: "Agent did NOT delay resuscitation to obtain CT imaging — addressed hemorrhagic shock before transport to scanner"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log shows MTP activation and pelvic binder before CT order"
+
+  - id: TR-022-C06
+    assertion: "Agent ordered blood products (O-neg pRBC and plasma) rather than crystalloid for hemorrhagic shock resuscitation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with blood products"
+
+  - id: TR-022-C07
+    assertion: "Agent obtained large-bore IV access (second IV or central line) and initiated warming measures for hypothermia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with IV access and warming"
+
+  - id: TR-022-C08
+    assertion: "Agent made a CT vs. immediate OR decision within the golden hour, communicated to trauma surgery"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-022-C09
+    assertion: "Agent calculated remaining golden hour time from estimated injury time (21:35), not from ED arrival"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-022-C10
+    assertion: "Agent addressed the lethal triad (hypothermia 35.8°C, coagulopathy risk, acidosis from shock) as a temporal management priority"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-022-C11
+    assertion: "Agent ordered TEG/ROTEM or coagulation panel to guide transfusion ratios and detect trauma-induced coagulopathy"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with TEG or ROTEM or coagulation panel"
+
+  - id: TR-022-C12
+    assertion: "Agent documented mechanism of injury, field interventions, primary survey findings, and resuscitation timeline"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with trauma documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "applyProtocol"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "getProtocolDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Complete primary survey — identify all life threats (chest, abdomen, pelvis, femur)"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Activate MTP, order O-neg blood, apply pelvic binder — address hemorrhagic shock"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Address left chest — CXR or needle decompression, obtain second large-bore IV, initiate warming"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 4
+    action: "Reassess after initial resuscitation — hemodynamic response to blood products"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 5
+    action: "CT vs. OR decision — if hemodynamically responsive, rapid CT; if not, straight to OR"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 18
+  - step: 6
+    action: "Document trauma resuscitation timeline, notify OR/surgery, transfer patient"
+    tools: ["updateEncounter", "createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 25
+
+metadata:
+  openem_condition: "hemorrhagic_shock"
+  expected_tool_calls: "10-15"
+  entity_types: 6
+  time_pressure: "extreme"
+  parallel_threads: 3
+  teaching_point: "The golden hour is measured from time of injury, not ED arrival. In hemorrhagic shock, blood products (1:1:1 ratio pRBC:FFP:platelets) replace crystalloid as the primary resuscitation fluid. The CT-vs-OR decision is the pivotal temporal branch point: hemodynamically unstable patients with positive FAST go directly to OR — CT is a luxury reserved for responders. The lethal triad (hypothermia, coagulopathy, acidosis) is a self-reinforcing cycle that accelerates death if not interrupted early."

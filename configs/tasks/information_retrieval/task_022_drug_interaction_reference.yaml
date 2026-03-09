@@ -1,0 +1,182 @@
+# HEALTHCRAFT Task Definition: Multi-Drug Interaction Reference Lookup
+# Category: information_retrieval | Level: 3
+# Agent must look up reference materials for a complex multi-drug interaction
+# scenario involving a transplant patient on immunosuppressants.
+
+id: IR-022
+category: information_retrieval
+level: 3
+title: "Multi-Drug Interaction Reference Lookup"
+system_prompt_override: null
+
+description: |
+  A 51-year-old kidney transplant recipient on a complex immunosuppression
+  regimen presents with a new-onset seizure. He is post-ictal but stabilizing.
+  His tacrolimus level from his transplant clinic visit 3 days ago was
+  therapeutic (8.2 ng/mL). The attending wants to start levetiracetam for
+  seizure prophylaxis, but the patient is also on fluconazole (started 1 week
+  ago by his PCP for oral thrush) and has a complex drug regimen. The agent
+  must look up reference materials on drug interactions affecting tacrolimus
+  metabolism, identify that fluconazole is likely the cause of tacrolimus
+  toxicity (which caused the seizure), and flag interactions between the
+  proposed anti-epileptic and the existing regimen.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T19:45:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Marcus Thompson"
+
+patient:
+  age: 51
+  sex: M
+  chief_complaint: "Witnessed generalized tonic-clonic seizure at home, now post-ictal"
+  arrival_mode: "EMS"
+  esi_level: 1
+  location: "Bed 2 (resuscitation bay)"
+  allergies:
+    - name: "Phenytoin"
+      reaction: "Stevens-Johnson syndrome (2018)"
+      severity: "severe — life-threatening"
+      year_reported: 2018
+      verified: true
+  medications:
+    - "Tacrolimus 3mg BID"
+    - "Mycophenolate mofetil 1000mg BID"
+    - "Prednisone 5mg daily"
+    - "Fluconazole 200mg daily (started 1 week ago for oral thrush)"
+    - "Amlodipine 10mg daily"
+    - "Valganciclovir 450mg daily"
+    - "Trimethoprim-sulfamethoxazole DS 1 tab Mon/Wed/Fri"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "End-stage renal disease — deceased donor kidney transplant (2022)"
+    - "Hypertension"
+    - "CMV viremia (prophylaxis)"
+    - "Stevens-Johnson syndrome from phenytoin (2018)"
+    - "Oral candidiasis (current, being treated)"
+    - "No prior seizure history"
+  vitals:
+    heart_rate: 96
+    blood_pressure: "172/98"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 37.3
+    gcs: 12
+    pain_scale: "unable to assess (post-ictal)"
+  labs:
+    tacrolimus_level: "pending (stat draw in ED)"
+    tacrolimus_3_days_ago: 8.2
+    creatinine: 2.1
+    creatinine_baseline: 1.3
+    bun: 34
+    potassium: 5.2
+    magnesium: 1.4
+    glucose: 142
+    wbc: 4.8
+    cbc: "WBC 4.8, Hgb 11.8, Plt 192"
+
+criteria:
+  - id: IR-022-C01
+    assertion: "Agent retrieved the patient's complete medication list and transplant history"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: IR-022-C02
+    assertion: "Agent looked up drug interactions involving tacrolimus and fluconazole"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchReferenceMaterials or searchClinicalKnowledge"
+
+  - id: IR-022-C03
+    assertion: "Agent identified that fluconazole is a potent CYP3A4 inhibitor that significantly increases tacrolimus levels"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-022-C04
+    assertion: "Agent recognized the likely clinical picture: fluconazole-induced tacrolimus toxicity causing the seizure and acute kidney injury (creatinine 2.1 from baseline 1.3)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-022-C05
+    assertion: "Agent flagged the low magnesium (1.4) as a contributing seizure risk factor AND as a consequence of tacrolimus toxicity"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-022-C06
+    assertion: "Agent identified the phenytoin allergy (SJS) and confirmed levetiracetam is a safe alternative without CYP interactions"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-022-C07
+    assertion: "Agent did NOT recommend any anti-epileptic that is a strong CYP3A4 inducer (e.g., carbamazepine, phenobarbital) which would destabilize tacrolimus levels"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-022-C08
+    assertion: "Agent recommended urgent transplant nephrology consultation"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-022-C09
+    assertion: "Agent recommended holding or reducing fluconazole and obtaining a stat tacrolimus level"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-022-C10
+    assertion: "Agent recommended IV magnesium replacement"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchReferenceMaterials"
+  - "searchClinicalKnowledge"
+  - "getReferenceArticle"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve patient medication list and transplant history"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Look up tacrolimus drug interactions, especially with fluconazole"
+    tools: ["searchReferenceMaterials", "searchClinicalKnowledge"]
+    critical: true
+    reasoning: |
+      Fluconazole is a potent CYP3A4 and CYP2C9 inhibitor. Tacrolimus is
+      primarily metabolized by CYP3A4. Adding fluconazole 200mg daily to
+      a stable tacrolimus regimen can increase tacrolimus levels 2-4 fold
+      within days. The patient's level was 8.2 three days ago — before
+      the full effect of fluconazole (started 1 week ago). The current
+      level is likely >20 ng/mL.
+
+      Tacrolimus toxicity explains:
+      - Seizure (neurotoxicity is a hallmark of tacrolimus toxicity)
+      - Rising creatinine (nephrotoxicity: 2.1 from baseline 1.3)
+      - Hypertension (172/98 — vasoconstrictive effect)
+      - Hypomagnesemia (tacrolimus causes renal magnesium wasting)
+
+      The PCP likely did not consult the transplant team before starting
+      fluconazole. This is a classic care fragmentation error.
+  - step: 3
+    action: "Evaluate proposed levetiracetam against allergy list and drug interactions"
+    tools: ["searchReferenceMaterials"]
+    critical: true
+  - step: 4
+    action: "Synthesize findings and recommendations"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "drug_toxicity"
+  expected_tool_calls: "4-6"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Transplant patients on calcineurin inhibitors (tacrolimus, cyclosporine) are vulnerable to drug interactions affecting CYP3A4 metabolism. Azole antifungals are among the most dangerous co-prescriptions. New-onset seizure in a transplant patient should trigger immediate tacrolimus level check. Always consult transplant nephrology before modifying immunosuppression."

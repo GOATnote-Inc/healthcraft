@@ -1,0 +1,273 @@
+# HEALTHCRAFT Task Definition: Acute Stroke Pathway
+# Category: multi_step_workflows | Level: 5
+# Tests door-to-needle protocol: rapid assessment, CT, tPA eligibility,
+# neurology consult, and post-thrombolytic monitoring.
+
+id: MW-012
+category: multi_step_workflows
+level: 5
+title: "Acute Stroke Pathway — Door-to-Needle"
+system_prompt_override: null
+
+description: |
+  A 68-year-old right-handed male presents by EMS with acute-onset left-sided
+  weakness and slurred speech witnessed by his wife at 09:15. EMS activated a
+  stroke alert in the field. Last known well time is 09:10 (5 minutes before
+  symptom onset). He arrives at 09:48 with a dense left hemiplegia, left facial
+  droop, dysarthria, and leftward gaze deviation. NIHSS calculated by EMS is 18.
+  BP is 178/96. He has a history of atrial fibrillation but is not on
+  anticoagulation due to a prior GI bleed. Blood glucose is 142 mg/dL. The agent
+  must execute the AHA/ASA acute stroke pathway within the 60-minute
+  door-to-needle target: rapid neurological assessment, emergent non-contrast CT
+  head, determination of tPA eligibility, neurology consultation, tPA
+  administration if eligible, and initiation of post-thrombolytic monitoring
+  protocol. Every minute of delay reduces salvageable brain tissue.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T09:48:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. James Park"
+  specialist_availability:
+    neurology: "Dr. Rebecca Torres — stroke team, on-call, 5-minute phone response"
+    neuroradiology: "in-house, CT scanner available"
+    neurosurgery: "on-call, 30-minute response"
+    interventional_neuroradiology: "on-call, available for thrombectomy if needed"
+  imaging:
+    ct_scanner: "available — no queue"
+    mri: "available but 20-minute wait"
+  pharmacy:
+    alteplase: "available in ED Pyxis — stroke kit"
+    labetalol: "available"
+    nicardipine: "available"
+  icu_beds_available: 3
+
+patient:
+  age: 68
+  sex: M
+  weight_kg: 82
+  chief_complaint: "Acute left-sided weakness, slurred speech, stroke alert"
+  arrival_mode: "EMS, ALS unit, stroke alert activated"
+  esi_level: 1
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Metoprolol 50mg BID"
+    - "Atorvastatin 40mg daily"
+    - "Aspirin 81mg daily"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "Atrial fibrillation (paroxysmal) — NOT on anticoagulation"
+    - "Prior upper GI bleed (2024) — reason anticoagulation held"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "No prior stroke or TIA"
+  family_history:
+    - "Father: stroke at age 72"
+    - "Mother: hypertension, diabetes"
+  social_history:
+    - "Retired engineer"
+    - "Non-smoker"
+    - "Occasional alcohol"
+    - "Lives with wife, independent ADLs"
+  vitals:
+    heart_rate: 88
+    heart_rhythm: "irregularly irregular"
+    blood_pressure: "178/96"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 36.8
+    gcs: 12
+    gcs_breakdown: "E4V2M6"
+    pain_scale: 0
+  exam_findings:
+    general: "Alert but unable to speak clearly, appears anxious, left-sided neglect"
+    neuro: |
+      NIHSS: 18
+      - LOC: 0 (alert)
+      - LOC questions: 2 (unable to answer either)
+      - LOC commands: 1 (performs one)
+      - Best gaze: 2 (forced leftward deviation)
+      - Visual fields: 2 (complete left hemianopia)
+      - Facial palsy: 2 (complete left lower face)
+      - Motor arm left: 4 (no movement)
+      - Motor arm right: 0 (normal)
+      - Motor leg left: 3 (gravity only, drifts to bed)
+      - Motor leg right: 0 (normal)
+      - Limb ataxia: 0 (unable to assess left)
+      - Sensory: 1 (partial loss left side)
+      - Best language: 1 (dysarthria, some comprehension)
+      - Dysarthria: 2 (severe)
+      - Extinction: 0
+    cardiac: "Irregularly irregular rhythm, no murmurs"
+    lungs: "Clear bilateral"
+  labs:
+    poc_glucose: "142 mg/dL"
+    cbc: "WBC 8.2, Hgb 14.1, Plt 224"
+    bmp: "Na 140, K 4.2, Cl 103, CO2 24, BUN 18, Cr 1.1, Glu 142"
+    coags: "PT 12.8, INR 1.0, PTT 28"
+    troponin: "0.02 ng/mL (normal)"
+  imaging_pending:
+    ct_head: "NOT YET ORDERED"
+    cta_head_neck: "NOT YET ORDERED"
+  timeline:
+    last_known_well: "2026-01-15T09:10:00Z"
+    symptom_onset: "2026-01-15T09:15:00Z"
+    ems_dispatch: "2026-01-15T09:18:00Z"
+    ems_arrival_scene: "2026-01-15T09:24:00Z"
+    field_nihss: "2026-01-15T09:28:00Z"
+    ed_arrival: "2026-01-15T09:48:00Z"
+    door_to_needle_target: "2026-01-15T10:48:00Z"
+
+criteria:
+  - id: MW-012-C01
+    assertion: "Agent performed or confirmed NIHSS assessment within 10 minutes of arrival"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains getEncounterDetails or searchClinicalKnowledge for NIHSS within 10 minutes of arrival"
+
+  - id: MW-012-C02
+    assertion: "Agent ordered emergent non-contrast CT head as first imaging study"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CT_head_noncontrast"
+
+  - id: MW-012-C03
+    assertion: "Agent ordered CT BEFORE administering tPA (must rule out hemorrhage)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log shows createClinicalOrder for CT_head timestamp precedes createClinicalOrder for alteplase"
+
+  - id: MW-012-C04
+    assertion: "Agent verified tPA inclusion and exclusion criteria (time window, no hemorrhage on CT, INR <1.7, no recent surgery, no active bleeding)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-012-C05
+    assertion: "Agent calculated correct tPA dose (0.9 mg/kg, max 90 mg; for 82 kg = 73.8 mg; 10% bolus = 7.4 mg, remainder over 60 min)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for alteplase with weight-based dosing"
+
+  - id: MW-012-C06
+    assertion: "Agent consulted neurology/stroke team before or concurrent with tPA administration"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neurology_consult"
+
+  - id: MW-012-C07
+    assertion: "Agent managed blood pressure to <185/110 before tPA (labetalol or nicardipine)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for antihypertensive"
+
+  - id: MW-012-C08
+    assertion: "Agent ordered CTA head and neck for large vessel occlusion evaluation (NIHSS >= 6)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CTA_head_neck"
+
+  - id: MW-012-C09
+    assertion: "Agent considered mechanical thrombectomy referral given NIHSS 18 and likely large vessel occlusion"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-012-C10
+    assertion: "Agent initiated post-tPA monitoring protocol (neuro checks q15min, BP monitoring, no anticoagulants/antiplatelets for 24h)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for post_tPA_monitoring or createClinicalOrder for neuro_checks"
+
+  - id: MW-012-C11
+    assertion: "Agent held aspirin and did NOT order any anticoagulation for 24 hours post-tPA"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder for anticoagulant or antiplatelet after tPA order"
+
+  - id: MW-012-C12
+    assertion: "Agent ordered stroke unit or ICU admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for admission to stroke_unit or ICU"
+
+  - id: MW-012-C13
+    assertion: "Agent completed tPA administration within 60-minute door-to-needle target"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "alteplase createClinicalOrder timestamp precedes 2026-01-15T10:48:00Z"
+
+  - id: MW-012-C14
+    assertion: "Agent documented last known well time, NIHSS score, and stroke alert activation in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with stroke documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, confirm NIHSS, review EMS stroke alert"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Order emergent non-contrast CT head immediately"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Verify tPA eligibility criteria (time window, labs, exclusions)"
+    tools: ["searchClinicalKnowledge", "runDecisionRule"]
+    critical: true
+  - step: 4
+    action: "Manage BP to <185/110 with labetalol or nicardipine"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Consult neurology stroke team"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Administer tPA 0.9 mg/kg (73.8 mg) — 10% bolus, remainder over 60 min"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 7
+    action: "Order CTA head/neck for LVO evaluation and thrombectomy consideration"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Initiate post-tPA monitoring protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 9
+    action: "Arrange stroke unit/ICU admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Document stroke timeline, NIHSS, interventions"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "acute_ischemic_stroke"
+  expected_tool_calls: "12-18"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "The AHA/ASA acute stroke pathway targets door-to-needle time under 60 minutes. Non-contrast CT must precede tPA to exclude hemorrhage. tPA dose is 0.9 mg/kg (max 90 mg), 10% as IV bolus, remainder infused over 60 minutes. BP must be <185/110 before and <180/105 after tPA. For NIHSS >= 6, evaluate for large vessel occlusion with CTA — mechanical thrombectomy may be indicated up to 24 hours in select patients. Hold all antithrombotics for 24 hours post-tPA."

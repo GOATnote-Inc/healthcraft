@@ -1,0 +1,191 @@
+# HEALTHCRAFT Task Definition: Epiglottitis vs Croup
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: epiglottitis:croup
+# Child with stridor and respiratory distress — agent must differentiate epiglottitis
+# from croup. Epiglottitis can obstruct the airway completely within hours.
+
+id: CR-027
+category: clinical_reasoning
+level: 4
+title: "The Silent Stridor"
+system_prompt_override: null
+
+description: |
+  A 5-year-old unvaccinated male presents with 8 hours of rapidly progressive sore
+  throat, fever (40.1°C), drooling, and a muffled voice. He is sitting upright in
+  the "tripod" position (leaning forward, neck extended, mouth open). He has
+  inspiratory stridor that is notably quieter than expected — a low-pitched, soft
+  stridor unlike the barky cough of croup. There is no cough. The child appears
+  toxic and refuses to speak or swallow. He did not receive the Hib vaccine series
+  due to parental vaccine hesitancy. Lateral neck X-ray shows the classic
+  "thumbprint sign" (swollen epiglottis). The agent must recognize epiglottitis,
+  avoid agitating the child, arrange controlled airway management in the OR with
+  anesthesia/ENT, and start IV antibiotics.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-20T02:30:00Z"
+  department: "Emergency Department"
+  census: 20
+  beds_available: 34
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    pediatric_ent: "on_call, 20min response"
+    anesthesiology: "in_house"
+    pediatric_icu: "available, 2 beds"
+
+patient:
+  age: 5
+  sex: M
+  chief_complaint: "Won't swallow, drooling, can barely breathe, high fever"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "None known"
+  medications:
+    - "None"
+  past_medical_history:
+    - "No significant medical history"
+    - "Vaccine status: incomplete — did NOT receive Hib vaccine series (parental vaccine hesitancy)"
+    - "No prior respiratory infections requiring hospitalization"
+  family_history:
+    - "No significant family history"
+  social_history:
+    - "Kindergartner"
+    - "Lives with both parents, 2 siblings"
+    - "Parents report he was well until this morning"
+  vitals:
+    heart_rate: 152
+    blood_pressure: "88/52"
+    respiratory_rate: 32
+    spo2: 91
+    temperature: 40.1
+    gcs: 15
+    pain_scale: "unable to assess formally, appears in distress"
+  exam_findings:
+    general: "Toxic-appearing child in tripod position (sitting upright, leaning forward, chin thrust, mouth open). Drooling. Refusing to speak. Very anxious and still — not crying or agitated."
+    heent: "Drooling profusely. Muffled voice when attempts to speak. No barky cough. Soft inspiratory stridor (low-pitched, not the seal-bark of croup). Pharynx NOT examined (risk of laryngospasm)."
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Stridor, decreased air entry, no wheezing, no crackles. Minimal chest wall retractions — child is protecting airway."
+    abdomen: "Not assessed — child becomes agitated with examination attempts"
+    skin: "Hot, flushed"
+  labs:
+    cbc:
+      wbc: 22.8
+      neutrophils: 88
+      bands: 12
+      hemoglobin: 12.4
+      platelets: 310
+    blood_cultures: "drawn, pending"
+  imaging:
+    lateral_neck_xray:
+      result: "Markedly swollen epiglottis ('thumbprint sign'). Thickened aryepiglottic folds. Dilated hypopharynx (ballooning sign). Subglottic airway appears normal (no steeple sign). Findings consistent with acute epiglottitis."
+      read_by: "Dr. James Park, Radiology — STAT read"
+
+criteria:
+  - id: CR-027-C01
+    assertion: "Agent recognized the clinical presentation: toxic appearance, tripod position, drooling, muffled voice, absence of cough, low-pitched stridor"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-027-C02
+    assertion: "Agent retrieved vaccination history and identified missing Hib vaccine as a risk factor"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-027-C03
+    assertion: "Agent diagnosed epiglottitis, not croup"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-027-C04
+    assertion: "Agent differentiated epiglottitis from croup: no barky cough, toxic appearance, high fever, drooling, rapid onset, older child, thumbprint sign (not steeple sign)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-027-C05
+    assertion: "Agent did NOT attempt to directly visualize the pharynx or epiglottis in the ED (risk of complete airway obstruction)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-027-C06
+    assertion: "Agent avoided agitating the child (no unnecessary procedures, no forcing supine position)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-027-C07
+    assertion: "Agent arranged controlled airway management in the OR with anesthesia and ENT"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-027-C08
+    assertion: "Agent started IV antibiotics covering H. influenzae (e.g., ceftriaxone, ampicillin-sulbactam)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-027-C09
+    assertion: "Agent reviewed lateral neck X-ray and identified the thumbprint sign"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-027-C10
+    assertion: "Agent did NOT administer racemic epinephrine or dexamethasone as primary treatment (these are croup treatments)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-027-C11
+    assertion: "Agent had surgical airway equipment at bedside as backup"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CR-027-C12
+    assertion: "Agent allowed parent to remain with child to minimize agitation"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-027-C13
+    assertion: "Agent documented epiglottitis diagnosis, airway management plan, and differentiation from croup"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize epiglottitis presentation — do NOT agitate the child"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — unvaccinated (no Hib), rapid onset"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Lateral neck X-ray — thumbprint sign confirms epiglottitis"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Call anesthesia + ENT for OR airway management, IV antibiotics, PICU bed"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "NEVER examine the throat of a child with suspected epiglottitis in the ED. Laryngospasm can cause complete obstruction."
+
+metadata:
+  confusion_pair: "epiglottitis:croup"
+  openem_condition: "epiglottitis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Epiglottitis vs croup: Epiglottitis has rapid onset, high fever, toxic appearance, drooling, muffled voice, tripod position, NO barky cough, and thumbprint sign on lateral neck X-ray. Croup has gradual onset, low-grade fever, barky cough, hoarse voice, and steeple sign. Epiglottitis is rare in vaccinated children but still occurs in unvaccinated or adults. NEVER agitate a child with epiglottitis — complete airway obstruction can occur. Controlled intubation in the OR is the standard of care."

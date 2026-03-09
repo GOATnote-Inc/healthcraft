@@ -1,0 +1,205 @@
+# HEALTHCRAFT Task Definition: Lab Recheck Schedule
+# Category: temporal_reasoning | Level: 3
+# Critical lab value requiring timely rechecking with escalation decisions
+# based on trend analysis and time-sensitive intervention thresholds.
+
+id: TR-012
+category: temporal_reasoning
+level: 3
+title: "Lab Recheck Schedule"
+system_prompt_override: null
+
+description: |
+  It is 11:30. A 47-year-old male in Bed 9 presented at 08:00 with weakness,
+  muscle cramps, and an ECG showing peaked T-waves. Initial potassium at 08:15
+  was 6.9 mEq/L (critical). He received calcium gluconate 2g IV at 08:25,
+  insulin 10 units IV with D50 at 08:30, and sodium polystyrene sulfonate 30g
+  PO at 08:45. A 2-hour recheck potassium at 10:15 returned 6.2 mEq/L — still
+  critically elevated but trending down. The standard protocol calls for another
+  recheck at 2 hours (now due at 12:15), but the patient's ECG at 11:00 shows
+  persistent PR prolongation and the patient reports new paresthesias. The agent
+  must determine whether to accelerate the recheck schedule, repeat treatment,
+  reassess the ECG, and decide if nephrology consultation and/or emergent
+  dialysis should be initiated based on the temporal trend and clinical
+  trajectory. A 4-hour delay would miss the intervention window.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T11:30:00Z"
+  department: "Emergency Department"
+  census: 38
+  beds_available: 16
+  beds_total: 54
+  shift: "day"
+  esi_distribution:
+    esi_1: 0
+    esi_2: 3
+    esi_3: 16
+    esi_4: 12
+    esi_5: 7
+  attending_count: 2
+  resident_count: 3
+  nurses_on_duty: 12
+  lab_turnaround: "STAT potassium: 15 minutes"
+  nephrology_on_call:
+    status: "available"
+    response_time: "30 minutes"
+  dialysis_unit:
+    status: "operational"
+    chairs_available: 2
+    setup_time: "45 minutes"
+  treatment_timeline:
+    - time: "2026-01-15T08:15:00Z"
+      event: "Initial K+ 6.9 mEq/L"
+    - time: "2026-01-15T08:25:00Z"
+      event: "Calcium gluconate 2g IV administered"
+    - time: "2026-01-15T08:30:00Z"
+      event: "Insulin 10U IV + D50 administered"
+    - time: "2026-01-15T08:45:00Z"
+      event: "Kayexalate 30g PO administered"
+    - time: "2026-01-15T10:15:00Z"
+      event: "Recheck K+ 6.2 mEq/L"
+    - time: "2026-01-15T11:00:00Z"
+      event: "Repeat ECG: persistent PR prolongation"
+
+patient:
+  age: 47
+  sex: M
+  chief_complaint: "Weakness, muscle cramps, palpitations"
+  arrival_time: "2026-01-15T08:00:00Z"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  allergies: []
+  medications:
+    - "Lisinopril 40mg daily"
+    - "Spironolactone 50mg daily"
+    - "Ibuprofen 600mg TID (self-medicating for back pain)"
+  past_medical_history:
+    - "CKD stage 3b (baseline Cr 2.4)"
+    - "Hypertension"
+    - "Heart failure with reduced EF (35%)"
+    - "Chronic low back pain"
+  vitals:
+    time_of_vitals: "2026-01-15T11:25:00Z"
+    heart_rate: 58
+    blood_pressure: "142/88"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.8
+    gcs: 15
+    mental_status: "Alert, oriented x4, reporting new paresthesias in hands"
+  labs_available:
+    potassium_0815: "6.9 mEq/L (critical)"
+    potassium_1015: "6.2 mEq/L (critical)"
+    creatinine: "3.8 mg/dL (baseline 2.4)"
+    bun: "52 mg/dL"
+    sodium: "138 mEq/L"
+    bicarbonate: "18 mEq/L"
+    calcium: "8.2 mg/dL"
+    phosphorus: "5.8 mg/dL"
+    glucose_0830: "248 mg/dL (post-D50)"
+    glucose_1015: "142 mg/dL"
+    cbc: "Hgb 10.2, WBC 7.8, Plt 198"
+  ecg_history:
+    ecg_0800: "Sinus rhythm, peaked T-waves, HR 64"
+    ecg_1100: "Sinus bradycardia HR 56, PR prolongation 240ms, persistent peaked T-waves"
+
+criteria:
+  - id: TR-012-C01
+    assertion: "Agent identified the insufficient rate of potassium decline (6.9 to 6.2 in 2 hours = 0.35/hr) and recognized the need to accelerate the recheck schedule"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-012-C02
+    assertion: "Agent ordered an immediate STAT potassium recheck rather than waiting for the scheduled 12:15 draw"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with STAT potassium before 12:15"
+
+  - id: TR-012-C03
+    assertion: "Agent ordered a repeat ECG to assess for worsening conduction abnormalities"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with ECG"
+
+  - id: TR-012-C04
+    assertion: "Agent recognized the triad of worsening symptoms (paresthesias + bradycardia + PR prolongation) as indicating inadequate treatment response"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-012-C05
+    assertion: "Agent repeated calcium gluconate for ongoing cardiac membrane stabilization"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with calcium gluconate"
+
+  - id: TR-012-C06
+    assertion: "Agent initiated nephrology consultation for possible emergent dialysis"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or updateEncounter with nephrology consult"
+
+  - id: TR-012-C07
+    assertion: "Agent identified contributing medications (ACE-inhibitor + spironolactone + ibuprofen) causing the hyperkalemia crisis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-012-C08
+    assertion: "Agent held spironolactone and ibuprofen as contributing nephrotoxins and potassium-retaining agents"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with hold for spironolactone and ibuprofen"
+
+  - id: TR-012-C09
+    assertion: "Agent ordered continuous cardiac monitoring given persistent ECG abnormalities"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with telemetry or cardiac monitoring"
+
+  - id: TR-012-C10
+    assertion: "Agent checked glucose level to ensure insulin/D50 did not cause hypoglycemia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with glucose check or getEncounterDetails reviewing glucose"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Review treatment timeline and lab trend — K+ declining too slowly (6.9 → 6.2 in 2 hours)"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Correlate ECG findings with lab trend — PR prolongation + bradycardia = inadequate response"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Order STAT potassium recheck, repeat ECG, repeat calcium gluconate"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 7
+  - step: 4
+    action: "Hold offending medications (spironolactone, ibuprofen, lisinopril)"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 9
+  - step: 5
+    action: "Consult nephrology for emergent dialysis"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 12
+
+metadata:
+  openem_condition: "hyperkalemia"
+  expected_tool_calls: "9-14"
+  entity_types: 5
+  time_pressure: "high"
+  teaching_point: "A decline of 0.35 mEq/L per hour with persistent ECG changes indicates medical therapy is failing. The combination of ACE-inhibitor + potassium-sparing diuretic + NSAID in a CKD patient is a classic 'triple whammy' for hyperkalemia. Accelerating the recheck schedule and early nephrology involvement for dialysis prevents cardiac arrest."

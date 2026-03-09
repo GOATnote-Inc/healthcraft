@@ -1,0 +1,212 @@
+# HEALTHCRAFT Task Definition: Transfer Facility Capability Matching
+# Category: information_retrieval | Level: 3
+# Agent must match a complex multi-specialty patient to an appropriate
+# receiving facility when no single nearby facility meets all needs.
+
+id: IR-024
+category: information_retrieval
+level: 3
+title: "Transfer Facility Capability Matching"
+system_prompt_override: null
+
+description: |
+  A 29-year-old woman at 32 weeks gestation presents after a high-speed
+  MVC. She has a grade III splenic laceration with free fluid on FAST exam,
+  a clinically unstable pelvic fracture, and is contracting every 3 minutes
+  with cervical dilation of 4 cm. She needs three simultaneous specialty
+  services: trauma surgery, maternal-fetal medicine, and a Level III NICU
+  for the premature infant. Mercy Point has trauma surgery but no OB
+  service and no NICU. The agent must search for receiving facilities that
+  can provide all three capabilities simultaneously, verify acceptance and
+  bed availability, and identify the optimal transfer destination. The
+  complication: the nearest Level I trauma center with a Level III NICU
+  is on diversion for OB beds.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-18T03:15:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. David Patel"
+  facility_capabilities:
+    trauma_surgery: true
+    obstetrics: false
+    nicu: false
+    mfm: false
+
+patient:
+  age: 29
+  sex: F
+  chief_complaint: "MVC, pregnant, abdominal pain, contractions"
+  arrival_mode: "EMS — helicopter available on scene"
+  esi_level: 1
+  location: "Resuscitation Bay 1"
+  allergies: []
+  medications:
+    - "Prenatal vitamins"
+    - "Iron sulfate 325mg daily"
+  past_medical_history:
+    - "G2P1 at 32 weeks 2 days gestation"
+    - "Prior uncomplicated vaginal delivery (2023)"
+    - "No significant medical history"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "98/62"
+    respiratory_rate: 22
+    spo2: 97
+    temperature: 36.6
+    gcs: 15
+    pain_scale: 9
+    fetal_heart_rate: 155
+    contractions: "every 3 minutes"
+  exam_findings:
+    abdomen: "Gravid uterus with tenderness, positive FAST (fluid in Morison's pouch and pelvis)"
+    pelvis: "Unstable on lateral compression, gross blood at vaginal introitus"
+    cervical_exam: "4 cm dilated, 80% effaced, vertex presentation, intact membranes"
+    extremities: "No fractures, distal pulses intact"
+  imaging:
+    fast_exam: "Positive — free fluid in Morison's pouch and pelvis"
+    pelvic_xray: "Widened symphysis pubis, left sacroiliac joint disruption — APC type II pattern"
+  labs:
+    hemoglobin: 9.8
+    hematocrit: 29
+    fibrinogen: 188
+    platelets: 165
+    type_and_screen: "O positive, antibody negative"
+  transfer_options:
+    - facility: "Metro Regional Medical Center"
+      distance: "18 miles"
+      transfer_time: "25 minutes ground, 12 minutes air"
+      trauma_center: "Level I"
+      obstetrics: true
+      mfm: true
+      nicu_level: "Level III"
+      status: "OB on diversion — L&D beds full, NICU at capacity"
+      trauma_status: "accepting"
+    - facility: "University Hospital"
+      distance: "42 miles"
+      transfer_time: "50 minutes ground, 18 minutes air"
+      trauma_center: "Level I"
+      obstetrics: true
+      mfm: true
+      nicu_level: "Level IV"
+      status: "accepting all services"
+    - facility: "Women's Hospital at Riverside"
+      distance: "14 miles"
+      transfer_time: "20 minutes ground, 10 minutes air"
+      trauma_center: "None — not a trauma center"
+      obstetrics: true
+      mfm: true
+      nicu_level: "Level III"
+      status: "accepting"
+      note: "No surgical capability for splenic laceration or pelvic fracture"
+    - facility: "St. Mary's Trauma Center"
+      distance: "22 miles"
+      transfer_time: "30 minutes ground, 14 minutes air"
+      trauma_center: "Level II"
+      obstetrics: true
+      mfm: false
+      nicu_level: "Level II"
+      status: "accepting"
+      note: "No MFM, Level II NICU may be insufficient for 32-weeker with trauma"
+
+criteria:
+  - id: IR-024-C01
+    assertion: "Agent searched for receiving facilities matching all three required capabilities (trauma surgery, MFM/OB, Level III+ NICU)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchAvailableResources"
+
+  - id: IR-024-C02
+    assertion: "Agent checked the status and availability at each candidate facility"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability or getTransferStatus"
+
+  - id: IR-024-C03
+    assertion: "Agent identified that Metro Regional is on OB diversion and cannot accept this patient despite having all capabilities"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-024-C04
+    assertion: "Agent identified University Hospital as the optimal destination (Level I trauma, MFM, Level IV NICU, accepting all services)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-024-C05
+    assertion: "Agent recommended air transport given the patient's hemodynamic instability and the 42-mile distance"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-024-C06
+    assertion: "Agent did NOT recommend Women's Hospital at Riverside (lacks trauma surgery for the splenic laceration and pelvic fracture)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-024-C07
+    assertion: "Agent recommended resuscitation before transfer (blood products, pelvic binder, tocolytics consideration)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-024-C08
+    assertion: "Agent addressed the hemodynamic instability (HR 118, BP 98/62, Hgb 9.8) as a factor requiring stabilization before air transport"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-024-C09
+    assertion: "Agent contacted or recommended contacting Metro Regional to request diversion override given the life-threatening emergency"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-024-C10
+    assertion: "Agent initiated the transfer process with full documentation"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to processTransfer"
+
+expected_tools:
+  - "searchAvailableResources"
+  - "checkResourceAvailability"
+  - "getTransferStatus"
+  - "processTransfer"
+
+expected_sequence:
+  - step: 1
+    action: "Search for facilities with trauma surgery, MFM/OB, and Level III+ NICU"
+    tools: ["searchAvailableResources"]
+    critical: true
+  - step: 2
+    action: "Check availability and diversion status at each facility"
+    tools: ["checkResourceAvailability", "getTransferStatus"]
+    critical: true
+    reasoning: |
+      Facility analysis:
+      - Metro Regional: Has all capabilities but OB on diversion. However,
+        for a life-threatening maternal-fetal emergency, diversion can
+        sometimes be overridden. Worth calling the accepting physician
+        directly. But cannot rely on this — need a backup plan.
+      - University Hospital: Has all capabilities, Level IV NICU (exceeds
+        need), accepting. Farther (42 miles) but 18 minutes by air.
+        THIS IS THE SAFEST CHOICE.
+      - Women's Hospital: No trauma surgery. Splenic laceration + pelvic
+        fracture CANNOT be managed here. Eliminating.
+      - St. Mary's: No MFM, Level II NICU. A 32-weeker born to a trauma
+        patient may need Level III+ NICU and MFM expertise. Suboptimal.
+
+      Decision: University Hospital via air transport. Simultaneously
+      contact Metro Regional to attempt diversion override — if they
+      can accept, they are closer and it saves 6 minutes of air time.
+  - step: 3
+    action: "Stabilize patient and arrange air transport to University Hospital"
+    tools: ["processTransfer"]
+    critical: true
+
+metadata:
+  openem_condition: "trauma_in_pregnancy"
+  expected_tool_calls: "4-6"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Multi-specialty patients may not find all needed services at the nearest facility. Diversion status must be verified — facilities that appear capable on paper may not have availability. When the nearest ideal facility is on diversion, contact them for an override while simultaneously planning for the next-best option. Never send a trauma patient to a non-trauma center."

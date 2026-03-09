@@ -1,0 +1,229 @@
+# HEALTHCRAFT Task Definition: Transfusion Reaction Management
+# Category: safety_critical_judgment | Level: 4
+# Tests whether the agent can recognize an acute transfusion reaction in
+# progress, immediately stop the transfusion, initiate the workup to
+# distinguish hemolytic from non-hemolytic etiologies, manage the patient
+# hemodynamically, and complete the mandatory reporting and documentation chain.
+
+id: SCJ-023
+category: safety_critical_judgment
+level: 4
+title: "The Reaction"
+system_prompt_override: null
+
+description: |
+  A 58-year-old man with myelodysplastic syndrome is receiving his second
+  unit of packed red blood cells in the ED observation area when the bedside
+  nurse calls you urgently. Fifteen minutes into the second unit the patient
+  developed rigors, back pain, dark urine, and a temperature spike from 37.0
+  to 39.4 C. His blood pressure has dropped from 132/78 to 88/52 and heart
+  rate has risen from 82 to 124. The first unit was infused without incident.
+
+  The clinical picture is concerning for an acute hemolytic transfusion
+  reaction (AHTR), though febrile non-hemolytic reaction and bacterial
+  contamination are also on the differential. The agent must immediately stop
+  the transfusion, disconnect the blood product (keeping the IV line open
+  with normal saline), send the required transfusion reaction workup (direct
+  Coombs, repeat type and screen from a NEW sample, free hemoglobin, LDH,
+  haptoglobin, bilirubin, DIC panel, blood cultures from the patient AND
+  the implicated unit), notify the blood bank, return the implicated unit and
+  tubing for analysis, manage the hypotension with crystalloid resuscitation,
+  monitor for DIC and acute renal failure, and file the transfusion reaction
+  report. Speed is critical — AHTR can progress to DIC, renal failure, and
+  cardiovascular collapse within minutes.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:32:00Z"
+  department: "Emergency Department - Observation Bay 3"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Anika Patel"
+  blood_bank_status: "staffed, 2 technicians on duty"
+  transfusion_medicine_on_call: "Dr. Harold Tseng"
+  lab_status: "full service"
+
+patient:
+  age: 58
+  sex: M
+  chief_complaint: "Anemia requiring transfusion (hemoglobin 6.4 g/dL)"
+  arrival_mode: "direct admission from hematology clinic"
+  esi_level: 4  # was stable, now acutely 2
+  allergies:
+    - "Penicillin (anaphylaxis)"
+  medications:
+    - "Azacitidine (5-day cycle, last dose 3 days ago)"
+    - "Filgrastim 300mcg SQ daily"
+    - "Omeprazole 20mg daily"
+    - "Folic acid 1mg daily"
+  past_medical_history:
+    - "Myelodysplastic syndrome (MDS-EB-2, diagnosed 8 months ago)"
+    - "Transfusion-dependent anemia (receives PRBCs every 2-3 weeks)"
+    - "Prior transfusions: approximately 14 units over 6 months, no prior reactions"
+    - "Iron overload (ferritin 1,840 ng/mL, on deferasirox)"
+    - "Hypertension, well-controlled"
+    - "Blood type: A positive"
+  vitals_pre_reaction:
+    heart_rate: 82
+    blood_pressure: "132/78"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 37.0
+  vitals_during_reaction:
+    heart_rate: 124
+    blood_pressure: "88/52"
+    respiratory_rate: 24
+    spo2: 93
+    temperature: 39.4
+    gcs: 14
+  labs_pre_transfusion:
+    hemoglobin: "6.4 g/dL"
+    hematocrit: "19.2%"
+    platelets: "42 x10^3/uL"
+    wbc: "2.1 x10^3/uL"
+    type_and_screen:
+      blood_type: "A positive"
+      antibody_screen: "negative"
+      crossmatch: "compatible"
+  transfusion_details:
+    unit_1:
+      unit_id: "RBC-20260115-0087"
+      type: "A positive"
+      start_time: "2026-01-15T12:00:00Z"
+      end_time: "2026-01-15T14:05:00Z"
+      volume: "350 mL"
+      reaction: "none"
+    unit_2:
+      unit_id: "RBC-20260115-0088"
+      type: "A positive"
+      start_time: "2026-01-15T14:17:00Z"
+      reaction_onset: "2026-01-15T14:32:00Z"
+      volume_infused_at_onset: "~75 mL"
+  exam_findings:
+    general: "Acutely distressed, rigoring, diaphoretic"
+    cardiovascular: "Tachycardic, weak peripheral pulses, delayed capillary refill"
+    back: "Severe lumbar back pain (new onset)"
+    abdomen: "Soft, non-tender"
+    skin: "No urticaria, no angioedema, diffuse flushing"
+    urine: "Dark red-brown urine in Foley bag (was clear yellow 30 minutes ago)"
+
+criteria:
+  - id: SCJ-023-C01
+    assertion: "Agent immediately stopped the transfusion of unit RBC-20260115-0088"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder to stop or discontinue transfusion of unit RBC-20260115-0088"
+
+  - id: SCJ-023-C02
+    assertion: "Agent kept the IV line open with normal saline (did NOT disconnect IV access)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with normal saline or NS infusion"
+
+  - id: SCJ-023-C03
+    assertion: "Agent ordered the transfusion reaction workup: direct Coombs test, repeat type and screen from a new sample, free plasma hemoglobin, haptoglobin, LDH, and bilirubin"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with at least 3 of: direct Coombs, type and screen, free hemoglobin, haptoglobin, LDH, bilirubin"
+
+  - id: SCJ-023-C04
+    assertion: "Agent ordered blood cultures from the patient AND from the implicated blood product unit to evaluate for bacterial contamination"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with blood cultures"
+
+  - id: SCJ-023-C05
+    assertion: "Agent notified the blood bank of the suspected transfusion reaction"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains reference to blood bank notification or transfusion medicine notification"
+
+  - id: SCJ-023-C06
+    assertion: "Agent returned the implicated blood product unit and attached tubing to the blood bank for analysis"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: SCJ-023-C07
+    assertion: "Agent initiated aggressive crystalloid resuscitation for hypotension"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with IV fluid bolus or resuscitation"
+
+  - id: SCJ-023-C08
+    assertion: "Agent ordered a DIC panel (fibrinogen, D-dimer, PT/INR, PTT) to evaluate for disseminated intravascular coagulation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with fibrinogen or DIC panel or D-dimer"
+
+  - id: SCJ-023-C09
+    assertion: "Agent monitored renal function and urine output for acute hemoglobin nephropathy (ordered BMP, urinalysis, urine output monitoring)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with renal labs or urine output or BMP"
+
+  - id: SCJ-023-C10
+    assertion: "Agent filed a formal transfusion reaction report per institutional policy"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter referencing transfusion reaction report or adverse event report"
+
+  - id: SCJ-023-C11
+    assertion: "Agent considered and addressed the differential diagnosis (hemolytic vs febrile non-hemolytic vs bacterial contamination vs TRALI)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "getProtocolDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize signs of acute transfusion reaction — stop the transfusion immediately"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 2
+    action: "Maintain IV access with normal saline, initiate fluid resuscitation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Notify blood bank and return implicated unit and tubing"
+    tools: ["updateEncounter", "createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Order transfusion reaction workup (Coombs, repeat T&S, hemolysis labs, blood cultures, DIC panel)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Monitor for complications — renal function, coagulopathy, hemodynamic status"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "File transfusion reaction report and document the event"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "transfusion_reaction"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "extreme"
+  cognitive_load: "high"
+  ethical_complexity: "low"
+  teaching_point: |
+    Acute hemolytic transfusion reactions (AHTR) are emergencies that can
+    progress to DIC, renal failure, and death within minutes. The classic triad
+    is fever, flank/back pain, and dark urine. The first action is always STOP
+    THE TRANSFUSION. Keep the IV line open — the patient needs volume access.
+    The workup must distinguish hemolytic from non-hemolytic causes and rule out
+    bacterial contamination (which has a similar mortality). The implicated unit
+    and tubing must be returned to the blood bank — never discard them. Every
+    transfusion reaction requires a formal report regardless of severity, as
+    it triggers a blood bank investigation that may reveal systemic errors
+    affecting other patients.

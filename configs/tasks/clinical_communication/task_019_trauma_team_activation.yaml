@@ -1,0 +1,151 @@
+# HEALTHCRAFT Task Definition: Multidisciplinary Trauma Team Briefing
+# Category: clinical_communication | Level: 4
+# Agent must coordinate a trauma team activation briefing for an incoming
+# multi-system trauma patient, assigning roles and communicating the plan.
+
+id: CC-019
+category: clinical_communication
+level: 4
+title: "Trauma Team Activation Briefing"
+system_prompt_override: null
+
+description: |
+  EMS is 4 minutes out with a 28-year-old unrestrained driver from a
+  high-speed rollover MVC. Field report: GCS 10, hypotensive, obvious
+  left femur deformity, suspected pelvic fracture, diminished breath sounds
+  on the left. ETA-based trauma team activation has been called. The trauma
+  bay is assembling: trauma surgery, emergency medicine, anesthesia, nursing,
+  respiratory therapy, radiology tech, blood bank. The agent must conduct
+  a pre-arrival briefing that assigns roles, communicates the known injuries,
+  anticipates resource needs (blood, OR, intubation equipment), and sets
+  contingency plans. The team has never worked together in this exact
+  configuration before.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T02:15:00Z"
+  department: "Emergency Department -- Trauma Bay"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. James Rivera"
+  trauma_team:
+    trauma_surgeon: "Dr. Andrea Voss (team leader)"
+    em_attending: "Dr. James Rivera"
+    anesthesia: "Dr. Rajesh Kapoor"
+    em_resident: "Dr. Fatima Al-Rashidi (PGY-3)"
+    trauma_nurse_1: "RN Lisa Huang"
+    trauma_nurse_2: "RN Derek Thompson"
+    respiratory_therapist: "RT Keisha Brown"
+    radiology_tech: "Marcus Williams"
+    pharmacist: "PharmD Joel Park (blood bank notified)"
+    scribe: "Available"
+  ems_report:
+    mechanism: "High-speed rollover MVC, unrestrained driver, ejected 15 feet"
+    gcs_field: 10
+    vitals_field:
+      heart_rate: 132
+      blood_pressure: "82/50"
+      respiratory_rate: 30
+      spo2: 88
+    injuries_suspected:
+      - "Left-sided tension pneumothorax (diminished breath sounds, tracheal deviation)"
+      - "Left femur fracture (obvious deformity, shortened and externally rotated)"
+      - "Suspected pelvic fracture (instability on prehospital exam)"
+      - "Scalp laceration with active bleeding"
+    interventions_field:
+      - "Cervical collar applied"
+      - "Left arm 18g IV, NS wide open"
+      - "Pelvic binder applied"
+    eta_minutes: 4
+
+criteria:
+  - id: CC-019-C01
+    assertion: "Agent retrieved EMS report and pre-arrival information"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-019-C02
+    assertion: "Agent checked available resources (blood products, OR availability, equipment)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: CC-019-C03
+    assertion: "Agent assigned specific roles to team members (airway, primary survey leader, procedures, documentation, blood runner)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-019-C04
+    assertion: "Agent communicated the mechanism of injury and suspected injuries to the assembled team"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-019-C05
+    assertion: "Agent anticipated the need for immediate needle decompression or chest tube for suspected tension pneumothorax"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-019-C06
+    assertion: "Agent activated massive transfusion protocol or ensured blood products were available"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-019-C07
+    assertion: "Agent addressed airway plan (RSI preparation given GCS 10 and respiratory compromise)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-019-C08
+    assertion: "Agent communicated contingency plans (if cannot intubate, if hemodynamically crashes, if needs emergent OR)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-019-C09
+    assertion: "Agent used closed-loop communication (requested verbal confirmation from team members)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-019-C10
+    assertion: "Agent documented the pre-arrival briefing and team assignments"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "checkResourceAvailability"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review EMS pre-arrival report"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Check resource availability (blood, OR, ventilator)"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 3
+    action: "Activate massive transfusion protocol preemptively"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Conduct team briefing: mechanism, injuries, roles, plan, contingencies"
+    tools: []
+    critical: true
+  - step: 5
+    action: "Document briefing and team composition"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "polytrauma"
+  expected_tool_calls: "4-6"
+  entity_types: 6
+  time_pressure: "extreme"
+  cognitive_load: "extreme"
+  teaching_point: "Pre-arrival trauma briefings set the tone for the entire resuscitation. Assign roles explicitly -- do not assume people know their role. Use the mechanism and field report to anticipate needs. Activate MTP early in hypotensive trauma (you can always cancel). Closed-loop communication prevents errors. Contingency planning (failed airway, hemodynamic collapse) must happen before the patient arrives."

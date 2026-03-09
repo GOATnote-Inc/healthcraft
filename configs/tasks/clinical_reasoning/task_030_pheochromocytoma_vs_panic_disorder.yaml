@@ -1,0 +1,209 @@
+# HEALTHCRAFT Task Definition: Pheochromocytoma vs Panic Disorder
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: pheochromocytoma:panic_disorder
+# Patient with episodic hypertensive crises, palpitations, and diaphoresis — agent
+# must recognize pheochromocytoma rather than treating as panic attacks.
+
+id: CR-030
+category: clinical_reasoning
+level: 4
+title: "The Adrenaline Surge"
+system_prompt_override: null
+
+description: |
+  A 36-year-old female presents with her fourth ED visit in 3 months for episodes of
+  sudden severe headache, palpitations, diaphoresis, and "a sense of impending doom"
+  lasting 20-30 minutes. She has been diagnosed with panic disorder and prescribed
+  sertraline and lorazepam with minimal benefit. During this episode, her BP is
+  242/138 with HR 132. Between episodes (per prior records), her BP is normal. On
+  exam, she is diaphoretic and tremulous. She reports unintentional 15-pound weight
+  loss over 3 months. A family history reveals her father had a thyroidectomy for
+  medullary thyroid cancer. Labs show elevated plasma free metanephrines (normetanephrine
+  1,840 pg/mL, metanephrine 620 pg/mL). The agent must diagnose pheochromocytoma,
+  avoid beta-blockers alone (can cause unopposed alpha stimulation), and initiate
+  alpha-blockade with phenoxybenzamine or phentolamine.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-26T14:20:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    endocrinology: "on_call, 30min response"
+    endocrine_surgery: "on_call, 40min response"
+    critical_care: "in_house"
+
+patient:
+  age: 36
+  sex: F
+  chief_complaint: "Terrible headache again, heart pounding, sweating, feel like I'm going to die"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "None known"
+  medications:
+    - "Sertraline 100mg daily (started 2 months ago for panic disorder)"
+    - "Lorazepam 0.5mg PRN (prescribed for panic attacks, reports minimal benefit)"
+  past_medical_history:
+    - "Three prior ED visits for similar episodes (diagnosed as panic attacks each time)"
+    - "Anxiety/panic disorder (diagnosed 3 months ago)"
+    - "No known hypertension between episodes"
+    - "Unintentional 15-pound weight loss over 3 months"
+    - "No diabetes"
+  family_history:
+    - "Father: medullary thyroid cancer (thyroidectomy at age 45)"
+    - "Paternal uncle: pheochromocytoma (adrenalectomy)"
+    - "No known genetic testing in the family"
+  social_history:
+    - "Graphic designer"
+    - "Non-smoker"
+    - "No caffeine (quit 2 months ago on psychiatrist's advice)"
+    - "No alcohol"
+    - "No recreational drugs (urine drug screen negative on prior visit)"
+  vitals:
+    heart_rate: 132
+    blood_pressure: "242/138"
+    respiratory_rate: 24
+    spo2: 98
+    temperature: 37.4
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    general: "Anxious, diaphoretic female, tremulous, sitting upright"
+    heent: "Pale facial complexion alternating with flushing"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs, bounding pulses"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Soft, non-tender, no palpable masses"
+    neurological: "Alert, oriented x4, fine tremor, hyperreflexia, no focal deficits"
+    skin: "Diaphoretic, pallor, cool extremities"
+    neck: "No thyroid nodules palpable, no lymphadenopathy"
+  labs:
+    cbc:
+      wbc: 12.2
+      hemoglobin: 15.8
+      hematocrit: 47.2
+      platelets: 240
+    bmp:
+      sodium: 142
+      potassium: 3.8
+      creatinine: 0.8
+      glucose: 218
+    plasma_metanephrines:
+      normetanephrine: 1840
+      normetanephrine_units: "pg/mL (normal <196)"
+      metanephrine: 620
+      metanephrine_units: "pg/mL (normal <65)"
+    troponin_i: 0.06
+    troponin_units: "ng/mL (normal <0.04, mildly elevated from catecholamine cardiotoxicity)"
+    urinalysis: "Normal"
+  ecg:
+    interpretation: "Sinus tachycardia at 132 bpm, LVH by voltage criteria, ST depression in lateral leads (strain pattern)"
+
+criteria:
+  - id: CR-030-C01
+    assertion: "Agent reviewed vitals showing severe paroxysmal hypertension (242/138) with tachycardia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-030-C02
+    assertion: "Agent retrieved history including recurrent episodes, weight loss, failed panic disorder treatment, and family history of MTC and pheochromocytoma (MEN2 pattern)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-030-C03
+    assertion: "Agent recognized the classic pheochromocytoma triad: headache + palpitations + diaphoresis with paroxysmal hypertension"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-030-C04
+    assertion: "Agent diagnosed pheochromocytoma based on elevated plasma metanephrines, clinical presentation, and family history"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-030-C05
+    assertion: "Agent initiated alpha-blockade (phentolamine IV for acute crisis, or phenoxybenzamine) for blood pressure control"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-030-C06
+    assertion: "Agent did NOT administer beta-blocker BEFORE establishing alpha-blockade (risk of unopposed alpha stimulation and hypertensive crisis)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-030-C07
+    assertion: "Agent recognized the family history pattern suggesting MEN2 (medullary thyroid cancer + pheochromocytoma)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-030-C08
+    assertion: "Agent ordered abdominal CT or MRI to localize the tumor"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-030-C09
+    assertion: "Agent consulted endocrinology and/or endocrine surgery"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-030-C10
+    assertion: "Agent addressed the hyperglycemia (catecholamine-induced, not DM)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-030-C11
+    assertion: "Agent recognized the mildly elevated troponin as catecholamine cardiotoxicity, not ACS"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-030-C12
+    assertion: "Agent recommended genetic testing for MEN2 (RET proto-oncogene)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-030-C13
+    assertion: "Agent documented pheochromocytoma diagnosis, differentiation from panic disorder, and specific pharmacologic management avoiding beta-blocker monotherapy"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — extreme paroxysmal hypertension, not typical of panic"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — recurrent episodes, weight loss, family MTC + pheo = MEN2"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Labs — markedly elevated metanephrines confirms pheochromocytoma"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Alpha-blockade FIRST (phentolamine), then beta-blocker only after alpha block"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Beta-blocker alone causes unopposed alpha stimulation → worsening hypertensive crisis."
+
+metadata:
+  confusion_pair: "pheochromocytoma:panic_disorder"
+  openem_condition: "pheochromocytoma"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Pheochromocytoma presents with paroxysmal hypertensive crises (BP >200 systolic), headache, diaphoresis, and palpitations — easily misdiagnosed as panic disorder. Key differences: panic attacks do NOT cause BP >200 or significant diaphoresis. Weight loss, hemoconcentration (Hgb 15.8, Hct 47), and hyperglycemia point to catecholamine excess. Family history of MTC suggests MEN2. Plasma free metanephrines are 96% sensitive. ALWAYS alpha-block BEFORE beta-block — beta-blocker monotherapy is contraindicated."

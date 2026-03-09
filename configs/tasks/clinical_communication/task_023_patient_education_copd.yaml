@@ -1,0 +1,180 @@
+# HEALTHCRAFT Task Definition: Patient Education for Chronic Condition Exacerbation
+# Category: clinical_communication | Level: 2
+# Agent must provide comprehensive patient education for a CHF patient
+# with recurrent exacerbations driven by dietary non-adherence and
+# medication confusion.
+
+id: CC-023
+category: clinical_communication
+level: 2
+title: "Patient Education for CHF Exacerbation"
+system_prompt_override: null
+
+description: |
+  A 72-year-old man is being discharged after his third ED visit in two
+  months for acute decompensated heart failure. Each time, he presents
+  with fluid overload that responds to IV diuretics. Through conversation,
+  it becomes clear he does not understand the connection between salt intake
+  and fluid retention. He confuses his two diuretics (furosemide and
+  spironolactone), sometimes taking both in the evening causing nocturia
+  and then skipping the next day. He weighs himself inconsistently and does
+  not know his "dry weight." His wife recently passed away and she had
+  managed his medications. The agent must provide structured patient
+  education addressing the specific knowledge gaps, create an actionable
+  self-management plan, and ensure the patient understands when to return.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T13:15:00Z"
+  department: "Emergency Department"
+  census: 35
+  beds_available: 19
+  attending_on_duty: "Dr. Sarah Chen"
+  support_services:
+    cardiac_education: "cardiac educator available by referral"
+    home_health: "referral available"
+
+patient:
+  age: 72
+  sex: M
+  chief_complaint: "Shortness of breath, leg swelling x 3 days"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  location: "Bed 19"
+  primary_language: "English"
+  reading_level: "8th grade equivalent"
+  allergies:
+    - "ACE inhibitors (angioedema -- documented 2023)"
+  medications:
+    - "Furosemide 40mg daily (morning)"
+    - "Spironolactone 25mg daily"
+    - "Carvedilol 12.5mg BID"
+    - "Losartan 50mg daily (ARB -- substituted for ACE inhibitor)"
+    - "Atorvastatin 40mg daily"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Heart failure with reduced ejection fraction (EF 30%, diagnosed 2023)"
+    - "Hypertension"
+    - "Type 2 Diabetes (A1c 7.4%, on metformin)"
+    - "Coronary artery disease (2-vessel, stented 2023)"
+    - "ACE inhibitor angioedema (lisinopril, 2023)"
+  social_history:
+    - "Retired electrician"
+    - "Widowed 4 months ago (wife managed medications)"
+    - "Lives alone in single-story home"
+    - "No children nearby (daughter in California)"
+    - "Eats canned soup and frozen dinners daily ('easy to prepare')"
+    - "Does not own a scale (wife had one but he put it away)"
+    - "Drives himself, independent with ADLs"
+  vitals_at_discharge:
+    heart_rate: 72
+    blood_pressure: "128/76"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.9
+    gcs: 15
+    weight_kg: 88
+    dry_weight_estimate: 84
+  prior_ed_visits:
+    - date: "2025-11-20"
+      diagnosis: "Acute decompensated CHF"
+      weight_on_arrival: 91
+    - date: "2025-12-28"
+      diagnosis: "Acute decompensated CHF"
+      weight_on_arrival: 89
+  labs:
+    bnp: "680 pg/mL (elevated, down from 1,240 on admission)"
+    creatinine: "1.3 (baseline)"
+    potassium: "4.6"
+    sodium: "138"
+
+criteria:
+  - id: CC-023-C01
+    assertion: "Agent retrieved patient history including medication list, social history, and prior visits"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-023-C02
+    assertion: "Agent retrieved encounter details and prior visit pattern"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: CC-023-C03
+    assertion: "Agent explained the connection between salt intake and fluid retention in plain language"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-023-C04
+    assertion: "Agent addressed the specific dietary issue (canned soup and frozen dinners are high sodium) and suggested concrete low-sodium alternatives"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-023-C05
+    assertion: "Agent clarified the medication schedule: which diuretic to take when, and why consistency matters"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-023-C06
+    assertion: "Agent established a daily weight monitoring plan with a specific target weight and a threshold for calling the doctor (2-3 lbs in 24 hours or 5 lbs in a week)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-023-C07
+    assertion: "Agent identified the grief/social isolation context (wife's death) and offered appropriate support (home health, cardiac education, support group)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-023-C08
+    assertion: "Agent provided specific return precautions (worsening SOB, unable to lie flat, weight gain exceeding threshold, chest pain, dizziness)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-023-C09
+    assertion: "Agent did NOT recommend an ACE inhibitor (patient has documented angioedema)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-023-C10
+    assertion: "Agent documented the education session and patient understanding in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchEncounters"
+  - "processDischarge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, medication list, and social context"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review pattern of recurrent visits"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 3
+    action: "Provide targeted education: salt-fluid connection, medication schedule, daily weights, diet"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Generate discharge instructions with self-management plan"
+    tools: ["processDischarge"]
+    critical: true
+  - step: 5
+    action: "Document education session"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "heart_failure_exacerbation"
+  expected_tool_calls: "4-6"
+  entity_types: 4
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: "Patient education must target specific knowledge gaps, not recite generic information. This patient does not need a lecture on heart failure -- he needs to know that canned soup has 800mg of sodium per serving and his daily limit is 1,500mg. A medication schedule written out (morning vs evening) is worth more than a pharmacology explanation. The recent spousal loss is both a grief issue and a practical self-management barrier."

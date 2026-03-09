@@ -1,0 +1,251 @@
+# HEALTHCRAFT Task Definition: Massive PE Management
+# Category: multi_step_workflows | Level: 5
+# Tests massive pulmonary embolism workflow: risk stratification, thrombolytics,
+# hemodynamic support, and ICU disposition.
+
+id: MW-013
+category: multi_step_workflows
+level: 5
+title: "Massive PE — Thrombolytics and Hemodynamic Support"
+system_prompt_override: null
+
+description: |
+  A 54-year-old female presents with sudden-onset severe dyspnea, pleuritic chest
+  pain, and near-syncope while walking to the bathroom. She is 10 days post-op
+  from a right total knee arthroplasty and has been relatively immobile. On arrival
+  she is diaphoretic, tachycardic (HR 128), hypotensive (BP 76/42), and hypoxic
+  (SpO2 82% on room air). Bedside echo shows a dilated right ventricle with
+  septal bowing, McConnell's sign, and a D-shaped left ventricle. Troponin is
+  0.48 ng/mL. BNP is 890 pg/mL. She is in obstructive shock from massive
+  pulmonary embolism. The agent must rapidly stabilize hemodynamics, confirm the
+  diagnosis, initiate systemic thrombolytics (weighing the 10-day post-surgical
+  bleeding risk), manage vasopressors, and coordinate ICU admission. This is a
+  high-stakes decision — thrombolytics carry significant bleeding risk post-surgery
+  but the patient is dying from obstructive shock.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:32:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    pulmonology: "on-call, 15-minute response"
+    cardiothoracic_surgery: "on-call, 30-minute response — available for surgical embolectomy"
+    interventional_radiology: "on-call, 45-minute response — catheter-directed therapy"
+    critical_care: "in-house, covering ICU"
+    hematology: "on-call, 20-minute response"
+  imaging:
+    ct_scanner: "available — 10-minute estimated wait"
+    bedside_echo: "already performed at bedside"
+  pharmacy:
+    alteplase: "available — 100mg vial in ED"
+    heparin: "available"
+    norepinephrine: "available"
+  icu_beds_available: 2
+
+patient:
+  age: 54
+  sex: F
+  weight_kg: 78
+  chief_complaint: "Sudden severe dyspnea, chest pain, near-syncope"
+  arrival_mode: "Wheelchair from waiting room — rapidly decompensated"
+  esi_level: 1
+  allergies:
+    - "Codeine (nausea)"
+  medications:
+    - "Enoxaparin 40mg SQ daily (DVT prophylaxis — last dose 18 hours ago)"
+    - "Oxycodone 5mg PRN"
+    - "Celecoxib 200mg BID"
+    - "Amlodipine 5mg daily"
+  past_medical_history:
+    - "Right total knee arthroplasty 10 days ago"
+    - "Hypertension"
+    - "Obesity (BMI 32)"
+    - "No prior VTE"
+    - "No bleeding disorders"
+  family_history:
+    - "Sister: DVT at age 45"
+  social_history:
+    - "Office worker, sedentary"
+    - "Non-smoker"
+    - "No alcohol"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "76/42"
+    respiratory_rate: 32
+    spo2: 82
+    temperature: 37.1
+    gcs: 14
+    gcs_breakdown: "E4V4M6"
+    pain_scale: 8
+  exam_findings:
+    general: "Acutely ill, diaphoretic, anxious, tripod positioning"
+    neck: "Markedly elevated JVP to angle of jaw"
+    cardiac: "Tachycardic, loud P2, right-sided S3 gallop, no murmur"
+    lungs: "Clear bilateral — no crackles, no wheeze"
+    extremities: "Right leg in post-surgical immobilizer. Mild calf swelling right > left. Cool and mottled bilateral lower extremities"
+    skin: "Diaphoretic, mottled, delayed capillary refill 5 seconds"
+  bedside_echo:
+    rv_dilation: "Severe — RV:LV ratio 1.4:1"
+    septal_motion: "Paradoxical — D-shaped LV in short axis"
+    mcconnell_sign: "Positive — RV free wall akinesis with apical sparing"
+    tricuspid_regurgitation: "Moderate, estimated RVSP 65 mmHg"
+    ivc: "Plethoric, no respiratory variation"
+    lv_function: "Hyperdynamic, underfilled"
+    pericardial_effusion: "None"
+  labs:
+    troponin: "0.48 ng/mL (elevated — RV strain)"
+    bnp: "890 pg/mL (elevated)"
+    d_dimer: "8,420 ng/mL (markedly elevated)"
+    cbc: "WBC 11.2, Hgb 12.8, Plt 198"
+    bmp: "Na 136, K 4.8, Cl 100, CO2 18, BUN 22, Cr 1.0, Glu 168"
+    coags: "PT 13.2, INR 1.1, PTT 32"
+    abg: "pH 7.28, pCO2 28, pO2 52 (on 15L NRB), HCO3 14, lactate 6.8"
+  timeline:
+    symptom_onset: "2026-01-15T14:10:00Z"
+    ed_arrival: "2026-01-15T14:25:00Z"
+    bedside_echo: "2026-01-15T14:30:00Z"
+    triage_complete: "2026-01-15T14:32:00Z"
+
+criteria:
+  - id: MW-013-C01
+    assertion: "Agent identified massive PE with obstructive shock based on hemodynamic instability, echo findings, and clinical presentation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-013-C02
+    assertion: "Agent initiated IV fluid resuscitation cautiously (small bolus 250-500 mL, not large volume — RV failure worsens with excess preload)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-013-C03
+    assertion: "Agent started vasopressor support (norepinephrine preferred for PE-related shock)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for vasopressor"
+
+  - id: MW-013-C04
+    assertion: "Agent initiated systemic thrombolytics (alteplase 100mg over 2 hours or tenecteplase weight-based) for massive PE with hemodynamic instability"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for thrombolytic"
+
+  - id: MW-013-C05
+    assertion: "Agent explicitly weighed the bleeding risk of thrombolytics given 10-day post-surgical status and documented the risk-benefit analysis"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-013-C06
+    assertion: "Agent started vasopressor BEFORE or concurrent with thrombolytic (hemodynamic bridge while awaiting lytic effect)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "vasopressor createClinicalOrder timestamp precedes or equals thrombolytic createClinicalOrder timestamp"
+
+  - id: MW-013-C07
+    assertion: "Agent ordered CTPA to confirm diagnosis (if patient stable enough) or proceeded with empiric treatment based on echo given instability"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-013-C08
+    assertion: "Agent initiated therapeutic anticoagulation with unfractionated heparin (after or concurrent with thrombolytic per protocol)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for heparin_infusion"
+
+  - id: MW-013-C09
+    assertion: "Agent consulted cardiothoracic surgery or interventional radiology as backup for surgical embolectomy or catheter-directed therapy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for consult to CT_surgery or interventional_radiology"
+
+  - id: MW-013-C10
+    assertion: "Agent arranged ICU admission for hemodynamic monitoring and post-thrombolytic care"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU_admission"
+
+  - id: MW-013-C11
+    assertion: "Agent ordered repeat bedside echo or hemodynamic reassessment after thrombolytic initiation"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat_echo or getEncounterDetails after thrombolytic timestamp"
+
+  - id: MW-013-C12
+    assertion: "Agent applied massive PE or thrombolytic protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for massive_PE or thrombolytic"
+
+  - id: MW-013-C13
+    assertion: "Agent documented risk-benefit discussion, thrombolytic indication, and post-surgical bleeding risk in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review bedside echo, identify massive PE with obstructive shock"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Initiate cautious IV fluid bolus (250-500 mL) and vasopressor"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Evaluate thrombolytic eligibility — weigh bleeding risk vs mortality"
+    tools: ["searchClinicalKnowledge", "runDecisionRule", "validateTreatmentPlan"]
+    critical: true
+  - step: 4
+    action: "Administer systemic thrombolytic (alteplase 100mg/2hr)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Start heparin infusion per PE thrombolytic protocol"
+    tools: ["createClinicalOrder", "applyProtocol"]
+    critical: true
+  - step: 6
+    action: "Consult CT surgery and/or IR for backup intervention"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Order CTPA if patient stabilizes, or defer if too unstable"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 8
+    action: "Reassess hemodynamics and order repeat echo"
+    tools: ["getEncounterDetails", "createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Arrange ICU admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Document risk-benefit analysis, interventions, and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "pulmonary_embolism"
+  expected_tool_calls: "12-18"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Massive PE is defined by hemodynamic instability (sustained hypotension, obstructive shock). Systemic thrombolytics are indicated despite relative contraindications when the patient is in extremis — the mortality of untreated massive PE exceeds the bleeding risk. Norepinephrine is the preferred vasopressor. Cautious fluid resuscitation only (250-500 mL) — excessive volume worsens RV failure. Bedside echo showing RV dilation, McConnell's sign, and D-shaped LV is sufficient for empiric treatment in unstable patients."

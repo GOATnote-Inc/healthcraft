@@ -1,0 +1,184 @@
+# HEALTHCRAFT Task Definition: Critical Supply Shortage
+# Category: information_retrieval | Level: 3
+# Agent must find resources during a facility-wide IV fluid shortage
+# affecting multiple patients. Tests resource search and prioritization.
+
+id: IR-018
+category: information_retrieval
+level: 3
+title: "Critical Supply Shortage"
+system_prompt_override: null
+
+description: |
+  A facility-wide IV normal saline shortage has been declared due to a
+  national supply chain disruption. The pharmacy has 22 remaining 1L bags
+  of 0.9% NaCl and 40 bags of Lactated Ringer's. The ED currently has 6
+  patients requiring IV fluid resuscitation: a sepsis patient needing
+  aggressive volume, a DKA patient on an insulin drip requiring NS, a
+  hyperemesis gravidarum patient, a sickle cell crisis patient, and two
+  patients with simple dehydration. The charge nurse asks the agent to
+  assess the supply situation, determine allocation priority, and identify
+  acceptable substitutions where possible. A new sepsis patient is arriving
+  by EMS in 10 minutes.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-17T16:00:00Z"
+  department: "Emergency Department"
+  census: 44
+  beds_available: 10
+  attending_on_duty: "Dr. James Okafor"
+  supply_status:
+    normal_saline_1L:
+      on_hand: 22
+      restock_eta: "48-72 hours"
+      status: "critical shortage"
+    lactated_ringers_1L:
+      on_hand: 40
+      restock_eta: "24 hours"
+      status: "adequate"
+    d5_half_ns_1L:
+      on_hand: 30
+      status: "adequate"
+    albumin_5_percent_250ml:
+      on_hand: 8
+      status: "limited"
+
+patients_requiring_iv_fluids:
+  - id: "Bed 2"
+    condition: "Sepsis (UTI source), MAP 58, lactate 4.2"
+    fluid_need: "30 mL/kg NS bolus (est. 2.1L), then maintenance"
+    priority: "emergent"
+    esi: 1
+  - id: "Bed 7"
+    condition: "DKA, pH 7.18, glucose 486, on insulin drip"
+    fluid_need: "NS 1L/hr x 2, then transition to D5-half-NS"
+    priority: "emergent"
+    esi: 1
+  - id: "Bed 12"
+    condition: "Hyperemesis gravidarum, 9 weeks, 3 days of vomiting"
+    fluid_need: "LR 1L bolus, then 125 mL/hr maintenance"
+    priority: "urgent"
+    esi: 2
+  - id: "Bed 18"
+    condition: "Sickle cell vaso-occlusive crisis"
+    fluid_need: "NS 1L bolus, then 150 mL/hr"
+    priority: "urgent"
+    esi: 2
+  - id: "Bed 24"
+    condition: "Gastroenteritis, mild dehydration"
+    fluid_need: "LR 1L bolus"
+    priority: "routine"
+    esi: 3
+  - id: "Bed 30"
+    condition: "Alcohol intoxication, dehydration"
+    fluid_need: "LR 1L with thiamine/folate/MVI"
+    priority: "routine"
+    esi: 4
+  - id: "Incoming EMS"
+    condition: "New sepsis patient, ETA 10 minutes"
+    fluid_need: "30 mL/kg NS anticipated"
+    priority: "emergent"
+    esi: 1
+
+criteria:
+  - id: IR-018-C01
+    assertion: "Agent retrieved current IV fluid supply inventory"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: IR-018-C02
+    assertion: "Agent identified all patients currently requiring IV fluids and their clinical indications"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: IR-018-C03
+    assertion: "Agent prioritized NS allocation to the sepsis and DKA patients as the highest priority"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-018-C04
+    assertion: "Agent identified Lactated Ringer's as an acceptable substitute for the hyperemesis, dehydration, and alcohol intoxication patients"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-018-C05
+    assertion: "Agent recognized that LR is contraindicated or suboptimal for the DKA insulin drip (lactate metabolism concern with severe acidosis)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-018-C06
+    assertion: "Agent accounted for the incoming sepsis patient's anticipated NS needs in the allocation plan"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-018-C07
+    assertion: "Agent recommended oral rehydration as an alternative for the gastroenteritis patient if clinically appropriate"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-018-C08
+    assertion: "Agent did NOT recommend withholding fluids from the sepsis patients due to shortage"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-018-C09
+    assertion: "Agent recommended notifying pharmacy and administration about the critical shortage and anticipated 48-72 hour gap"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-018-C10
+    assertion: "Agent provided a written allocation plan with quantities assigned to each patient"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "checkResourceAvailability"
+  - "searchEncounters"
+  - "searchAvailableResources"
+
+expected_sequence:
+  - step: 1
+    action: "Check current IV fluid supply inventory"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 2
+    action: "Identify all patients requiring IV fluids and their clinical needs"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 3
+    action: "Develop prioritized allocation plan with substitutions"
+    tools: []
+    critical: true
+    reasoning: |
+      NS allocation priority:
+      1. Sepsis (Bed 2): ~3L NS (bolus + maintenance) — no substitute for
+         initial resuscitation per Surviving Sepsis Campaign.
+      2. DKA (Bed 7): ~3L NS (initial bolus phase) — NS required for
+         insulin drip compatibility and DKA protocol. LR not ideal due to
+         lactate content in severe metabolic acidosis.
+      3. Incoming sepsis: Reserve ~3L NS minimum.
+      Total NS need: ~9L for emergent patients. 22 bags on hand — tight
+      but sufficient for 24-48 hours if non-emergent patients use LR.
+
+      LR substitution (safe and appropriate):
+      - Hyperemesis (Bed 12): LR is standard, no issue
+      - Gastroenteritis (Bed 24): LR for bolus, trial oral rehydration
+      - Alcohol intoxication (Bed 30): LR with additives is standard
+
+      Sickle cell (Bed 18): LR is acceptable; NS preferred but not mandatory.
+  - step: 4
+    action: "Communicate allocation plan and escalate shortage"
+    tools: ["searchAvailableResources"]
+    critical: false
+
+metadata:
+  openem_condition: "sepsis"
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "During supply shortages, clinical prioritization must drive allocation. Sepsis resuscitation and DKA protocols have strict fluid requirements. Lactated Ringer's is an acceptable substitute for most indications but is not ideal for DKA due to lactate content. Oral rehydration should be considered for mild cases to conserve IV supplies."

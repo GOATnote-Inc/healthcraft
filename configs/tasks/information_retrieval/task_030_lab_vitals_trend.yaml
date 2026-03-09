@@ -1,0 +1,227 @@
+# HEALTHCRAFT Task Definition: Lab and Vitals Trend Analysis
+# Category: information_retrieval | Level: 3
+# Agent must retrieve serial lab values and vitals over a 6-hour ED stay,
+# identify a deteriorating trend, and recognize that the patient is
+# decompensating despite reassuring individual data points.
+
+id: IR-030
+category: information_retrieval
+level: 3
+title: "Lab and Vitals Trend Analysis"
+system_prompt_override: null
+
+description: |
+  A 62-year-old man was admitted to the ED 6 hours ago with chest pain,
+  initially thought to be musculoskeletal based on a normal ECG and negative
+  first troponin. He was placed in a low-acuity observation bed. The
+  attending asks the agent to pull his serial vitals and lab trends before
+  re-evaluation. Individually, each vital sign and lab value appears
+  borderline or only mildly abnormal. But when viewed as a trend, the
+  picture reveals a slowly decompensating patient: heart rate creeping up,
+  blood pressure drifting down, troponin rising (still technically "normal"
+  on the second draw but double the first), and lactate now mildly elevated.
+  The agent must retrieve all serial data, recognize the trend, and flag
+  that this patient is deteriorating.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T14:30:00Z"
+  department: "Emergency Department"
+  census: 38
+  beds_available: 16
+  attending_on_duty: "Dr. James Okafor"
+
+patient:
+  age: 62
+  sex: M
+  chief_complaint: "Chest pain, initially assessed as musculoskeletal"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  location: "Bed 34 (observation area)"
+  allergies: []
+  medications:
+    - "Lisinopril 20mg daily"
+    - "Atorvastatin 40mg daily"
+    - "Metformin 1000mg BID"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Hypertension"
+    - "Type 2 Diabetes"
+    - "Hyperlipidemia"
+    - "No prior cardiac history"
+  serial_vitals:
+    - time: "08:30 (arrival)"
+      heart_rate: 76
+      blood_pressure: "142/84"
+      respiratory_rate: 14
+      spo2: 98
+      temperature: 36.8
+      pain_scale: 4
+    - time: "10:00"
+      heart_rate: 82
+      blood_pressure: "136/80"
+      respiratory_rate: 16
+      spo2: 97
+      temperature: 36.9
+      pain_scale: 3
+    - time: "12:00"
+      heart_rate: 90
+      blood_pressure: "128/76"
+      respiratory_rate: 18
+      spo2: 96
+      temperature: 37.1
+      pain_scale: 5
+    - time: "14:00"
+      heart_rate: 98
+      blood_pressure: "118/72"
+      respiratory_rate: 20
+      spo2: 95
+      temperature: 37.3
+      pain_scale: 6
+    - time: "14:30 (current)"
+      heart_rate: 104
+      blood_pressure: "108/68"
+      respiratory_rate: 22
+      spo2: 94
+      temperature: 37.4
+      pain_scale: 7
+  serial_labs:
+    - time: "08:45"
+      troponin_i: 0.02
+      troponin_reference: "<0.04 ng/mL (normal)"
+      note: "Within normal limits"
+    - time: "11:45"
+      troponin_i: 0.04
+      troponin_reference: "<0.04 ng/mL (normal)"
+      note: "At upper limit of normal — doubled from first draw"
+    - time: "14:15"
+      troponin_i: 0.12
+      troponin_reference: "<0.04 ng/mL (normal)"
+      note: "NOW ELEVATED — 6x the first draw"
+  lactate:
+    - time: "08:45"
+      value: 1.0
+    - time: "14:15"
+      value: 2.4
+  creatinine:
+    - time: "08:45"
+      value: 1.1
+    - time: "14:15"
+      value: 1.4
+  ecg_serial:
+    - time: "08:30"
+      interpretation: "Normal sinus rhythm, no acute changes"
+    - time: "14:20"
+      interpretation: "Sinus tachycardia, rate 104, new ST depression in leads V3-V6 and II, III, aVF"
+
+criteria:
+  - id: IR-030-C01
+    assertion: "Agent retrieved all serial vital signs across the 6-hour stay"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: IR-030-C02
+    assertion: "Agent retrieved all serial lab values including troponin trend"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails or getPatientHistory"
+
+  - id: IR-030-C03
+    assertion: "Agent identified the rising troponin trend (0.02 → 0.04 → 0.12) as diagnostic of acute myocardial injury"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C04
+    assertion: "Agent identified the progressive hemodynamic deterioration (HR rising 76→104, BP falling 142/84→108/68)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C05
+    assertion: "Agent identified the new ST depression on the repeat ECG as evidence of acute coronary syndrome"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C06
+    assertion: "Agent identified the rising lactate (1.0 → 2.4) as evidence of tissue hypoperfusion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C07
+    assertion: "Agent recognized the overall pattern as an evolving NSTEMI with cardiogenic decompensation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C08
+    assertion: "Agent recommended immediate upgrade to a monitored/critical care bed and cardiology consultation"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-030-C09
+    assertion: "Agent flagged that the patient should NOT remain in the low-acuity observation area"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-030-C10
+    assertion: "Agent noted that the second troponin (0.04) was at the upper limit of normal and should have triggered closer monitoring or repeat ECG at that time"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-030-C11
+    assertion: "Agent presented the data as a trend visualization or clear temporal comparison, not just individual values"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve all serial vitals, labs, and ECGs for this encounter"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Analyze trends across all data points"
+    tools: []
+    critical: true
+    reasoning: |
+      Trend analysis:
+      VITALS TREND (6 hours):
+      - HR: 76 → 82 → 90 → 98 → 104 (progressive tachycardia)
+      - BP: 142/84 → 136/80 → 128/76 → 118/72 → 108/68 (progressive hypotension)
+      - RR: 14 → 16 → 18 → 20 → 22 (progressive tachypnea)
+      - SpO2: 98 → 97 → 96 → 95 → 94 (progressive desaturation)
+      - Pain: 4 → 3 → 5 → 6 → 7 (initially improved, now worsening)
+
+      LAB TREND:
+      - Troponin: 0.02 → 0.04 → 0.12 (rising, now 3x normal)
+      - Lactate: 1.0 → 2.4 (doubling — tissue hypoperfusion)
+      - Creatinine: 1.1 → 1.4 (rising — prerenal from poor perfusion)
+
+      ECG TREND:
+      - Initial: Normal sinus rhythm, no changes
+      - Current: Sinus tach, new ST depression V3-V6, II/III/aVF
+
+      Each individual data point at 14:30 could be dismissed: HR 104 is
+      "only mild tachycardia," BP 108/68 is "within normal range,"
+      troponin 0.12 is "just mildly elevated." But the TREND tells a
+      completely different story: this is a patient in the early stages
+      of cardiogenic shock from an evolving NSTEMI. Every parameter is
+      moving in the wrong direction. This patient needs immediate
+      escalation, not continued observation.
+  - step: 3
+    action: "Flag deterioration and recommend escalation"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+
+metadata:
+  openem_condition: "acute_coronary_syndrome"
+  expected_tool_calls: "3-5"
+  entity_types: 3
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Individual data points can appear reassuring while the trend reveals catastrophe. Serial vitals and labs must be viewed as trends, not snapshots. A troponin that doubles — even within the 'normal' range — is a rising troponin and warrants re-evaluation. Progressive tachycardia with progressive hypotension in a chest pain patient is an evolving ACS with hemodynamic compromise until proven otherwise. Never leave a deteriorating patient in a low-acuity area."

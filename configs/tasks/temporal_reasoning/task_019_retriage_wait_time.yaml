@@ -1,0 +1,289 @@
+# HEALTHCRAFT Task Definition: Overcrowded ED Re-Triage
+# Category: temporal_reasoning | Level: 4
+# Overcrowded ED where patients in the waiting room are deteriorating
+# based on wait time. The agent must re-triage based on temporal
+# deterioration signals and reprioritize care.
+
+id: TR-019
+category: temporal_reasoning
+level: 4
+title: "Overcrowded ED Re-Triage"
+system_prompt_override: null
+
+description: |
+  It is 19:45. Mercy Point ED is at 100% capacity (54/54 beds) with 14
+  patients in the waiting room. The charge nurse has flagged three patients
+  for re-triage based on wait-time deterioration:
+
+  1. Patient W1: 58-year-old male, triaged ESI-3 at 16:30 for "abdominal pain,
+     nausea." Now 3 hours 15 minutes in the waiting room. Repeat vitals at
+     19:30 show HR 112 (was 88), BP 98/62 (was 128/78), temp 38.9C (was 37.4C).
+     He is now diaphoretic and pale.
+
+  2. Patient W2: 34-year-old female, triaged ESI-4 at 17:45 for "ankle injury."
+     Now 2 hours in the waiting room. She reports new chest tightness and
+     difficulty breathing. She is 28 weeks pregnant (not mentioned at triage —
+     she was embarrassed and only told the charge nurse when asked why she
+     looked uncomfortable). SpO2 is 93%.
+
+  3. Patient W3: 81-year-old male, triaged ESI-3 at 15:00 for "dizziness."
+     Now 4 hours 45 minutes in the waiting room. He has been sitting quietly
+     and "not complaining," but the charge nurse noticed he is now confused
+     and cannot state the date. His wife says he was "completely normal" at
+     triage.
+
+  The agent must re-triage all three patients, identify the most time-critical,
+  create bed space (identify potential discharges from current patients), and
+  manage the queue — all while recognizing that prolonged wait times are
+  themselves a source of clinical risk.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T19:45:00Z"
+  department: "Emergency Department"
+  census: 54
+  beds_available: 0
+  beds_total: 54
+  shift: "evening"
+  esi_distribution:
+    esi_1: 2
+    esi_2: 8
+    esi_3: 24
+    esi_4: 14
+    esi_5: 6
+  attending_count: 2
+  resident_count: 2
+  nurses_on_duty: 10
+  waiting_room_count: 14
+  waiting_room_flagged: 3
+  potential_discharges:
+    - bed: 18
+      patient: "22F, ankle sprain, X-ray negative, waiting for discharge paperwork since 18:30"
+    - bed: 42
+      patient: "45M, migraine, resolved with treatment, waiting for ride since 19:00"
+    - bed: 7
+      patient: "30M, laceration repair complete, wound check done, awaiting discharge instructions"
+  hallway_capacity: 4
+  hallway_occupied: 2
+
+patient:
+  patients:
+    - id: "W1"
+      age: 58
+      sex: M
+      chief_complaint: "Abdominal pain, nausea"
+      triage_time: "2026-01-15T16:30:00Z"
+      wait_time_minutes: 195
+      triage_esi: 3
+      vitals_at_triage:
+        time_of_vitals: "2026-01-15T16:30:00Z"
+        heart_rate: 88
+        blood_pressure: "128/78"
+        respiratory_rate: 16
+        spo2: 98
+        temperature: 37.4
+        gcs: 15
+      vitals_current:
+        time_of_vitals: "2026-01-15T19:30:00Z"
+        heart_rate: 112
+        blood_pressure: "98/62"
+        respiratory_rate: 22
+        spo2: 96
+        temperature: 38.9
+        gcs: 14
+        appearance: "Diaphoretic, pale, guarding abdomen"
+      past_medical_history:
+        - "Hypertension"
+        - "Abdominal aortic aneurysm (4.2 cm, monitored, last US 6 months ago)"
+        - "Hyperlipidemia"
+      medications:
+        - "Lisinopril 20mg daily"
+        - "Atorvastatin 40mg daily"
+        - "Aspirin 81mg daily"
+
+    - id: "W2"
+      age: 34
+      sex: F
+      chief_complaint: "Ankle injury (triage) → now with chest tightness, dyspnea"
+      triage_time: "2026-01-15T17:45:00Z"
+      wait_time_minutes: 120
+      triage_esi: 4
+      pregnancy:
+        gestational_age_weeks: 28
+        complications: "None reported previously"
+        ob_provider: "Dr. Martinez (not yet notified)"
+      vitals_at_triage:
+        time_of_vitals: "2026-01-15T17:45:00Z"
+        heart_rate: 92
+        blood_pressure: "118/72"
+        respiratory_rate: 16
+        spo2: 98
+        temperature: 36.8
+        gcs: 15
+      vitals_current:
+        time_of_vitals: "2026-01-15T19:40:00Z"
+        heart_rate: 110
+        blood_pressure: "108/68"
+        respiratory_rate: 22
+        spo2: 93
+        temperature: 37.0
+        gcs: 15
+        appearance: "Anxious, mild respiratory distress, left leg swelling noted"
+      past_medical_history:
+        - "G2P1, prior uncomplicated pregnancy"
+        - "No known DVT/PE history"
+        - "No thrombophilia history"
+      risk_factors:
+        - "28 weeks pregnant (hypercoagulable state)"
+        - "Ankle injury with immobility"
+        - "New dyspnea and tachycardia"
+
+    - id: "W3"
+      age: 81
+      sex: M
+      chief_complaint: "Dizziness"
+      triage_time: "2026-01-15T15:00:00Z"
+      wait_time_minutes: 285
+      triage_esi: 3
+      vitals_at_triage:
+        time_of_vitals: "2026-01-15T15:00:00Z"
+        heart_rate: 72
+        blood_pressure: "148/88"
+        respiratory_rate: 14
+        spo2: 97
+        temperature: 36.6
+        gcs: 15
+        mental_status: "Alert, oriented x4"
+      vitals_current:
+        time_of_vitals: "2026-01-15T19:35:00Z"
+        heart_rate: 68
+        blood_pressure: "192/106"
+        respiratory_rate: 16
+        spo2: 96
+        temperature: 36.7
+        gcs: 13
+        mental_status: "Confused, cannot state date, oriented x2, new R facial droop per wife"
+      past_medical_history:
+        - "Hypertension"
+        - "Atrial fibrillation (on apixaban)"
+        - "Prior TIA (2024)"
+        - "Mild cognitive impairment (baseline oriented x4 per wife)"
+      medications:
+        - "Apixaban 5mg BID"
+        - "Metoprolol 50mg BID"
+        - "Amlodipine 5mg daily"
+
+criteria:
+  - id: TR-019-C01
+    assertion: "Agent re-triaged Patient W3 as ESI-1 or ESI-2 and recognized new neurological deficits (confusion, R facial droop) as possible stroke"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with ESI upgrade for W3"
+
+  - id: TR-019-C02
+    assertion: "Agent activated stroke code for Patient W3 given new confusion, facial droop, and history of prior TIA"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to applyProtocol with stroke code activation"
+
+  - id: TR-019-C03
+    assertion: "Agent recognized Patient W2's new symptoms (dyspnea, tachycardia, leg swelling, SpO2 93% in pregnant patient) as possible PE and re-triaged to ESI-2"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-019-C04
+    assertion: "Agent re-triaged Patient W1 to ESI-2 given hemodynamic deterioration (new tachycardia, hypotension, fever) with known AAA"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with ESI upgrade for W1"
+
+  - id: TR-019-C05
+    assertion: "Agent prioritized W3 first (possible acute stroke with last-known-well window closing), then W2 (PE in pregnancy), then W1 (sepsis/AAA concern)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-019-C06
+    assertion: "Agent identified potential bed space by expediting discharges (beds 18, 42, and/or 7 have patients ready)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters or checkResourceAvailability identifying discharge-ready patients"
+
+  - id: TR-019-C07
+    assertion: "Agent ordered STAT CT head for W3 and established last-known-well time (15:00 at triage was oriented x4)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with CT head for W3"
+
+  - id: TR-019-C08
+    assertion: "Agent ordered appropriate workup for W2 considering pregnancy (CTA chest with lead shielding, or V/Q scan, D-dimer with pregnancy-adjusted threshold)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with PE workup for W2"
+
+  - id: TR-019-C09
+    assertion: "Agent considered the AAA history in W1's differential (known 4.2 cm AAA, now hypotensive with abdominal pain = possible rupture) and ordered appropriate imaging"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with CT abdomen or bedside ultrasound for W1"
+
+  - id: TR-019-C10
+    assertion: "Agent utilized hallway beds or other overflow capacity to get critical patients out of the waiting room"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to updateEncounter or checkResourceAvailability with bed assignment"
+
+  - id: TR-019-C11
+    assertion: "Agent notified OB for Patient W2 given 28-week pregnancy with possible PE"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to updateEncounter or createClinicalOrder with OB notification"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "searchEncounters"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "applyProtocol"
+  - "searchAvailableResources"
+
+expected_sequence:
+  - step: 1
+    action: "Review all three flagged patients — identify W3 as most time-critical (possible stroke)"
+    tools: ["getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Activate stroke code for W3, get to CT immediately"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Re-triage W2 (PE in pregnancy) and W1 (sepsis/AAA) — upgrade ESI levels"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 7
+  - step: 4
+    action: "Create bed space — expedite discharges from beds 18, 42, 7"
+    tools: ["searchEncounters", "checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 5
+    action: "Order workups: PE protocol for W2, CT abdomen + resuscitation for W1"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 13
+  - step: 6
+    action: "Notify OB for W2, assign beds, document re-triage decisions"
+    tools: ["updateEncounter", "createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "stroke"
+  expected_tool_calls: "12-15"
+  entity_types: 8
+  time_pressure: "extreme"
+  parallel_threads: 3
+  teaching_point: "Waiting room patients are not 'safe' patients. Prolonged ED wait times cause measurable deterioration: 4+ hour waits are associated with increased mortality. Re-triage must be systematic, not reactive. W3's stroke window is closing — the LKW was at triage (15:00), making this a 4.75-hour window. W2's undisclosed pregnancy with new PE symptoms is a classic triage miss. W1's known AAA with new hemodynamic instability is a surgical emergency until proven otherwise."

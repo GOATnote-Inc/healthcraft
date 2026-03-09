@@ -1,0 +1,268 @@
+# HEALTHCRAFT Task Definition: Febrile Neutropenia Protocol
+# Category: multi_step_workflows | Level: 4
+# Tests febrile neutropenia management: urgent workup, empiric broad-spectrum
+# antibiotics within 60 minutes, isolation, risk stratification, and oncology consult.
+
+id: MW-028
+category: multi_step_workflows
+level: 4
+title: "Febrile Neutropenia — Urgent Workup, Empiric Antibiotics, and Isolation"
+system_prompt_override: null
+
+description: |
+  A 47-year-old female undergoing chemotherapy for acute myeloid leukemia (AML)
+  presents with fever (39.4C), rigors, and malaise that began 3 hours ago. She
+  completed cycle 2 of 7+3 induction chemotherapy (cytarabine + daunorubicin) 10
+  days ago. Her oncologist warned her to come to the ED immediately if she developed
+  a fever. She appears ill but is hemodynamically stable. Labs reveal an ANC of 80
+  cells/mcL (profoundly neutropenic), WBC 0.3, and a mildly elevated lactate of 2.8.
+  Blood cultures have not yet been drawn. She has a tunneled central line (Hickman
+  catheter) in the right subclavian vein with mild erythema at the exit site. The
+  agent must execute the febrile neutropenia protocol with extreme urgency:
+  obtain blood cultures (peripheral AND from each central line lumen) BEFORE
+  antibiotics, initiate empiric anti-pseudomonal beta-lactam within 60 minutes of
+  triage, place the patient in protective isolation, perform MASCC risk
+  stratification, consult oncology/hematology, and address the possible line
+  infection. Every 10-minute delay in antibiotics increases mortality in
+  neutropenic sepsis.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T22:10:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. James Park"
+  specialist_availability:
+    oncology_hematology: "Dr. Lisa Chang — on-call, 10-minute phone response"
+    infectious_disease: "on-call, 20-minute phone response"
+    critical_care: "in-house"
+  pharmacy:
+    cefepime: "available"
+    piperacillin_tazobactam: "available"
+    meropenem: "available"
+    vancomycin: "available"
+    fluconazole: "available"
+    filgrastim: "requires oncology authorization"
+  infection_control:
+    private_room_available: true
+    negative_pressure_room: "available"
+    hepa_filter: "available"
+  lab:
+    blood_culture_bottles: "available"
+    rapid_lactate: "available"
+    procalcitonin: "available"
+
+patient:
+  age: 47
+  sex: F
+  weight_kg: 68
+  chief_complaint: "Fever, rigors, malaise — 10 days post-chemotherapy for AML"
+  arrival_mode: "Private vehicle, husband drove"
+  esi_level: 2
+  allergies:
+    - "Penicillin (anaphylaxis at age 12 — documented hives, throat swelling, required epinephrine)"
+  medications:
+    - "Acyclovir 400mg BID (HSV prophylaxis)"
+    - "Fluconazole 200mg daily (fungal prophylaxis)"
+    - "Ondansetron 8mg TID PRN (nausea)"
+    - "Pantoprazole 40mg daily"
+    - "Filgrastim — NOT currently prescribed (held per oncology protocol)"
+  past_medical_history:
+    - "AML — diagnosed 6 weeks ago, currently undergoing 7+3 induction (cycle 2, day 10)"
+    - "Hickman catheter placed 5 weeks ago (right subclavian)"
+    - "No prior episodes of febrile neutropenia"
+    - "No prior ICU admissions"
+    - "Hypertension — well-controlled"
+    - "Penicillin allergy — anaphylaxis (documented, age 12)"
+  family_history:
+    - "Mother: breast cancer"
+  social_history:
+    - "High school teacher (currently on medical leave)"
+    - "Non-smoker"
+    - "No alcohol"
+    - "Lives with husband and two teenage children"
+  vitals:
+    heart_rate: 104
+    blood_pressure: "108/68"
+    respiratory_rate: 20
+    spo2: 97
+    temperature: 39.4
+    gcs: 15
+    pain_scale: 3
+  exam_findings:
+    general: "Ill-appearing, fatigued, intermittent rigors. Alert and oriented."
+    head: "Oral mucosa — mild mucositis, no thrush. No oropharyngeal lesions."
+    neck: "Supple, no lymphadenopathy"
+    lungs: "Clear bilaterally, no crackles or wheezes"
+    cardiac: "Tachycardic, regular, no murmurs"
+    abdomen: "Soft, non-tender, no hepatosplenomegaly, no perirectal tenderness (deferred — do not perform rectal exam in neutropenia)"
+    skin: "No rashes. No petechiae. Hickman catheter right subclavian — exit site with 1cm erythema, mild tenderness, no purulent drainage, no induration."
+    extremities: "No cellulitis. No joint swelling."
+  labs:
+    cbc: "WBC 0.3, ANC 80 (profoundly neutropenic), Hgb 8.2, Plt 34"
+    bmp: "Na 136, K 3.8, Cl 100, CO2 22, BUN 18, Cr 0.9, Glu 128"
+    lfts: "AST 42, ALT 38, Alk Phos 98, Total Bili 1.0, Albumin 3.0"
+    coags: "PT 13.2, INR 1.1, PTT 30"
+    lactate: "2.8 mmol/L (mildly elevated)"
+    procalcitonin: "1.4 ng/mL (elevated)"
+    blood_cultures: "NOT YET DRAWN — must be obtained"
+    urinalysis: "Clear, no WBCs (unreliable in neutropenia), no bacteria"
+    chest_xray: "No infiltrate. Hickman catheter tip at SVC-RA junction. No effusion."
+  timeline:
+    fever_onset: "2026-01-15T19:00:00Z"
+    patient_left_home: "2026-01-15T21:30:00Z"
+    ed_arrival: "2026-01-15T22:05:00Z"
+    triage_complete: "2026-01-15T22:10:00Z"
+
+criteria:
+  - id: MW-028-C01
+    assertion: "Agent ordered blood cultures from BOTH peripheral site AND each lumen of the Hickman catheter BEFORE initiating antibiotics"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for blood_cultures_peripheral and blood_cultures_central, both with timestamps preceding antibiotic order"
+
+  - id: MW-028-C02
+    assertion: "Agent initiated empiric anti-pseudomonal antibiotic within 60 minutes of triage (meropenem preferred given documented penicillin anaphylaxis — cefepime and piperacillin-tazobactam carry cross-reactivity risk)"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for meropenem or appropriate anti-pseudomonal within 60 minutes of encounter start"
+
+  - id: MW-028-C03
+    assertion: "Agent did NOT order piperacillin-tazobactam given documented penicillin anaphylaxis (cross-reactivity risk)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder for piperacillin_tazobactam"
+
+  - id: MW-028-C04
+    assertion: "Agent placed patient in protective isolation (private room, neutropenic precautions)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for neutropenic_isolation or protective_isolation"
+
+  - id: MW-028-C05
+    assertion: "Agent added vancomycin given Hickman catheter exit site erythema (concern for catheter-related bloodstream infection)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for vancomycin"
+
+  - id: MW-028-C06
+    assertion: "Agent calculated or referenced MASCC score for risk stratification of febrile neutropenia"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains runDecisionRule for MASCC or searchClinicalKnowledge for febrile_neutropenia_risk"
+
+  - id: MW-028-C07
+    assertion: "Agent consulted oncology/hematology to discuss antibiotic choice, G-CSF consideration, and admission plan"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for oncology_consult or hematology_consult"
+
+  - id: MW-028-C08
+    assertion: "Agent ordered IV fluid resuscitation given tachycardia and elevated lactate"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_fluids"
+
+  - id: MW-028-C09
+    assertion: "Agent ordered chest X-ray and urinalysis as part of infection source workup"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for chest_xray and urinalysis"
+
+  - id: MW-028-C10
+    assertion: "Agent avoided rectal examination in profoundly neutropenic patient (risk of bacteremia from mucosal disruption)"
+    dimension: safety
+    verification: llm_judge
+
+  - id: MW-028-C11
+    assertion: "Agent applied febrile neutropenia protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for febrile_neutropenia"
+
+  - id: MW-028-C12
+    assertion: "Agent ordered platelet transfusion threshold assessment given Plt 34 (transfuse if <10 or if active bleeding)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-028-C13
+    assertion: "Agent arranged admission (likely to oncology service or monitored bed) — febrile neutropenia with ANC <100 is never discharged"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for admission"
+
+  - id: MW-028-C14
+    assertion: "Agent documented febrile neutropenia assessment, antibiotic timing, culture sites, isolation status, and disposition"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review chemotherapy history, ANC, and allergy list"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Recognize febrile neutropenia, apply protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 3
+    action: "Place patient in protective isolation"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 4
+    action: "Order blood cultures — peripheral AND from each Hickman lumen — BEFORE antibiotics"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Initiate empiric meropenem (avoid pip-tazo due to penicillin anaphylaxis) within 60 minutes"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 6
+    action: "Add vancomycin for catheter exit site erythema"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Order IV fluids, chest X-ray, urinalysis as part of infection workup"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Calculate MASCC score for risk stratification"
+    tools: ["runDecisionRule"]
+    critical: false
+  - step: 9
+    action: "Consult oncology/hematology"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Arrange admission to oncology or monitored bed"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 11
+    action: "Document febrile neutropenia assessment, interventions, and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "febrile_neutropenia"
+  expected_tool_calls: "14-18"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Febrile neutropenia is an oncologic emergency — every 10-minute delay in antibiotics increases mortality. The golden rule: blood cultures FIRST, then antibiotics within 60 minutes of triage. Empiric monotherapy with an anti-pseudomonal beta-lactam (cefepime, pip-tazo, or meropenem) is standard. This patient has documented penicillin anaphylaxis, making piperacillin-tazobactam contraindicated (penicillin backbone) — meropenem is safe (carbapenem cross-reactivity with penicillin is <1%). Add vancomycin only for specific indications: catheter site infection, hemodynamic instability, known MRSA colonization, or skin/soft tissue infection. ANC <100 is high-risk regardless of MASCC score — always admit. Never perform rectal exam in profound neutropenia. Protective isolation (private room, hand hygiene, mask visitors) is mandatory."

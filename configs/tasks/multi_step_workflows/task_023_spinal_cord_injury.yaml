@@ -1,0 +1,247 @@
+# HEALTHCRAFT Task Definition: Spinal Cord Injury Immobilization and Transfer
+# Category: multi_step_workflows | Level: 4
+# Tests spinal cord injury management: immobilization, neurological assessment,
+# hemodynamic support, and transfer to a spine center.
+
+id: MW-023
+category: multi_step_workflows
+level: 4
+title: "Spinal Cord Injury — Immobilization and Transfer"
+system_prompt_override: null
+
+description: |
+  A 24-year-old male presents after a diving accident in a shallow lake. He dove
+  headfirst from a dock into approximately 3 feet of water, striking the bottom.
+  Bystanders pulled him from the water with in-line stabilization. He has complete
+  loss of motor function and sensation below the nipple line (approximately T4).
+  He has priapism. He is bradycardic (HR 48) and hypotensive (BP 78/40) consistent
+  with neurogenic shock (loss of sympathetic tone below the injury). He has no
+  sensation to pinprick below T4, no voluntary motor function in lower extremities,
+  absent patellar and Achilles reflexes, and reduced grip strength bilateral upper
+  extremities. CT spine shows a C5-C6 burst fracture with retropulsed fragment
+  compressing the spinal cord. This facility does not have a spine surgeon or
+  neurosurgeon. The agent must complete the neurological assessment (ASIA/ISNCSCI),
+  manage neurogenic shock with fluids and vasopressors, maintain spinal
+  immobilization, address secondary injury prevention, and coordinate emergent
+  transfer to a Level I trauma center with spine surgery capability.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:15:00Z"
+  department: "Emergency Department"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. James Park"
+  specialist_availability:
+    neurosurgery: "NOT available — nearest neurosurgeon at University Medical Center, 60 miles"
+    orthopedic_spine: "NOT available on-site"
+    trauma_surgery: "on-call, 15-minute response — can manage general trauma but not spine"
+    critical_care: "in-house"
+  transfer_options:
+    university_medical_center:
+      name: "University Medical Center — Level I Trauma"
+      distance: "60 miles, 35 minutes by helicopter"
+      spine_surgery: "available — neurosurgery and orthopedic spine on-call"
+      beds_available: "accepting — trauma ICU bed available"
+      helicopter: "available, launch in 15 minutes"
+  imaging:
+    ct_scanner: "available — CT spine completed"
+    mri: "available but transfer should not be delayed for MRI"
+
+patient:
+  age: 24
+  sex: M
+  weight_kg: 80
+  chief_complaint: "Diving accident, unable to move legs, no sensation below chest"
+  arrival_mode: "EMS, ALS unit, spinal immobilization in place"
+  esi_level: 1
+  allergies:
+    - "No known allergies"
+  medications: []
+  past_medical_history:
+    - "No significant medical history"
+    - "No prior injuries"
+    - "Healthy, active"
+  social_history:
+    - "College student"
+    - "Recreational sports"
+    - "Social drinker — had 2 beers prior to incident"
+    - "No drugs"
+  vitals:
+    heart_rate: 48
+    blood_pressure: "78/40"
+    respiratory_rate: 20
+    spo2: 96
+    temperature: 35.6
+    gcs: 15
+    pain_scale: 6
+  exam_findings:
+    general: "Alert, anxious, flat on backboard with cervical collar, unable to move lower extremities"
+    neuro: |
+      Motor exam:
+      - C5 (biceps): 3/5 bilateral
+      - C6 (wrist extensors): 2/5 bilateral
+      - C7 (triceps): 0/5 bilateral
+      - C8 (finger flexors): 0/5 bilateral
+      - T1 (finger abductors): 0/5 bilateral
+      - L2 (hip flexors): 0/5 bilateral
+      - L3 (knee extensors): 0/5 bilateral
+      - L4 (ankle dorsiflexors): 0/5 bilateral
+      - L5 (great toe extensors): 0/5 bilateral
+      - S1 (ankle plantarflexors): 0/5 bilateral
+      Sensory exam:
+      - Light touch: absent below T4 bilateral
+      - Pinprick: absent below T4 bilateral
+      - Perianal sensation: absent
+      Reflexes:
+      - Biceps: 1+ bilateral
+      - Patellar: absent bilateral
+      - Achilles: absent bilateral
+      - Bulbocavernosus: absent (spinal shock)
+      - Rectal tone: absent
+      Priapism: present
+    cardiac: "Bradycardic, regular, no murmurs"
+    lungs: "Clear bilateral, diaphragmatic breathing predominant, weak cough"
+    abdomen: "Soft, distended (ileus), no voluntary guarding — cannot assess due to sensory loss"
+    skin: "Warm and dry below injury level (loss of sympathetic tone). Cool and clammy above."
+  imaging_results:
+    ct_c_spine: "C5-C6 burst fracture with 40% canal compromise from retropulsed fragment. Alignment disrupted. C5-C6 facet subluxation."
+    ct_head: "No intracranial hemorrhage"
+    ct_chest_abdomen_pelvis: "No acute thoracic or abdominal injury"
+  labs:
+    cbc: "WBC 14.2, Hgb 14.6, Plt 240"
+    bmp: "Na 138, K 4.2, Cl 102, CO2 24, BUN 16, Cr 0.9, Glu 142"
+    coags: "PT 12.0, INR 1.0"
+    lactate: "3.8 mmol/L"
+    ethanol: "48 mg/dL"
+    ua: "Clear"
+  timeline:
+    injury_event: "2026-01-15T13:30:00Z"
+    bystander_rescue: "2026-01-15T13:32:00Z"
+    ems_arrival: "2026-01-15T13:42:00Z"
+    ed_arrival: "2026-01-15T14:05:00Z"
+    ct_completed: "2026-01-15T14:12:00Z"
+
+criteria:
+  - id: MW-023-C01
+    assertion: "Agent maintained strict spinal immobilization throughout assessment and did not remove cervical collar"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-023-C02
+    assertion: "Agent performed ASIA/ISNCSCI neurological assessment documenting motor level, sensory level, and completeness of injury"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains searchClinicalKnowledge or getProtocolDetails for ASIA_exam"
+
+  - id: MW-023-C03
+    assertion: "Agent identified neurogenic shock (bradycardia + hypotension from loss of sympathetic tone) and distinguished from hemorrhagic shock"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-023-C04
+    assertion: "Agent managed neurogenic shock with IV fluids AND vasopressors (norepinephrine or phenylephrine) — targeting MAP >= 85-90 mmHg for spinal cord perfusion"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for vasopressor and IV_fluids"
+
+  - id: MW-023-C05
+    assertion: "Agent targeted higher MAP (>= 85 mmHg) than standard resuscitation targets to optimize spinal cord perfusion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-023-C06
+    assertion: "Agent addressed hypothermia prevention (temperature 35.6C — avoid hypothermia in SCI as it worsens neurogenic shock)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for warming"
+
+  - id: MW-023-C07
+    assertion: "Agent ordered Foley catheter for neurogenic bladder (unable to void with SCI)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for foley_catheter"
+
+  - id: MW-023-C08
+    assertion: "Agent initiated emergent transfer to Level I trauma center with spine surgery capability via helicopter"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains processTransfer or calculateTransferTime for spine_center"
+
+  - id: MW-023-C09
+    assertion: "Agent communicated with receiving facility, providing neurological exam, imaging findings, and hemodynamic status"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: MW-023-C10
+    assertion: "Agent addressed DVT prophylaxis planning given complete SCI (high risk for VTE)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-023-C11
+    assertion: "Agent monitored respiratory function given high thoracic cord injury (T4 level — diaphragmatic breathing only, weak cough, at risk for respiratory failure)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-023-C12
+    assertion: "Agent documented neurological exam, injury classification (ASIA grade), hemodynamic management, and transfer plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with SCI documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "processTransfer"
+  - "calculateTransferTime"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review imaging, perform ASIA neurological exam"
+    tools: ["getEncounterDetails", "getPatientHistory", "searchClinicalKnowledge"]
+    critical: true
+  - step: 2
+    action: "Identify neurogenic shock and initiate treatment"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Start vasopressors targeting MAP >= 85 mmHg, IV fluids"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Maintain immobilization, active warming, Foley catheter"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Monitor respiratory status — prepare for possible intubation"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 6
+    action: "Contact Level I trauma center, initiate helicopter transfer"
+    tools: ["calculateTransferTime", "processTransfer", "checkResourceAvailability"]
+    critical: true
+  - step: 7
+    action: "Communicate neurological exam and imaging to receiving facility"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 8
+    action: "Document ASIA exam, injury classification, and management plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "spinal_cord_injury"
+  expected_tool_calls: "12-16"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Acute spinal cord injury management: (1) Maintain strict immobilization. (2) Distinguish neurogenic shock (bradycardia + hypotension + warm extremities) from hemorrhagic shock. (3) Target MAP >= 85 mmHg for spinal cord perfusion pressure optimization — this is HIGHER than standard trauma targets. (4) Monitor respiratory function — injuries above C5 may require intubation. (5) Transfer to a spine center early — time to decompression affects outcomes. (6) ASIA exam is the standard neurological assessment for SCI classification."

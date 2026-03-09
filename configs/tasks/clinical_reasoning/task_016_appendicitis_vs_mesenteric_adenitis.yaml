@@ -1,0 +1,214 @@
+# HEALTHCRAFT Task Definition: Appendicitis vs Mesenteric Adenitis
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: appendicitis:mesenteric_adenitis
+# Pediatric patient with RLQ pain — agent must differentiate surgical appendicitis
+# from self-limiting mesenteric adenitis to avoid unnecessary laparotomy or missed perforation.
+
+id: CR-016
+category: clinical_reasoning
+level: 4
+title: "The Inflamed Mimic"
+system_prompt_override: null
+
+description: |
+  A 9-year-old male presents with 18 hours of progressive right lower quadrant pain,
+  low-grade fever (38.4°C), and two episodes of non-bilious vomiting. He had an
+  upper respiratory infection 5 days ago that has mostly resolved. On exam, there is
+  point tenderness at McBurney's point with voluntary guarding, positive Rovsing's
+  sign, and a positive psoas sign. WBC is 14.8 with 82% neutrophils. CRP is 4.2 mg/dL.
+  Ultrasound shows a non-compressible tubular structure in the RLQ measuring 8mm
+  in diameter with periappendiceal fat stranding and a small amount of free fluid.
+  Several enlarged mesenteric lymph nodes are also noted (up to 12mm), which could
+  suggest mesenteric adenitis. The agent must integrate the clinical picture,
+  ultrasound findings, and labs to correctly diagnose acute appendicitis and
+  arrange surgical consultation rather than dismissing the presentation as
+  post-viral mesenteric adenitis.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:32:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    pediatric_surgery: "on_call, 25min response"
+    radiology: "in_house"
+    pediatrics: "on_call, 20min response"
+
+patient:
+  age: 9
+  sex: M
+  chief_complaint: "Belly pain, worse on the right side, throwing up"
+  arrival_mode: "private vehicle"
+  esi_level: 3
+  allergies:
+    - "None known"
+  medications:
+    - "Ibuprofen 200mg given at home 4 hours ago"
+  past_medical_history:
+    - "Upper respiratory infection 5 days ago (rhinorrhea, cough, low-grade fever)"
+    - "No prior abdominal surgeries"
+    - "Up to date on immunizations"
+  family_history:
+    - "Father: appendectomy at age 12"
+    - "Mother: healthy"
+  social_history:
+    - "4th grader, lives with both parents"
+    - "Active in sports"
+  vitals:
+    heart_rate: 108
+    blood_pressure: "102/64"
+    respiratory_rate: 22
+    spo2: 99
+    temperature: 38.4
+    gcs: 15
+    pain_scale: 7
+  exam_findings:
+    general: "Lying still, knees drawn up, uncomfortable with movement"
+    abdomen: "RLQ tenderness maximal at McBurney's point, voluntary guarding, positive Rovsing's sign (RLQ pain with palpation of LLQ), positive psoas sign, negative obturator sign, no palpable mass, hypoactive bowel sounds"
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Clear bilaterally, no URI symptoms currently"
+    skin: "Warm, dry, no rash"
+    neurological: "Alert, appropriate for age"
+  labs:
+    cbc:
+      wbc: 14.8
+      neutrophils: 82
+      bands: 4
+      hemoglobin: 13.2
+      platelets: 290
+    bmp:
+      sodium: 139
+      potassium: 4.0
+      chloride: 102
+      co2: 22
+      bun: 14
+      creatinine: 0.5
+      glucose: 98
+    crp: 4.2
+    crp_units: "mg/dL (normal <0.5)"
+    urinalysis: "Trace ketones, otherwise normal, no WBCs, no bacteria"
+  imaging:
+    rlq_ultrasound:
+      result: "Non-compressible tubular structure in the RLQ measuring 8mm in diameter (abnormal >6mm). Periappendiceal fat stranding present. Small amount of free fluid in the pelvis. Several prominent mesenteric lymph nodes measuring up to 12mm in short axis. No appendicolith identified."
+      read_by: "Dr. Lisa Wong, Radiology"
+
+criteria:
+  - id: CR-016-C01
+    assertion: "Agent reviewed vital signs and exam findings including McBurney's point tenderness, Rovsing's sign, and psoas sign"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-016-C02
+    assertion: "Agent retrieved patient history including recent URI and family history of appendectomy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-016-C03
+    assertion: "Agent reviewed labs including elevated WBC with left shift and elevated CRP"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-016-C04
+    assertion: "Agent reviewed ultrasound findings and correctly interpreted the 8mm non-compressible appendix as diagnostic of appendicitis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-016-C05
+    assertion: "Agent diagnosed acute appendicitis as the primary diagnosis, not mesenteric adenitis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-016-C06
+    assertion: "Agent acknowledged the enlarged mesenteric lymph nodes but correctly identified them as incidental or reactive rather than the primary pathology"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-016-C07
+    assertion: "Agent consulted pediatric surgery for operative management"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C08
+    assertion: "Agent did NOT discharge the patient with a diagnosis of mesenteric adenitis"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain processDischarge"
+
+  - id: CR-016-C09
+    assertion: "Agent ordered IV fluids for hydration and NPO status in preparation for surgery"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C10
+    assertion: "Agent ordered appropriate analgesia (IV morphine or ketorolac) without withholding pain control"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C11
+    assertion: "Agent ordered IV antibiotics appropriate for appendicitis (e.g., piperacillin-tazobactam or cefoxitin)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-016-C12
+    assertion: "Agent used Alvarado or Pediatric Appendicitis Score to support clinical decision-making"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-016-C13
+    assertion: "Agent documented the differential diagnosis including both appendicitis and mesenteric adenitis with reasoning for the final diagnosis"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals and exam — RLQ tenderness, peritoneal signs"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review history — recent URI raises mesenteric adenitis in differential"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Review labs — leukocytosis with left shift, elevated CRP"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Review ultrasound — 8mm non-compressible appendix is diagnostic"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Diagnose appendicitis, not mesenteric adenitis"
+    tools: []
+    critical: true
+    reasoning: "Non-compressible appendix >6mm with periappendiceal stranding and free fluid is appendicitis regardless of concurrent lymphadenopathy. Enlarged mesenteric nodes are reactive, not the primary pathology."
+  - step: 6
+    action: "Consult pediatric surgery, start IV antibiotics, NPO, IV fluids, analgesia"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "appendicitis:mesenteric_adenitis"
+  openem_condition: "appendicitis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Mesenteric adenitis is a diagnosis of exclusion. An appendix >6mm on ultrasound with periappendiceal changes is appendicitis until proven otherwise, even in the setting of recent URI and enlarged mesenteric lymph nodes. The presence of mesenteric lymphadenopathy does not rule out concurrent appendicitis."

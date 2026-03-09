@@ -1,0 +1,166 @@
+# HEALTHCRAFT Task Definition: Paginated Search Trap
+# Category: information_retrieval | Level: 3
+# Agent must navigate pagination limits to find a specific prior encounter
+# buried beyond the first page of results. Tests noise handling.
+
+id: IR-016
+category: information_retrieval
+level: 3
+title: "Paginated Search Trap"
+system_prompt_override: null
+
+description: |
+  A 54-year-old man presents with recurrent abdominal pain. He says he was
+  seen at this ED "about six months ago" for the same complaint and was told
+  he had gallstones and needed surgery, but never followed up. The attending
+  wants to review that prior encounter including imaging results and surgical
+  recommendation. The patient has had 14 ED visits in the past year for
+  various complaints. The search tool returns a maximum of 10 results per
+  query with no "hasMore" indicator. The critical gallstone encounter is the
+  12th most recent visit. The agent must recognize the incomplete search
+  results and issue a follow-up query with an offset or narrowed date range
+  to locate the relevant encounter.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T09:45:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Rachel Kim"
+  search_pagination:
+    max_results_per_query: 10
+    total_encounters: 14
+    target_encounter_position: 12
+
+patient:
+  age: 54
+  sex: M
+  chief_complaint: "Recurrent RUQ abdominal pain, nausea, worse after eating"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  location: "Bed 11"
+  allergies: []
+  medications:
+    - "Omeprazole 20mg daily"
+    - "Ibuprofen 400mg PRN (self-medicating)"
+  past_medical_history:
+    - "Cholelithiasis (diagnosed here ~6 months ago)"
+    - "GERD"
+    - "Chronic low back pain"
+    - "Anxiety disorder"
+  vitals:
+    heart_rate: 88
+    blood_pressure: "146/88"
+    respiratory_rate: 16
+    spo2: 98
+    temperature: 37.2
+    gcs: 15
+    pain_scale: 7
+  prior_encounters:
+    - "2026-01-10: Anxiety/chest tightness (discharged)"
+    - "2025-12-28: Low back pain (discharged)"
+    - "2025-12-14: Headache (discharged)"
+    - "2025-11-30: Abdominal pain (discharged, no imaging)"
+    - "2025-11-22: Ankle sprain (discharged)"
+    - "2025-11-08: Anxiety/palpitations (discharged)"
+    - "2025-10-25: Sore throat (discharged)"
+    - "2025-10-12: Low back pain (discharged)"
+    - "2025-09-28: Insomnia complaint (discharged)"
+    - "2025-09-15: URI symptoms (discharged)"
+    - "2025-08-30: Knee pain (discharged)"
+    - "2025-07-18: RUQ pain — RUQ US showed multiple gallstones, CBD 4mm, no wall thickening. Surgical consult recommended elective cholecystectomy. Patient declined, left AMA before surgeon arrived."
+    - "2025-06-22: Anxiety (discharged)"
+    - "2025-05-10: Low back pain (discharged)"
+
+criteria:
+  - id: IR-016-C01
+    assertion: "Agent performed an initial search for the patient's prior encounters"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: IR-016-C02
+    assertion: "Agent recognized that the initial search results (10 of 14) did not contain the target gallstone encounter"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-016-C03
+    assertion: "Agent performed a second search with offset, date filter, or narrowed parameters to retrieve older encounters"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains at least 2 calls to searchEncounters"
+
+  - id: IR-016-C04
+    assertion: "Agent located the July 2025 encounter documenting cholelithiasis and surgical recommendation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-016-C05
+    assertion: "Agent retrieved the ultrasound findings (multiple gallstones, CBD 4mm, no wall thickening)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-016-C06
+    assertion: "Agent identified that the patient left AMA before the surgical consult was completed"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-016-C07
+    assertion: "Agent noted the pattern of frequent ED visits (14 in 12 months) suggesting care fragmentation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-016-C08
+    assertion: "Agent flagged that ibuprofen use in a patient with gallstone disease and GERD is a concern"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-016-C09
+    assertion: "Agent communicated the prior imaging and surgical recommendation to the attending"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: IR-016-C10
+    assertion: "Agent did NOT report that no prior gallstone encounter existed based solely on the first page of results"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "searchEncounters"
+  - "getEncounterDetails"
+  - "getPatientHistory"
+
+expected_sequence:
+  - step: 1
+    action: "Search for prior encounters for this patient"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 2
+    action: "Recognize 10-result pagination limit and issue follow-up query"
+    tools: ["searchEncounters"]
+    critical: true
+    reasoning: |
+      The first query returns the 10 most recent encounters (Jan 2026 back
+      to Sep 2025). The gallstone encounter from July 2025 is not in these
+      results. The agent must notice the gap and query again with a date
+      range or offset to find encounters before September 2025. This is a
+      Corecraft noise pattern — pagination without a "hasMore" signal.
+  - step: 3
+    action: "Retrieve full details of the July 2025 gallstone encounter"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Synthesize findings and communicate to attending"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "cholelithiasis"
+  expected_tool_calls: "3-5"
+  entity_types: 3
+  time_pressure: "low"
+  cognitive_load: "high"
+  teaching_point: "Search tools with pagination limits can silently truncate results. When a patient reports a prior visit that does not appear in search results, always check for pagination truncation by querying with different parameters. Frequent ED visitors often have critical findings buried in their encounter history."

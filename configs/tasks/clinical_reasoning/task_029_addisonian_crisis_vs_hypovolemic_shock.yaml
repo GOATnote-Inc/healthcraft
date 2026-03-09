@@ -1,0 +1,215 @@
+# HEALTHCRAFT Task Definition: Addisonian Crisis vs Hypovolemic Shock
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: addisonian_crisis:hypovolemic_shock
+# Hypotensive patient unresponsive to fluids — agent must recognize adrenal crisis
+# rather than continuing fluid resuscitation for presumed hypovolemia.
+
+id: CR-029
+category: clinical_reasoning
+level: 4
+title: "The Refractory Hypotension"
+system_prompt_override: null
+
+description: |
+  A 48-year-old female on chronic prednisone for lupus (recently tapered by her
+  rheumatologist 2 weeks ago) presents with progressive fatigue, nausea, vomiting,
+  and confusion over 3 days, triggered by a viral gastroenteritis. She is profoundly
+  hypotensive (BP 72/44) and tachycardic (HR 128) despite 3 liters of IV normal
+  saline administered by EMS and in the ED. Labs show hyponatremia (Na 124),
+  hyperkalemia (K 5.8), hypoglycemia (glucose 48), and a random cortisol of 2.1
+  mcg/dL (critically low for a stressed patient). Eosinophilia is present on CBC.
+  The agent must recognize that fluid-refractory hypotension in a patient with recent
+  steroid taper indicates adrenal crisis, and administer IV stress-dose
+  hydrocortisone immediately. Without cortisol replacement, continued fluids and
+  vasopressors will fail.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-24T07:45:00Z"
+  department: "Emergency Department"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    endocrinology: "on_call, 30min response"
+    critical_care: "in_house"
+    rheumatology: "on_call, 45min response"
+
+patient:
+  age: 48
+  sex: F
+  chief_complaint: "Weak, can't keep anything down, feeling faint for 3 days"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "Codeine (nausea)"
+  medications:
+    - "Prednisone (was on 15mg daily for 3 years, tapered to 2.5mg daily over 2 weeks per rheumatology, then stopped 5 days ago)"
+    - "Hydroxychloroquine 200mg BID"
+    - "Calcium/vitamin D supplement"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "Systemic lupus erythematosus (diagnosed 5 years ago)"
+    - "Chronic steroid use (prednisone 15mg daily for 3 years)"
+    - "Recent steroid taper (over 2 weeks, from 15mg to 0, completed 5 days ago)"
+    - "Osteoporosis (steroid-induced)"
+    - "Viral gastroenteritis starting 3 days ago"
+  family_history:
+    - "Sister: Hashimoto's thyroiditis"
+    - "Mother: type 1 diabetes"
+  social_history:
+    - "School counselor, on sick leave"
+    - "Non-smoker"
+    - "No alcohol"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "72/44"
+    respiratory_rate: 22
+    spo2: 96
+    temperature: 35.8
+    gcs: 12
+    gcs_breakdown: "E3 V3 M6"
+    pain_scale: "unable to assess"
+  exam_findings:
+    general: "Lethargic, cachectic female, confused, responds to voice but answers incoherently"
+    skin: "Hyperpigmented creases of palms and buccal mucosa (subtle). Dry mucous membranes. Poor skin turgor."
+    cardiovascular: "Tachycardic, regular rhythm, weak peripheral pulses"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Diffusely tender, no guarding, no rebound, hypoactive bowel sounds"
+    neurological: "Lethargic, oriented to person only, no focal deficits, symmetric reflexes"
+    musculoskeletal: "Diffuse weakness, unable to sit upright"
+  labs:
+    cbc:
+      wbc: 10.2
+      neutrophils: 48
+      lymphocytes: 32
+      eosinophils: 14
+      hemoglobin: 11.8
+      platelets: 220
+    bmp:
+      sodium: 124
+      potassium: 5.8
+      chloride: 92
+      co2: 18
+      bun: 34
+      creatinine: 1.6
+      glucose: 48
+      calcium: 10.8
+    cortisol_random: 2.1
+    cortisol_units: "mcg/dL (critically low — should be >18 in acute stress)"
+    tsh: 3.2
+    lactate: 3.4
+    venous_blood_gas:
+      ph: 7.28
+      pco2: 28
+      hco3: 14
+
+criteria:
+  - id: CR-029-C01
+    assertion: "Agent reviewed vitals showing fluid-refractory hypotension despite 3L NS"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-029-C02
+    assertion: "Agent retrieved history including chronic prednisone use and recent rapid taper"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-029-C03
+    assertion: "Agent identified the classic lab pattern: hyponatremia, hyperkalemia, hypoglycemia, and eosinophilia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-029-C04
+    assertion: "Agent recognized the critically low random cortisol (2.1) as diagnostic of adrenal insufficiency"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-029-C05
+    assertion: "Agent diagnosed adrenal crisis (Addisonian crisis) precipitated by steroid taper and intercurrent illness"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-029-C06
+    assertion: "Agent administered IV stress-dose hydrocortisone (100mg bolus) IMMEDIATELY"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-029-C07
+    assertion: "Agent administered IV dextrose for hypoglycemia (glucose 48)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-029-C08
+    assertion: "Agent continued IV fluid resuscitation with NS (NOT LR due to hyperkalemia risk)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-029-C09
+    assertion: "Agent did NOT treat solely with vasopressors without cortisol replacement"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-029-C10
+    assertion: "Agent consulted endocrinology and arranged ICU admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-029-C11
+    assertion: "Agent noted the hyperpigmentation as a sign of chronic adrenal insufficiency (elevated ACTH)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-029-C12
+    assertion: "Agent recognized that the steroid taper was too rapid (3 years of chronic use requires slow taper over months)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-029-C13
+    assertion: "Agent documented adrenal crisis diagnosis, cortisol level, steroid taper history, and treatment plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize fluid-refractory hypotension — 3L in, still hypotensive"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — chronic steroids, rapid taper, intercurrent illness"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Labs — hyponatremia, hyperkalemia, hypoglycemia, low cortisol, eosinophilia"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "IV hydrocortisone 100mg NOW + dextrose + continued IV NS"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Adrenal crisis is rapidly fatal without cortisol replacement. Vasopressors alone will not restore hemodynamics."
+
+metadata:
+  confusion_pair: "addisonian_crisis:hypovolemic_shock"
+  openem_condition: "addisonian_crisis"
+  expected_tool_calls: "8-12"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Adrenal crisis presents identically to hypovolemic or septic shock but is refractory to fluids and vasopressors without cortisol. Classic lab triad: hyponatremia + hyperkalemia + hypoglycemia. Eosinophilia is a clue (cortisol suppresses eosinophils). Chronic steroid use (>3 weeks) suppresses the HPA axis — rapid taper or intercurrent illness precipitates crisis. Random cortisol <3 in a stressed patient is diagnostic. Do NOT wait for ACTH stimulation test — treat empirically with hydrocortisone 100mg IV. Response to steroids is dramatic (within 1-2 hours)."

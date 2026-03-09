@@ -1,0 +1,245 @@
+# HEALTHCRAFT Task Definition: Toxicology Overdose Decontamination
+# Category: multi_step_workflows | Level: 4
+# Tests overdose management: toxidrome identification, decontamination,
+# antidote administration, and poison center consultation.
+
+id: MW-022
+category: multi_step_workflows
+level: 4
+title: "Toxicology Overdose — Decontamination Workflow"
+system_prompt_override: null
+
+description: |
+  A 19-year-old female is brought by EMS after her roommate found her unresponsive
+  next to an empty bottle of acetaminophen (500mg x 50 tablets = 25,000 mg
+  potential ingestion) and a suicide note. Estimated time of ingestion is 3 hours
+  ago based on the roommate's timeline. She is lethargic but arousable (GCS 13),
+  with mild RUQ tenderness. She also admits to drinking "a lot of vodka." Serum
+  acetaminophen level returns at 210 mcg/mL (drawn at approximately 3 hours
+  post-ingestion — well above the treatment line on the Rumack-Matthew nomogram).
+  Ethanol level is 180 mg/dL. AST/ALT are currently normal (early presentation).
+  The agent must execute the acetaminophen overdose protocol: assess for
+  decontamination (activated charcoal if within window), initiate N-acetylcysteine
+  (NAC) protocol, consult poison control, evaluate for co-ingestants, initiate
+  psychiatric evaluation for intentional overdose, and arrange appropriate
+  monitoring and disposition.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T23:30:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Michael Torres"
+  specialist_availability:
+    toxicology: "Poison Control Center — 24/7 phone"
+    hepatology: "on-call, 30-minute phone response"
+    psychiatry: "on-call, 60-minute response for eval"
+    critical_care: "in-house"
+  pharmacy:
+    n_acetylcysteine: "available — IV and oral formulations"
+    activated_charcoal: "available"
+
+patient:
+  age: 19
+  sex: F
+  weight_kg: 58
+  chief_complaint: "Intentional acetaminophen overdose, found unresponsive, suicide note"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 2
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Sertraline 100mg daily"
+    - "Oral contraceptive pill"
+  past_medical_history:
+    - "Major depressive disorder — diagnosed 2 years ago"
+    - "Prior suicide attempt (age 17, wrist laceration — treated at outside hospital)"
+    - "No hepatic disease"
+    - "No renal disease"
+  family_history:
+    - "Mother: depression"
+  social_history:
+    - "College sophomore"
+    - "Recent breakup — roommate reports increasing depression"
+    - "Social drinker, binge drinking tonight"
+    - "No illicit drugs per roommate"
+  vitals:
+    heart_rate: 88
+    blood_pressure: "112/68"
+    respiratory_rate: 16
+    spo2: 98
+    temperature: 36.8
+    gcs: 13
+    gcs_breakdown: "E3V4M6"
+    pain_scale: 4
+  exam_findings:
+    general: "Young female, lethargic but arousable, alcohol odor on breath"
+    abdomen: "Mild RUQ tenderness to deep palpation. No guarding or rebound. No hepatomegaly."
+    neuro: "GCS 13, oriented to person and place but not time. Pupils 3mm equal and reactive. No nystagmus. Moves all extremities. Slightly slurred speech (ethanol)."
+    skin: "No diaphoresis, no flushing, no track marks"
+    psych: "Flat affect, tearful when questioned, endorsed wanting to die"
+  labs:
+    acetaminophen_level: "210 mcg/mL at approximately 3 hours post-ingestion"
+    ethanol_level: "180 mg/dL"
+    salicylate: "Negative"
+    uds: "Negative"
+    ast: "28 U/L (normal)"
+    alt: "22 U/L (normal)"
+    bmp: "Na 140, K 3.8, Cl 104, CO2 22, BUN 12, Cr 0.7, Glu 98"
+    cbc: "WBC 8.4, Hgb 13.2, Plt 260"
+    coags: "PT 12.0, INR 1.0"
+    lipase: "Normal"
+    pregnancy_test: "Negative"
+  rumack_matthew:
+    time_post_ingestion: "approximately 3 hours"
+    acetaminophen_level: "210 mcg/mL"
+    treatment_line_at_3h: "150 mcg/mL"
+    assessment: "ABOVE treatment line — NAC indicated"
+  timeline:
+    estimated_ingestion: "2026-01-15T20:30:00Z"
+    roommate_found: "2026-01-15T23:00:00Z"
+    ems_dispatch: "2026-01-15T23:04:00Z"
+    ed_arrival: "2026-01-15T23:22:00Z"
+    acetaminophen_level_drawn: "2026-01-15T23:28:00Z"
+
+criteria:
+  - id: MW-022-C01
+    assertion: "Agent plotted acetaminophen level on Rumack-Matthew nomogram and correctly identified level as above treatment line at 3 hours"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-022-C02
+    assertion: "Agent initiated N-acetylcysteine (NAC) protocol — either IV (150 mg/kg load over 60 min, then 50 mg/kg over 4h, then 100 mg/kg over 16h) or oral (140 mg/kg load then 70 mg/kg q4h x 17 doses)"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for N_acetylcysteine"
+
+  - id: MW-022-C03
+    assertion: "Agent considered activated charcoal administration (within 4-hour window of ingestion — patient at approximately 3 hours)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-022-C04
+    assertion: "Agent consulted Poison Control Center"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for poison_control_consult"
+
+  - id: MW-022-C05
+    assertion: "Agent screened for co-ingestants (aspirin, UDS, ethanol — all ordered)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for salicylate_level and urine_drug_screen"
+
+  - id: MW-022-C06
+    assertion: "Agent ordered serial liver function tests (AST, ALT, INR) every 6-12 hours to monitor for hepatotoxicity"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for serial_LFTs"
+
+  - id: MW-022-C07
+    assertion: "Agent initiated 1:1 patient safety sitter or suicide precautions for intentional overdose"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for suicide_precautions or safety_sitter"
+
+  - id: MW-022-C08
+    assertion: "Agent consulted psychiatry for suicide risk assessment"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for psychiatry_consult"
+
+  - id: MW-022-C09
+    assertion: "Agent performed pregnancy test before treatment in reproductive-age female"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log shows pregnancy test verification or createClinicalOrder for pregnancy_test"
+
+  - id: MW-022-C10
+    assertion: "Agent applied acetaminophen overdose or toxicology protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for acetaminophen_overdose or toxicology"
+
+  - id: MW-022-C11
+    assertion: "Agent addressed ethanol intoxication monitoring (serial reassessment of GCS, aspiration risk)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-022-C12
+    assertion: "Agent initiated NAC BEFORE waiting for all co-ingestant screening results (do not delay NAC)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "NAC createClinicalOrder timestamp is early in the encounter — not delayed"
+
+  - id: MW-022-C13
+    assertion: "Agent documented ingestion timeline, Rumack-Matthew assessment, NAC protocol, and psychiatric safety plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, gather ingestion history and timeline"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Plot acetaminophen level on Rumack-Matthew nomogram"
+    tools: ["runDecisionRule", "searchReferenceMaterials"]
+    critical: true
+  - step: 3
+    action: "Initiate NAC protocol immediately"
+    tools: ["createClinicalOrder", "applyProtocol"]
+    critical: true
+  - step: 4
+    action: "Consider activated charcoal (within window)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Screen for co-ingestants, order serial LFTs"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult Poison Control"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Initiate suicide precautions — sitter, remove sharps"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult psychiatry"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Monitor ethanol metabolism and reassess GCS"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 10
+    action: "Document overdose assessment and safety plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "acetaminophen_overdose"
+  expected_tool_calls: "12-16"
+  entity_types: 6
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Acetaminophen overdose: plot the 4-hour level on the Rumack-Matthew nomogram (treatment line starts at 150 mcg/mL at 4 hours). If above the line, initiate NAC immediately. IV NAC is preferred for patients who cannot tolerate oral (vomiting, altered mental status). Activated charcoal is beneficial within 4 hours of ingestion if the patient can protect their airway. Do NOT delay NAC for co-ingestant screening. All intentional overdose patients require suicide precautions and psychiatric evaluation regardless of medical severity."

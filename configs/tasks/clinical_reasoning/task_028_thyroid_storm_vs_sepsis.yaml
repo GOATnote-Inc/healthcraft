@@ -1,0 +1,219 @@
+# HEALTHCRAFT Task Definition: Thyroid Storm vs Sepsis
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: thyroid_storm:sepsis
+# Patient with high fever, tachycardia, and altered mental status — agent must
+# recognize thyroid storm in a patient initially treated for sepsis.
+
+id: CR-028
+category: clinical_reasoning
+level: 4
+title: "The Burning Thyroid"
+system_prompt_override: null
+
+description: |
+  A 32-year-old female with a history of Graves' disease (non-compliant with
+  methimazole) presents with fever (40.2°C), heart rate 162, agitation, tremor,
+  and profuse diaphoresis. She had a dental extraction 3 days ago and was started
+  on amoxicillin. The initial assessment suspects sepsis from an odontogenic source.
+  However, on closer evaluation, she has lid lag, exophthalmos, a diffusely enlarged
+  thyroid with bruit, hyperreflexia, and fine resting tremor. TSH is <0.01, free T4
+  is 6.8 ng/dL (normal 0.8-1.8). Burch-Wartofsky score is >45 (diagnostic of
+  thyroid storm). Blood cultures and procalcitonin are negative. The agent must
+  recognize thyroid storm and initiate the specific treatment cascade: beta-blocker,
+  thionamide, iodine (after thionamide), steroids, and supportive cooling.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-22T13:00:00Z"
+  department: "Emergency Department"
+  census: 33
+  beds_available: 21
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    endocrinology: "on_call, 30min response"
+    critical_care: "in_house"
+    ent: "on_call, 25min response"
+
+patient:
+  age: 32
+  sex: F
+  chief_complaint: "Can't stop shaking, heart racing, confused, high fever"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "None known"
+  medications:
+    - "Methimazole 10mg daily (admits she stopped taking it 6 weeks ago)"
+    - "Amoxicillin 500mg TID (started 3 days ago post-dental extraction)"
+    - "Propranolol 20mg BID (also stopped 6 weeks ago)"
+  past_medical_history:
+    - "Graves' disease (diagnosed 2 years ago)"
+    - "Non-compliant with methimazole and propranolol for 6 weeks"
+    - "Dental extraction of upper left wisdom tooth 3 days ago"
+    - "Anxiety disorder"
+  family_history:
+    - "Mother: hypothyroidism"
+    - "Maternal grandmother: Graves' disease"
+  social_history:
+    - "Bartender"
+    - "Non-smoker"
+    - "Social alcohol"
+    - "Reports increased stress at work as reason for missing medications"
+  vitals:
+    heart_rate: 162
+    blood_pressure: "168/52"
+    respiratory_rate: 28
+    spo2: 97
+    temperature: 40.2
+    gcs: 13
+    gcs_breakdown: "E3 V4 M6"
+    pain_scale: "unable to assess reliably"
+  exam_findings:
+    general: "Agitated, diaphoretic, tremulous female, restless and confused, yelling incoherently at times"
+    heent: "Bilateral exophthalmos with lid lag and lid retraction. Stare present. Oral exam: extraction site appears clean, no abscess, no floor-of-mouth swelling."
+    neck: "Diffusely enlarged thyroid gland, firm, non-tender. Audible thyroid bruit bilaterally. No lymphadenopathy."
+    cardiovascular: "Tachycardic with irregular rhythm (atrial fibrillation on monitor), wide pulse pressure (168/52), hyperdynamic precordium, systolic flow murmur"
+    pulmonary: "Clear bilaterally, tachypneic"
+    abdomen: "Hyperactive bowel sounds, soft, non-tender"
+    neurological: "Agitated, oriented to person only. Fine resting tremor. Hyperreflexia throughout (3+ reflexes). No focal deficits."
+    extremities: "Warm, moist skin, pretibial myxedema present"
+  labs:
+    cbc:
+      wbc: 11.4
+      neutrophils: 68
+      hemoglobin: 12.8
+      platelets: 260
+    bmp:
+      sodium: 138
+      potassium: 3.4
+      chloride: 100
+      co2: 20
+      bun: 22
+      creatinine: 0.9
+      glucose: 186
+      calcium: 11.2
+    hepatic_panel:
+      ast: 82
+      alt: 68
+      alkaline_phosphatase: 142
+      total_bilirubin: 2.1
+    thyroid:
+      tsh: "<0.01"
+      free_t4: 6.8
+      free_t3: 18.2
+    procalcitonin: 0.08
+    procalcitonin_units: "ng/mL (normal <0.1, argues against bacterial infection)"
+    lactate: 2.2
+    blood_cultures: "drawn, no growth at 12 hours (preliminary)"
+
+criteria:
+  - id: CR-028-C01
+    assertion: "Agent reviewed vital signs including extreme tachycardia, wide pulse pressure, and high fever"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-028-C02
+    assertion: "Agent retrieved history including Graves' disease and medication non-compliance for 6 weeks"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-028-C03
+    assertion: "Agent identified thyroid exam findings: exophthalmos, lid lag, thyroid bruit, pretibial myxedema"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-028-C04
+    assertion: "Agent diagnosed thyroid storm rather than sepsis based on thyroid findings, severely elevated T4/T3, suppressed TSH, and low procalcitonin"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-028-C05
+    assertion: "Agent calculated or acknowledged Burch-Wartofsky score >45"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-028-C06
+    assertion: "Agent ordered IV beta-blocker (propranolol or esmolol) for rate control"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-028-C07
+    assertion: "Agent ordered thionamide (PTU or methimazole) to block new hormone synthesis"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-028-C08
+    assertion: "Agent ordered iodine (SSKI or Lugol's) AFTER thionamide (at least 1 hour after) to block hormone release"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-028-C09
+    assertion: "Agent ordered IV hydrocortisone or dexamethasone (blocks T4→T3 conversion and treats possible adrenal insufficiency)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-028-C10
+    assertion: "Agent initiated active cooling measures for hyperthermia (avoid aspirin — displaces T4 from binding proteins)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-028-C11
+    assertion: "Agent consulted endocrinology and arranged ICU admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-028-C12
+    assertion: "Agent recognized and managed the atrial fibrillation as a thyroid storm complication"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-028-C13
+    assertion: "Agent documented thyroid storm diagnosis, Burch-Wartofsky score, treatment cascade with sequencing, and differentiation from sepsis"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — extreme tachycardia, high fever, wide pulse pressure"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — Graves' disease, stopped medications 6 weeks ago"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Exam — exophthalmos, thyroid bruit, hyperreflexia → thyroid storm"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Labs — TSH <0.01, T4 6.8, low procalcitonin → not sepsis"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 5
+    action: "Treatment cascade: beta-blocker → thionamide → iodine (after thionamide) → steroids → cooling"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "thyroid_storm:sepsis"
+  openem_condition: "thyroid_storm"
+  expected_tool_calls: "10-15"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Thyroid storm presents with fever, tachycardia, agitation, and altered mental status — identical to sepsis. Key differentiators: thyroid eye disease (exophthalmos, lid lag), thyroid bruit, hyperreflexia, wide pulse pressure, known Graves' disease. Burch-Wartofsky score >45 = thyroid storm. Treatment sequence matters: beta-blocker first (symptom control), thionamide (block synthesis), iodine AFTER thionamide (block release — if given before thionamide, provides substrate for MORE hormone), steroids (block conversion). Avoid aspirin for fever — it displaces T4 from protein binding."

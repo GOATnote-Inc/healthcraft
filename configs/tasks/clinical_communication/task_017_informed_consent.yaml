@@ -1,0 +1,179 @@
+# HEALTHCRAFT Task Definition: Informed Consent for High-Risk Procedure
+# Category: clinical_communication | Level: 4
+# Agent must document informed consent for emergent chest tube placement
+# in a patient with tension pneumothorax, including risks, benefits,
+# alternatives, and capacity assessment.
+
+id: CC-017
+category: clinical_communication
+level: 4
+title: "Informed Consent for High-Risk Procedure"
+system_prompt_override: null
+
+description: |
+  A 34-year-old man presents after a motorcycle collision with a large right
+  pneumothorax and progressive respiratory distress. He needs emergent chest
+  tube thoracostomy. The patient is alert and oriented but increasingly
+  dyspneic. He is anxious and asking rapid-fire questions about what will
+  happen. His wife is en route but 30 minutes away. The agent must obtain
+  and document informed consent for chest tube placement, balancing urgency
+  with the patient's right to understand the procedure. The situation is
+  not yet immediately life-threatening (no tension physiology) but could
+  deteriorate rapidly.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T21:10:00Z"
+  department: "Emergency Department -- Trauma Area"
+  census: 40
+  beds_available: 14
+  attending_on_duty: "Dr. James Rivera"
+  specialist_availability:
+    trauma_surgery: "on-call, Dr. Leo Bianchi, 15 minutes out"
+    respiratory_therapy: "in department"
+
+patient:
+  age: 34
+  sex: M
+  chief_complaint: "MVC -- motorcycle vs car, right chest pain, shortness of breath"
+  arrival_mode: "EMS, c-spine immobilized"
+  esi_level: 2
+  location: "Trauma Bay 1"
+  primary_language: "English"
+  allergies:
+    - "Lidocaine (reported 'heart racing' -- likely vasovagal, not true allergy)"
+  medications:
+    - "None"
+  past_medical_history:
+    - "No significant medical history"
+    - "No prior surgeries"
+    - "No bleeding disorders"
+  social_history:
+    - "Software engineer"
+    - "Married, wife Jessica en route"
+    - "No children"
+    - "Non-smoker, occasional alcohol"
+    - "Motorcycle helmet was worn"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "134/86"
+    respiratory_rate: 28
+    spo2: 92
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    general: "Alert, diaphoretic, speaking in short sentences, visibly anxious"
+    chest: "Decreased breath sounds right hemithorax. Subcutaneous emphysema right chest wall. No tracheal deviation. No JVD."
+    secondary_survey: "Right chest wall tenderness ribs 4-7. No flail segment. Abdomen soft. Pelvis stable. Extremities intact."
+  imaging:
+    chest_xray:
+      findings: |
+        Large right pneumothorax with approximately 60% collapse of the right
+        lung. No mediastinal shift. Right-sided rib fractures 5, 6, and 7.
+        No hemothorax. No widened mediastinum.
+      impression: "Large right pneumothorax with rib fractures. No tension physiology."
+    ct_cervical_spine: "No acute fracture or malalignment."
+  patient_questions:
+    - "Is this going to hurt?"
+    - "Can't you just use a needle instead?"
+    - "Can we wait for my wife to get here?"
+    - "What if something goes wrong?"
+    - "I read online that chest tubes can puncture your lung further"
+    - "Are you sure I need this right now?"
+
+criteria:
+  - id: CC-017-C01
+    assertion: "Agent retrieved patient history including the reported lidocaine allergy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-017-C02
+    assertion: "Agent retrieved encounter details including imaging results"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-017-C03
+    assertion: "Agent explained the procedure (chest tube thoracostomy) in patient-friendly language"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-017-C04
+    assertion: "Agent discussed risks (bleeding, infection, organ injury, pain, incomplete drainage, need for repeat procedure)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-017-C05
+    assertion: "Agent discussed benefits (lung re-expansion, improved breathing, prevent tension pneumothorax)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-017-C06
+    assertion: "Agent discussed alternatives (observation with serial imaging, needle decompression) and why they are inferior for a 60% pneumothorax"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-017-C07
+    assertion: "Agent addressed the lidocaine allergy by clarifying it is likely vasovagal and not a true allergy, or offered bupivacaine as alternative"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-017-C08
+    assertion: "Agent addressed the patient's specific questions (pain management, waiting for wife, needle alternative)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-017-C09
+    assertion: "Agent assessed and documented decision-making capacity (alert, oriented, understands condition and risks)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-017-C10
+    assertion: "Agent explained the urgency without being coercive (patient can still decline)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-017-C11
+    assertion: "Agent documented the informed consent discussion in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "searchClinicalKnowledge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, allergy details, and prior medical history"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review imaging and exam findings to confirm indication"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Address lidocaine allergy -- determine if true allergy or vasovagal"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 4
+    action: "Conduct informed consent discussion: procedure, risks, benefits, alternatives"
+    tools: []
+    critical: true
+  - step: 5
+    action: "Document consent discussion, capacity assessment, and patient decision"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "pneumothorax"
+  expected_tool_calls: "4-5"
+  entity_types: 4
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Informed consent is a conversation, not a form. It requires disclosure (procedure, risks, benefits, alternatives), comprehension (patient understands), voluntariness (no coercion), and capacity (patient can reason about the decision). In urgent but not immediately life-threatening situations, consent must still be obtained. Address the specific questions the patient asks -- do not recite a script."

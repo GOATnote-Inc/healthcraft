@@ -1,0 +1,254 @@
+# HEALTHCRAFT Task Definition: Acute Limb Ischemia
+# Category: multi_step_workflows | Level: 4
+# Tests acute limb ischemia management: 6 Ps assessment, Rutherford classification,
+# systemic anticoagulation, vascular surgery consult, and OR preparation.
+
+id: MW-029
+category: multi_step_workflows
+level: 4
+title: "Acute Limb Ischemia — 6 Ps, Anticoagulation, and Vascular Surgery"
+system_prompt_override: null
+
+description: |
+  A 71-year-old male with atrial fibrillation (not on anticoagulation — stopped
+  warfarin 3 weeks ago due to a GI bleed) presents with sudden-onset severe left
+  leg pain, pallor, and inability to move his foot that began 2 hours ago while
+  watching television. His left foot is pale, cool, and pulseless below the femoral
+  artery. He has absent dorsalis pedis and posterior tibial pulses on the left with
+  diminished sensation over the dorsum of the foot and cannot dorsiflex his ankle.
+  The right leg is warm with normal pulses. This is a Rutherford IIb acute limb
+  ischemia — immediately threatened with motor deficit. The agent must perform a
+  systematic 6 Ps assessment (Pain, Pallor, Pulselessness, Poikilothermia,
+  Paresthesia, Paralysis), classify using Rutherford, initiate systemic heparin
+  anticoagulation immediately (despite recent GI bleed — limb-threatening ischemia
+  takes priority), consult vascular surgery emergently for revascularization within
+  6 hours, order CTA of the lower extremity, prepare the patient for the OR, and
+  manage pain. The key tension is the anticoagulation decision in a patient who
+  recently bled from the GI tract — the agent must recognize that limb loss from
+  delayed anticoagulation outweighs rebleeding risk.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:40:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 23
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    vascular_surgery: "Dr. Thomas Brennan — on-call, 10-minute phone, 25-minute bedside"
+    interventional_radiology: "on-call, 30-minute response"
+    cardiology: "in-house"
+    anesthesia: "in-house"
+    gastroenterology: "on-call, 20-minute phone (for GI bleed risk discussion)"
+  imaging:
+    ct_scanner: "available"
+    ct_angiography: "contrast available"
+    duplex_ultrasound: "available — vascular tech on site"
+  pharmacy:
+    heparin: "available — unfractionated"
+    tpa: "available (if catheter-directed thrombolysis considered)"
+    morphine: "available"
+    fentanyl: "available"
+  or_status: "OR 1 available in 20 minutes"
+  blood_bank:
+    prbc: "type-specific available"
+
+patient:
+  age: 71
+  sex: M
+  weight_kg: 82
+  chief_complaint: "Sudden severe left leg pain, numbness, cannot move foot — 2 hours ago"
+  arrival_mode: "EMS, BLS unit"
+  esi_level: 2
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Warfarin — STOPPED 3 weeks ago (GI bleed)"
+    - "Metoprolol 50mg BID"
+    - "Lisinopril 20mg daily"
+    - "Pantoprazole 40mg BID"
+    - "Atorvastatin 40mg daily"
+    - "Digoxin 0.125mg daily"
+  past_medical_history:
+    - "Atrial fibrillation — persistent, diagnosed 4 years ago, CHA2DS2-VASc 4"
+    - "Upper GI bleed (duodenal ulcer) — 3 weeks ago, managed with PPI and endoscopic hemostasis"
+    - "Warfarin stopped at discharge — not yet restarted, GI follow-up in 2 weeks"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Peripheral arterial disease — claudication, ABI 0.72 left, 0.78 right (6 months ago)"
+    - "Type 2 diabetes mellitus"
+    - "Prior TIA (2 years ago)"
+  family_history:
+    - "Father: peripheral vascular disease, amputation"
+  social_history:
+    - "Retired electrician"
+    - "Former smoker (40 pack-years, quit 3 years ago)"
+    - "Lives alone, independent"
+  vitals:
+    heart_rate: 92
+    heart_rhythm: "irregularly irregular"
+    blood_pressure: "156/88"
+    respiratory_rate: 18
+    spo2: 97
+    temperature: 36.6
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Elderly male in significant pain, clutching left leg, restless"
+    cardiac: "Irregularly irregular, rate ~92, no murmurs"
+    lungs: "Clear bilaterally"
+    left_lower_extremity: "Pale, cool to mid-thigh. No dorsalis pedis pulse. No posterior tibial pulse. Femoral pulse present but diminished. Capillary refill >6 seconds in toes. Sensation diminished over dorsum of foot. Cannot dorsiflex ankle (motor deficit). Rest pain — severe, 9/10. Calf mildly tense but compressible."
+    right_lower_extremity: "Warm, pink. DP pulse 1+, PT pulse 1+. Normal sensation and motor. Baseline PAD changes (hairless, thin skin)."
+    abdomen: "Soft, non-tender. No pulsatile mass. Well-healed midline scar (prior cholecystectomy)."
+  labs:
+    cbc: "WBC 11.8, Hgb 10.2 (baseline 11.0 — recent GI bleed), Plt 210"
+    bmp: "Na 140, K 4.6, Cl 102, CO2 24, BUN 32, Cr 1.6, Glu 188"
+    coags: "PT 12.0, INR 1.0 (off warfarin), PTT 28"
+    lactate: "1.8 mmol/L"
+    ck: "280 U/L (mildly elevated — ischemia)"
+    type_and_screen: "O positive"
+    troponin: "0.02 ng/mL (normal)"
+  ecg: "Atrial fibrillation, ventricular rate 92. No acute ST changes. Old Q waves in inferior leads."
+  timeline:
+    symptom_onset: "2026-01-15T14:30:00Z"
+    ems_dispatch: "2026-01-15T16:05:00Z"
+    ed_arrival: "2026-01-15T16:35:00Z"
+
+criteria:
+  - id: MW-029-C01
+    assertion: "Agent performed systematic 6 Ps assessment of the left lower extremity (Pain, Pallor, Pulselessness, Poikilothermia, Paresthesia, Paralysis)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-029-C02
+    assertion: "Agent classified the ischemia as Rutherford IIb (immediately threatened — motor deficit present) requiring emergent revascularization"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-029-C03
+    assertion: "Agent initiated systemic IV heparin anticoagulation despite recent GI bleed (limb-threatening ischemia outweighs rebleeding risk)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for heparin with therapeutic_anticoagulation"
+
+  - id: MW-029-C04
+    assertion: "Agent consulted vascular surgery emergently for revascularization (surgical embolectomy or catheter-directed thrombolysis)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for vascular_surgery_consult with emergent priority"
+
+  - id: MW-029-C05
+    assertion: "Agent ordered CTA of the lower extremity (or duplex ultrasound) to localize the occlusion"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CTA_lower_extremity or vascular_duplex"
+
+  - id: MW-029-C06
+    assertion: "Agent provided adequate pain management (IV opioid)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for morphine or fentanyl"
+
+  - id: MW-029-C07
+    assertion: "Agent ordered baseline CK and serial CK monitoring for rhabdomyolysis risk upon reperfusion"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CK_serial or CK_monitoring"
+
+  - id: MW-029-C08
+    assertion: "Agent identified atrial fibrillation without anticoagulation as the likely embolic source"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-029-C09
+    assertion: "Agent prepared patient for OR (NPO, consent, type and screen confirmed, anesthesia notified)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for OR_preparation or surgical_prep"
+
+  - id: MW-029-C10
+    assertion: "Agent ordered IV fluids for renal protection anticipating reperfusion injury and contrast load"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for IV_fluids"
+
+  - id: MW-029-C11
+    assertion: "Agent applied acute limb ischemia protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for acute_limb_ischemia"
+
+  - id: MW-029-C12
+    assertion: "Agent recognized the 6-hour revascularization window and communicated urgency (Rutherford IIb has irreversible damage if not revascularized within 6 hours)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: MW-029-C13
+    assertion: "Agent documented limb ischemia assessment, Rutherford classification, anticoagulation rationale, and surgical plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, perform vascular exam, review history of AFib and recent GI bleed"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Perform 6 Ps assessment, classify Rutherford stage"
+    tools: ["searchClinicalKnowledge", "runDecisionRule"]
+    critical: true
+  - step: 3
+    action: "Apply acute limb ischemia protocol"
+    tools: ["applyProtocol", "getProtocolDetails"]
+    critical: true
+  - step: 4
+    action: "Initiate systemic IV heparin immediately (benefit outweighs GI bleed risk)"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 5
+    action: "Administer IV opioid for pain control"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order CTA lower extremity to localize occlusion"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Consult vascular surgery emergently"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Order IV fluids, serial CK, prepare for reperfusion injury"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Prepare patient for OR — NPO, consent, anesthesia, type and screen"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Document limb ischemia assessment, classification, and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "acute_limb_ischemia"
+  expected_tool_calls: "12-18"
+  entity_types: 7
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Acute limb ischemia is a vascular emergency — 'time is tissue.' Rutherford IIb (immediately threatened: motor deficit) requires emergent revascularization within 6 hours or amputation becomes likely. The 6 Ps assessment (Pain, Pallor, Pulselessness, Poikilothermia, Paresthesia, Paralysis) guides classification. Systemic heparin should be started IMMEDIATELY upon diagnosis to prevent clot propagation — even in patients with recent GI bleeding, because limb loss is a worse outcome than rebleeding. Embolic occlusion (from AFib) is typically treated with surgical embolectomy; thrombotic occlusion (in situ PAD) may favor catheter-directed thrombolysis. Reperfusion injury causes rhabdomyolysis, hyperkalemia, and metabolic acidosis — anticipate with fluids, CK monitoring, and renal protection. Always identify the embolic source (here: uncontrolled AFib off anticoagulation) for secondary prevention."

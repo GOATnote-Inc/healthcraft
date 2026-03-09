@@ -1,0 +1,209 @@
+# HEALTHCRAFT Task Definition: Malignant Hyperthermia vs Heat Stroke
+# Category: clinical_reasoning | Level: 5
+# Confusion pair: malignant_hyperthermia:heat_stroke
+# Post-operative patient with extreme hyperthermia and rigidity — agent must recognize
+# malignant hyperthermia requiring dantrolene, not standard heat stroke cooling.
+
+id: CR-031
+category: clinical_reasoning
+level: 5
+title: "The Operating Room Inferno"
+system_prompt_override: null
+
+description: |
+  A 24-year-old male is transferred emergently from the OR to the ED resuscitation
+  bay after developing rapidly rising temperature (currently 41.8°C), generalized
+  muscle rigidity, masseter spasm (could not open jaw after succinylcholine), end-tidal
+  CO2 spiking to 85 mmHg, tachycardia (HR 148), and dark-colored urine during an
+  elective ACL repair under general anesthesia with sevoflurane and succinylcholine.
+  ABG shows mixed respiratory and metabolic acidosis (pH 7.08, pCO2 72, HCO3 14).
+  CK is 42,000 U/L and rising. Potassium is 6.4. The patient's cousin had an
+  unexplained death during surgery. The agent must immediately diagnose malignant
+  hyperthermia, stop all triggering agents, administer IV dantrolene (specific
+  antidote), and manage the metabolic derangements. Standard cooling alone is
+  insufficient and the patient will die without dantrolene.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-28T11:15:00Z"
+  department: "Emergency Department — Resuscitation Bay"
+  census: 26
+  beds_available: 28
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    anesthesiology: "in_house (accompanying patient from OR)"
+    critical_care: "in_house"
+    pharmacy: "in_house (MH cart available)"
+
+patient:
+  age: 24
+  sex: M
+  chief_complaint: "Intraoperative crisis — extreme fever, rigidity, rising CO2"
+  arrival_mode: "internal transfer from OR"
+  esi_level: 1
+  allergies:
+    - "None known"
+  medications:
+    - "Sevoflurane (inhaled, active during surgery — TRIGGERING AGENT)"
+    - "Succinylcholine (given at induction — TRIGGERING AGENT)"
+    - "Propofol (given at induction)"
+    - "Fentanyl 100mcg (given at induction)"
+  past_medical_history:
+    - "Anterior cruciate ligament tear (sports injury)"
+    - "No prior surgeries or general anesthesia"
+    - "No neuromuscular disease"
+    - "Athletic, no exercise intolerance"
+  family_history:
+    - "Cousin: unexplained death during surgery at age 19 (details unknown)"
+    - "No known family testing for MH susceptibility"
+  social_history:
+    - "College athlete (basketball)"
+    - "Non-smoker"
+    - "Social alcohol"
+  vitals:
+    heart_rate: 148
+    blood_pressure: "82/48"
+    respiratory_rate: "ventilated, rate 24 (inadequate for CO2 clearance)"
+    spo2: 88
+    temperature: 41.8
+    etco2: 85
+    gcs: "3 (intubated, sedated)"
+  exam_findings:
+    general: "Intubated male with profound generalized muscle rigidity, mottled skin, cyanotic"
+    skin: "Mottled, flushed, hot to touch. Dark-colored urine in Foley bag (myoglobinuria)."
+    musculoskeletal: "Generalized 'lead-pipe' rigidity throughout all extremities and trunk. Masseter spasm documented at intubation."
+    cardiovascular: "Tachycardic, regular rhythm, hypotensive, weak pulses"
+    pulmonary: "Intubated, bilateral breath sounds present, high peak airway pressures due to chest wall rigidity"
+  labs:
+    abg:
+      ph: 7.08
+      pco2: 72
+      po2: 58
+      hco3: 14
+      base_excess: -16
+      lactate: 8.2
+    bmp:
+      sodium: 138
+      potassium: 6.4
+      chloride: 98
+      co2: 14
+      creatinine: 1.8
+      glucose: 210
+      calcium: 6.8
+    ck: 42000
+    ck_units: "U/L (normal <200)"
+    myoglobin: "markedly elevated"
+    coagulation:
+      pt: 18.4
+      inr: 1.6
+      ptt: 42
+      fibrinogen: 120
+
+criteria:
+  - id: CR-031-C01
+    assertion: "Agent identified the clinical syndrome: rigidity, hyperthermia, elevated ETCO2, rhabdomyolysis, and metabolic acidosis following volatile anesthetic and succinylcholine"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-031-C02
+    assertion: "Agent diagnosed malignant hyperthermia, not heat stroke"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-031-C03
+    assertion: "Agent ordered immediate discontinuation of all volatile anesthetics (sevoflurane)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-031-C04
+    assertion: "Agent ordered IV dantrolene (2.5 mg/kg bolus, repeated until rigidity resolves)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-031-C05
+    assertion: "Agent initiated aggressive cooling measures"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-031-C06
+    assertion: "Agent managed hyperkalemia (calcium gluconate, insulin/dextrose, bicarbonate)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-031-C07
+    assertion: "Agent initiated aggressive IV fluid resuscitation and urine alkalinization for myoglobinuria/rhabdomyolysis"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-031-C08
+    assertion: "Agent increased minute ventilation to manage severe respiratory acidosis (ETCO2 85)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-031-C09
+    assertion: "Agent retrieved family history including cousin's death during surgery as evidence of MH susceptibility"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-031-C10
+    assertion: "Agent recognized evolving DIC (elevated PT/INR, low fibrinogen) and ordered blood products"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-031-C11
+    assertion: "Agent did NOT attribute the presentation solely to sepsis, NMS, or serotonin syndrome"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-031-C12
+    assertion: "Agent arranged ICU admission and recommended future MH susceptibility testing (caffeine halothane contracture test) for patient and family"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-031-C13
+    assertion: "Agent documented MH diagnosis, triggering agents, dantrolene administration, and metabolic management"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize MH: rigidity + hyperthermia + elevated ETCO2 + rhabdo after volatile anesthetic"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "STOP sevoflurane immediately"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Dantrolene 2.5 mg/kg IV bolus — this is the ONLY specific treatment"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Without dantrolene, mortality from MH is >70%. Cooling alone is insufficient."
+  - step: 4
+    action: "Manage hyperkalemia, acidosis, rhabdomyolysis, DIC"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "malignant_hyperthermia:heat_stroke"
+  openem_condition: "malignant_hyperthermia"
+  expected_tool_calls: "8-15"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Malignant hyperthermia is a pharmacogenetic emergency triggered by volatile anesthetics (sevoflurane, desflurane, halothane) and succinylcholine. Key features: masseter spasm, generalized rigidity, rapidly rising ETCO2 and temperature, rhabdomyolysis (CK >10,000), mixed acidosis. Distinguished from heat stroke by: onset during/after anesthesia, muscle rigidity (heat stroke has flaccidity), masseter spasm, and specific triggering agents. Dantrolene is the ONLY antidote (inhibits calcium release from sarcoplasmic reticulum). Heat stroke cooling alone will not stop the metabolic cascade."

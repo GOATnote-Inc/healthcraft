@@ -1,0 +1,254 @@
+# HEALTHCRAFT Task Definition: Cardiac Arrest Post-ROSC Care Bundle
+# Category: multi_step_workflows | Level: 5
+# Tests post-cardiac arrest care: targeted temperature management,
+# hemodynamic optimization, neuroprognostication planning, and ICU disposition.
+
+id: MW-021
+category: multi_step_workflows
+level: 5
+title: "Post-ROSC Care Bundle — Targeted Temperature Management"
+system_prompt_override: null
+
+description: |
+  A 56-year-old male had a witnessed ventricular fibrillation cardiac arrest in
+  the ED waiting room. Bystander CPR was initiated immediately by an off-duty
+  paramedic. The arrest team delivered 3 shocks and administered epinephrine x2
+  before achieving return of spontaneous circulation (ROSC) after 18 minutes of
+  CPR. Post-ROSC, he is intubated, comatose (GCS 3T), hemodynamically unstable
+  (BP 82/50 on norepinephrine), and has a 12-lead ECG showing ST elevation in V1-V4
+  (anterior STEMI as the likely arrest etiology). Temperature is 35.8C. The agent
+  must execute the post-ROSC care bundle: targeted temperature management (TTM),
+  hemodynamic optimization, coronary reperfusion (cath lab for STEMI), ventilator
+  management, neuroprotective strategies, seizure prophylaxis assessment, serial
+  neurological evaluation planning, and ICU admission. The patient is NOT a
+  candidate for neuroprognostication yet — it is too early.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T10:48:00Z"
+  department: "Emergency Department — Resuscitation Bay"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    interventional_cardiology: "in-house — cath lab available"
+    critical_care: "in-house"
+    neurology: "on-call, 20-minute response"
+    cardiac_surgery: "on-call, 30-minute response"
+  equipment:
+    arctic_sun: "available (surface TTM device)"
+    cooling_catheter: "available (intravascular TTM)"
+    continuous_eeg: "available — 30-minute setup"
+  cath_lab:
+    status: "available — can activate within 15 minutes"
+
+patient:
+  age: 56
+  sex: M
+  weight_kg: 86
+  chief_complaint: "Post-cardiac arrest, ROSC after 18 minutes CPR, comatose"
+  arrival_mode: "Arrested in ED waiting room"
+  esi_level: 1
+  allergies:
+    - "No known drug allergies"
+  medications:
+    - "Metoprolol 25mg BID"
+    - "Atorvastatin 80mg daily"
+    - "Aspirin 81mg daily"
+    - "Amlodipine 10mg daily"
+  past_medical_history:
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Family history of premature CAD"
+    - "No known coronary artery disease"
+    - "No prior cardiac arrest"
+  vitals:
+    heart_rate: 108
+    heart_rhythm: "Sinus tachycardia — post-ROSC"
+    blood_pressure: "82/50 on norepinephrine 0.1 mcg/kg/min"
+    respiratory_rate: "14 (ventilator)"
+    spo2: 96
+    temperature: 35.8
+    gcs: 3
+    gcs_breakdown: "E1V1TM1"
+    pupils: "4mm bilateral, sluggishly reactive"
+  exam_findings:
+    general: "Intubated, comatose, no spontaneous movement"
+    neuro: "GCS 3T. No corneal reflex. No gag reflex. Pupils 4mm sluggishly reactive. No motor response to pain. Myoclonus absent."
+    cardiac: "Tachycardic, no murmurs. Norepinephrine infusing."
+    lungs: "Bilateral breath sounds, mechanical ventilation"
+    skin: "Cool, mottled, delayed capillary refill"
+    extremities: "No edema. CPR-related anterior chest wall ecchymosis."
+  ecg:
+    rhythm: "Sinus tachycardia, rate 108"
+    st_changes: "ST elevation V1-V4, 2-3mm. Q waves forming in V1-V2. Reciprocal depression in II, III, aVF."
+    interpretation: "Acute anterior STEMI — LAD territory"
+  labs:
+    troponin: "18.4 ng/mL (markedly elevated — peri-arrest)"
+    cbc: "WBC 18.2, Hgb 14.8, Plt 180"
+    bmp: "Na 138, K 4.6, Cl 100, CO2 16, BUN 24, Cr 1.4, Glu 286"
+    abg: "pH 7.18, pCO2 38, pO2 142 (on 100% FiO2), HCO3 14, lactate 12.4"
+    coags: "PT 14.2, INR 1.2, PTT 30"
+    ammonia: "Normal"
+  resuscitation_summary:
+    initial_rhythm: "Ventricular fibrillation"
+    total_cpr_duration: "18 minutes"
+    shocks_delivered: 3
+    epinephrine_doses: 2
+    amiodarone_given: "300mg IV x1"
+    rosc_time: "2026-01-15T10:45:00Z"
+    intubation: "During CPR, 7.5 ETT, confirmed placement"
+  timeline:
+    arrest_witnessed: "2026-01-15T10:27:00Z"
+    bystander_cpr_started: "2026-01-15T10:27:30Z"
+    arrest_team_arrived: "2026-01-15T10:29:00Z"
+    first_shock: "2026-01-15T10:30:00Z"
+    rosc: "2026-01-15T10:45:00Z"
+    post_rosc_assessment: "2026-01-15T10:48:00Z"
+
+criteria:
+  - id: MW-021-C01
+    assertion: "Agent initiated targeted temperature management (TTM) to 32-36C per current guidelines"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for targeted_temperature_management or cooling"
+
+  - id: MW-021-C02
+    assertion: "Agent identified anterior STEMI on post-ROSC ECG and activated cath lab for emergent PCI"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cath_lab_activation"
+
+  - id: MW-021-C03
+    assertion: "Agent optimized hemodynamics — titrated vasopressors to target MAP >= 65 mmHg and considered inotropes"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for vasopressor_titration"
+
+  - id: MW-021-C04
+    assertion: "Agent optimized ventilator settings — target SpO2 94-98% (avoid hyperoxia) and normocapnia (PaCO2 35-45)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-021-C05
+    assertion: "Agent ordered reduction of FiO2 from 100% to target SpO2 94-98% (hyperoxia is harmful post-ROSC)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ventilator_adjustment or FiO2_reduction"
+
+  - id: MW-021-C06
+    assertion: "Agent ordered continuous EEG monitoring for seizure detection in comatose post-arrest patient"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for continuous_EEG"
+
+  - id: MW-021-C07
+    assertion: "Agent addressed glucose management (target 140-180 mg/dL) — insulin drip or correction for glucose 286"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for insulin or glucose_management"
+
+  - id: MW-021-C08
+    assertion: "Agent did NOT attempt neuroprognostication within the first 72 hours (too early — must wait for TTM completion and rewarming)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-021-C09
+    assertion: "Agent applied post-ROSC or post-cardiac arrest care bundle protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for post_ROSC or post_cardiac_arrest"
+
+  - id: MW-021-C10
+    assertion: "Agent ordered serial neurological assessments and planned multimodal neuroprognostication at 72+ hours"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-021-C11
+    assertion: "Agent consulted critical care / ICU for admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU_admission or critical_care_consult"
+
+  - id: MW-021-C12
+    assertion: "Agent administered dual antiplatelet therapy for STEMI prior to cath lab"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for aspirin and P2Y12_inhibitor"
+
+  - id: MW-021-C13
+    assertion: "Agent documented resuscitation summary, ROSC time, post-ROSC ECG findings, TTM initiation, and care bundle elements"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains updateEncounter with post-ROSC documentation"
+
+  - id: MW-021-C14
+    assertion: "Agent initiated TTM BEFORE or concurrent with cath lab transport (do not delay TTM for PCI)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "TTM createClinicalOrder timestamp precedes or equals cath_lab transport"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Assess post-ROSC patient, review resuscitation details and ECG"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Apply post-ROSC care bundle protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 3
+    action: "Initiate TTM (target 32-36C)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Activate cath lab for anterior STEMI"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 5
+    action: "Optimize hemodynamics — titrate vasopressors, target MAP >= 65"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Adjust ventilator — reduce FiO2, target normoxia and normocapnia"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Administer dual antiplatelet for STEMI"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Order continuous EEG and glucose management"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Arrange ICU admission"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Document resuscitation and post-ROSC care bundle"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "cardiac_arrest"
+  expected_tool_calls: "14-20"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Post-ROSC care bundle: (1) TTM 32-36C for 24 hours in comatose survivors. (2) Avoid hyperoxia — target SpO2 94-98%, titrate FiO2 down. (3) Avoid hypotension — MAP >= 65, vasopressors as needed. (4) Coronary angiography for STEMI regardless of coma. (5) Avoid premature neuroprognostication — wait at least 72 hours after normothermia. (6) Continuous EEG for seizure detection. (7) Glucose 140-180 mg/dL. TTM and PCI should proceed in parallel, not sequentially."

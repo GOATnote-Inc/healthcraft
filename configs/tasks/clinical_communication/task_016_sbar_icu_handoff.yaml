@@ -1,0 +1,207 @@
+# HEALTHCRAFT Task Definition: SBAR Handoff to ICU
+# Category: clinical_communication | Level: 3
+# Agent must generate a structured SBAR handoff for a critically ill patient
+# being admitted to the ICU from the ED.
+
+id: CC-016
+category: clinical_communication
+level: 3
+title: "SBAR Handoff to ICU"
+system_prompt_override: null
+
+description: |
+  A 64-year-old man with septic shock secondary to perforated diverticulitis
+  has been resuscitated in the ED and an ICU bed is now available. The ED
+  physician must generate a structured SBAR handoff for the accepting ICU
+  attending. The patient is on vasopressors, has a central line, and has
+  multiple pending interventions including surgical consultation. The handoff
+  must convey severity, current management, anticipated trajectory, and
+  outstanding action items so the ICU team can seamlessly assume care.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T14:32:00Z"
+  department: "Emergency Department"
+  census: 44
+  beds_available: 10
+  attending_on_duty: "Dr. Sarah Chen"
+  accepting_physician: "Dr. Olusegun Adeyemi, ICU attending"
+  specialist_availability:
+    general_surgery: "Dr. Karen Walsh, in house, aware of patient"
+    infectious_disease: "on-call, available by phone"
+
+patient:
+  age: 64
+  sex: M
+  chief_complaint: "Abdominal pain, fever, altered mental status"
+  arrival_mode: "EMS"
+  esi_level: 1
+  location: "Resuscitation Bay 2"
+  primary_language: "English"
+  allergies:
+    - "Vancomycin (Red Man Syndrome -- infuse slowly)"
+    - "Shellfish (hives)"
+  medications:
+    - "Amlodipine 10mg daily"
+    - "Atorvastatin 40mg daily"
+    - "Metformin 1000mg BID"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Type 2 Diabetes (A1c 8.2%)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Diverticulosis (known on prior colonoscopy 2024)"
+    - "Osteoarthritis bilateral knees"
+  social_history:
+    - "Retired postal worker"
+    - "Lives with wife Margaret"
+    - "Former smoker (20 pack-years, quit 10 years ago)"
+    - "No alcohol, no drugs"
+    - "Full code, confirmed with wife"
+  vitals_on_arrival:
+    heart_rate: 128
+    blood_pressure: "72/44"
+    respiratory_rate: 28
+    spo2: 91
+    temperature: 39.8
+    gcs: 12
+    gcs_breakdown:
+      eye: 3
+      verbal: 4
+      motor: 5
+  vitals_current:
+    heart_rate: 102
+    blood_pressure: "94/62"
+    respiratory_rate: 22
+    spo2: 96
+    temperature: 38.4
+    gcs: 14
+    notes: "On norepinephrine 0.15 mcg/kg/min, 4L NC"
+  labs:
+    wbc: "22.4 (elevated)"
+    hemoglobin: "11.8"
+    platelets: "98 (low)"
+    sodium: "136"
+    potassium: "5.4 (elevated)"
+    creatinine: "2.8 (baseline 1.1)"
+    bun: "42"
+    glucose: "286"
+    lactate: "4.8 mmol/L (elevated)"
+    procalcitonin: "18.2 ng/mL (markedly elevated)"
+    inr: "1.6"
+    fibrinogen: "148 (low)"
+    bilirubin: "2.4"
+    lipase: "Normal"
+    blood_cultures: "pending (drawn x2 before antibiotics)"
+    urinalysis: "normal"
+  imaging:
+    ct_abdomen:
+      findings: |
+        Thickened sigmoid colon with pericolonic fat stranding, extraluminal
+        air consistent with contained perforation. Small amount of free fluid
+        in the pelvis. No abscess identified. Mild hepatomegaly.
+      impression: "Perforated sigmoid diverticulitis without discrete abscess."
+  procedures_performed:
+    - "Right internal jugular central venous catheter (triple lumen)"
+    - "Arterial line, left radial"
+    - "Foley catheter (output 15 mL/hr)"
+  active_orders:
+    - "Norepinephrine 0.15 mcg/kg/min (titrate MAP > 65)"
+    - "Normal saline 30 mL/kg bolus (3L given)"
+    - "Piperacillin-tazobactam 4.5g IV q6h (dose 1 given at 13:15)"
+    - "Metronidazole 500mg IV q8h"
+    - "Insulin drip protocol (target glucose 140-180)"
+    - "Hydrocortisone 100mg IV q8h (refractory shock protocol)"
+    - "DVT prophylaxis held (thrombocytopenia, coagulopathy)"
+  pending_items:
+    - "Surgical consult: Dr. Walsh evaluating for operative vs non-operative management"
+    - "Repeat lactate at 15:00 (assess resuscitation response)"
+    - "Blood culture results (24-48 hours)"
+    - "Repeat CBC and coags at 18:00 (trending platelets, DIC concern)"
+    - "ID consult if cultures positive for resistant organism"
+
+criteria:
+  - id: CC-016-C01
+    assertion: "Agent retrieved complete patient history including allergies and comorbidities"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-016-C02
+    assertion: "Agent retrieved encounter details including labs, imaging, and active orders"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-016-C03
+    assertion: "Agent used SBAR structure (Situation, Background, Assessment, Recommendation)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-016-C04
+    assertion: "Agent communicated current vasopressor dose and MAP target"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-016-C05
+    assertion: "Agent included all active problems (septic shock, perforated diverticulitis, AKI, thrombocytopenia, possible DIC, hyperglycemia, hyperkalemia)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-016-C06
+    assertion: "Agent highlighted the vancomycin allergy (Red Man Syndrome) prominently for ICU antibiotic management"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-016-C07
+    assertion: "Agent communicated pending surgical decision and expected timeline"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-016-C08
+    assertion: "Agent included code status (full code) and family contact information"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-016-C09
+    assertion: "Agent documented all pending items with expected timing (repeat lactate, cultures, CBC/coags)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-016-C10
+    assertion: "Agent documented the handoff communication in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review complete patient history, allergies, and comorbidities"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review encounter: vitals trajectory, labs, imaging, procedures, active orders, pending items"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Synthesize into structured SBAR handoff for ICU attending"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Document handoff in the patient record"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "diverticulitis"
+  expected_tool_calls: "3-5"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "SBAR handoffs to the ICU must be concise yet comprehensive. Situation: one-line summary. Background: relevant history. Assessment: current status with trajectory (improving/worsening). Recommendation: what needs to happen next and when. Always include allergies, code status, vasopressor doses, and pending items with timing."
