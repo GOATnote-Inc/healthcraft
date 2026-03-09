@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any, Protocol
 
 from healthcraft.mcp.server import HealthcraftServer
@@ -478,16 +479,38 @@ def create_client(model: str, api_key: str) -> ModelClient:
 
 
 def _build_tool_definitions(server: HealthcraftServer) -> list[dict[str, Any]]:
-    """Build tool definitions from the MCP server for LLM function calling."""
+    """Build tool definitions from mcp-tools.json for LLM function calling.
+
+    Loads full JSON Schema parameter definitions so models know what
+    arguments each tool accepts. Falls back to sparse definitions if
+    the config file is missing.
+    """
+    tools_config = Path(__file__).parents[3] / "configs" / "mcp-tools.json"
+    schema_map: dict[str, dict[str, Any]] = {}
+    if tools_config.exists():
+        with open(tools_config) as f:
+            config = json.load(f)
+        schema_map = {t["name"]: t for t in config.get("tools", [])}
+
     tools = []
     for camel_name in server.available_tools:
-        tools.append(
-            {
-                "name": camel_name,
-                "description": f"HEALTHCRAFT MCP tool: {camel_name}",
-                "parameters": {"type": "object", "properties": {}},
-            }
-        )
+        if camel_name in schema_map:
+            t = schema_map[camel_name]
+            tools.append(
+                {
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "parameters": t.get("parameters", {"type": "object", "properties": {}}),
+                }
+            )
+        else:
+            tools.append(
+                {
+                    "name": camel_name,
+                    "description": f"HEALTHCRAFT MCP tool: {camel_name}",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            )
     return tools
 
 

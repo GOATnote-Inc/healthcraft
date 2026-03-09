@@ -46,16 +46,27 @@ _SYSTEM_PROMPT_DIR = Path(__file__).parents[3] / "system-prompts"
 
 
 def _load_system_prompt(task: Task) -> str:
-    """Load the system prompt for a task."""
+    """Load the composite system prompt for a task.
+
+    Concatenates base.txt + mercy_point.txt + policies.txt + tool_reference.txt
+    to give the agent full context about its role, facility, policies, and
+    available tools. Tasks can override with system_prompt_override.
+    """
     if task.system_prompt_override:
         override_path = _SYSTEM_PROMPT_DIR / task.system_prompt_override
         if override_path.exists():
             return override_path.read_text(encoding="utf-8")
         return task.system_prompt_override
 
-    base_path = _SYSTEM_PROMPT_DIR / "base.txt"
-    if base_path.exists():
-        return base_path.read_text(encoding="utf-8")
+    # Concatenate all system prompt components
+    components = []
+    for filename in ("base.txt", "mercy_point.txt", "policies.txt", "tool_reference.txt"):
+        path = _SYSTEM_PROMPT_DIR / filename
+        if path.exists():
+            components.append(path.read_text(encoding="utf-8"))
+
+    if components:
+        return "\n\n".join(components)
 
     return "You are an emergency physician at Mercy Point Emergency Department."
 
