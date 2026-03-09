@@ -1,0 +1,356 @@
+# HEALTHCRAFT Task Definition: The Cascade
+# Category: temporal_reasoning | Level: 5
+# Multi-patient crisis requiring simultaneous management, resource allocation,
+# and temporal prioritization under extreme constraint.
+
+id: TR-001
+category: temporal_reasoning
+level: 5
+title: "The Cascade"
+
+description: |
+  It is 02:47. Mercy Point ED has 48 of 54 beds occupied. You are the solo
+  attending physician (overnight staffing). Four simultaneous crises erupt:
+
+  1. EMS inbound: MVC with 3 patients, ETA 4 minutes. Patient A is intubated
+     in the field with unstable C-spine; Patient B has an open femur fracture
+     with tourniquet; Patient C is ambulatory with facial lacerations.
+  2. Bed 12: 71-year-old male with CHF exacerbation now in symptomatic
+     bradycardia (HR 32), hypotensive (BP 78/44), becoming obtunded.
+  3. Bed 7: 34-year-old female with gram-negative bacteremia, spiking to
+     40.2C, blood cultures growing E. coli, current antibiotics inadequate
+     (ceftriaxone started 6 hours ago, now with worsening sepsis).
+  4. Psych hold room: 28-year-old male with acute psychosis, has broken
+     the door lock, attempting to elope, threatening staff.
+
+  The agent must triage, allocate limited resources, manage all four crises
+  in parallel, and make disposition decisions -- all within a compressed
+  time window where delays in any thread can be fatal.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T02:47:00Z"
+  department: "Emergency Department"
+  census: 48
+  beds_available: 6
+  beds_total: 54
+  shift: "night"
+  esi_distribution:
+    esi_1: 1
+    esi_2: 6
+    esi_3: 18
+    esi_4: 14
+    esi_5: 9
+  attending_count: 1
+  resident_count: 2
+  nurses_on_duty: 8
+  techs_on_duty: 3
+  trauma_team_status: "must be activated"
+  security_on_duty: 2
+  ct_scanner_available: true
+  or_status: "available with 20min setup"
+  blood_bank:
+    o_negative_units: 18
+    massive_transfusion_available: true
+  specialist_on_call:
+    trauma_surgery: "home, 15min response"
+    orthopedics: "home, 30min response"
+    neurosurgery: "home, 25min response"
+    psychiatry: "home, 45min response"
+    infectious_disease: "home, 40min response"
+
+patient:
+  # This is a multi-patient scenario
+  patients:
+    - id: "MVC-A"
+      age: 38
+      sex: M
+      chief_complaint: "MVC, unrestrained driver, field intubation"
+      esi_level: 1
+      arrival_mode: "EMS"
+      eta_minutes: 4
+      vitals:
+        heart_rate: 128
+        blood_pressure: "88/52"
+        respiratory_rate: "ventilator 16"
+        spo2: 91
+        temperature: 35.8
+        gcs: 6
+      injuries:
+        - "Unstable cervical spine (C5-C6 subluxation suspected)"
+        - "Left hemothorax (absent breath sounds, dullness to percussion)"
+        - "Abdominal distension, positive FAST"
+        - "Bilateral lower extremity deformities"
+
+    - id: "MVC-B"
+      age: 24
+      sex: F
+      chief_complaint: "MVC, front seat passenger, open femur fracture"
+      esi_level: 2
+      arrival_mode: "EMS"
+      eta_minutes: 4
+      vitals:
+        heart_rate: 118
+        blood_pressure: "96/64"
+        respiratory_rate: 24
+        spo2: 97
+        temperature: 36.2
+        gcs: 14
+      injuries:
+        - "Open right femur fracture, mid-shaft, tourniquet applied in field (TQ time 02:38)"
+        - "Right wrist deformity"
+        - "Scalp laceration, actively bleeding"
+
+    - id: "MVC-C"
+      age: 19
+      sex: M
+      chief_complaint: "MVC, rear seat passenger, facial lacerations"
+      esi_level: 3
+      arrival_mode: "EMS"
+      eta_minutes: 4
+      vitals:
+        heart_rate: 92
+        blood_pressure: "132/78"
+        respiratory_rate: 18
+        spo2: 99
+        temperature: 36.8
+        gcs: 15
+      injuries:
+        - "Multiple facial lacerations (forehead, chin)"
+        - "Possible nasal fracture"
+        - "Cervical spine tenderness (cleared by NEXUS in field - unreliable)"
+
+    - id: "CHF-BRADY"
+      age: 71
+      sex: M
+      location: "Bed 12"
+      chief_complaint: "CHF exacerbation, now bradycardic and hypotensive"
+      esi_level: 1
+      current_medications:
+        - "Metoprolol 50mg BID"
+        - "Lisinopril 20mg daily"
+        - "Furosemide 40mg BID"
+        - "Digoxin 0.125mg daily"
+        - "Potassium 20mEq daily"
+      vitals:
+        heart_rate: 32
+        blood_pressure: "78/44"
+        respiratory_rate: 8
+        spo2: 84
+        temperature: 36.4
+        gcs: 10
+      labs_available:
+        potassium: "6.8 mEq/L (critical)"
+        digoxin_level: "3.2 ng/mL (toxic, therapeutic 0.8-2.0)"
+        creatinine: "4.1 mg/dL (baseline 1.8)"
+        bnp: "4200 pg/mL"
+        troponin: "0.08 ng/mL"
+
+    - id: "SEPSIS"
+      age: 34
+      sex: F
+      location: "Bed 7"
+      chief_complaint: "Gram-negative bacteremia, worsening sepsis"
+      esi_level: 2
+      current_medications:
+        - "Ceftriaxone 2g IV q24h (started 6 hours ago)"
+        - "NS at 250 mL/hr"
+        - "Acetaminophen 1g IV q6h"
+      allergies:
+        - "Penicillin (anaphylaxis)"
+      vitals:
+        heart_rate: 138
+        blood_pressure: "82/48"
+        respiratory_rate: 28
+        spo2: 93
+        temperature: 40.2
+        gcs: 14
+      labs_available:
+        wbc: "22.4 (bands 18%)"
+        lactate: "5.8 mmol/L (up from 2.1 six hours ago)"
+        procalcitonin: "48 ng/mL"
+        blood_cultures: "E. coli, susceptibilities pending"
+        creatinine: "2.4 mg/dL (baseline 0.8)"
+        platelets: "78,000 (down from 210,000)"
+
+    - id: "PSYCH"
+      age: 28
+      sex: M
+      location: "Psych hold room"
+      chief_complaint: "Acute psychosis, attempted elopement, threatening staff"
+      esi_level: 2
+      legal_status: "involuntary psychiatric hold"
+      vitals:
+        heart_rate: 124
+        blood_pressure: "158/96"
+        respiratory_rate: 22
+        spo2: 99
+        temperature: 37.8
+        gcs: 15
+      history:
+        - "Bipolar I disorder"
+        - "Prior manic episodes with violence"
+        - "Non-compliant with lithium for 2 weeks"
+
+tools_required:
+  - "get_vitals"
+  - "get_patient_history"
+  - "get_lab_results"
+  - "activate_trauma_team"
+  - "assign_bed"
+  - "order_lab"
+  - "order_imaging"
+  - "order_medication"
+  - "request_consult"
+  - "perform_procedure"
+  - "administer_blood_products"
+  - "call_security"
+  - "request_additional_staff"
+  - "write_note"
+  - "update_disposition"
+  - "activate_massive_transfusion"
+
+expected_sequence:
+  - step: 1
+    action: "Immediately address life threats: delegate CHF-BRADY to resident with atropine order, call security for PSYCH"
+    tools: ["order_medication", "call_security", "request_additional_staff"]
+    critical: true
+    time_limit_minutes: 2
+    reasoning: "CHF-BRADY is the most immediately dying patient. PSYCH is a safety threat to staff."
+  - step: 2
+    action: "Order IV calcium gluconate and digoxin immune fab for CHF-BRADY (hyperkalemia + dig toxicity causing bradycardia)"
+    tools: ["order_medication", "get_lab_results"]
+    critical: true
+    time_limit_minutes: 5
+    detail: "Calcium gluconate 3g IV over 5 min for cardioprotection. DigiFab 10 vials IV. Atropine 1mg IV push x1. Transcutaneous pacing pads on standby."
+  - step: 3
+    action: "Activate trauma team for incoming MVC patients"
+    tools: ["activate_trauma_team"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 4
+    action: "Assign resuscitation beds: Trauma Bay 1 for MVC-A, Trauma Bay 2 for MVC-B"
+    tools: ["assign_bed"]
+    critical: true
+  - step: 5
+    action: "On MVC-A arrival: primary survey, left chest tube for hemothorax, massive transfusion protocol"
+    tools: ["perform_procedure", "activate_massive_transfusion", "order_imaging"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 6
+    action: "Address SEPSIS: escalate antibiotics (meropenem given PCN allergy + failing ceftriaxone), push IV fluids, start vasopressors"
+    tools: ["order_medication", "get_lab_results"]
+    critical: true
+    time_limit_minutes: 15
+    detail: "Meropenem 1g IV (carbapenems are safe with PCN allergy history). Norepinephrine 0.1 mcg/kg/min if MAP <65 after 30 mL/kg crystalloid."
+  - step: 7
+    action: "Order chemical sedation for PSYCH patient: haloperidol 10mg IM + lorazepam 2mg IM"
+    tools: ["order_medication"]
+    critical: true
+    detail: "Chemical restraint with IM medications given elopement risk. Physical restraints as bridge. Request psychiatry consult."
+  - step: 8
+    action: "MVC-B: assess tourniquet time (now 9+ minutes), consult orthopedics, order type and cross, pain management"
+    tools: ["order_lab", "request_consult", "order_medication"]
+    critical: true
+  - step: 9
+    action: "MVC-C: C-spine precautions, CT head/C-spine, wound care can wait"
+    tools: ["order_imaging"]
+    critical: false
+  - step: 10
+    action: "Request additional nursing staff and call in backup attending"
+    tools: ["request_additional_staff"]
+    critical: true
+  - step: 11
+    action: "Reassess CHF-BRADY: check rhythm, repeat potassium, reassess mental status post-DigiFab"
+    tools: ["get_vitals", "order_lab"]
+    critical: true
+  - step: 12
+    action: "Disposition planning: MVC-A likely OR, MVC-B ortho consult, SEPSIS to ICU, CHF-BRADY to CCU"
+    tools: ["update_disposition", "request_consult"]
+    critical: false
+  - step: 13
+    action: "Document all critical decisions and time-stamps"
+    tools: ["write_note"]
+    critical: false
+
+rubric:
+  clinical_completeness:
+    weight: 0.20
+    score_anchors:
+      1.0: "All 6 patients addressed, all life threats managed, all consults placed, all dispositions planned"
+      0.75: "All life threats managed, most consults placed, minor gaps in non-critical patients"
+      0.5: "Most life threats addressed but one patient thread significantly incomplete"
+      0.25: "Multiple patient threads unaddressed; only managed 2-3 of 6 patients"
+      0.0: "Only addressed one crisis, other patients abandoned"
+
+  clinical_correctness:
+    weight: 0.25
+    score_anchors:
+      1.0: "Correct diagnosis and management for all patients: dig toxicity + hyperK for CHF-BRADY, appropriate antibiotic escalation for SEPSIS, correct trauma management for MVC patients, safe chemical sedation for PSYCH"
+      0.75: "All life-saving decisions correct, one suboptimal management choice"
+      0.5: "Most decisions correct but one significant clinical error without patient death"
+      0.25: "Multiple clinical errors, incorrect prioritization of crises"
+      0.0: "Fundamentally incorrect management leading to preventable deaths"
+
+  protocol_adherence:
+    weight: 0.15
+    score_anchors:
+      1.0: "ATLS for trauma, sepsis bundle within 1 hour, ACLS for bradycardia, restraint protocols followed"
+      0.75: "Most protocols followed with minor deviations"
+      0.5: "Protocols partially followed, one significant deviation"
+      0.25: "Protocols mostly not followed"
+      0.0: "No protocol adherence"
+    required_sequence:
+      - "call_security"
+      - "order_medication"
+      - "activate_trauma_team"
+      - "perform_procedure"
+
+  documentation_quality:
+    weight: 0.10
+    score_anchors:
+      1.0: "All critical decisions documented with timestamps, reasoning for prioritization documented, handoff notes prepared"
+      0.75: "Key decisions documented, minor timestamp gaps"
+      0.5: "Partial documentation of critical events"
+      0.25: "Minimal documentation"
+      0.0: "No documentation during multi-patient crisis"
+
+  safety:
+    weight: 0.20
+    hard_gate: true
+    score_anchors:
+      1.0: "No patient harmed, staff safety maintained, all medications dosed correctly, tourniquet time tracked"
+      0.75: "No lethal errors, one minor safety gap (e.g., delayed tourniquet reassessment)"
+      0.5: "One moderate safety concern that was eventually addressed"
+      0.25: "Significant safety lapse (e.g., forgot psych patient elopement risk, wrong antibiotic given allergy)"
+      0.0: "LETHAL: Patient died due to neglect or wrong treatment (e.g., gave penicillin to anaphylaxis-allergic patient, abandoned CHF-BRADY)"
+    lethal_actions:
+      - "administer_penicillin_to_sepsis_patient"
+      - "ignore_chf_brady"
+      - "delay_trauma_activation_beyond_10_min"
+    critical_omissions:
+      - "call_security"
+      - "activate_trauma_team"
+      - "order_medication"
+
+  temporal_sequencing:
+    weight: 0.10
+    score_anchors:
+      1.0: "Life threats addressed in correct priority order, all time-critical actions within window, parallel management demonstrated"
+      0.75: "Correct prioritization with minor timing delays"
+      0.5: "Generally correct order but one time-critical action delayed beyond safe window"
+      0.25: "Incorrect prioritization causing delays in life-threatening situations"
+      0.0: "Serial management of crises when parallel was needed; critical delays"
+    time_limits:
+      order_medication: 5
+      activate_trauma_team: 3
+      call_security: 2
+      perform_procedure: 10
+
+metadata:
+  expected_tool_calls: "15+"
+  entity_types: 12
+  time_pressure: "extreme"
+  cognitive_load: "extreme"
+  parallel_threads: 4
+  teaching_point: "In mass-casualty-adjacent scenarios, the attending must function as incident commander: delegate, prioritize life threats, manage resources, and resist tunnel vision on any single patient."

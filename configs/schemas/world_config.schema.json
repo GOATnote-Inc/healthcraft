@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GOATnote-Inc/healthcraft/configs/schemas/world_config.schema.json",
+  "title": "HEALTHCRAFT World Configuration",
+  "description": "Schema for HEALTHCRAFT world seed configuration YAML files.",
+  "type": "object",
+  "required": ["name", "seed", "facility"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name for this world configuration"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version number"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Random seed for deterministic world generation"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Simulation start time in ISO 8601 format"
+    },
+    "facility": {
+      "type": "object",
+      "required": ["beds", "departments", "staffing"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Facility name"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "level_i_trauma_center",
+            "level_ii_trauma_center",
+            "level_iii_trauma_center",
+            "community_ed",
+            "critical_access",
+            "pediatric_ed",
+            "freestanding_ed"
+          ],
+          "description": "Facility type classification"
+        },
+        "city": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "annual_visits": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Approximate annual ED visit volume"
+        },
+        "beds": {
+          "type": "object",
+          "required": ["total"],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Total bed count"
+            },
+            "resuscitation": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Resuscitation/trauma bay count"
+            },
+            "acute_care": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Acute care bed count"
+            },
+            "observation": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Observation bed count"
+            },
+            "fast_track": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Fast track bed count"
+            }
+          }
+        },
+        "departments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Department name"
+              },
+              "beds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attending_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "resident_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "nurse_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tech_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "staffing": {
+          "type": "object",
+          "required": ["shift"],
+          "properties": {
+            "shift": {
+              "type": "string",
+              "enum": ["day", "evening", "night"],
+              "description": "Current shift"
+            },
+            "shift_start": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$",
+              "description": "Shift start time (HH:MM)"
+            },
+            "shift_end": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$",
+              "description": "Shift end time (HH:MM)"
+            },
+            "attendings_on_duty": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "residents_on_duty": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "nurses_on_duty": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "techs_on_duty": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "specialist_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["specialty", "availability"],
+        "properties": {
+          "specialty": {
+            "type": "string",
+            "description": "Specialist type"
+          },
+          "availability": {
+            "type": "string",
+            "enum": ["24_7", "on_call", "daytime_only", "unavailable"],
+            "description": "Availability level"
+          },
+          "response_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Expected response time in minutes"
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Available facility resources",
+      "properties": {
+        "ct_scanners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mri_scanners": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ultrasound_machines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "xray_rooms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "or_suites": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cath_lab": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blood_bank": {
+          "type": "object",
+          "properties": {
+            "o_negative_units": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "o_positive_units": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "type_specific_available": {
+              "type": "boolean"
+            },
+            "massive_transfusion_protocol": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "census": {
+      "type": "object",
+      "description": "Initial patient census when world state is seeded",
+      "properties": {
+        "current_patients": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "waiting_room": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "esi_distribution": {
+          "type": "object",
+          "properties": {
+            "esi_1": {"type": "integer", "minimum": 0},
+            "esi_2": {"type": "integer", "minimum": 0},
+            "esi_3": {"type": "integer", "minimum": 0},
+            "esi_4": {"type": "integer", "minimum": 0},
+            "esi_5": {"type": "integer", "minimum": 0}
+          }
+        },
+        "beds_available": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ambulance_diversion": {
+          "type": "boolean"
+        }
+      }
+    },
+    "time_constraints": {
+      "type": "object",
+      "description": "Facility-level time targets in minutes/hours",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "protocols": {
+      "type": "array",
+      "description": "Available clinical protocols",
+      "items": {
+        "type": "object",
+        "required": ["protocol_id", "name", "trigger"],
+        "properties": {
+          "protocol_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "entity_generation": {
+      "type": "object",
+      "description": "Configuration for procedural entity generation",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "seed_offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

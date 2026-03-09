@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GOATnote-Inc/healthcraft/configs/schemas/task.schema.json",
+  "title": "HEALTHCRAFT Task Definition",
+  "description": "Schema for HEALTHCRAFT task YAML files defining clinical scenarios for agent evaluation.",
+  "type": "object",
+  "required": ["id", "category", "level", "title", "description", "rubric"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,4}-\\d{3}$",
+      "description": "Unique task identifier (e.g., CR-001, TR-001, SCJ-002)"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "information_retrieval",
+        "clinical_communication",
+        "clinical_reasoning",
+        "multi_step_workflows",
+        "temporal_reasoning",
+        "safety_critical_judgment"
+      ],
+      "description": "Task category determining evaluation focus"
+    },
+    "level": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Difficulty level (1=simplest, 5=most complex)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable task title"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Detailed narrative description of the clinical scenario"
+    },
+    "setting": {
+      "type": "object",
+      "description": "World state context for the scenario",
+      "properties": {
+        "facility": {
+          "type": "string",
+          "description": "Name of the facility"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Scenario start time in ISO 8601 format"
+        },
+        "department": {
+          "type": "string"
+        },
+        "census": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Current patient census"
+        },
+        "beds_available": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "patient": {
+      "type": "object",
+      "description": "Patient demographics, presentation, and clinical data",
+      "properties": {
+        "age": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "sex": {
+          "type": "string",
+          "enum": ["M", "F", "X"]
+        },
+        "chief_complaint": {
+          "type": "string"
+        },
+        "arrival_mode": {
+          "type": "string"
+        },
+        "esi_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "allergies": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"type": "string"},
+              {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "reaction": {"type": "string"},
+                  "severity": {"type": "string"}
+                },
+                "required": ["name"]
+              }
+            ]
+          }
+        },
+        "medications": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "past_medical_history": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "vitals": {
+          "type": "object",
+          "properties": {
+            "heart_rate": {"type": "integer", "minimum": 0, "maximum": 300},
+            "blood_pressure": {"type": "string"},
+            "blood_pressure_right": {"type": "string"},
+            "blood_pressure_left": {"type": "string"},
+            "respiratory_rate": {
+              "oneOf": [
+                {"type": "integer", "minimum": 0, "maximum": 60},
+                {"type": "string"}
+              ]
+            },
+            "spo2": {"type": "integer", "minimum": 0, "maximum": 100},
+            "temperature": {"type": "number"},
+            "gcs": {"type": "integer", "minimum": 3, "maximum": 15},
+            "pain_scale": {
+              "oneOf": [
+                {"type": "integer", "minimum": 0, "maximum": 10},
+                {"type": "string"}
+              ]
+            }
+          }
+        },
+        "patients": {
+          "type": "array",
+          "description": "For multi-patient scenarios",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "age": {"type": "integer"},
+              "sex": {"type": "string"},
+              "chief_complaint": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "tools_required": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "List of MCP tool names the agent is expected to use"
+    },
+    "expected_sequence": {
+      "type": "array",
+      "description": "Ordered list of expected steps with associated tools",
+      "items": {
+        "type": "object",
+        "required": ["step", "action"],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "type": "string",
+            "description": "Description of the expected action"
+          },
+          "tools": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tools expected for this step"
+          },
+          "critical": {
+            "type": "boolean",
+            "description": "Whether this step is critical for patient safety"
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "Clinical reasoning behind this step"
+          },
+          "safety": {
+            "type": "string",
+            "description": "Safety implications of this step"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Additional clinical detail"
+          },
+          "time_limit_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum time allowed for this step"
+          }
+        }
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "description": "Six evaluation dimensions with weights and score anchors",
+      "required": [
+        "clinical_completeness",
+        "clinical_correctness",
+        "protocol_adherence",
+        "documentation_quality",
+        "safety",
+        "temporal_sequencing"
+      ],
+      "properties": {
+        "clinical_completeness": {
+          "$ref": "#/$defs/rubric_dimension"
+        },
+        "clinical_correctness": {
+          "$ref": "#/$defs/rubric_dimension"
+        },
+        "protocol_adherence": {
+          "$ref": "#/$defs/rubric_dimension"
+        },
+        "documentation_quality": {
+          "$ref": "#/$defs/rubric_dimension"
+        },
+        "safety": {
+          "allOf": [
+            {"$ref": "#/$defs/rubric_dimension"},
+            {
+              "type": "object",
+              "properties": {
+                "hard_gate": {
+                  "type": "boolean",
+                  "description": "If true, a score of 0.0 zeroes the total score"
+                },
+                "lethal_actions": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Actions that trigger a lethal error (score 0.0)"
+                },
+                "critical_omissions": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Required actions whose absence constitutes a safety failure"
+                }
+              }
+            }
+          ]
+        },
+        "temporal_sequencing": {
+          "allOf": [
+            {"$ref": "#/$defs/rubric_dimension"},
+            {
+              "type": "object",
+              "properties": {
+                "time_limits": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "description": "Tool name -> maximum minutes allowed"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional task metadata for indexing and analysis",
+      "properties": {
+        "confusion_pair": {"type": "string"},
+        "openem_condition": {"type": "string"},
+        "expected_tool_calls": {"type": "string"},
+        "entity_types": {"type": "integer"},
+        "time_pressure": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "extreme"]
+        },
+        "cognitive_load": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "extreme"]
+        },
+        "teaching_point": {"type": "string"},
+        "no_single_correct_answer": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "rubric_dimension": {
+      "type": "object",
+      "required": ["weight", "score_anchors"],
+      "properties": {
+        "weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Weight of this dimension in the total score (all weights should sum to 1.0)"
+        },
+        "score_anchors": {
+          "type": "object",
+          "description": "Qualitative descriptions at score levels from 0.0 to 1.0",
+          "patternProperties": {
+            "^(0\\.0|0\\.25|0\\.5|0\\.75|1\\.0)$": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 3
+        },
+        "expected_diagnosis": {
+          "type": "string"
+        },
+        "acceptable_diagnoses": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "lethal_diagnoses": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "required_sequence": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

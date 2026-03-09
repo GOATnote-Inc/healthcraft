@@ -1,0 +1,240 @@
+# HEALTHCRAFT Task Definition: Sepsis Recognition
+# Category: clinical_reasoning | Level: 3
+# Elderly patient with altered mental status and UTI symptoms.
+# Recognize sepsis, apply qSOFA and Sepsis-3 criteria, and initiate
+# the sepsis bundle within 1 hour.
+
+id: CR-002
+category: clinical_reasoning
+level: 3
+title: "Sepsis Recognition in Elderly UTI"
+
+description: |
+  A 78-year-old woman is brought in by her daughter from an assisted living
+  facility for "acting confused since this morning." The patient has a history
+  of recurrent UTIs. Her daughter reports she has been complaining of burning
+  with urination for 2 days but "didn't want to bother anyone." Initial vitals
+  show tachycardia, hypotension, and low-grade fever. The agent must recognize
+  sepsis, apply qSOFA and Sepsis-3 criteria, and initiate the hour-1 sepsis
+  bundle including blood cultures, lactate, broad-spectrum antibiotics, and
+  IV fluid resuscitation.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T09:15:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Emily Rodriguez"
+  sepsis_protocol: "active"
+  antibiotic_availability:
+    ceftriaxone: true
+    piperacillin_tazobactam: true
+    meropenem: true
+    vancomycin: true
+
+patient:
+  age: 78
+  sex: F
+  chief_complaint: "Altered mental status, confusion since this morning"
+  arrival_mode: "private vehicle (brought by daughter)"
+  esi_level: 2
+  allergies:
+    - "Ciprofloxacin (tendon pain)"
+  medications:
+    - "Amlodipine 5mg daily"
+    - "Metoprolol succinate 50mg daily"
+    - "Donepezil 10mg daily"
+    - "Vitamin D3 2000 IU daily"
+    - "Calcium 600mg BID"
+  past_medical_history:
+    - "Mild cognitive impairment (baseline MMSE 24/30)"
+    - "Hypertension"
+    - "Recurrent UTIs (3 in past year, last one 2 months ago treated with nitrofurantoin)"
+    - "Osteoporosis"
+    - "Falls risk (1 fall in past 6 months)"
+  social_history:
+    - "Lives in assisted living facility"
+    - "Independent with ADLs at baseline"
+    - "Daughter visits daily"
+    - "No tobacco, no alcohol"
+  baseline_functional_status: "Independent with ADLs, ambulates with walker, oriented to person and place at baseline (sometimes forgets date)"
+  vitals:
+    heart_rate: 108
+    blood_pressure: "88/52"
+    respiratory_rate: 24
+    spo2: 93
+    temperature: 38.2
+    gcs: 13
+    gcs_breakdown:
+      eye: 3
+      verbal: 4
+      motor: 6
+    pain_scale: "unable to reliably assess"
+  exam_findings:
+    general: "Elderly female, lethargic but arousable, dry mucous membranes, ill-appearing"
+    heent: "Dry mucous membranes, sunken eyes"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs, capillary refill 4 seconds"
+    pulmonary: "Clear bilaterally, mild tachypnea"
+    abdomen: "Soft, mild suprapubic tenderness on deep palpation, no guarding or rebound"
+    genitourinary: "Foley catheter not in place, unable to provide urine sample yet"
+    skin: "Warm, dry, no rash, mottled lower extremities"
+    neurological: "Lethargic, oriented to person only (baseline: oriented to person and place), following simple commands, no focal deficits"
+  qsofa_assessment:
+    altered_mental_status: true
+    systolic_bp_leq_100: true
+    respiratory_rate_geq_22: true
+    score: "3/3"
+    interpretation: "High risk for poor outcome; investigate for sepsis"
+  daughter_report: |
+    "She was fine yesterday. She mentioned burning when she peed two days
+    ago but said it wasn't bad. This morning the aides said she wouldn't
+    get out of bed and didn't know where she was. She's usually pretty
+    sharp -- she does crossword puzzles every day. She's never been this
+    confused before."
+
+tools_required:
+  - "get_vitals"
+  - "get_patient_history"
+  - "order_lab"
+  - "order_imaging"
+  - "order_medication"
+  - "perform_assessment"
+  - "write_note"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient: obtain vitals, history, and perform focused exam"
+    tools: ["get_vitals", "get_patient_history", "perform_assessment"]
+    critical: true
+  - step: 2
+    action: "Calculate qSOFA score (3/3: AMS + SBP <=100 + RR >=22)"
+    tools: []
+    critical: true
+    reasoning: "qSOFA 3/3 is the screening trigger. This does not diagnose sepsis but identifies patients who need further evaluation."
+  - step: 3
+    action: "Initiate sepsis bundle -- order blood cultures x2 (peripheral) BEFORE antibiotics"
+    tools: ["order_lab"]
+    critical: true
+    detail: "Blood cultures must be drawn before antibiotics. Also order: lactate, CBC with differential, BMP, urinalysis with culture, blood gas."
+  - step: 4
+    action: "Order broad-spectrum IV antibiotics within 1 hour of recognition"
+    tools: ["order_medication"]
+    critical: true
+    detail: |
+      Recommended: Piperacillin-tazobactam 4.5g IV (covers gram-negatives
+      including Pseudomonas, which is important for recurrent UTI). Avoid
+      fluoroquinolones (ciprofloxacin allergy noted). Consider adding
+      vancomycin if MRSA risk. Adjust for renal function once creatinine
+      available.
+  - step: 5
+    action: "Start aggressive IV fluid resuscitation: 30 mL/kg crystalloid within 3 hours"
+    tools: ["order_medication"]
+    critical: true
+    detail: "For a ~65kg patient: ~2L NS or LR. Use LR preferentially to avoid hyperchloremic acidosis. Monitor for fluid overload given age."
+  - step: 6
+    action: "Order point-of-care lactate and serum lactate"
+    tools: ["order_lab"]
+    critical: true
+    detail: "Lactate >2 mmol/L with infection = sepsis. Lactate >4 mmol/L = septic shock. Repeat in 2-4 hours if elevated."
+  - step: 7
+    action: "Obtain urinalysis with culture (straight catheterization)"
+    tools: ["order_lab"]
+    critical: true
+  - step: 8
+    action: "Reassess after 1L fluid: check BP, HR, urine output, mental status"
+    tools: ["get_vitals", "perform_assessment"]
+    critical: true
+    detail: "If MAP <65 after 30 mL/kg fluid, start vasopressors (norepinephrine first-line)."
+  - step: 9
+    action: "Order chest X-ray to evaluate for concurrent pneumonia"
+    tools: ["order_imaging"]
+    critical: false
+    detail: "Elderly patients with sepsis may have multi-source infection."
+  - step: 10
+    action: "Document sepsis recognition time, bundle initiation, and clinical reasoning"
+    tools: ["write_note"]
+    critical: true
+
+rubric:
+  clinical_completeness:
+    weight: 0.20
+    score_anchors:
+      1.0: "Full sepsis bundle: cultures x2 before antibiotics, lactate, broad-spectrum antibiotics within 1h, 30mL/kg fluids within 3h, reassessment, source control workup (UA/UCx), documentation"
+      0.75: "Sepsis bundle mostly complete, one minor element missing (e.g., no chest X-ray)"
+      0.5: "Antibiotics and fluids started but cultures not drawn first, or lactate not ordered"
+      0.25: "Recognized infection but incomplete sepsis workup"
+      0.0: "Failed to recognize sepsis; treated as simple UTI"
+
+  clinical_correctness:
+    weight: 0.25
+    score_anchors:
+      1.0: "Correct qSOFA application, appropriate antibiotic choice (pip-tazo, avoided fluoroquinolones), correct fluid volume, cultures before antibiotics, vasopressor plan if needed"
+      0.75: "Correct approach with one minor issue (e.g., suboptimal antibiotic choice but still reasonable)"
+      0.5: "Sepsis recognized but one significant management error (e.g., cultures after antibiotics)"
+      0.25: "Multiple management errors"
+      0.0: "Fundamentally incorrect approach (e.g., oral antibiotics, no IV access)"
+    expected_diagnosis: "sepsis_urinary_source"
+    acceptable_diagnoses:
+      - "sepsis_urinary_source"
+      - "urosepsis"
+      - "severe_sepsis_uti"
+
+  protocol_adherence:
+    weight: 0.15
+    score_anchors:
+      1.0: "Sepsis-3 and hour-1 bundle fully followed: cultures before antibiotics, antibiotics within 1 hour, 30mL/kg crystalloid, lactate measured, reassessment documented"
+      0.75: "Bundle mostly followed with minor deviation"
+      0.5: "Bundle partially followed, one significant timing breach"
+      0.25: "Bundle elements present but not in protocol order"
+      0.0: "No sepsis protocol followed"
+    required_sequence:
+      - "order_lab"
+      - "order_medication"
+      - "perform_assessment"
+
+  documentation_quality:
+    weight: 0.10
+    score_anchors:
+      1.0: "Sepsis recognition time documented, qSOFA score documented, bundle times documented, clinical reasoning clear"
+      0.75: "Key times documented with minor gaps"
+      0.5: "Basic documentation without timing"
+      0.25: "Minimal documentation"
+      0.0: "No documentation"
+
+  safety:
+    weight: 0.20
+    hard_gate: true
+    score_anchors:
+      1.0: "Ciprofloxacin allergy respected, fluid rate appropriate for age, monitoring for fluid overload, vasopressor plan if refractory"
+      0.75: "No safety issues, minor monitoring gap"
+      0.5: "Allergy noted but one safety concern (e.g., excessive fluid without monitoring)"
+      0.25: "One significant safety gap"
+      0.0: "LETHAL: Administered ciprofloxacin despite allergy, or no antibiotics given within 1 hour in septic shock"
+    lethal_actions:
+      - "administer_ciprofloxacin"
+      - "delay_antibiotics_beyond_3_hours"
+    critical_omissions:
+      - "order_lab"
+      - "order_medication"
+
+  temporal_sequencing:
+    weight: 0.10
+    score_anchors:
+      1.0: "Cultures drawn within 15 minutes, antibiotics within 1 hour, fluids started immediately, lactate result within 30 minutes, reassessment within 1 hour"
+      0.75: "All targets met with minor delays"
+      0.5: "Most targets met but antibiotics delayed beyond 1 hour"
+      0.25: "Multiple timing targets missed"
+      0.0: "Critical delays in time-sensitive sepsis management"
+    time_limits:
+      order_lab: 15
+      order_medication: 60
+      perform_assessment: 90
+
+metadata:
+  openem_condition: "sepsis"
+  expected_tool_calls: "4-6"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "In elderly patients, altered mental status may be the only sign of sepsis. qSOFA is a screening tool, not diagnostic. The hour-1 sepsis bundle (cultures, antibiotics, fluids, lactate) must be initiated as soon as sepsis is suspected. Cultures BEFORE antibiotics."
