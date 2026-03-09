@@ -9,8 +9,20 @@ from typing import Any
 
 
 class EntityType(Enum):
-    """All 14 entity types in the HEALTHCRAFT simulation."""
+    """All entity types in the HEALTHCRAFT simulation.
 
+    Core types (used directly by encounters):
+        PATIENT, ENCOUNTER, STAFF, LOCATION, VITAL_SIGNS, LAB_RESULT,
+        IMAGING_STUDY, MEDICATION, PROCEDURE, CLINICAL_NOTE, ORDER,
+        ALLERGY, CLINICAL_KNOWLEDGE, DISPOSITION
+
+    Domain types (interconnected entity graph from Corecraft Section 3):
+        PROTOCOL, DECISION_RULE, TREATMENT_PLAN, CLINICAL_TASK,
+        SUPPLY, INSURANCE, RESOURCE, TRANSFER, REFERENCE_MATERIAL,
+        REGULATORY
+    """
+
+    # --- Core types ---
     PATIENT = "patient"
     ENCOUNTER = "encounter"
     STAFF = "staff"
@@ -25,6 +37,18 @@ class EntityType(Enum):
     ALLERGY = "allergy"
     CLINICAL_KNOWLEDGE = "clinical_knowledge"
     DISPOSITION = "disposition"
+
+    # --- Domain types (Corecraft entity graph) ---
+    PROTOCOL = "protocol"
+    DECISION_RULE = "decision_rule"
+    TREATMENT_PLAN = "treatment_plan"
+    CLINICAL_TASK = "clinical_task"
+    SUPPLY = "supply"
+    INSURANCE = "insurance"
+    RESOURCE = "resource"
+    TRANSFER = "transfer"
+    REFERENCE_MATERIAL = "reference_material"
+    REGULATORY = "regulatory"
 
 
 @dataclass(frozen=True)
