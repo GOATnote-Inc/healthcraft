@@ -1,0 +1,214 @@
+# HEALTHCRAFT Task Definition: Aortic Aneurysm Rupture
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: Ruptured AAA vs Renal Colic
+# Elderly patient with syncope, back pain, and hypotension. Agent must not
+# anchor on renal colic and must recognize ruptured AAA.
+
+id: CR-011
+category: clinical_reasoning
+level: 4
+title: "Aortic Aneurysm Rupture"
+system_prompt_override: null
+
+description: |
+  A 72-year-old male presents after a syncopal episode at home. He reports
+  sudden-onset severe left flank and back pain that began 30 minutes before the
+  syncope. He is a lifelong smoker with known but unmonitored hypertension. On
+  arrival, he is pale and diaphoretic with BP 78/42, HR 124, and a pulsatile
+  abdominal mass palpable above the umbilicus. His hemoglobin is 8.2 g/dL
+  (baseline unknown). The agent must recognize the presentation as ruptured
+  abdominal aortic aneurysm, initiate permissive hypotension resuscitation
+  (target SBP 80-90), and emergently consult vascular surgery — NOT treat
+  this as renal colic.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-14T08:20:00Z"
+  department: "Emergency Department"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. Emily Rodriguez"
+  ct_scanner_status: "available"
+  specialist_availability:
+    vascular_surgery: "on_call, 20min response"
+    interventional_radiology: "on_call, 25min response"
+    anesthesiology: "in_house"
+    blood_bank: "available"
+
+patient:
+  age: 72
+  sex: M
+  chief_complaint: "Passed out at home, severe back and flank pain"
+  arrival_mode: "EMS"
+  esi_level: 1
+  allergies:
+    - "Morphine (itching)"
+  medications:
+    - "None (patient reports not seeing a doctor in 10+ years)"
+  past_medical_history:
+    - "Hypertension (self-reported, untreated)"
+    - "No known AAA screening"
+    - "No surgeries"
+    - "Last doctor visit >10 years ago"
+  family_history:
+    - "Father: died of 'burst blood vessel in belly' at age 68"
+    - "Brother: abdominal aortic aneurysm repair at age 70"
+  social_history:
+    - "55 pack-year smoking history (active smoker)"
+    - "Retired construction worker"
+    - "Moderate alcohol use (2-3 beers daily)"
+    - "Lives alone"
+  vitals:
+    heart_rate: 124
+    blood_pressure: "78/42"
+    respiratory_rate: 26
+    spo2: 94
+    temperature: 36.4
+    gcs: 14
+    gcs_breakdown:
+      eye: 4
+      verbal: 4
+      motor: 6
+    pain_scale: 10
+  exam_findings:
+    general: "Elderly male, pale, diaphoretic, writhing in pain, ill-appearing"
+    cardiovascular: "Tachycardic, regular rhythm, weak peripheral pulses, capillary refill >4 seconds"
+    pulmonary: "Clear bilaterally, tachypneic"
+    abdomen: "Pulsatile mass palpable in periumbilical region (~8 cm), tender to palpation, mild distension, no peritoneal signs (retroperitoneal containment)"
+    back: "Severe tenderness in left flank and lumbar region"
+    extremities: "Cool, mottled bilateral lower extremities, femoral pulses diminished bilaterally"
+    neurological: "GCS 14, slightly confused (may be hypoperfusion), no focal deficits"
+  labs:
+    cbc:
+      wbc: 12.4
+      hemoglobin: 8.2
+      hematocrit: 24.6
+      platelets: 178
+    bmp:
+      sodium: 137
+      potassium: 4.6
+      creatinine: 1.9
+      bun: 34
+    coagulation:
+      pt: 13.2
+      inr: 1.1
+      ptt: 30
+    lactate: 5.8
+    blood_type: "A positive"
+    urinalysis:
+      blood: "negative"
+      wbc: "0-2/hpf"
+      crystals: "none"
+
+criteria:
+  - id: CR-011-C01
+    assertion: "Agent reviewed vitals showing hypotension (78/42) and tachycardia (124)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-011-C02
+    assertion: "Agent identified pulsatile abdominal mass on physical exam"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-011-C03
+    assertion: "Agent retrieved history including smoking, unmonitored HTN, and family history of AAA"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-011-C04
+    assertion: "Agent diagnosed ruptured abdominal aortic aneurysm"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-011-C05
+    assertion: "Agent did NOT pursue renal colic workup as the primary diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-011-C06
+    assertion: "Agent initiated permissive hypotension resuscitation (target SBP 80-90, NOT aggressive fluid boluses)"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-011-C07
+    assertion: "Agent consulted vascular surgery emergently"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-011-C08
+    assertion: "Agent ordered type-and-crossmatch for multiple units and activated massive transfusion protocol"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-011-C09
+    assertion: "Agent ordered CTA abdomen/pelvis ONLY if patient was hemodynamically stable enough (or recognized patient may go directly to OR)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-011-C10
+    assertion: "Agent did NOT delay surgical consultation for imaging"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log shows createClinicalOrder for vascular_surgery before imaging orders"
+
+  - id: CR-011-C11
+    assertion: "Agent placed large-bore IV access (bilateral)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-011-C12
+    assertion: "Agent documented ruptured AAA diagnosis, hemodynamic status, and surgical plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Assess vitals — profound hypotension, tachycardia, elevated lactate"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — pulsatile abdominal mass, diminished femoral pulses"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — smoker, unmonitored HTN, family AAA history"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Emergent vascular surgery consult — do NOT delay for imaging"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Ruptured AAA mortality is >80% without surgery. Delay for imaging kills."
+  - step: 5
+    action: "Large-bore IV, type-and-cross, massive transfusion protocol, permissive hypotension"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "CTA if stable, otherwise direct to OR"
+    tools: ["createClinicalOrder"]
+    critical: false
+
+metadata:
+  confusion_pair: "ruptured_aaa_vs_renal_colic"
+  openem_condition: "ruptured_aaa"
+  expected_tool_calls: "5-9"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "The classic triad of ruptured AAA: hypotension + back/flank pain + pulsatile abdominal mass. Present in only 50% of cases, but when present, is diagnostic. Permissive hypotension (SBP 80-90) prevents clot disruption. Renal colic does NOT cause hypotension. Family history of AAA doubles risk. Surgery must not be delayed for imaging in unstable patients."

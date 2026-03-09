@@ -1,0 +1,241 @@
+# HEALTHCRAFT Task Definition: Medication Reconciliation
+# Category: information_retrieval | Level: 3
+# Agent must reconcile a complex home medication list with new ED orders
+# for a poly-pharmacy elderly patient. Multiple interactions and duplications.
+
+id: IR-013
+category: information_retrieval
+level: 3
+title: "Medication Reconciliation"
+system_prompt_override: null
+
+description: |
+  A 78-year-old woman is admitted to the ED after a fall at home. She is
+  confused and unable to provide a reliable medication history. Her daughter
+  brings in a plastic bag containing 14 medication bottles from three
+  different prescribers. Several medications overlap in drug class, two are
+  duplicates from different pharmacies, and one was discontinued 6 months
+  ago but never removed from her regimen. The ED team has already ordered
+  IV ketorolac for pain and ondansetron for nausea. The agent must reconcile
+  the complete medication list, identify dangerous interactions and
+  duplications, and flag concerns before any new orders are administered.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T11:20:00Z"
+  department: "Emergency Department"
+  census: 36
+  beds_available: 18
+  attending_on_duty: "Dr. David Patel"
+
+patient:
+  age: 78
+  sex: F
+  chief_complaint: "Fall at home, confusion, hip pain"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 6"
+  allergies:
+    - name: "Morphine"
+      reaction: "Hallucinations"
+      severity: "moderate"
+      year_reported: 2019
+      verified: true
+  medications_from_bottles:
+    - name: "Warfarin 5mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+      indication: "Atrial fibrillation"
+    - name: "Apixaban 5mg BID"
+      prescriber: "Dr. Robert Nash (Cardiologist)"
+      pharmacy: "Walgreens #891"
+      last_filled: "2026-01-02"
+      indication: "Atrial fibrillation"
+      note: "DUPLICATE ANTICOAGULANT — patient on both warfarin and apixaban"
+    - name: "Metoprolol succinate 50mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+    - name: "Metoprolol tartrate 25mg BID"
+      prescriber: "Dr. Robert Nash (Cardiologist)"
+      pharmacy: "Walgreens #891"
+      last_filled: "2026-01-02"
+      note: "DUPLICATE BETA-BLOCKER — different formulations from different prescribers"
+    - name: "Lisinopril 20mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+    - name: "Furosemide 40mg daily"
+      prescriber: "Dr. Robert Nash (Cardiologist)"
+      pharmacy: "Walgreens #891"
+      last_filled: "2026-01-02"
+    - name: "Potassium chloride 20mEq daily"
+      prescriber: "Dr. Robert Nash (Cardiologist)"
+      pharmacy: "Walgreens #891"
+      last_filled: "2026-01-02"
+    - name: "Donepezil 10mg daily"
+      prescriber: "Dr. Maria Santos (Neurologist)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-15"
+    - name: "Sertraline 100mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+    - name: "Omeprazole 40mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+    - name: "Amlodipine 10mg daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+    - name: "Gabapentin 300mg TID"
+      prescriber: "Dr. Maria Santos (Neurologist)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-11-20"
+      note: "DISCONTINUED by Dr. Santos 2025-07-15 due to confusion — patient still taking"
+    - name: "Calcium carbonate 500mg BID"
+      prescriber: "OTC"
+      pharmacy: "self-purchased"
+    - name: "Vitamin D3 2000 IU daily"
+      prescriber: "Dr. Elena Vasquez (PCP)"
+      pharmacy: "CVS #4472"
+      last_filled: "2025-12-28"
+  past_medical_history:
+    - "Atrial fibrillation (permanent)"
+    - "Congestive heart failure (HFpEF, EF 55%)"
+    - "Hypertension"
+    - "Alzheimer's disease (mild-moderate)"
+    - "Depression"
+    - "Osteoporosis"
+    - "Peripheral neuropathy"
+    - "GERD"
+  vitals:
+    heart_rate: 62
+    blood_pressure: "98/58"
+    respiratory_rate: 16
+    spo2: 96
+    temperature: 36.5
+    gcs: 13
+    pain_scale: 7
+  labs:
+    inr: 4.8
+    potassium: 5.6
+    creatinine: 1.8
+    gfr: 28
+    hemoglobin: 10.2
+    platelet_count: 156
+  imaging:
+    xray_pelvis: "No acute fracture. Degenerative changes bilateral hips."
+  pending_orders:
+    - medication: "Ketorolac 30mg IV"
+      ordered_by: "Dr. David Patel"
+      status: "pending"
+    - medication: "Ondansetron 4mg IV"
+      ordered_by: "Dr. David Patel"
+      status: "pending"
+
+criteria:
+  - id: IR-013-C01
+    assertion: "Agent retrieved and cataloged all 14 medications from the patient's bottles"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: IR-013-C02
+    assertion: "Agent identified the dual anticoagulant duplication (warfarin + apixaban)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C03
+    assertion: "Agent identified the dual beta-blocker duplication (metoprolol succinate + metoprolol tartrate)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C04
+    assertion: "Agent identified gabapentin as discontinued but still being taken"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C05
+    assertion: "Agent flagged that ketorolac is contraindicated in this patient (INR 4.8, GFR 28, on anticoagulants)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-013-C06
+    assertion: "Agent recognized the supratherapeutic INR (4.8) is likely caused by dual anticoagulation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C07
+    assertion: "Agent flagged the hyperkalemia (K 5.6) in the context of lisinopril + potassium supplement + GFR 28"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C08
+    assertion: "Agent identified that gabapentin may be contributing to the patient's confusion and fall risk"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-013-C09
+    assertion: "Agent recommended holding ketorolac and using an alternative analgesic"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-013-C10
+    assertion: "Agent documented the reconciliation findings and flagged all critical issues for the attending"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "updateEncounter"
+  - "updatePatientRecord"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve and catalog all medications from the patient's bottles"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Cross-reference medications for duplications, interactions, and discontinued drugs"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+    reasoning: |
+      Critical findings:
+      1. DUAL ANTICOAGULATION: Warfarin (PCP) + Apixaban (Cardiologist)
+         from different pharmacies — INR 4.8 confirms excessive
+         anticoagulation. Life-threatening hemorrhage risk.
+      2. DUAL BETA-BLOCKER: Metoprolol succinate (PCP) + metoprolol
+         tartrate (Cardiologist) — explains the low HR (62) and
+         hypotension (98/58). Fall risk contributor.
+      3. DISCONTINUED GABAPENTIN: Stopped by neurologist for confusion
+         but patient still taking — contributes to falls and confusion.
+      4. KETOROLAC CONTRAINDICATED: GFR 28 (renal failure), INR 4.8,
+         dual anticoagulation. NSAID will worsen renal function and
+         increase hemorrhage risk.
+      5. HYPERKALEMIA: K 5.6 on lisinopril + KCl supplement + GFR 28.
+         Cardiac risk.
+      Root cause: three prescribers, two pharmacies, no medication
+      reconciliation, patient with cognitive impairment managing her
+      own medications.
+  - step: 3
+    action: "Flag ketorolac as contraindicated and recommend holding it"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Document the full reconciliation with all critical findings"
+    tools: ["updateEncounter", "updatePatientRecord"]
+    critical: true
+
+metadata:
+  openem_condition: "polypharmacy_adverse_event"
+  expected_tool_calls: "3-5"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Medication reconciliation in elderly poly-pharmacy patients is life-saving. Multiple prescribers using different pharmacies create duplication risk. Always check for drug-class overlap, not just identical drug names. An INR of 4.8 in a patient on dual anticoagulants is a sentinel event."

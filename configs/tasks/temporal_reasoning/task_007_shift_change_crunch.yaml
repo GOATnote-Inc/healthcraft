@@ -1,0 +1,271 @@
+# HEALTHCRAFT Task Definition: Shift Change Crunch
+# Category: temporal_reasoning | Level: 3
+# Multiple pending results and active orders at shift change. The agent must
+# prioritize handoff items, identify patients at risk of falling through
+# the cracks, and ensure continuity of care.
+
+id: TR-007
+category: temporal_reasoning
+level: 3
+title: "Shift Change Crunch"
+system_prompt_override: null
+
+description: |
+  It is 18:45. Day shift ends at 19:00 — 15 minutes remain. The outgoing
+  attending has 14 active patients with 6 pending critical results: a troponin
+  on a chest pain patient (drawn at 17:45, expected back at 18:50), a CT
+  pulmonary angiogram read on a dyspneic patient (completed at 18:20, not yet
+  read by radiology), a repeat potassium on a patient who received IV
+  replacement (drawn at 18:00), blood cultures on a febrile immunocompromised
+  patient (too early for results but empiric antibiotics not yet started), a
+  lumbar puncture result on a headache patient (collected at 17:00, sent to
+  lab), and a type-and-screen on a GI bleeder with Hgb 7.1 who may need
+  transfusion. The agent must triage these pending items, create a structured
+  handoff, and take immediate action on anything that cannot safely wait.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T18:45:00Z"
+  department: "Emergency Department"
+  census: 39
+  beds_available: 15
+  beds_total: 54
+  shift: "day — ending at 19:00"
+  shift_change_in_minutes: 15
+  esi_distribution:
+    esi_1: 0
+    esi_2: 5
+    esi_3: 14
+    esi_4: 12
+    esi_5: 8
+  attending_count: 2
+  incoming_attending: "Dr. Patel (night shift)"
+  outgoing_attending: "Dr. Chen (day shift)"
+  resident_count: 3
+  nurses_on_duty: 12
+  incoming_nurses: 8
+
+patient:
+  patients:
+    - id: "HANDOFF-1"
+      age: 62
+      sex: M
+      location: "Bed 4"
+      chief_complaint: "Chest pain, atypical"
+      esi_level: 2
+      status: "Awaiting troponin result"
+      pending_result:
+        test: "Troponin I (serial, 3-hour)"
+        drawn_at: "2026-01-15T17:45:00Z"
+        expected_at: "2026-01-15T18:50:00Z"
+        first_troponin: "0.03 ng/mL (normal)"
+      vitals:
+        heart_rate: 78
+        blood_pressure: "142/86"
+        spo2: 98
+      risk: "If second troponin elevated, needs heparin drip and cardiology consult"
+
+    - id: "HANDOFF-2"
+      age: 48
+      sex: F
+      location: "Bed 11"
+      chief_complaint: "Dyspnea, pleuritic chest pain"
+      esi_level: 2
+      status: "CT PA completed, awaiting radiology read"
+      pending_result:
+        test: "CT Pulmonary Angiogram"
+        completed_at: "2026-01-15T18:20:00Z"
+        radiology_status: "in queue, not yet read"
+      d_dimer: "2.4 mg/L (elevated)"
+      wells_score: 6
+      vitals:
+        heart_rate: 108
+        blood_pressure: "128/78"
+        spo2: 93
+        respiratory_rate: 24
+      risk: "High pre-test probability PE. If positive, needs anticoagulation immediately"
+      anticoagulation_status: "NOT started pending confirmation"
+
+    - id: "HANDOFF-3"
+      age: 74
+      sex: M
+      location: "Bed 8"
+      chief_complaint: "Weakness, on digoxin"
+      esi_level: 3
+      status: "Awaiting repeat potassium"
+      pending_result:
+        test: "Repeat potassium"
+        drawn_at: "2026-01-15T18:00:00Z"
+        initial_potassium: "2.8 mEq/L"
+        replacement_given: "40 mEq KCl IV at 17:15"
+      medications:
+        - "Digoxin 0.25mg daily"
+        - "Furosemide 80mg daily"
+      vitals:
+        heart_rate: 64
+        blood_pressure: "108/62"
+      risk: "Hypokalemia + digoxin = arrhythmia risk. Must confirm K normalized"
+
+    - id: "HANDOFF-4"
+      age: 31
+      sex: F
+      location: "Bed 15"
+      chief_complaint: "Fever, neutropenic (ANC 200)"
+      esi_level: 2
+      status: "Blood cultures drawn, antibiotics NOT yet started"
+      pending_result:
+        test: "Blood cultures"
+        drawn_at: "2026-01-15T18:30:00Z"
+        expected_at: "preliminary in 24-48 hours"
+      vitals:
+        heart_rate: 112
+        blood_pressure: "96/58"
+        temperature: 39.2
+        spo2: 97
+      labs:
+        wbc: "0.8"
+        anc: "200"
+        hemoglobin: "9.2"
+        platelets: "42,000"
+      risk: "Febrile neutropenia is an emergency. Empiric antibiotics should have started at culture draw"
+      antibiotic_status: "NOT STARTED — order entered but nursing has not administered"
+
+    - id: "HANDOFF-5"
+      age: 55
+      sex: M
+      location: "Bed 3"
+      chief_complaint: "Worst headache of life"
+      esi_level: 2
+      status: "LP performed, CSF sent to lab"
+      pending_result:
+        test: "CSF analysis (cell count, protein, glucose, gram stain)"
+        collected_at: "2026-01-15T17:00:00Z"
+        expected_at: "2026-01-15T19:00:00Z"
+      ct_head: "Non-contrast CT head negative for hemorrhage"
+      vitals:
+        heart_rate: 68
+        blood_pressure: "158/94"
+        spo2: 99
+      risk: "CT-negative SAH still possible (2-5%). LP xanthochromia is definitive"
+
+    - id: "HANDOFF-6"
+      age: 78
+      sex: M
+      location: "Bed 6"
+      chief_complaint: "Melena, hematemesis"
+      esi_level: 2
+      status: "Awaiting type and screen, GI consulted"
+      pending_result:
+        test: "Type and screen"
+        drawn_at: "2026-01-15T18:15:00Z"
+        expected_at: "2026-01-15T18:55:00Z"
+      labs:
+        hemoglobin: "7.1 g/dL (down from 9.8 on admission at 16:00)"
+        platelets: "98,000"
+        inr: "1.8"
+      vitals:
+        heart_rate: 104
+        blood_pressure: "98/56"
+        spo2: 96
+      gi_consult_status: "GI aware, will scope when blood available"
+      risk: "Active GI bleed with dropping hemoglobin. Needs transfusion as soon as type and screen results"
+      blood_products_ordered: false
+
+criteria:
+  - id: TR-007-C01
+    assertion: "Agent identified HANDOFF-4 (febrile neutropenia, antibiotics not started) as the most time-critical action item"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-007-C02
+    assertion: "Agent ensured antibiotics were administered to HANDOFF-4 before shift change"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or updateTaskStatus for HANDOFF-4 antibiotics before 19:00"
+
+  - id: TR-007-C03
+    assertion: "Agent escalated the unread CTPA for HANDOFF-2 (high pre-test probability PE, SpO2 93%)"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder or updateEncounter for HANDOFF-2 radiology escalation"
+
+  - id: TR-007-C04
+    assertion: "Agent ordered blood products for HANDOFF-6 (active GI bleed, Hgb 7.1, dropping) or confirmed type and screen resulted"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder for HANDOFF-6"
+
+  - id: TR-007-C05
+    assertion: "Agent created a structured handoff that included all 6 pending results with expected return times"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: TR-007-C06
+    assertion: "Agent flagged digoxin + hypokalemia risk for HANDOFF-3 in the handoff"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-007-C07
+    assertion: "Agent specified contingency plans for each pending result (e.g., 'if troponin elevated, start heparin drip and call cardiology')"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: TR-007-C08
+    assertion: "Agent did NOT leave the febrile neutropenia patient (HANDOFF-4) without antibiotics as a 'pending handoff item'"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: TR-007-C09
+    assertion: "Agent prioritized the 6 handoff items in a clinically defensible order"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-007-C10
+    assertion: "Agent reviewed each patient's current vitals and status before handing off"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails for multiple patients"
+
+expected_tools:
+  - "searchEncounters"
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "updateTaskStatus"
+
+expected_sequence:
+  - step: 1
+    action: "Review all active patients and identify pending results"
+    tools: ["searchEncounters", "getEncounterDetails"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 2
+    action: "Immediate action: ensure HANDOFF-4 febrile neutropenia antibiotics are administered NOW"
+    tools: ["createClinicalOrder", "updateTaskStatus"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 3
+    action: "Escalate HANDOFF-2 CTPA read with radiology"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 7
+  - step: 4
+    action: "Order transfusion for HANDOFF-6 or confirm type and screen imminent"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 9
+  - step: 5
+    action: "Build structured handoff with contingency plans for all 6 patients"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 14
+
+metadata:
+  openem_condition: "febrile_neutropenia"
+  expected_tool_calls: "12-18"
+  time_pressure: "critical"
+  shift_change_window_minutes: 15
+  teaching_point: "Shift change is the most dangerous 30 minutes in emergency medicine. The outgoing physician must not simply list pending items — they must triage them, take immediate action on anything that cannot safely wait, and provide contingency plans for results that will return after handoff."

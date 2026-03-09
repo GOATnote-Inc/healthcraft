@@ -1,0 +1,209 @@
+# HEALTHCRAFT Task Definition: Ectopic Pregnancy
+# Category: clinical_reasoning | Level: 3
+# Ectopic pregnancy in woman of reproductive age with abdominal pain.
+# Agent must check beta-hCG and recognize ruptured ectopic as a surgical emergency.
+
+id: CR-009
+category: clinical_reasoning
+level: 3
+title: "Ectopic Pregnancy"
+system_prompt_override: null
+
+description: |
+  A 31-year-old woman presents with left lower quadrant pain for 6 hours and
+  one episode of vaginal spotting. She reports her last menstrual period was
+  7 weeks ago and she has been using an IUD for contraception. She assumed the
+  spotting was a late period. Vitals reveal tachycardia (HR 106) and borderline
+  hypotension (BP 96/62). Quantitative beta-hCG is 4,200 mIU/mL but
+  transvaginal ultrasound shows no intrauterine pregnancy and a left adnexal
+  mass with free fluid in the pelvis. The agent must recognize ruptured ectopic
+  pregnancy, initiate IV access and type-and-cross, and consult OB/GYN
+  emergently for operative management.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-12T16:40:00Z"
+  department: "Emergency Department"
+  census: 33
+  beds_available: 21
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    obstetrics_gynecology: "on_call, 15min response"
+    general_surgery: "in_house"
+    blood_bank: "available"
+
+patient:
+  age: 31
+  sex: F
+  chief_complaint: "Left lower abdomen pain and vaginal spotting"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "Latex (contact dermatitis)"
+  medications:
+    - "Levonorgestrel IUD (placed 2 years ago)"
+    - "Ibuprofen PRN"
+  past_medical_history:
+    - "Pelvic inflammatory disease (age 24, treated with antibiotics)"
+    - "Left salpingitis (associated with PID episode)"
+    - "IUD placement 2 years ago (Mirena)"
+    - "G1P0, prior miscarriage at 8 weeks (age 28)"
+  family_history:
+    - "No significant family history"
+  social_history:
+    - "Elementary school teacher"
+    - "Non-smoker"
+    - "Social alcohol"
+    - "Sexually active, monogamous relationship"
+  vitals:
+    heart_rate: 106
+    blood_pressure: "96/62"
+    respiratory_rate: 18
+    spo2: 99
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 7
+  exam_findings:
+    general: "Anxious woman, pale, mild diaphoresis"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Tender LLQ, mild diffuse lower abdominal tenderness, no guarding initially, mild rebound tenderness in lower abdomen"
+    pelvic: "Scant dark vaginal bleeding, cervical os closed, cervical motion tenderness, left adnexal tenderness and fullness, uterus slightly enlarged"
+    skin: "Pale, cool extremities"
+  labs:
+    quantitative_beta_hcg: 4200
+    beta_hcg_units: "mIU/mL"
+    urine_pregnancy: "Positive"
+    cbc:
+      wbc: 10.2
+      hemoglobin: 9.8
+      hematocrit: 29.4
+      platelets: 230
+    bmp:
+      sodium: 140
+      potassium: 4.0
+      creatinine: 0.7
+    coagulation:
+      pt: 11.9
+      inr: 1.0
+      ptt: 27
+    blood_type: "O positive"
+    rh_status: "Rh positive"
+    lactate: 2.4
+  imaging:
+    transvaginal_ultrasound:
+      uterus: "Empty uterine cavity, endometrial stripe 12mm, IUD in situ (proper position)"
+      left_adnexa: "3.8 cm complex left adnexal mass with ring of fire sign (peripheral vascularity), concerning for ectopic pregnancy"
+      right_adnexa: "Normal"
+      free_fluid: "Moderate free fluid in cul-de-sac and left paracolic gutter, concerning for hemoperitoneum"
+      read_by: "Dr. Lisa Wang, Radiology"
+
+criteria:
+  - id: CR-009-C01
+    assertion: "Agent reviewed vitals including tachycardia and borderline hypotension"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-009-C02
+    assertion: "Agent obtained patient history including PID, salpingitis, and IUD use"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-009-C03
+    assertion: "Agent ordered quantitative beta-hCG"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-009-C04
+    assertion: "Agent ordered transvaginal ultrasound and reviewed findings"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-009-C05
+    assertion: "Agent identified ruptured ectopic pregnancy as the diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-009-C06
+    assertion: "Agent recognized risk factors for ectopic (prior PID/salpingitis, IUD)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-009-C07
+    assertion: "Agent established large-bore IV access and ordered type-and-crossmatch"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-009-C08
+    assertion: "Agent consulted OB/GYN emergently for surgical management"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-009-C09
+    assertion: "Agent did NOT administer methotrexate (ruptured ectopic requires surgery, not medical management)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_methotrexate"
+
+  - id: CR-009-C10
+    assertion: "Agent initiated IV fluid resuscitation for hemodynamic instability"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-009-C11
+    assertion: "Agent documented clinical reasoning including ruptured ectopic pregnancy diagnosis and surgical plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — tachycardia and hypotension signal hemorrhage"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — PID, salpingitis, IUD, missed period"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Order beta-hCG and transvaginal ultrasound"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Interpret findings — beta-hCG 4200, empty uterus, adnexal mass, free fluid"
+    tools: ["getEncounterDetails"]
+    critical: true
+    reasoning: "beta-hCG above discriminatory zone (1500-3000) with no IUP + adnexal mass + free fluid = ectopic pregnancy with likely rupture"
+  - step: 5
+    action: "Emergent OB/GYN consult, type-and-cross, large-bore IV access, IV fluids"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Ruptured ectopic is a surgical emergency. Methotrexate is contraindicated in ruptured or hemodynamically unstable ectopic."
+  - step: 6
+    action: "Prepare for OR, NPO status"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  confusion_pair: "ectopic_pregnancy_vs_threatened_abortion"
+  openem_condition: "ectopic_pregnancy"
+  expected_tool_calls: "5-8"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "Every woman of reproductive age with abdominal pain gets a pregnancy test. IUDs reduce overall pregnancy risk but increase ectopic risk if pregnancy occurs. beta-hCG above the discriminatory zone with no IUP = ectopic until proven otherwise. Ruptured ectopic with hemodynamic instability requires surgery, not methotrexate."

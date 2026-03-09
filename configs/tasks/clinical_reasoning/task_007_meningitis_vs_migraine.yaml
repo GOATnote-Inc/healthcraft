@@ -1,0 +1,238 @@
+# HEALTHCRAFT Task Definition: Meningitis vs Migraine
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: Bacterial Meningitis vs Severe Migraine
+# Photophobic patient with worst headache of life. Agent must recognize meningeal
+# signs and perform LP before antibiotics if no mass effect on CT.
+
+id: CR-007
+category: clinical_reasoning
+level: 4
+title: "Meningitis vs Migraine"
+system_prompt_override: null
+
+description: |
+  A 19-year-old college freshman presents with the worst headache of his life,
+  photophobia, neck stiffness, and fever of 39.4C. He reports the headache
+  developed over 8 hours and is now 10/10 severity. His roommate drove him in
+  after he vomited three times and refused to turn on the lights. He has a
+  history of migraines but states "this is completely different from my usual
+  migraines." The agent must recognize the meningitis red flags, differentiate
+  from migraine, order CT head followed by lumbar puncture, and initiate
+  empiric antibiotics and dexamethasone urgently.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-28T23:10:00Z"
+  department: "Emergency Department"
+  census: 19
+  beds_available: 35
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    infectious_disease: "on_call, 30min response"
+    neurology: "on_call, 25min response"
+    critical_care: "on_call, 15min response"
+
+patient:
+  age: 19
+  sex: M
+  chief_complaint: "Worst headache of my life with neck stiffness and vomiting"
+  arrival_mode: "private vehicle (driven by roommate)"
+  esi_level: 2
+  allergies:
+    - "NKDA"
+  medications:
+    - "Sumatriptan 50mg PRN (uses ~2/month)"
+    - "Ibuprofen PRN"
+  past_medical_history:
+    - "Migraine without aura (diagnosed age 15, 2-3/month)"
+    - "No prior meningitis or CNS infections"
+    - "Immunizations up to date including meningococcal ACWY (age 16)"
+    - "No meningococcal B vaccine"
+  social_history:
+    - "College freshman, lives in dormitory"
+    - "Social alcohol (binge drinking weekends)"
+    - "No tobacco, no illicit drugs"
+    - "Recent upper respiratory infection 5 days ago"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "132/78"
+    respiratory_rate: 20
+    spo2: 98
+    temperature: 39.4
+    gcs: 14
+    gcs_breakdown:
+      eye: 4
+      verbal: 4
+      motor: 6
+    pain_scale: 10
+  exam_findings:
+    general: "Ill-appearing young male, lying on side with lights off, covering eyes"
+    heent: "Photophobia (winces with penlight), no papilledema on fundoscopy"
+    neck: "Nuchal rigidity present, positive Kernig sign, positive Brudzinski sign"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Soft, non-tender"
+    skin: "No petechiae or purpura, warm, flushed"
+    neurological: "GCS 14 (confused to date/time), no focal deficits, cranial nerves intact, symmetric strength and reflexes, no papilledema"
+  labs:
+    cbc:
+      wbc: 18.6
+      neutrophils: 88
+      bands: 12
+      hemoglobin: 14.2
+      platelets: 195
+    bmp:
+      sodium: 136
+      potassium: 3.8
+      creatinine: 0.9
+      glucose: 112
+    crp: 14.8
+    crp_units: "mg/dL (normal <0.5)"
+    procalcitonin: 8.2
+    procalcitonin_units: "ng/mL (normal <0.1)"
+    lactate: 2.8
+    coagulation:
+      pt: 12.0
+      inr: 1.0
+      ptt: 29
+    blood_cultures: "drawn, pending"
+  imaging:
+    ct_head_noncontrast:
+      result: "No intracranial hemorrhage. No mass lesion. No hydrocephalus. No midline shift. Normal ventricle size. Safe to proceed with lumbar puncture."
+      read_by: "Dr. James Park, Neuroradiology"
+  csf_results:
+    opening_pressure: "32 cm H2O (elevated)"
+    appearance: "Cloudy, turbid"
+    wbc: 2800
+    wbc_differential: "95% neutrophils, 5% lymphocytes"
+    rbc: 2
+    glucose: 22
+    glucose_units: "mg/dL (serum glucose 112, ratio 0.20)"
+    protein: 280
+    protein_units: "mg/dL (normal 15-45)"
+    gram_stain: "Gram-positive diplococci"
+    culture: "pending"
+
+criteria:
+  - id: CR-007-C01
+    assertion: "Agent reviewed vitals including fever of 39.4C and GCS of 14"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-007-C02
+    assertion: "Agent reviewed exam findings including nuchal rigidity, Kernig sign, and Brudzinski sign"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-007-C03
+    assertion: "Agent retrieved patient history and noted this is different from typical migraines"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-007-C04
+    assertion: "Agent identified bacterial meningitis as the primary diagnosis, not migraine"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-007-C05
+    assertion: "Agent ordered CT head before lumbar puncture to rule out mass effect"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-007-C06
+    assertion: "Agent ordered lumbar puncture and reviewed CSF results"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-007-C07
+    assertion: "Agent initiated empiric antibiotics (ceftriaxone + vancomycin for age group) within 1 hour"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-007-C08
+    assertion: "Agent ordered dexamethasone BEFORE or WITH first antibiotic dose"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-007-C09
+    assertion: "Agent did NOT delay antibiotics for LP if LP was delayed"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-007-C10
+    assertion: "Agent interpreted CSF as consistent with bacterial meningitis (high WBC/neutrophils, low glucose, high protein, gram-positive diplococci)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-007-C11
+    assertion: "Agent initiated droplet precautions and reported to public health"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-007-C12
+    assertion: "Agent documented clinical reasoning differentiating bacterial meningitis from severe migraine"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CR-007-C13
+    assertion: "Agent considered ICU admission for close monitoring"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals — fever, tachycardia, altered GCS"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Exam — nuchal rigidity, Kernig, Brudzinski positive"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — different from usual migraines, dormitory living, no Men B vaccine"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Order CT head to rule out mass effect before LP"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Start empiric antibiotics AND dexamethasone (do NOT wait for LP)"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Every hour of antibiotic delay increases mortality 3-7%. If LP is delayed, give antibiotics first."
+  - step: 6
+    action: "Perform LP and interpret CSF (bacterial pattern)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Arrange ICU admission, initiate droplet precautions"
+    tools: ["createClinicalOrder", "updateEncounter"]
+    critical: true
+
+metadata:
+  confusion_pair: "bacterial_meningitis_vs_migraine"
+  openem_condition: "bacterial_meningitis"
+  expected_tool_calls: "7-11"
+  entity_types: 6
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Nuchal rigidity + fever + altered mental status = meningitis until proven otherwise. Patient-reported 'different from usual migraines' is a critical distinguishing feature. Dexamethasone BEFORE or WITH antibiotics reduces mortality. NEVER delay antibiotics for LP — if LP is delayed, give antibiotics immediately and LP later."

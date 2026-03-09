@@ -1,0 +1,157 @@
+# HEALTHCRAFT Task Definition: The Reference Check
+# Category: information_retrieval | Level: 2
+# Agent must look up alteplase dosing for an acute ischemic stroke patient.
+# Critical weight-based dosing with a maximum cap.
+
+id: IR-012
+category: information_retrieval
+level: 2
+title: "The Reference Check"
+system_prompt_override: null
+
+description: |
+  A 73-year-old man presents via EMS with acute onset left-sided weakness
+  and speech difficulty. Symptom onset was witnessed 90 minutes ago. CT head
+  is negative for hemorrhage. The stroke team has confirmed he is a candidate
+  for IV alteplase (tPA). His weight is 92 kg. The agent must look up the
+  correct alteplase dosing protocol for acute ischemic stroke, calculate the
+  weight-based dose, determine the bolus and infusion amounts, and verify
+  there are no contraindications before the order is finalized.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T06:40:00Z"
+  department: "Emergency Department"
+  census: 24
+  beds_available: 30
+  attending_on_duty: "Dr. Sarah Chen"
+  stroke_team_status: "activated"
+
+patient:
+  age: 73
+  sex: M
+  chief_complaint: "Left-sided weakness, slurred speech, acute onset 90 minutes ago"
+  arrival_mode: "EMS"
+  esi_level: 1
+  location: "Resuscitation Bay 1"
+  allergies: []
+  medications:
+    - "Amlodipine 5mg daily"
+    - "Hydrochlorothiazide 25mg daily"
+    - "Metformin 500mg BID"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Hypertension"
+    - "Type 2 Diabetes"
+    - "No prior stroke or TIA"
+    - "No recent surgery (last surgery: cholecystectomy 2020)"
+  vitals:
+    heart_rate: 92
+    blood_pressure: "172/96"
+    respiratory_rate: 18
+    spo2: 96
+    temperature: 37.1
+    gcs: 13
+    pain_scale: 0
+  exam_findings:
+    neurological: "Left facial droop, left arm drift (4-/5), left leg drift (4/5), dysarthria, follows commands, no neglect"
+    nihss: 8
+  labs:
+    glucose: 168
+    inr: 1.0
+    platelet_count: 224
+    creatinine: 1.1
+  imaging:
+    ct_head: "No acute intracranial hemorrhage, no early ischemic changes, no mass effect"
+  weight_kg: 92
+  time_since_onset: "90 minutes"
+
+criteria:
+  - id: IR-012-C01
+    assertion: "Agent retrieved the alteplase dosing protocol for acute ischemic stroke"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchReferenceMaterials or getProtocolDetails"
+
+  - id: IR-012-C02
+    assertion: "Agent identified the correct total dose as 0.9 mg/kg (max 90 mg)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-012-C03
+    assertion: "Agent calculated the correct total dose for this patient (0.9 x 92 = 82.8 mg)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-012-C04
+    assertion: "Agent correctly determined the bolus amount (10% of total = 8.28 mg IV push over 1 minute)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-012-C05
+    assertion: "Agent correctly determined the infusion amount (remaining 90% = 74.52 mg IV over 60 minutes)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-012-C06
+    assertion: "Agent verified the patient is within the treatment window (< 4.5 hours from onset)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-012-C07
+    assertion: "Agent checked for contraindications (INR, platelets, glucose, recent surgery, BP)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: IR-012-C08
+    assertion: "Agent noted that BP must be controlled below 185/110 before and during tPA administration"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-012-C09
+    assertion: "Agent did NOT recommend a dose exceeding the 90 mg maximum cap"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "searchReferenceMaterials"
+  - "getProtocolDetails"
+  - "getPatientHistory"
+  - "getEncounterDetails"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve the alteplase dosing protocol for acute ischemic stroke"
+    tools: ["searchReferenceMaterials", "getProtocolDetails"]
+    critical: true
+  - step: 2
+    action: "Verify patient eligibility: time window, CT negative for hemorrhage, no contraindications"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Calculate weight-based dose: 0.9 mg/kg x 92 kg = 82.8 mg total"
+    tools: []
+    critical: true
+    reasoning: |
+      Alteplase for acute ischemic stroke:
+      - Total dose: 0.9 mg/kg, maximum 90 mg
+      - 92 kg x 0.9 = 82.8 mg (under the 90 mg cap)
+      - Bolus: 10% = 8.28 mg (often rounded to 8.3 mg) IV push over 1 min
+      - Infusion: 90% = 74.52 mg IV over 60 minutes
+      - BP must be < 185/110 before administration (current 172/96 — OK)
+      - INR 1.0, platelets 224K, glucose 168 — no contraindications
+      - 90 minutes from onset — within the 4.5-hour window
+  - step: 4
+    action: "Present the calculated dose, bolus/infusion split, and confirm no contraindications"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "acute_ischemic_stroke"
+  expected_tool_calls: "2-4"
+  entity_types: 3
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "Alteplase dosing for stroke is 0.9 mg/kg with a 90 mg maximum. 10% as bolus over 1 minute, 90% infused over 60 minutes. Always verify the time window, check for contraindications, and confirm BP is below 185/110 before administration."

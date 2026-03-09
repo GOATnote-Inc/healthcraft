@@ -1,0 +1,214 @@
+# HEALTHCRAFT Task Definition: PE vs Anxiety
+# Category: clinical_reasoning | Level: 3
+# Confusion pair: Pulmonary Embolism vs Panic Attack
+# Young woman on OCPs with dyspnea and tachycardia. Agent must calculate Wells
+# score and pursue PE workup rather than dismissing as anxiety.
+
+id: CR-006
+category: clinical_reasoning
+level: 3
+title: "PE vs Anxiety"
+system_prompt_override: null
+
+description: |
+  A 28-year-old woman presents with acute-onset dyspnea and tachycardia that
+  began 2 hours ago while sitting at her desk. She reports feeling like she
+  "can't get a full breath" and has a sense of impending doom. She was recently
+  started on combined oral contraceptives 3 months ago and took a 6-hour car
+  ride yesterday. Triage labeled this as "anxiety/panic attack." However, her
+  Wells score is elevated, D-dimer is markedly positive, and CTA reveals a
+  saddle pulmonary embolism. The agent must not dismiss the presentation as
+  anxiety, must calculate Wells criteria, and must initiate anticoagulation.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-10T13:45:00Z"
+  department: "Emergency Department"
+  census: 29
+  beds_available: 25
+  attending_on_duty: "Dr. Sarah Chen"
+  ct_scanner_status: "available"
+  specialist_availability:
+    pulmonology: "on_call, 30min response"
+    interventional_radiology: "on_call, 20min response"
+    hematology: "on_call, 45min response"
+
+patient:
+  age: 28
+  sex: F
+  chief_complaint: "Can't catch my breath, started 2 hours ago"
+  arrival_mode: "private vehicle"
+  esi_level: 3
+  allergies:
+    - "NKDA"
+  medications:
+    - "Combined oral contraceptive (ethinyl estradiol/drospirenone) — started 3 months ago"
+    - "Sertraline 50mg daily"
+  past_medical_history:
+    - "Generalized anxiety disorder (diagnosed age 22)"
+    - "History of panic attacks (2-3 per year, last one 6 months ago)"
+    - "No prior VTE"
+    - "No surgeries"
+  family_history:
+    - "Mother: DVT at age 45 (unprovoked)"
+    - "No known thrombophilia testing in family"
+  social_history:
+    - "Marketing analyst, sedentary desk job"
+    - "Non-smoker"
+    - "Social alcohol"
+    - "6-hour car ride yesterday for work trip (returned last night)"
+    - "BMI 31"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "108/68"
+    respiratory_rate: 24
+    spo2: 91
+    temperature: 37.2
+    gcs: 15
+    pain_scale: 2
+  exam_findings:
+    general: "Anxious-appearing young woman, speaking in full sentences but visibly tachypneic"
+    cardiovascular: "Tachycardic, regular rhythm, loud P2 (accentuated pulmonic component of S2), no murmurs, JVP mildly elevated"
+    pulmonary: "Clear bilaterally, no wheezing, no crackles, tachypneic"
+    abdomen: "Soft, non-tender"
+    extremities: "Right calf mildly edematous compared to left (1.5 cm difference at mid-calf), non-tender to palpation, no cords palpable, Homans sign not tested"
+    neurological: "Alert and oriented x4, anxious but cooperative"
+  labs:
+    d_dimer: 4820
+    d_dimer_units: "ng/mL FEU (normal <500)"
+    troponin_i: 0.18
+    troponin_i_units: "ng/mL (normal <0.04)"
+    bnp: 340
+    cbc:
+      wbc: 8.9
+      hemoglobin: 13.5
+      platelets: 245
+    bmp:
+      sodium: 139
+      potassium: 4.0
+      creatinine: 0.8
+    abg:
+      ph: 7.48
+      pco2: 28
+      po2: 62
+      hco3: 21
+      interpretation: "Respiratory alkalosis with hypoxemia"
+  ecg:
+    interpretation: "Sinus tachycardia at 118 bpm, S1Q3T3 pattern, right axis deviation, T-wave inversions in V1-V3"
+  imaging:
+    cta_chest:
+      result: "Saddle pulmonary embolus extending into bilateral main pulmonary arteries. Right ventricular dilation (RV/LV ratio 1.4). No evidence of right heart thrombus."
+      read_by: "Dr. James Park, Radiology"
+    chest_xray:
+      result: "Mild cardiomegaly. Westermark sign (focal oligemia) in right lower lobe. No consolidation, no effusion."
+
+criteria:
+  - id: CR-006-C01
+    assertion: "Agent reviewed vitals including SpO2 of 91% and tachycardia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-006-C02
+    assertion: "Agent retrieved patient history including OCP use, recent prolonged travel, and family history of DVT"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-006-C03
+    assertion: "Agent calculated or applied Wells criteria for PE"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-006-C04
+    assertion: "Agent ordered D-dimer or CTA chest appropriately"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-006-C05
+    assertion: "Agent identified pulmonary embolism as the diagnosis, not anxiety/panic attack"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-006-C06
+    assertion: "Agent recognized submassive PE (RV dilation, elevated troponin) and its severity implications"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-006-C07
+    assertion: "Agent initiated systemic anticoagulation with heparin"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-006-C08
+    assertion: "Agent did NOT discharge the patient or treat with anxiolytics alone"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain discharge_patient"
+
+  - id: CR-006-C09
+    assertion: "Agent noted the asymmetric calf edema suggesting concurrent DVT"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-006-C10
+    assertion: "Agent consulted pulmonology or considered escalation to catheter-directed therapy for submassive PE"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-006-C11
+    assertion: "Agent discontinued OCP as a contributing risk factor"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-006-C12
+    assertion: "Agent documented Wells score and clinical reasoning differentiating PE from panic attack"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Assess vitals — note hypoxemia (SpO2 91%), tachycardia, tachypnea"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review history — OCP, prolonged travel, family DVT, calf asymmetry"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Calculate Wells score (OCP + immobilization + tachycardia + clinical suspicion)"
+    tools: ["runDecisionRule"]
+    critical: true
+  - step: 4
+    action: "Order CTA chest — D-dimer is positive, confirm PE"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Initiate IV heparin anticoagulation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult pulmonology — submassive PE with RV strain"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "pulmonary_embolism_vs_panic_attack"
+  openem_condition: "pulmonary_embolism"
+  expected_tool_calls: "5-9"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "PE is the most dangerous diagnosis mislabeled as anxiety. SpO2 <95% is NOT anxiety. Key differentiators: hypoxemia, S1Q3T3 on ECG, risk factors (OCP + immobilization + family history). Wells score guides workup. Submassive PE (RV dilation + troponin elevation) requires escalation beyond anticoagulation alone."

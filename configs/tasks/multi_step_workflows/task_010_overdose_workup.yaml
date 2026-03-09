@@ -1,0 +1,246 @@
+# HEALTHCRAFT Task Definition: Overdose Workup
+# Category: multi_step_workflows | Level: 3
+# Tests systematic unknown ingestion management: toxicology screening,
+# antidote consideration, decontamination, poison control, and ICU disposition.
+
+id: MW-010
+category: multi_step_workflows
+level: 3
+title: "Overdose Workup"
+system_prompt_override: null
+
+description: |
+  A 23-year-old female college student is brought in by campus police after being
+  found unresponsive in her dorm room. Her roommate reports she had been depressed
+  after a breakup and found empty pill bottles nearby: her prescribed sertraline
+  (50mg, 30-count, filled 3 days ago), acetaminophen extra strength (500mg, 50-count,
+  recently purchased), and an unlabeled bottle with several remaining white tablets.
+  The patient is obtunded with GCS 10, pinpoint pupils, respiratory rate 8, and
+  a blood pressure of 102/64. She has a faint heartbeat at 110 bpm with a
+  prolonged QTc of 520ms on the monitor. The agent must perform a systematic
+  overdose workup: toxicology screening, acetaminophen level and Rumack-Matthew
+  nomogram, antidote evaluation, decontamination timing assessment, poison control
+  consultation, and ICU admission.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-08T23:15:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. James Okoro"
+  specialist_availability:
+    toxicology: "Poison Control Center — 1-800-222-1222"
+    psychiatry: "on-call, 30-minute response"
+    critical_care: "in-house"
+  pharmacy:
+    n_acetylcysteine: "available (IV and oral)"
+    naloxone: "available"
+    activated_charcoal: "available"
+    sodium_bicarbonate: "available"
+    intralipid: "available"
+  icu_beds_available: 3
+
+patient:
+  age: 23
+  sex: F
+  weight_kg: 58
+  chief_complaint: "Found unresponsive, suspected intentional overdose, multiple pill bottles"
+  arrival_mode: "Campus police and EMS"
+  esi_level: 1
+  allergies: []
+  medications:
+    - "Sertraline 50mg daily (prescribed 2 weeks ago)"
+    - "Oral contraceptive"
+  past_medical_history:
+    - "Depression (diagnosed 1 month ago)"
+    - "No prior suicide attempts per records"
+  family_history:
+    - "Mother: depression"
+    - "No family history of substance use"
+  social_history:
+    - "College senior, pre-med"
+    - "Recent breakup per roommate"
+    - "No alcohol or drug use per roommate"
+    - "Lives in campus dormitory"
+  vitals:
+    heart_rate: 110
+    blood_pressure: "102/64"
+    respiratory_rate: 8
+    spo2: 92
+    temperature: 36.2
+    gcs: 10
+    gcs_breakdown: "E2V3M5"
+    pain_scale: "unable to assess"
+    cardiac_rhythm: "sinus tachycardia, QTc 520ms"
+  exam_findings:
+    general: "Young female, obtunded, responds to painful stimuli only"
+    pupils: "2mm bilaterally, reactive (pinpoint)"
+    neuro: "GCS 10 (E2V3M5). No focal deficits. Reflexes symmetrically diminished. No clonus."
+    cardiac: "Tachycardic, regular. No murmurs. QTc prolonged on monitor."
+    lungs: "Shallow breathing, RR 8. Clear bilaterally. No aspiration sounds."
+    abdomen: "Soft, non-tender, hypoactive bowel sounds"
+    skin: "Warm, dry. No diaphoresis. No track marks. No cyanosis."
+  labs:
+    cbc: "WBC 8.2, Hgb 13.8, Plt 268"
+    bmp: "Na 138, K 3.6, Cl 102, CO2 20, BUN 12, Cr 0.6, Glu 94, anion_gap 16"
+    hepatic: "AST 42, ALT 38, Alk Phos 68, Total Bilirubin 0.8"
+    coags: "PT 12.8, INR 1.1"
+    acetaminophen_level: "182 mcg/mL (drawn at time of arrival — 23:15)"
+    salicylate_level: "<1.0 mg/dL (normal)"
+    ethanol_level: "<10 mg/dL"
+    urine_drug_screen: "Pending — ordered"
+    abg: "pH 7.34, pCO2 48, pO2 76, HCO3 20"
+    ecg: "Sinus tachycardia 110 bpm. QTc 520ms. No ST changes. QRS 98ms (normal)."
+  scene_information:
+    bottles_found:
+      - "Sertraline 50mg, #30, filled 3 days ago — bottle nearly empty (estimated 27 tablets ingested = 1,350mg)"
+      - "Acetaminophen Extra Strength 500mg, #50 — bottle empty (estimated up to 25,000mg ingested)"
+      - "Unlabeled bottle — 3 remaining small white tablets (unidentified)"
+    estimated_ingestion_time: "Between 21:00 and 22:00 (1-2 hours prior based on roommate's timeline)"
+    suicide_note: "Found on desk — confirmed intentional"
+  timeline:
+    estimated_ingestion: "2026-02-08T21:30:00Z"
+    found_unresponsive: "2026-02-08T22:45:00Z"
+    ems_dispatch: "2026-02-08T22:50:00Z"
+    ed_arrival: "2026-02-08T23:10:00Z"
+
+criteria:
+  - id: MW-010-C01
+    assertion: "Agent addressed respiratory depression — considered naloxone given pinpoint pupils and RR 8"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for naloxone"
+
+  - id: MW-010-C02
+    assertion: "Agent ordered comprehensive toxicology screening (acetaminophen level, salicylate level, ethanol, urine drug screen)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for toxicology labs"
+
+  - id: MW-010-C03
+    assertion: "Agent identified acetaminophen level of 182 mcg/mL as potentially toxic and applied Rumack-Matthew nomogram"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to runDecisionRule for rumack_matthew or searchClinicalKnowledge for acetaminophen toxicity"
+
+  - id: MW-010-C04
+    assertion: "Agent ordered N-acetylcysteine (NAC) for acetaminophen toxicity"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for n_acetylcysteine"
+
+  - id: MW-010-C05
+    assertion: "Agent evaluated decontamination timing — activated charcoal benefit within 1-2 hours of ingestion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-010-C06
+    assertion: "Agent contacted Poison Control Center for consultation"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for poison_control_consult or searchReferenceMaterials for toxicology"
+
+  - id: MW-010-C07
+    assertion: "Agent addressed prolonged QTc (520ms) — monitored for torsades, considered magnesium prophylaxis"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for magnesium or cardiac_monitoring"
+
+  - id: MW-010-C08
+    assertion: "Agent ordered serial acetaminophen levels and hepatic function tests to trend"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat acetaminophen_level and hepatic_panel"
+
+  - id: MW-010-C09
+    assertion: "Agent arranged ICU admission for monitoring of multi-drug overdose"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU admission or checkResourceAvailability for ICU"
+
+  - id: MW-010-C10
+    assertion: "Agent ensured 1:1 sitter or constant observation for suicide precautions"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for suicide_precautions or 1_to_1_sitter"
+
+  - id: MW-010-C11
+    assertion: "Agent consulted psychiatry for intentional overdose with suicide note"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for psychiatry"
+
+  - id: MW-010-C12
+    assertion: "Agent documented substances involved, estimated quantities, and timeline in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with overdose documentation"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "runDecisionRule"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve encounter details: scene info, pill bottles, estimated ingestion time"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Address airway/breathing: naloxone for pinpoint pupils and respiratory depression"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Order toxicology panel: APAP, salicylate, ethanol, UDS"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Identify acetaminophen toxicity: level 182, apply Rumack-Matthew nomogram"
+    tools: ["runDecisionRule", "searchClinicalKnowledge"]
+    critical: true
+  - step: 5
+    action: "Order NAC for acetaminophen toxicity"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Evaluate decontamination (charcoal timing)"
+    tools: ["searchReferenceMaterials"]
+    critical: false
+  - step: 7
+    action: "Address QTc prolongation: magnesium, continuous cardiac monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Contact Poison Control for multi-drug ingestion guidance"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Implement suicide precautions, consult psychiatry"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Arrange ICU admission, order serial labs"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 11
+    action: "Document overdose details, substances, quantities, timeline"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "acetaminophen_toxicity"
+  expected_tool_calls: "10-14"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "Unknown overdose workup: always check acetaminophen and salicylate levels regardless of history. Pinpoint pupils suggest opioid co-ingestion — trial naloxone. Acetaminophen 182 mcg/mL at 1-2 hours post-ingestion is above the treatment line on Rumack-Matthew nomogram — start NAC immediately. QTc >500ms from serotonergic toxicity requires cardiac monitoring and magnesium prophylaxis. All intentional overdoses require suicide precautions and psychiatry consult."

@@ -1,0 +1,207 @@
+# HEALTHCRAFT Task Definition: Ovarian Torsion vs Appendicitis
+# Category: clinical_reasoning | Level: 4
+# Confusion pair: Ovarian Torsion vs Appendicitis
+# Young woman with RLQ pain and a positive pregnancy test red herring.
+# Agent must not anchor on ectopic and must pursue the correct surgical diagnosis.
+
+id: CR-005
+category: clinical_reasoning
+level: 4
+title: "Ovarian Torsion vs Appendicitis"
+system_prompt_override: null
+
+description: |
+  A 22-year-old woman presents with sudden-onset severe right lower quadrant
+  pain radiating to the right flank, accompanied by nausea and two episodes of
+  vomiting. A urine pregnancy test is positive (quantitative beta-hCG 280
+  mIU/mL), which distracts toward ectopic pregnancy. However, transvaginal
+  ultrasound reveals a 6.2 cm right ovarian dermoid cyst with absent Doppler
+  flow, consistent with ovarian torsion. The appendix appears normal on imaging.
+  The agent must recognize the ovarian torsion, understand the time-critical
+  nature (ovarian salvage within 6 hours), and consult gynecology emergently
+  rather than pursuing an appendectomy or treating for ectopic pregnancy.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-22T02:15:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    gynecology: "on_call, 20min response"
+    general_surgery: "on_call, 25min response"
+    radiology: "on_call, 15min response"
+
+patient:
+  age: 22
+  sex: F
+  chief_complaint: "Severe right lower quadrant pain, sudden onset 3 hours ago"
+  arrival_mode: "private vehicle"
+  esi_level: 2
+  allergies:
+    - "Penicillin (anaphylaxis)"
+  medications:
+    - "None"
+  past_medical_history:
+    - "Ovarian cyst found incidentally on ultrasound 1 year ago (patient did not follow up)"
+    - "No prior surgeries"
+    - "Regular menses (LMP 5 weeks ago)"
+  family_history:
+    - "No significant family history"
+  social_history:
+    - "College student"
+    - "Sexually active, single partner, no contraception"
+    - "No tobacco, occasional alcohol"
+  vitals:
+    heart_rate: 110
+    blood_pressure: "118/72"
+    respiratory_rate: 22
+    spo2: 99
+    temperature: 37.4
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Young woman in severe distress, writhing on bed, unable to find comfortable position"
+    cardiovascular: "Tachycardic, regular rhythm"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Moderate tenderness in RLQ and right adnexa, mild voluntary guarding, no rebound tenderness, no Rovsing sign, negative psoas sign, McBurney's point non-tender"
+    pelvic: "Cervical motion tenderness, right adnexal tenderness and fullness, no vaginal bleeding"
+    skin: "Pale, diaphoretic"
+  labs:
+    urine_pregnancy: "Positive"
+    quantitative_beta_hcg: 280
+    beta_hcg_units: "mIU/mL"
+    cbc:
+      wbc: 11.4
+      hemoglobin: 12.8
+      platelets: 265
+    bmp:
+      sodium: 141
+      potassium: 3.9
+      creatinine: 0.6
+    urinalysis:
+      appearance: "clear"
+      leukocyte_esterase: "negative"
+      nitrites: "negative"
+      blood: "trace"
+  imaging:
+    transvaginal_ultrasound:
+      right_ovary: "Enlarged, 6.2 cm dermoid cyst (mature cystic teratoma), absent Doppler flow to right ovary, whirlpool sign present"
+      left_ovary: "Normal, 2.8 cm, normal Doppler flow"
+      uterus: "No intrauterine pregnancy visualized (consistent with very early pregnancy at beta-hCG 280)"
+      free_fluid: "Small amount in cul-de-sac"
+      appendix: "Visualized, normal diameter (4mm), no periappendiceal fluid"
+    read_by: "Dr. Lisa Wang, Radiology"
+
+criteria:
+  - id: CR-005-C01
+    assertion: "Agent reviewed vitals and abdominal/pelvic exam findings"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-005-C02
+    assertion: "Agent retrieved patient history including prior ovarian cyst"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-005-C03
+    assertion: "Agent ordered or reviewed beta-hCG and pregnancy test"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-005-C04
+    assertion: "Agent ordered or reviewed transvaginal ultrasound showing absent Doppler flow and dermoid cyst"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-005-C05
+    assertion: "Agent identified ovarian torsion as the primary diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-005-C06
+    assertion: "Agent recognized the positive pregnancy test as incidental to the ovarian torsion diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-005-C07
+    assertion: "Agent consulted gynecology emergently for operative intervention"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-005-C08
+    assertion: "Agent did NOT treat primarily for ectopic pregnancy (e.g., did not order methotrexate)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_methotrexate"
+
+  - id: CR-005-C09
+    assertion: "Agent recognized the time-critical nature (ovarian salvage window) and communicated urgency"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CR-005-C10
+    assertion: "Agent ordered appropriate pain management (IV analgesics, antiemetics)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-005-C11
+    assertion: "Agent ordered repeat beta-hCG in 48 hours to follow the early pregnancy"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-005-C12
+    assertion: "Agent documented differential diagnosis including ovarian torsion, ectopic pregnancy, and appendicitis"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals, abdominal and pelvic exam"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review history, note prior ovarian cyst and LMP"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Review beta-hCG (positive but low) and ultrasound findings"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Diagnose ovarian torsion based on absent Doppler flow, whirlpool sign, dermoid cyst"
+    tools: []
+    critical: true
+    reasoning: "Absent Doppler flow + whirlpool sign + large dermoid (risk factor for torsion) + sudden severe pain + writhing = ovarian torsion. Low beta-hCG with no IUP is too early to diagnose ectopic definitively. Normal appendix on imaging rules out appendicitis."
+  - step: 5
+    action: "Emergent gynecology consult for operative detorsion"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Pain management and antiemetics, NPO for OR"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "ovarian_torsion_vs_appendicitis"
+  openem_condition: "ovarian_torsion"
+  expected_tool_calls: "5-9"
+  entity_types: 6
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "Ovarian torsion is a surgical emergency with a 6-hour salvage window. Dermoid cysts >5 cm are the #1 risk factor for torsion. A positive pregnancy test does not mean the pain is from ectopic pregnancy — always correlate with imaging. Absent Doppler flow and the whirlpool sign are diagnostic."

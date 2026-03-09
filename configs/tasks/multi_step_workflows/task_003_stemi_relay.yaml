@@ -1,0 +1,227 @@
+# HEALTHCRAFT Task Definition: The STEMI Relay
+# Category: multi_step_workflows | Level: 4
+# Tests door-to-balloon time workflow: ECG, cath lab activation, dual
+# antiplatelet therapy, anticoagulation, cardiology consult, and transfer.
+
+id: MW-003
+category: multi_step_workflows
+level: 4
+title: "The STEMI Relay"
+system_prompt_override: null
+
+description: |
+  A 58-year-old male presents via EMS with crushing substernal chest pain
+  radiating to his left arm for 45 minutes. EMS acquired a 12-lead ECG showing
+  2-3mm ST elevation in leads II, III, and aVF with reciprocal ST depression in
+  I and aVL — an acute inferior STEMI. The patient is diaphoretic and nauseated
+  with a BP of 98/62. The agent must execute the door-to-balloon pathway within
+  the 90-minute target: confirm ECG findings, activate the cath lab, administer
+  aspirin and heparin, obtain cardiology consult, and coordinate patient transfer
+  to the catheterization laboratory.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-20T09:15:00Z"
+  department: "Emergency Department"
+  census: 33
+  beds_available: 21
+  attending_on_duty: "Dr. James Okoro"
+  specialist_availability:
+    cardiology: "Dr. Anita Patel — on-call, 10-minute response"
+    interventional_cardiology: "Dr. Marcus Webb — 15-minute cath lab activation"
+  cath_lab_status: "available, team on standby"
+  icu_beds_available: 3
+
+patient:
+  age: 58
+  sex: M
+  weight_kg: 91
+  chief_complaint: "Crushing chest pain, left arm radiation, 45 minutes"
+  arrival_mode: "EMS, ALS unit with prehospital ECG"
+  esi_level: 1
+  allergies: []
+  medications:
+    - "Atorvastatin 40mg daily"
+    - "Metoprolol 50mg BID"
+    - "Aspirin 81mg daily (home med — NOT yet given today)"
+  past_medical_history:
+    - "Hyperlipidemia"
+    - "Hypertension"
+    - "Former smoker (30 pack-year, quit 2 years ago)"
+    - "Family history: father MI at age 52"
+  family_history:
+    - "Father: MI at 52"
+    - "Mother: Hypertension"
+  social_history:
+    - "Construction foreman, physically active"
+    - "Former smoker, quit 2 years ago"
+    - "Moderate alcohol use on weekends"
+  vitals:
+    heart_rate: 62
+    blood_pressure: "98/62"
+    respiratory_rate: 20
+    spo2: 96
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Middle-aged male in acute distress, clutching chest, diaphoretic, pale"
+    cardiac: "Bradycardic relative to distress, regular rhythm, S4 gallop, no murmurs. JVP mildly elevated at 10cm"
+    lungs: "Clear bilaterally, no crackles or wheezes"
+    abdomen: "Soft, non-tender"
+    extremities: "Cool, clammy. 2+ peripheral pulses. No edema"
+  imaging:
+    ecg_12_lead:
+      interpretation: "ST elevation 2-3mm in leads II, III, aVF. Reciprocal ST depression in I, aVL. Normal sinus rhythm at 62 bpm. No prior for comparison."
+      machine_read: "***ACUTE MI*** — ST elevation inferior leads"
+      prehospital_ecg_time: "2026-01-20T09:02:00Z"
+    chest_xray: "Portable AP: Heart size normal. No pulmonary edema. No pneumothorax."
+  labs:
+    troponin_i: "0.04 ng/mL (borderline — rising, repeat pending)"
+    cbc: "WBC 9.8, Hgb 14.2, Plt 210"
+    bmp: "Na 140, K 4.1, Cl 104, CO2 24, BUN 18, Cr 1.0, Glu 168"
+    coags: "PT 12.1, INR 1.0, aPTT 28"
+    bnp: "180 pg/mL (mildly elevated)"
+  timeline:
+    symptom_onset: "2026-01-20T08:30:00Z"
+    ems_ecg: "2026-01-20T09:02:00Z"
+    ed_arrival: "2026-01-20T09:12:00Z"
+    first_medical_contact: "2026-01-20T09:00:00Z"
+    door_time: "2026-01-20T09:12:00Z"
+    balloon_target: "2026-01-20T10:42:00Z"
+
+criteria:
+  - id: MW-003-C01
+    assertion: "Agent reviewed the 12-lead ECG and confirmed inferior STEMI pattern"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: MW-003-C02
+    assertion: "Agent activated the cardiac catheterization laboratory"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with cath_lab_activation"
+
+  - id: MW-003-C03
+    assertion: "Agent administered aspirin 325mg (loading dose)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with aspirin"
+
+  - id: MW-003-C04
+    assertion: "Agent administered P2Y12 inhibitor (clopidogrel, ticagrelor, or prasugrel)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with P2Y12 inhibitor"
+
+  - id: MW-003-C05
+    assertion: "Agent ordered anticoagulation with heparin (UFH bolus or weight-based dosing)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with heparin"
+
+  - id: MW-003-C06
+    assertion: "Agent obtained cardiology/interventional cardiology consult"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for cardiology"
+
+  - id: MW-003-C07
+    assertion: "Agent assessed for right ventricular involvement (right-sided ECG or clinical assessment) given inferior STEMI"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-003-C08
+    assertion: "Agent did NOT administer nitroglycerin given hypotension (SBP <100) and inferior STEMI with possible RV involvement"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain createClinicalOrder with nitroglycerin"
+
+  - id: MW-003-C09
+    assertion: "Agent ordered transfer to catheterization laboratory"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processTransfer with destination cath_lab"
+
+  - id: MW-003-C10
+    assertion: "Agent documented STEMI activation time and door-to-balloon clock in encounter"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with STEMI documentation"
+
+  - id: MW-003-C11
+    assertion: "Agent activated cath lab within 10 minutes of ED arrival (before 09:22)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "cath_lab_activation createClinicalOrder timestamp before 2026-01-20T09:22:00Z"
+
+  - id: MW-003-C12
+    assertion: "Agent verified no contraindications to antiplatelet/anticoagulant therapy"
+    dimension: safety
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory before anticoagulation order"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "processTransfer"
+  - "checkResourceAvailability"
+
+expected_sequence:
+  - step: 1
+    action: "Review ECG, confirm inferior STEMI pattern"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Activate cath lab immediately (within 10 minutes of door)"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 3
+    action: "Retrieve patient history, allergies, medication list"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Administer aspirin 325mg loading dose"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Administer P2Y12 inhibitor"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order heparin anticoagulation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Consult interventional cardiology"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Assess for RV involvement — right-sided ECG or clinical assessment"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 9
+    action: "Transfer patient to cath lab"
+    tools: ["processTransfer"]
+    critical: true
+  - step: 10
+    action: "Document STEMI activation and door-to-balloon timing"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "stemi_inferior"
+  expected_tool_calls: "10-14"
+  entity_types: 7
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Door-to-balloon target is 90 minutes. Cath lab activation should occur within 10 minutes of first medical contact. In inferior STEMI with hypotension, avoid nitroglycerin due to preload dependence from possible RV involvement. Right-sided ECG should be obtained. Dual antiplatelet therapy and anticoagulation before cath."

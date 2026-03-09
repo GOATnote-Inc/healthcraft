@@ -1,0 +1,224 @@
+# HEALTHCRAFT Task Definition: DKA vs Sepsis
+# Category: clinical_reasoning | Level: 3
+# Confusion pair: DKA vs Sepsis
+# Type 1 diabetic with altered mental status and tachycardia. Agent must
+# differentiate between DKA and sepsis (or recognize both co-existing).
+
+id: CR-008
+category: clinical_reasoning
+level: 3
+title: "DKA vs Sepsis"
+system_prompt_override: null
+
+description: |
+  A 26-year-old woman with type 1 diabetes presents with altered mental status,
+  tachycardia (HR 128), Kussmaul respirations (RR 32), and a glucose of 486
+  mg/dL. She was found confused by her partner after 2 days of vomiting and
+  decreased oral intake. She ran out of insulin 3 days ago. Her anion gap is 28,
+  pH 7.12, and beta-hydroxybutyrate is 7.8 mmol/L. The agent must diagnose DKA,
+  initiate the DKA protocol (insulin drip, aggressive fluids, potassium
+  monitoring), and search for a precipitating cause. Urinalysis reveals pyuria,
+  suggesting a concurrent UTI as the trigger.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-05T11:20:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 23
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    endocrinology: "on_call, 40min response"
+    critical_care: "on_call, 15min response"
+
+patient:
+  age: 26
+  sex: F
+  chief_complaint: "Found confused at home, vomiting for 2 days"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "NKDA"
+  medications:
+    - "Insulin glargine 18 units at bedtime (not taken in 3 days)"
+    - "Insulin lispro sliding scale with meals (not taken in 3 days)"
+    - "Escitalopram 10mg daily"
+  past_medical_history:
+    - "Type 1 Diabetes (diagnosed age 12, A1c last checked 9.2%)"
+    - "Prior DKA admission (age 20, triggered by viral illness)"
+    - "Depression"
+    - "No chronic kidney disease"
+  social_history:
+    - "Graduate student"
+    - "Lives with partner"
+    - "No tobacco, occasional alcohol"
+    - "Lost health insurance recently — ran out of insulin"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "92/58"
+    respiratory_rate: 32
+    spo2: 98
+    temperature: 38.1
+    gcs: 12
+    gcs_breakdown:
+      eye: 3
+      verbal: 4
+      motor: 5
+    pain_scale: "unable to reliably assess"
+  exam_findings:
+    general: "Thin young woman, lethargic, Kussmaul respirations (deep and labored), fruity odor on breath"
+    heent: "Dry mucous membranes, sunken eyes, poor skin turgor"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs, weak peripheral pulses"
+    pulmonary: "Deep labored breathing (Kussmaul), clear bilaterally"
+    abdomen: "Diffuse tenderness (common in DKA), no guarding or rebound, hypoactive bowel sounds"
+    skin: "Dry, tenting, no rashes"
+    neurological: "Lethargic, oriented to person only, follows simple commands, no focal deficits"
+  labs:
+    glucose: 486
+    venous_blood_gas:
+      ph: 7.12
+      pco2: 18
+      hco3: 6
+    bmp:
+      sodium: 128
+      sodium_corrected: 134
+      potassium: 5.6
+      chloride: 96
+      co2: 6
+      bun: 38
+      creatinine: 1.8
+      glucose: 486
+      anion_gap: 28
+    beta_hydroxybutyrate: 7.8
+    beta_hydroxybutyrate_units: "mmol/L (normal <0.6)"
+    cbc:
+      wbc: 16.8
+      neutrophils: 82
+      hemoglobin: 14.8
+      platelets: 310
+    serum_ketones: "Large"
+    phosphorus: 1.8
+    magnesium: 1.6
+    lactate: 3.2
+    urinalysis:
+      appearance: "cloudy"
+      glucose: "4+"
+      ketones: "3+"
+      leukocyte_esterase: "positive"
+      nitrites: "positive"
+      wbc: "50-100/hpf"
+      bacteria: "many"
+    lipase: 45
+    lipase_units: "U/L (normal <60)"
+
+criteria:
+  - id: CR-008-C01
+    assertion: "Agent reviewed vitals including Kussmaul respirations, tachycardia, and hypotension"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-008-C02
+    assertion: "Agent retrieved patient history including type 1 diabetes, insulin non-compliance, and prior DKA"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-008-C03
+    assertion: "Agent identified DKA based on anion gap 28, pH 7.12, glucose 486, elevated beta-hydroxybutyrate"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-008-C04
+    assertion: "Agent initiated insulin drip (regular insulin 0.1-0.14 units/kg/hr)"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-008-C05
+    assertion: "Agent ordered aggressive IV fluid resuscitation (normal saline bolus then maintenance)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-008-C06
+    assertion: "Agent ordered serial potassium monitoring and did NOT give insulin before confirming potassium >3.3"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CR-008-C07
+    assertion: "Agent recognized the potassium of 5.6 is falsely elevated in DKA and will drop with insulin"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-008-C08
+    assertion: "Agent identified UTI as the precipitating cause of DKA based on urinalysis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-008-C09
+    assertion: "Agent ordered antibiotics for the concurrent UTI"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-008-C10
+    assertion: "Agent ordered serial glucose and BMP monitoring (q1-2 hours)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-008-C11
+    assertion: "Agent planned for ICU or step-down admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-008-C12
+    assertion: "Agent documented DKA diagnostic criteria and management plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "runDecisionRule"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals and exam — Kussmaul respirations, fruity breath, dry mucosa"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review history — type 1 DM, no insulin for 3 days"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Confirm DKA: glucose 486, AG 28, pH 7.12, beta-hydroxybutyrate 7.8"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Start NS bolus 1-2L, then insulin drip"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Identify UTI trigger from urinalysis, start antibiotics"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order serial labs (BMP q2h, glucose q1h), arrange ICU bed"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "dka_vs_sepsis"
+  openem_condition: "diabetic_ketoacidosis"
+  expected_tool_calls: "5-9"
+  entity_types: 5
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "DKA and sepsis frequently co-exist — always search for a precipitating cause (infection, MI, missed insulin). Potassium is falsely elevated in DKA due to acidosis-driven cellular shift; it will plummet with insulin. NEVER give insulin if K <3.3. Kussmaul respirations are compensatory — do NOT intubate a DKA patient for tachypnea unless they are failing."

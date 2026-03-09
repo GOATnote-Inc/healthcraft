@@ -1,0 +1,232 @@
+# HEALTHCRAFT Task Definition: Sepsis Bundle Sprint
+# Category: multi_step_workflows | Level: 4
+# Tests completion of the hour-1 sepsis bundle: cultures, lactate,
+# broad-spectrum antibiotics, IV fluids, and reassessment.
+
+id: MW-002
+category: multi_step_workflows
+level: 4
+title: "Sepsis Bundle Sprint"
+system_prompt_override: null
+
+description: |
+  A 67-year-old female nursing home resident presents by EMS with altered mental
+  status, fever, and hypotension. She was found confused at 06:00 by morning staff.
+  Baseline is alert and oriented x3. EMS reports a temperature of 39.4C, HR 118,
+  BP 82/48, and a sacral wound with purulent drainage. Point-of-care lactate
+  returns at 4.8 mmol/L (critical). The agent must execute the CMS SEP-1 hour-1
+  sepsis bundle within 60 minutes of recognition: blood cultures before antibiotics,
+  lactate measurement, broad-spectrum antibiotics, 30 mL/kg crystalloid bolus,
+  and reassessment of volume status and lactate clearance.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-18T06:42:00Z"
+  department: "Emergency Department"
+  census: 38
+  beds_available: 16
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    infectious_disease: "on-call, 20-minute response"
+    critical_care: "in-house, covering ICU"
+    surgery: "on-call for wound debridement"
+  pharmacy:
+    piperacillin_tazobactam: "available"
+    vancomycin: "available"
+    norepinephrine: "available"
+  icu_beds_available: 2
+
+patient:
+  age: 67
+  sex: F
+  weight_kg: 72
+  chief_complaint: "Altered mental status, fever, hypotension"
+  arrival_mode: "EMS, BLS unit"
+  esi_level: 1
+  allergies:
+    - "Penicillin (rash, childhood — no anaphylaxis documented)"
+  medications:
+    - "Metformin 1000mg BID"
+    - "Lisinopril 20mg daily"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Type 2 diabetes mellitus"
+    - "Hypertension"
+    - "Stage 3 sacral decubitus ulcer"
+    - "Prior UTI (E. coli, 3 months ago)"
+  family_history:
+    - "Non-contributory"
+  social_history:
+    - "Nursing home resident x2 years"
+    - "Former smoker, quit 10 years ago"
+    - "No alcohol"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "82/48"
+    respiratory_rate: 24
+    spo2: 94
+    temperature: 39.4
+    gcs: 12
+    pain_scale: 3
+  exam_findings:
+    general: "Elderly female, confused, diaphoretic, ill-appearing"
+    skin: "Warm, flushed, delayed capillary refill 4 seconds. Stage 3 sacral decubitus with purulent drainage, surrounding erythema and induration extending 5cm"
+    lungs: "Bilateral coarse crackles at bases, no consolidation"
+    cardiac: "Tachycardic, regular rhythm, no murmurs"
+    abdomen: "Soft, non-tender, hypoactive bowel sounds"
+    neuro: "GCS 12 (E3V4M5), oriented to person only, no focal deficits"
+  labs:
+    poc_lactate: "4.8 mmol/L (critical, >4.0)"
+    cbc: "WBC 22.4 (89% neutrophils, 8% bands), Hgb 10.2, Plt 98"
+    bmp: "Na 138, K 3.9, Cl 102, CO2 18, BUN 42, Cr 2.1 (baseline 0.9), Glu 248"
+    coags: "PT 16.2, INR 1.4"
+    procalcitonin: "12.8 ng/mL (critical)"
+    urinalysis: "Cloudy, LE positive, nitrite positive, >100 WBCs, many bacteria"
+    blood_cultures: "pending — NOT YET DRAWN"
+  timeline:
+    symptom_discovery: "2026-01-18T06:00:00Z"
+    ems_dispatch: "2026-01-18T06:10:00Z"
+    ed_arrival: "2026-01-18T06:35:00Z"
+    triage_time: "2026-01-18T06:38:00Z"
+    sepsis_recognition: "2026-01-18T06:42:00Z"
+    hour_1_deadline: "2026-01-18T07:42:00Z"
+
+criteria:
+  - id: MW-002-C01
+    assertion: "Agent retrieved patient history including prior UTI and medication list"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: MW-002-C02
+    assertion: "Agent identified sepsis/septic shock based on qSOFA, lactate, and clinical presentation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-002-C03
+    assertion: "Agent ordered blood cultures BEFORE antibiotics"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log shows createClinicalOrder for blood_cultures with timestamp earlier than createClinicalOrder for antibiotics"
+
+  - id: MW-002-C04
+    assertion: "Agent ordered broad-spectrum antibiotics appropriate for healthcare-associated sepsis"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with medication matching broad-spectrum antibiotic"
+
+  - id: MW-002-C05
+    assertion: "Agent addressed penicillin allergy when selecting antibiotic regimen"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-002-C06
+    assertion: "Agent ordered 30 mL/kg IV crystalloid bolus (approximately 2160 mL for 72 kg patient)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with fluid_bolus order"
+
+  - id: MW-002-C07
+    assertion: "Agent ordered repeat lactate within 6 hours to assess clearance"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat lactate"
+
+  - id: MW-002-C08
+    assertion: "Agent applied sepsis protocol or bundle"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to applyProtocol with sepsis bundle"
+
+  - id: MW-002-C09
+    assertion: "Agent reassessed volume status after initial fluid bolus"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails after fluid order timestamp"
+
+  - id: MW-002-C10
+    assertion: "Agent considered vasopressors for MAP <65 after fluid resuscitation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-002-C11
+    assertion: "Agent consulted critical care / ICU for admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for critical_care or ICU"
+
+  - id: MW-002-C12
+    assertion: "Agent documented sepsis recognition time and bundle initiation in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: MW-002-C13
+    assertion: "Agent completed all hour-1 bundle elements before the 07:42 deadline"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "all sepsis bundle createClinicalOrder timestamps precede 2026-01-18T07:42:00Z"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve patient details, history, medications, allergies"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Identify sepsis/septic shock: qSOFA >= 2, lactate >= 4, hypotension"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 3
+    action: "Apply sepsis bundle protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 4
+    action: "Order blood cultures (2 sets, peripheral + central if available)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Order broad-spectrum antibiotics (considering PCN allergy)"
+    tools: ["createClinicalOrder", "validateTreatmentPlan"]
+    critical: true
+  - step: 6
+    action: "Order 30 mL/kg crystalloid bolus"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Order repeat lactate for clearance assessment"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 8
+    action: "Reassess volume status, consider vasopressors"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 9
+    action: "Consult ICU for admission, check bed availability"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Document sepsis recognition time and bundle compliance"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "sepsis"
+  expected_tool_calls: "10-14"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "The SEP-1 hour-1 bundle requires blood cultures before antibiotics, lactate measurement, broad-spectrum antibiotics, and 30 mL/kg crystalloid — all within 60 minutes of sepsis recognition. Penicillin allergy must be addressed in antibiotic selection. Reassessment of volume status and lactate clearance are mandatory."

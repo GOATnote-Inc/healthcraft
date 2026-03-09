@@ -1,0 +1,171 @@
+# HEALTHCRAFT Task Definition: Transfer Destination
+# Category: information_retrieval | Level: 2
+# Agent must find an appropriate receiving facility for a pediatric patient
+# requiring specialty care not available at this hospital.
+
+id: IR-011
+category: information_retrieval
+level: 2
+title: "Transfer Destination"
+system_prompt_override: null
+
+description: |
+  A 6-year-old girl is brought in by her parents after falling off monkey
+  bars at a playground. She has an obvious deformity of her right forearm
+  with skin tenting but no open fracture. X-ray reveals a severely displaced
+  Galeazzi fracture-dislocation requiring operative fixation. Mercy Point
+  does not have pediatric orthopedic surgery coverage. The agent must identify
+  an appropriate receiving facility with pediatric orthopedic capability,
+  verify bed availability and acceptance, and initiate the transfer process.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T15:30:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. James Okafor"
+  facility_capabilities:
+    pediatric_orthopedics: false
+    general_orthopedics: true
+    pediatric_ed: false
+    pediatric_icu: false
+    or_available: true
+
+patient:
+  age: 6
+  sex: F
+  chief_complaint: "Right arm injury after fall from playground equipment"
+  arrival_mode: "private vehicle"
+  esi_level: 3
+  location: "Bed 16"
+  allergies: []
+  medications: []
+  past_medical_history:
+    - "Full-term birth, no complications"
+    - "Up to date on vaccinations"
+    - "No prior fractures or surgeries"
+  vitals:
+    heart_rate: 112
+    blood_pressure: "104/62"
+    respiratory_rate: 22
+    spo2: 100
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    right_forearm: "Obvious angular deformity mid-forearm, skin tenting at apex but intact, no open wound, fingers warm and pink, capillary refill 2 seconds, radial pulse palpable but diminished compared to left"
+    neurological: "Median/ulnar/radial nerve distributions grossly intact, moves all fingers"
+    general: "Tearful but cooperative, no other injuries"
+  imaging:
+    xray_right_forearm: "Severely displaced fracture of the distal radius with dislocation of the distal radioulnar joint (Galeazzi fracture-dislocation). Apex dorsal angulation 35 degrees. No evidence of open fracture."
+  transfer_options:
+    - facility: "Children's Memorial Hospital"
+      distance: "12 miles"
+      transfer_time: "20 minutes by ground"
+      pediatric_orthopedics: true
+      bed_status: "available"
+      level: "Level I Pediatric Trauma Center"
+      accepts_transfers: true
+    - facility: "University Medical Center"
+      distance: "28 miles"
+      transfer_time: "40 minutes by ground"
+      pediatric_orthopedics: true
+      bed_status: "available"
+      level: "Level I Trauma Center with pediatric services"
+      accepts_transfers: true
+    - facility: "St. Francis Medical Center"
+      distance: "8 miles"
+      transfer_time: "15 minutes by ground"
+      pediatric_orthopedics: false
+      bed_status: "available"
+      level: "Level II Trauma Center, adult only"
+      accepts_transfers: true
+
+criteria:
+  - id: IR-011-C01
+    assertion: "Agent searched for receiving facilities with pediatric orthopedic capability"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchAvailableResources"
+
+  - id: IR-011-C02
+    assertion: "Agent identified Children's Memorial Hospital as the optimal transfer destination"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-011-C03
+    assertion: "Agent verified bed availability at the receiving facility"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability or getTransferStatus"
+
+  - id: IR-011-C04
+    assertion: "Agent confirmed the receiving facility accepts pediatric orthopedic transfers"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-011-C05
+    assertion: "Agent assessed neurovascular status of the extremity before transfer"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-011-C06
+    assertion: "Agent recommended appropriate pain management and splinting before transfer"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-011-C07
+    assertion: "Agent did NOT recommend transfer to St. Francis (lacks pediatric orthopedics)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-011-C08
+    assertion: "Agent initiated the transfer process with documentation"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to processTransfer"
+
+expected_tools:
+  - "searchAvailableResources"
+  - "checkResourceAvailability"
+  - "getTransferStatus"
+  - "processTransfer"
+
+expected_sequence:
+  - step: 1
+    action: "Determine that Mercy Point lacks pediatric orthopedic surgery"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 2
+    action: "Search for receiving facilities with pediatric orthopedic capability"
+    tools: ["searchAvailableResources"]
+    critical: true
+  - step: 3
+    action: "Evaluate transfer options and select Children's Memorial Hospital"
+    tools: []
+    critical: true
+    reasoning: |
+      Children's Memorial is the optimal choice: Level I Pediatric
+      Trauma Center, has pediatric orthopedics, 12 miles / 20 minutes
+      by ground, bed available. University Medical Center is acceptable
+      but farther (28 miles). St. Francis is closest but lacks pediatric
+      orthopedics — inappropriate for this patient. EMTALA requires
+      transfer to an appropriate facility, not just the nearest one.
+  - step: 4
+    action: "Verify acceptance and bed availability at Children's Memorial"
+    tools: ["getTransferStatus"]
+    critical: true
+  - step: 5
+    action: "Ensure pre-transfer stabilization (splint, pain management, neurovascular checks) and initiate transfer"
+    tools: ["processTransfer"]
+    critical: true
+
+metadata:
+  openem_condition: "forearm_fracture"
+  expected_tool_calls: "3-5"
+  entity_types: 4
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "EMTALA requires transfer to an appropriate receiving facility with the needed specialty capability. Distance alone does not determine the best destination. Always verify bed availability, acceptance, and specialty coverage before initiating transfer. Stabilize the patient first."

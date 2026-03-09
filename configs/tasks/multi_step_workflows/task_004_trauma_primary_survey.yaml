@@ -1,0 +1,244 @@
+# HEALTHCRAFT Task Definition: Trauma Primary Survey
+# Category: multi_step_workflows | Level: 5
+# Tests ATLS primary survey: systematic ABCDE assessment with multiple
+# simultaneous interventions for a critically injured patient.
+
+id: MW-004
+category: multi_step_workflows
+level: 5
+title: "Trauma Primary Survey"
+system_prompt_override: null
+
+description: |
+  A 34-year-old unrestrained male driver is brought in by flight EMS after a
+  high-speed MVC with steering wheel deformity and prolonged extrication (25
+  minutes). He arrives on a backboard with cervical collar in place, GCS 10
+  (E2V3M5), with audible stridor, asymmetric breath sounds, distended abdomen,
+  and an unstable pelvis on compression. He has two large-bore IVs with NS
+  running wide open. The agent must execute the ATLS primary survey systematically
+  — addressing airway with cervical spine protection, breathing and ventilation,
+  circulation with hemorrhage control, disability assessment, and exposure — while
+  managing multiple competing life threats simultaneously.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-22T21:08:00Z"
+  department: "Trauma Bay 1"
+  census: 44
+  beds_available: 10
+  trauma_level: "Level 1 activation"
+  attending_on_duty: "Dr. Emily Rodriguez"
+  trauma_surgeon: "Dr. David Kim — in-house"
+  specialist_availability:
+    trauma_surgery: "in-house, en route to trauma bay"
+    anesthesia: "in-house, available for airway"
+    neurosurgery: "on-call, 20-minute response"
+    orthopedics: "on-call, 15-minute response"
+    interventional_radiology: "on-call, 30-minute response"
+  blood_bank: "Type O negative available, MTP ready"
+  or_status: "OR 2 available, OR 1 occupied"
+
+patient:
+  age: 34
+  sex: M
+  weight_kg: 85
+  chief_complaint: "High-speed MVC, unrestrained, prolonged extrication"
+  arrival_mode: "Flight EMS, RSI not attempted in field"
+  esi_level: 1
+  allergies:
+    - "No known allergies"
+  medications: []
+  past_medical_history:
+    - "Unknown — patient unresponsive, no ID found"
+  family_history:
+    - "Unknown"
+  social_history:
+    - "Unknown — EMS reports alcohol odor on breath"
+  vitals:
+    heart_rate: 132
+    blood_pressure: "78/42"
+    respiratory_rate: 28
+    spo2: 84
+    temperature: 35.6
+    gcs: 10
+    gcs_breakdown: "E2V3M5"
+    pain_scale: "unable to assess"
+  exam_findings:
+    airway: "Audible stridor. Blood in oropharynx. Facial swelling with bilateral periorbital ecchymosis. C-collar in place."
+    breathing: "Asymmetric chest rise — left side diminished. Trachea midline. Left-sided decreased breath sounds. Crepitus over left lateral chest wall (ribs 4-8). RR 28, SpO2 84% on 15L NRB."
+    circulation: "HR 132, BP 78/42. Cool, pale, mottled extremities. Capillary refill >4 seconds. Abdomen distended and firm. Pelvis unstable on gentle AP compression. Active bleeding from scalp laceration. Two 18G IVs, NS running."
+    disability: "GCS 10 (E2V3M5). Pupils 4mm bilaterally, sluggishly reactive. Moves all extremities but asymmetric — left arm weaker than right. No obvious spinal deformity palpated through collar."
+    exposure: "Hypothermic 35.6C. Multiple abrasions, left flank ecchymosis (Grey Turner sign). Deformity left femur mid-shaft. No open fractures. Rectal exam: normal tone, no gross blood."
+  imaging:
+    fast_exam:
+      rlq: "Positive — free fluid in Morison's pouch"
+      llq: "Positive — free fluid in splenorenal recess"
+      subxiphoid: "No pericardial effusion"
+      suprapubic: "Free fluid in pelvis"
+      bilateral_thoracic: "Left hemothorax — anechoic fluid above diaphragm"
+      impression: "Positive FAST — intraperitoneal free fluid and left hemothorax"
+    pelvic_xray: "AP pelvis: open-book pelvic fracture with >3cm diastasis of pubic symphysis"
+    chest_xray: "Portable AP: Left-sided opacification consistent with hemothorax. Multiple left rib fractures (4-8). No pneumothorax. Mediastinum normal."
+  labs:
+    cbc: "WBC 14.2, Hgb 8.4, Plt 156"
+    bmp: "Na 139, K 4.8, Cl 106, CO2 16, BUN 22, Cr 1.1, Glu 186"
+    coags: "PT 14.8, INR 1.3, Fibrinogen 180"
+    type_and_screen: "Type O positive — full crossmatch pending"
+    abg: "pH 7.22, pCO2 38, pO2 62, HCO3 15, BE -10, Lactate 6.2"
+    blood_alcohol: "0.14 g/dL"
+    poc_lactate: "6.2 mmol/L"
+  timeline:
+    estimated_mvc_time: "2026-01-22T20:15:00Z"
+    ems_arrival_scene: "2026-01-22T20:25:00Z"
+    extrication_complete: "2026-01-22T20:50:00Z"
+    flight_depart: "2026-01-22T20:55:00Z"
+    ed_arrival: "2026-01-22T21:05:00Z"
+    trauma_activation: "2026-01-22T21:06:00Z"
+
+criteria:
+  - id: MW-004-C01
+    assertion: "Agent addressed airway as FIRST priority — identified stridor and need for definitive airway"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "first createClinicalOrder in audit_log relates to airway management (intubation/RSI)"
+
+  - id: MW-004-C02
+    assertion: "Agent maintained cervical spine precautions throughout airway management"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-004-C03
+    assertion: "Agent identified left hemothorax and ordered chest tube placement"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for chest_tube or tube_thoracostomy"
+
+  - id: MW-004-C04
+    assertion: "Agent ordered FAST exam or reviewed FAST results"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails referencing FAST"
+
+  - id: MW-004-C05
+    assertion: "Agent activated massive transfusion protocol for hemorrhagic shock"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains applyProtocol for massive_transfusion or createClinicalOrder for MTP"
+
+  - id: MW-004-C06
+    assertion: "Agent ordered pelvic binder or stabilization for open-book pelvic fracture"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for pelvic_binder"
+
+  - id: MW-004-C07
+    assertion: "Agent obtained trauma surgery consult"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for trauma_surgery"
+
+  - id: MW-004-C08
+    assertion: "Agent ordered CT pan-scan (head, c-spine, chest, abdomen, pelvis) after primary survey stabilization"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CT imaging"
+
+  - id: MW-004-C09
+    assertion: "Agent addressed hypothermia with active warming measures"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for warming"
+
+  - id: MW-004-C10
+    assertion: "Agent followed ABCDE sequence — airway before chest tube, chest tube before transfusion"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log shows airway order timestamp < chest_tube timestamp < MTP timestamp"
+
+  - id: MW-004-C11
+    assertion: "Agent documented primary survey findings and interventions"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: MW-004-C12
+    assertion: "Agent ordered blood products with appropriate ratios (1:1:1 pRBC:FFP:platelets)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: MW-004-C13
+    assertion: "Agent consulted neurosurgery for possible intracranial hemorrhage given GCS 10 and periorbital ecchymosis"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for neurosurgery"
+
+  - id: MW-004-C14
+    assertion: "Agent did NOT order excessive crystalloid resuscitation in hemorrhagic shock (damage control resuscitation)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "searchAvailableResources"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Assess scene and retrieve encounter details including EMS report"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "A — Airway: identify stridor, order RSI with inline cervical stabilization"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "B — Breathing: identify left hemothorax, order chest tube"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "C — Circulation: FAST exam, activate MTP, apply pelvic binder"
+    tools: ["getEncounterDetails", "applyProtocol", "createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Order blood products (1:1:1 ratio)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "D — Disability: assess GCS, pupils, consult neurosurgery"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "E — Exposure: identify hypothermia, order warming"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult trauma surgery for positive FAST and hemorrhagic shock"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Order CT pan-scan after stabilization"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Document primary survey and all interventions"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "polytrauma"
+  expected_tool_calls: "12-18"
+  entity_types: 10
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "ATLS primary survey follows ABCDE sequence. Airway is always first. Damage control resuscitation in hemorrhagic shock: minimize crystalloid, early blood products in 1:1:1 ratio, permissive hypotension (target SBP 80-90), and pelvic binder for open-book fractures. CT only after initial stabilization."

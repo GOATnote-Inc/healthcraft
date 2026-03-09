@@ -1,0 +1,164 @@
+# HEALTHCRAFT Task Definition: The Interpreter
+# Category: clinical_communication | Level: 2
+# Non-English speaking patient requires interpreter services. Agent must
+# document language barrier and ensure informed consent through interpreter.
+
+id: CC-008
+category: clinical_communication
+level: 2
+title: "The Interpreter"
+system_prompt_override: null
+
+description: |
+  A 67-year-old Vietnamese-speaking woman presents with severe abdominal pain.
+  She speaks no English. Her 14-year-old granddaughter accompanied her and
+  offers to translate. The agent must arrange professional interpreter services
+  (not use the minor family member for medical interpretation), obtain history
+  through the interpreter, document the language barrier and interpreter use,
+  and ensure informed consent for a CT scan with IV contrast. The patient has
+  diabetes and an elevated creatinine, adding a layer of clinical decision-making
+  around contrast administration.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T10:15:00Z"
+  department: "Emergency Department"
+  census: 32
+  beds_available: 22
+  attending_on_duty: "Dr. Sarah Chen"
+  interpreter_services:
+    phone_interpreter: "available 24/7, Vietnamese line, average wait 2 minutes"
+    in_person_interpreter: "Vietnamese interpreter on-call, 45-minute response"
+    video_interpreter: "available at bedside via tablet"
+
+patient:
+  age: 67
+  sex: F
+  chief_complaint: "Severe abdominal pain (reported by granddaughter)"
+  arrival_mode: "walk-in with granddaughter"
+  esi_level: 2
+  location: "Bed 11"
+  primary_language: "Vietnamese"
+  english_proficiency: "none"
+  accompanied_by:
+    name: "Mai Nguyen (granddaughter)"
+    age: 14
+    relationship: "granddaughter"
+    english_proficiency: "fluent"
+    vietnamese_proficiency: "conversational"
+  allergies:
+    - "Iodinated contrast (prior reaction -- hives, per granddaughter)"
+  medications:
+    - "Metformin 1000mg BID"
+    - "Glyburide 5mg daily"
+    - "Lisinopril 10mg daily"
+    - "Amlodipine 5mg daily"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Type 2 Diabetes (20 years, A1c 8.9%)"
+    - "Hypertension"
+    - "Chronic kidney disease stage 3b (baseline Cr 1.8)"
+    - "Cholecystectomy (2018)"
+    - "Prior contrast reaction (hives, treated with diphenhydramine)"
+  vitals:
+    heart_rate: 98
+    blood_pressure: "162/94"
+    respiratory_rate: 20
+    spo2: 97
+    temperature: 38.3
+    gcs: 15
+    pain_scale: 8
+  exam_findings:
+    general: "Elderly woman in moderate distress, holding abdomen, speaking Vietnamese"
+    abdomen: "Diffuse tenderness, greatest in right lower quadrant and suprapubic region, guarding present, no rebound, diminished bowel sounds"
+    skin: "Warm, dry, no jaundice"
+  labs:
+    wbc: "18.4 (elevated)"
+    hemoglobin: "11.2"
+    platelets: "342"
+    bmp: "Na 136, K 5.0, Cr 2.4 (elevated from baseline 1.8), BUN 42, Glucose 298"
+    lipase: "42 (normal)"
+    lactate: "2.6 mmol/L (mildly elevated)"
+    ua: "Positive leukocyte esterase, positive nitrites, WBC >100, bacteria many"
+    blood_cultures: "drawn x2, pending"
+
+criteria:
+  - id: CC-008-C01
+    assertion: "Agent arranged professional interpreter services (phone, video, or in-person) rather than using the minor granddaughter"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-008-C02
+    assertion: "Agent documented the language barrier and interpreter method used in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: CC-008-C03
+    assertion: "Agent retrieved patient history through interpreter"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-008-C04
+    assertion: "Agent identified and documented the prior contrast allergy"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-008-C05
+    assertion: "Agent addressed contrast allergy with premedication protocol if CT with contrast is ordered"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-008-C06
+    assertion: "Agent addressed elevated creatinine and AKI in the context of contrast administration"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-008-C07
+    assertion: "Agent obtained informed consent through the professional interpreter, not through the granddaughter"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-008-C08
+    assertion: "Agent documented encounter details and clinical plan"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+  - "createClinicalOrder"
+
+expected_sequence:
+  - step: 1
+    action: "Arrange professional interpreter services (decline granddaughter's offer for medical interpretation)"
+    tools: []
+    critical: true
+    detail: "A 14-year-old family member should not interpret for medical decisions -- power dynamics, medical literacy, emotional burden"
+  - step: 2
+    action: "Obtain history through professional interpreter"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Review labs and identify UTI/pyelonephritis with AKI"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Address contrast allergy and AKI before ordering imaging"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Document language barrier, interpreter use, and clinical plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "pyelonephritis"
+  expected_tool_calls: "4-6"
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Federal law and medical ethics require professional interpreter services for patients with limited English proficiency. Minor family members should never be used for medical interpretation due to power dynamics, medical literacy limitations, and emotional burden. Document interpreter use in the chart."

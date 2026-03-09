@@ -1,0 +1,269 @@
+# HEALTHCRAFT Task Definition: The Polytrauma
+# Category: multi_step_workflows | Level: 5
+# Tests multi-system trauma management: simultaneous evaluation and treatment
+# across multiple organ systems with competing priorities.
+
+id: MW-009
+category: multi_step_workflows
+level: 5
+title: "The Polytrauma"
+system_prompt_override: null
+
+description: |
+  A 29-year-old female motorcyclist is brought in after being struck by a truck
+  at an intersection. She was wearing a helmet but no other protective gear. She
+  arrives intubated by EMS (field intubation for GCS 7), on a backboard with
+  pelvic binder and bilateral femoral traction splints. She has a flail chest
+  on the right, a positive FAST exam, bilateral femur fractures, and a right
+  pupil that is 6mm and sluggishly reactive. CT pan-scan is pending. The agent
+  must coordinate multiple competing priorities: head injury management with
+  possible herniation, bilateral chest injuries, intra-abdominal hemorrhage,
+  bilateral femur fractures, and overall hemorrhagic shock — while managing
+  multiple specialty consults and deciding OR versus IR versus medical management.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-05T19:15:00Z"
+  department: "Trauma Bay 1"
+  census: 39
+  beds_available: 15
+  trauma_level: "Level 1 activation"
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    trauma_surgery: "Dr. David Kim — in-house"
+    neurosurgery: "Dr. Robert Nguyen — on-call, 15-minute response"
+    orthopedics: "Dr. Maria Santos — on-call, 15-minute response"
+    anesthesia: "in-house, at bedside"
+    interventional_radiology: "on-call, 25-minute response"
+    critical_care: "in-house"
+  blood_bank:
+    type_o_negative: "8 units available"
+    mtp_cooler: "ready"
+  or_status: "OR 1 opening in 15 minutes, OR 2 available"
+  ct_scanner: "available, trauma priority"
+
+patient:
+  age: 29
+  sex: F
+  weight_kg: 62
+  chief_complaint: "Motorcycle vs truck, high-speed, multi-system trauma"
+  arrival_mode: "EMS, ALS unit. Field intubation for GCS 7."
+  esi_level: 1
+  allergies:
+    - "Latex"
+  medications:
+    - "Oral contraceptive"
+  past_medical_history:
+    - "None"
+  family_history:
+    - "Non-contributory"
+  social_history:
+    - "Graduate student in engineering"
+    - "Non-smoker, social drinker"
+  vitals:
+    heart_rate: 136
+    blood_pressure: "74/40"
+    respiratory_rate: "22 (ventilated)"
+    spo2: 90
+    temperature: 35.0
+    gcs: 6
+    gcs_breakdown: "E1V1T M4"
+    pupils: "Right 6mm sluggish, Left 3mm reactive"
+  exam_findings:
+    head: "Helmet in place on arrival (removed). Right temporal scalp laceration 8cm. Right periorbital ecchymosis. Right pupil 6mm sluggish, left 3mm reactive. No CSF otorrhea or rhinorrhea. Battle sign absent."
+    chest: "Right flail segment (ribs 3-7 lateral). Paradoxical movement with ventilation. Bilateral decreased breath sounds, right worse than left. Crepitus over right lateral chest. Subcutaneous emphysema right chest wall."
+    abdomen: "Distended, firm. Road rash across left flank. Seat belt sign absent (motorcycle)."
+    pelvis: "Pelvic binder in place. Stable with binder. No external rotation deformity."
+    extremities: "Bilateral mid-shaft femur deformities with traction splints in place. Right thigh tense and swollen (concern for compartment syndrome). Open wound left knee with exposed fat, no bone visible. Left dorsalis pedis pulse diminished."
+    spine: "C-collar in place. Unable to assess fully. No step-off palpable."
+  imaging:
+    fast_exam:
+      rlq: "Positive — moderate free fluid"
+      llq: "Equivocal — trace fluid"
+      subxiphoid: "No pericardial effusion"
+      suprapubic: "Positive — free fluid"
+      bilateral_thoracic: "Right hemothorax. Left clear."
+      impression: "Positive FAST — right hemothorax and intra-abdominal free fluid"
+    chest_xray: "Portable AP: Right flail chest (ribs 3-7). Right hemothorax. Right lung contusion. No pneumothorax. Left lung clear. ETT in good position. C-collar in place."
+    pelvic_xray: "Bilateral mid-shaft femur fractures (transverse). Pelvis: no fracture identified with binder in place."
+    ct_results:
+      status: "PENDING — ordered, patient not yet scanned"
+      expected_head: "Right epidural hematoma, 12mm thickness, 4mm midline shift. No other intracranial hemorrhage."
+      expected_cspine: "No fracture or dislocation"
+      expected_chest: "Right flail chest ribs 3-7, right hemothorax 400mL, right pulmonary contusion involving 40% of right lung"
+      expected_abdomen: "Grade III splenic laceration with active extravasation. Small volume hemoperitoneum. No hollow viscus injury."
+  labs:
+    cbc: "WBC 16.8, Hgb 7.8, Plt 132"
+    bmp: "Na 137, K 5.0, Cl 106, CO2 15, BUN 20, Cr 0.7, Glu 178"
+    coags: "PT 15.8, INR 1.4, Fibrinogen 148"
+    abg: "pH 7.20, pCO2 36, pO2 68, HCO3 14, BE -12, Lactate 7.8"
+    type_and_screen: "Type B positive"
+    poc_lactate: "7.8 mmol/L"
+    blood_alcohol: "0.00 g/dL"
+  timeline:
+    estimated_collision: "2026-02-05T18:45:00Z"
+    ems_arrival_scene: "2026-02-05T18:52:00Z"
+    field_intubation: "2026-02-05T18:58:00Z"
+    ed_arrival: "2026-02-05T19:12:00Z"
+    trauma_activation: "2026-02-05T19:13:00Z"
+
+criteria:
+  - id: MW-009-C01
+    assertion: "Agent confirmed ETT placement and addressed right hemothorax with chest tube"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for right chest_tube"
+
+  - id: MW-009-C02
+    assertion: "Agent ordered CT pan-scan (head, c-spine, chest, abdomen, pelvis)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CT pan_scan"
+
+  - id: MW-009-C03
+    assertion: "Agent identified right pupil asymmetry as sign of possible uncal herniation and elevated ICP"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-009-C04
+    assertion: "Agent initiated ICP management (head of bed elevation, mannitol or hypertonic saline, target PCO2 35-40)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for mannitol or hypertonic_saline"
+
+  - id: MW-009-C05
+    assertion: "Agent activated massive transfusion protocol for hemorrhagic shock"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains applyProtocol for massive_transfusion"
+
+  - id: MW-009-C06
+    assertion: "Agent consulted neurosurgery emergently for epidural hematoma with midline shift"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for neurosurgery"
+
+  - id: MW-009-C07
+    assertion: "Agent consulted trauma surgery for splenic laceration with active extravasation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for trauma_surgery"
+
+  - id: MW-009-C08
+    assertion: "Agent consulted orthopedics for bilateral femur fractures"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for orthopedics"
+
+  - id: MW-009-C09
+    assertion: "Agent assessed for compartment syndrome in right thigh (tense, swollen)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-009-C10
+    assertion: "Agent assessed distal pulses given diminished left dorsalis pedis and bilateral femur fractures"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: MW-009-C11
+    assertion: "Agent addressed hypothermia with active warming (temperature 35.0C)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for warming"
+
+  - id: MW-009-C12
+    assertion: "Agent noted latex allergy and ensured latex-free environment"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-009-C13
+    assertion: "Agent prioritized neurosurgical intervention (epidural with herniation signs) over orthopedic injuries"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "neurosurgery consult timestamp precedes orthopedics consult timestamp in audit_log"
+
+  - id: MW-009-C14
+    assertion: "Agent documented trauma primary and secondary survey findings"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: MW-009-C15
+    assertion: "Agent considered TXA within 3-hour window of injury"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for tranexamic_acid"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "searchAvailableResources"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Review encounter: EMS report, vitals, field intubation details"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Confirm ETT placement, place right chest tube for hemothorax"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Activate MTP for hemorrhagic shock"
+    tools: ["applyProtocol", "createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Initiate ICP management for anisocoria (mannitol/HTS, HOB elevation)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Order CT pan-scan"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult neurosurgery EMERGENT for epidural hematoma"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Consult trauma surgery for splenic laceration"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult orthopedics for bilateral femur fractures"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Order TXA, warming, blood products, serial labs"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Assess for compartment syndrome and vascular injury"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 11
+    action: "Coordinate OR booking — neurosurgery priority"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 12
+    action: "Document complete trauma survey and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "polytrauma"
+  expected_tool_calls: "14-20"
+  entity_types: 11
+  time_pressure: "critical"
+  cognitive_load: "extreme"
+  teaching_point: "Polytrauma prioritization: life-threatening injuries first. Epidural hematoma with herniation signs (anisocoria, GCS <8) requires emergent craniotomy — this takes priority over orthopedic fixation. Splenic laceration with active extravasation may need OR or IR. Competing surgical priorities require explicit triage communication. Always screen for compartment syndrome with long bone fractures."

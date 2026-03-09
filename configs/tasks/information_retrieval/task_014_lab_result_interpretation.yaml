@@ -1,0 +1,170 @@
+# HEALTHCRAFT Task Definition: Lab Result Interpretation
+# Category: information_retrieval | Level: 2
+# Agent must find and interpret abnormal lab results in clinical context.
+# Tests the ability to retrieve, contextualize, and act on lab data.
+
+id: IR-014
+category: information_retrieval
+level: 2
+title: "Lab Result Interpretation"
+system_prompt_override: null
+
+description: |
+  A 38-year-old woman was triaged 3 hours ago for fatigue and dizziness. She
+  was placed in a low-acuity bed and her labs were drawn at triage. The
+  results have returned but have not yet been reviewed. The attending asks the
+  agent to pull up the lab results, identify any critical values, and flag
+  anything requiring immediate action. The labs reveal a hemoglobin of 5.2
+  g/dL with an MCV of 62 fL, a positive pregnancy test, and a potassium of
+  2.8 mEq/L. The clinical picture is far more urgent than the initial
+  triage impression suggested.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T09:30:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Lisa Johnson"
+
+patient:
+  age: 38
+  sex: F
+  chief_complaint: "Fatigue and dizziness x 2 weeks, worse with standing"
+  arrival_mode: "walk-in"
+  esi_level: 4
+  location: "Bed 28 (low-acuity area)"
+  allergies: []
+  medications:
+    - "Ferrous sulfate 325mg daily (self-started 1 week ago)"
+  past_medical_history:
+    - "Menorrhagia (heavy menstrual periods x 1 year, not evaluated)"
+    - "No prior pregnancies"
+    - "No surgical history"
+  social_history:
+    - "Elementary school teacher"
+    - "Vegetarian x 5 years"
+    - "No alcohol, no tobacco"
+    - "Sexually active, inconsistent contraception"
+  vitals:
+    heart_rate: 116
+    blood_pressure: "94/58"
+    respiratory_rate: 20
+    spo2: 99
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 0
+  vitals_orthostatic:
+    supine_bp: "102/64"
+    supine_hr: 108
+    standing_bp: "78/48"
+    standing_hr: 134
+    orthostatic_positive: true
+  labs:
+    hemoglobin: 5.2
+    hematocrit: 16.8
+    mcv: 62
+    mch: 18.4
+    rdw: 22.1
+    platelet_count: 498
+    wbc: 8.4
+    reticulocyte_count: 3.8
+    iron: 12
+    ferritin: 4
+    tibc: 480
+    transferrin_saturation: 2.5
+    potassium: 2.8
+    sodium: 138
+    creatinine: 0.7
+    glucose: 92
+    bhcg_qualitative: "positive"
+    bhcg_quantitative: 1842
+    tsh: 2.4
+    blood_type: "O negative"
+
+criteria:
+  - id: IR-014-C01
+    assertion: "Agent retrieved all pending lab results for this patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: IR-014-C02
+    assertion: "Agent identified the critically low hemoglobin (5.2 g/dL) as requiring immediate intervention"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-014-C03
+    assertion: "Agent recognized the microcytic anemia pattern (low MCV, low ferritin, high TIBC, low transferrin sat) as severe iron deficiency anemia"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-014-C04
+    assertion: "Agent identified the positive pregnancy test (bHCG 1842) and its implications for management"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-014-C05
+    assertion: "Agent flagged the hypokalemia (K 2.8) as requiring correction before or concurrent with transfusion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-014-C06
+    assertion: "Agent recommended immediate transfusion of packed RBCs with type-specific blood (O negative available)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-014-C07
+    assertion: "Agent recommended upgrading the patient from low-acuity to a monitored bed"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: IR-014-C08
+    assertion: "Agent recognized that pregnancy + severe anemia + orthostatic hypotension requires urgent OB consultation to rule out ectopic pregnancy"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve all lab results for this encounter"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Identify critical values: hemoglobin 5.2, potassium 2.8, positive bHCG"
+    tools: []
+    critical: true
+  - step: 3
+    action: "Interpret the anemia workup in clinical context"
+    tools: ["searchClinicalKnowledge"]
+    critical: false
+    reasoning: |
+      Lab interpretation:
+      - Hgb 5.2 with MCV 62 = severe microcytic anemia
+      - Ferritin 4, iron 12, TIBC 480, transferrin sat 2.5% = iron
+        deficiency anemia (not thalassemia — high RDW, low ferritin)
+      - Likely causes: menorrhagia + vegetarian diet + possible pregnancy
+      - Positive bHCG (1842 mIU/mL) = early pregnancy (~5 weeks)
+      - Must rule out ectopic pregnancy as a contributing cause of anemia
+      - K 2.8 = hypokalemia, cardiac risk during transfusion
+      - Orthostatic vitals confirm symptomatic volume depletion
+      - This patient was undertriaged (ESI 4 → should be ESI 2)
+      - Needs: monitored bed, type and crossmatch, pRBC transfusion,
+        IV potassium, OB consultation, pelvic ultrasound
+  - step: 4
+    action: "Flag the critical values and recommend immediate interventions"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "iron_deficiency_anemia"
+  expected_tool_calls: "2-3"
+  entity_types: 3
+  time_pressure: "high"
+  cognitive_load: "moderate"
+  teaching_point: "Lab results must be interpreted in clinical context. A hemoglobin of 5.2 in a tachycardic, hypotensive patient is a medical emergency regardless of triage level. Always check pregnancy status in reproductive-age women. Correct hypokalemia before or during transfusion to prevent cardiac arrhythmia."

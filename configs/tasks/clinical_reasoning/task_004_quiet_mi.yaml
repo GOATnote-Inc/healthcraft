@@ -1,0 +1,216 @@
+# HEALTHCRAFT Task Definition: The Quiet MI
+# Category: clinical_reasoning | Level: 3
+# Confusion pair: MI vs GI illness
+# Diabetic patient with atypical MI presentation — nausea, jaw pain, no
+# chest pain. Agent must recognize the silent MI pattern in diabetic neuropathy.
+
+id: CR-004
+category: clinical_reasoning
+level: 3
+title: "The Quiet MI"
+system_prompt_override: null
+
+description: |
+  A 67-year-old male with longstanding type 2 diabetes and peripheral neuropathy
+  presents with 3 hours of nausea, jaw tightness, and diaphoresis. He denies
+  chest pain. Triage initially categorizes him as a GI complaint. His ECG shows
+  ST depression in V1-V4 with T-wave inversions, and his troponin returns at
+  2.84 ng/mL (normal <0.04). The agent must recognize the atypical NSTEMI
+  presentation in a diabetic patient, initiate ACS protocol, and avoid the trap
+  of treating this as gastroesophageal reflux.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-03T19:30:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. Mark Thompson"
+  cath_lab_status: "available"
+  specialist_availability:
+    interventional_cardiology: "on_call, 15min response"
+    gastroenterology: "on_call, 45min response"
+
+patient:
+  age: 67
+  sex: M
+  chief_complaint: "Nausea and jaw tightness for 3 hours"
+  arrival_mode: "private vehicle"
+  esi_level: 3
+  allergies:
+    - "NKDA"
+  medications:
+    - "Metformin 1000mg BID"
+    - "Glipizide 10mg BID"
+    - "Insulin glargine 24 units at bedtime"
+    - "Lisinopril 40mg daily"
+    - "Atorvastatin 80mg daily"
+    - "Aspirin 81mg daily"
+    - "Gabapentin 300mg TID"
+    - "Omeprazole 20mg daily"
+  past_medical_history:
+    - "Type 2 Diabetes Mellitus (22 years, A1c 8.9%)"
+    - "Diabetic peripheral neuropathy (bilateral lower extremities)"
+    - "Diabetic nephropathy (CKD stage 3a, GFR 52)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "GERD"
+    - "Coronary artery disease (1 stent to LAD, 2019)"
+  family_history:
+    - "Father: MI at age 55 (deceased)"
+    - "Brother: CABG at age 62"
+  social_history:
+    - "Retired electrician"
+    - "Former smoker (30 pack-years, quit 5 years ago)"
+    - "No alcohol"
+  vitals:
+    heart_rate: 96
+    blood_pressure: "152/88"
+    respiratory_rate: 20
+    spo2: 95
+    temperature: 36.9
+    gcs: 15
+    pain_scale: 3
+  exam_findings:
+    general: "Overweight male, mildly diaphoretic, appears uncomfortable but not in acute distress"
+    heent: "Jaw tender to palpation bilaterally (patient says 'tight, not painful'), no lymphadenopathy"
+    cardiovascular: "Regular rate and rhythm, S4 gallop present, no murmurs, JVP not elevated"
+    pulmonary: "Bibasilar crackles (mild), no wheezing"
+    abdomen: "Soft, non-tender, non-distended, normoactive bowel sounds"
+    extremities: "Trace bilateral pedal edema, diminished pedal pulses, decreased sensation bilateral feet"
+    neurological: "Alert and oriented x4, decreased monofilament sensation bilateral feet"
+  labs:
+    troponin_i: 2.84
+    troponin_i_units: "ng/mL (normal <0.04)"
+    bnp: 480
+    cbc:
+      wbc: 9.1
+      hemoglobin: 11.8
+      platelets: 210
+    bmp:
+      sodium: 138
+      potassium: 4.8
+      creatinine: 1.6
+      bun: 32
+      glucose: 248
+    coagulation:
+      pt: 12.1
+      inr: 1.0
+    lipase: 42
+    lipase_units: "U/L (normal <60)"
+  ecg:
+    interpretation: "Sinus rhythm at 96 bpm, ST depression in V1-V4 (1-2mm), T-wave inversions in V3-V6, no ST elevation, old Q-waves in V1-V2"
+    automated_read: "Possible anterior ischemia — clinical correlation recommended"
+
+criteria:
+  - id: CR-004-C01
+    assertion: "Agent retrieved vitals and noted diaphoresis with nausea"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-004-C02
+    assertion: "Agent reviewed full patient history including diabetes with neuropathy and prior CAD"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-004-C03
+    assertion: "Agent reviewed ECG showing ST depression in V1-V4 and T-wave inversions"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-004-C04
+    assertion: "Agent reviewed troponin result (2.84 ng/mL, markedly elevated)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-004-C05
+    assertion: "Agent identified NSTEMI as the primary diagnosis, not GI illness"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-004-C06
+    assertion: "Agent recognized that diabetic neuropathy explains the absence of typical chest pain"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-004-C07
+    assertion: "Agent initiated ACS protocol including dual antiplatelet therapy"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-004-C08
+    assertion: "Agent ordered heparin anticoagulation"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-004-C09
+    assertion: "Agent consulted interventional cardiology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-004-C10
+    assertion: "Agent did NOT discharge the patient with a GI diagnosis"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain discharge_with_gi_diagnosis"
+
+  - id: CR-004-C11
+    assertion: "Agent held metformin given CKD and acute cardiac event"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-004-C12
+    assertion: "Agent documented clinical reasoning linking atypical presentation to diabetic neuropathy and ACS"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals, exam findings, and note diaphoresis"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review history — diabetes with neuropathy, prior CAD with stent"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Review ECG showing anterior ischemia and troponin of 2.84"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Diagnose NSTEMI — atypical presentation in diabetic patient"
+    tools: []
+    critical: true
+    reasoning: "Diabetic neuropathy masks chest pain. Nausea, jaw tightness, diaphoresis are anginal equivalents. Troponin 2.84 with ECG changes confirms MI."
+  - step: 5
+    action: "Initiate ACS protocol (aspirin load, P2Y12 inhibitor, heparin, nitro, morphine PRN)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult interventional cardiology for early invasive strategy"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "nstemi_vs_gerd"
+  openem_condition: "nstemi"
+  expected_tool_calls: "5-8"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Up to 42% of diabetic patients present with atypical MI symptoms due to autonomic neuropathy. Nausea, jaw pain, dyspnea, and diaphoresis are anginal equivalents. Any diabetic with unexplained diaphoresis needs an ECG and troponin."

@@ -1,0 +1,258 @@
+# HEALTHCRAFT Task Definition: RSI Sequence
+# Category: multi_step_workflows | Level: 4
+# Tests rapid sequence intubation workflow: preparation, preoxygenation,
+# medication administration, tube placement, confirmation, and post-intubation care.
+
+id: MW-008
+category: multi_step_workflows
+level: 4
+title: "RSI Sequence"
+system_prompt_override: null
+
+description: |
+  A 48-year-old female presents with severe asthma exacerbation refractory to
+  aggressive bronchodilator therapy. She has received three rounds of albuterol/
+  ipratropium nebulizers, IV magnesium, and IV methylprednisolone over the past
+  90 minutes with minimal improvement. She is now tiring, using accessory muscles
+  with paradoxical breathing, speaking in single words, and her pCO2 has risen
+  from 42 to 58 mmHg on repeat ABG. SpO2 is 88% on high-flow nasal cannula.
+  The decision is made to proceed with rapid sequence intubation. The agent must
+  execute the RSI checklist: equipment preparation, preoxygenation, induction
+  agent and paralytic selection with appropriate dosing, tube placement with
+  confirmation (ETCO2, bilateral breath sounds, chest X-ray), and post-intubation
+  ventilator management for status asthmaticus.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-03T08:35:00Z"
+  department: "Emergency Department — Resuscitation Bay"
+  census: 35
+  beds_available: 19
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    anesthesia: "on-call, available for difficult airway backup"
+    pulmonology: "on-call, 15-minute response"
+    critical_care: "in-house"
+    respiratory_therapy: "at bedside"
+  equipment:
+    video_laryngoscope: "available (GlideScope)"
+    direct_laryngoscope: "available"
+    bougie: "at bedside"
+    surgical_airway_kit: "at bedside"
+    ventilator: "available"
+
+patient:
+  age: 48
+  sex: F
+  weight_kg: 74
+  height_cm: 165
+  chief_complaint: "Severe asthma exacerbation, refractory to treatment, impending respiratory failure"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "Codeine (nausea)"
+  medications:
+    - "Albuterol inhaler PRN"
+    - "Fluticasone/salmeterol 250/50 BID"
+    - "Montelukast 10mg daily"
+    - "Prednisone 40mg (started 2 days ago by PCP)"
+  past_medical_history:
+    - "Asthma — severe persistent, 3 prior intubations (last 2 years ago)"
+    - "Obesity (BMI 27)"
+    - "GERD"
+    - "Depression"
+  family_history:
+    - "Mother: asthma"
+    - "Father: COPD"
+  social_history:
+    - "Elementary school teacher"
+    - "Non-smoker"
+    - "No alcohol or drugs"
+    - "Lives with husband and two children"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "152/88"
+    respiratory_rate: 36
+    spo2: 88
+    temperature: 37.4
+    gcs: 14
+    gcs_breakdown: "E4V4M6"
+    pain_scale: 7
+  exam_findings:
+    general: "Middle-aged female in severe respiratory distress, sitting upright, tripod position, speaking in single words, diaphoretic"
+    lungs: "Severely diminished air movement bilaterally. Scattered expiratory wheezes in upper lobes, silent chest at bases (ominous). Accessory muscle use, paradoxical breathing pattern."
+    cardiac: "Tachycardic, regular. Pulsus paradoxus 18 mmHg."
+    airway_assessment:
+      mallampati: 2
+      thyromental_distance: "7 cm (adequate)"
+      mouth_opening: "4 cm (adequate)"
+      neck_mobility: "normal"
+      prior_intubations: "3 — all successful on first attempt per old records"
+      predicted_difficulty: "moderate (obesity, active bronchospasm)"
+  labs:
+    abg_initial: "pH 7.38, pCO2 42, pO2 68, HCO3 24 — 90 minutes ago"
+    abg_current: "pH 7.28, pCO2 58, pO2 56, HCO3 26, BE -1, Lactate 3.2"
+    cbc: "WBC 14.8 (stress response), Hgb 14.0, Plt 312"
+    bmp: "Na 140, K 3.4, Cl 102, CO2 26, BUN 14, Cr 0.8, Glu 188"
+    magnesium: "2.4 mEq/L (supplemented)"
+  treatments_given:
+    - "Albuterol/ipratropium nebulizer x3"
+    - "Magnesium sulfate 2g IV"
+    - "Methylprednisolone 125mg IV"
+    - "Epinephrine 0.3mg IM x1"
+    - "High-flow nasal cannula 40L/min FiO2 100%"
+  timeline:
+    symptom_onset: "2026-02-03T05:00:00Z"
+    ed_arrival: "2026-02-03T06:50:00Z"
+    first_neb: "2026-02-03T07:00:00Z"
+    magnesium_given: "2026-02-03T07:15:00Z"
+    steroids_given: "2026-02-03T07:05:00Z"
+    epinephrine_given: "2026-02-03T07:45:00Z"
+    rsi_decision: "2026-02-03T08:35:00Z"
+
+criteria:
+  - id: MW-008-C01
+    assertion: "Agent performed airway assessment (Mallampati, neck mobility, prior intubation history) before RSI"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory or getEncounterDetails before RSI orders"
+
+  - id: MW-008-C02
+    assertion: "Agent ordered equipment preparation (video laryngoscope, bougie, surgical airway kit available)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability for airway equipment"
+
+  - id: MW-008-C03
+    assertion: "Agent ordered preoxygenation before induction (apneic oxygenation or BVM preoxygenation)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for preoxygenation with timestamp before induction order"
+
+  - id: MW-008-C04
+    assertion: "Agent selected appropriate induction agent (ketamine preferred in status asthmaticus for bronchodilatory properties)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ketamine as induction agent"
+
+  - id: MW-008-C05
+    assertion: "Agent selected appropriate paralytic with correct weight-based dosing (succinylcholine 1-1.5 mg/kg or rocuronium 1.2 mg/kg)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for paralytic with weight-based dose"
+
+  - id: MW-008-C06
+    assertion: "Agent administered induction agent BEFORE paralytic (correct RSI sequence)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "induction agent createClinicalOrder timestamp precedes paralytic createClinicalOrder timestamp"
+
+  - id: MW-008-C07
+    assertion: "Agent ordered endotracheal intubation with appropriate tube size (7.0-7.5 for adult female)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for endotracheal_intubation"
+
+  - id: MW-008-C08
+    assertion: "Agent confirmed tube placement with end-tidal CO2 (ETCO2) as primary confirmation"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ETCO2 confirmation after intubation"
+
+  - id: MW-008-C09
+    assertion: "Agent ordered post-intubation chest X-ray for tube position verification"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for chest_xray after intubation"
+
+  - id: MW-008-C10
+    assertion: "Agent set ventilator parameters appropriate for status asthmaticus (low RR 10-12, long expiratory time, low tidal volume 6-8 mL/kg IBW)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ventilator settings"
+
+  - id: MW-008-C11
+    assertion: "Agent ordered post-intubation sedation and analgesia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for sedation after intubation"
+
+  - id: MW-008-C12
+    assertion: "Agent documented RSI medications, doses, timing, and confirmation method"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with RSI documentation"
+
+  - id: MW-008-C13
+    assertion: "Agent consulted critical care or pulmonology for ICU admission"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for critical_care or pulmonology"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "searchReferenceMaterials"
+  - "checkResourceAvailability"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "validateTreatmentPlan"
+  - "applyProtocol"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve patient details, assess airway, review prior intubation history"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Verify equipment availability (video laryngoscope, bougie, surgical airway backup)"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 3
+    action: "Order preoxygenation (apneic oxygenation with nasal cannula during intubation)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Calculate and order induction agent (ketamine 1.5-2 mg/kg = 111-148mg)"
+    tools: ["createClinicalOrder", "searchReferenceMaterials"]
+    critical: true
+  - step: 5
+    action: "Calculate and order paralytic (succinylcholine 1.5 mg/kg = 111mg OR rocuronium 1.2 mg/kg = 89mg)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order endotracheal intubation (7.0-7.5 ETT)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Confirm placement: ETCO2, bilateral breath sounds, chest X-ray"
+    tools: ["createClinicalOrder", "createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Set ventilator: low rate, long I:E ratio, permissive hypercapnia"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Order post-intubation sedation and analgesia"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Consult ICU for admission"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 11
+    action: "Document RSI procedure, medications, confirmation"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "status_asthmaticus"
+  expected_tool_calls: "11-15"
+  entity_types: 7
+  time_pressure: "high"
+  cognitive_load: "high"
+  teaching_point: "RSI in status asthmaticus: ketamine is preferred induction agent (bronchodilatory). Avoid histamine-releasing agents. Preoxygenation is critical — asthmatics desaturate rapidly. Post-intubation: low respiratory rate (10-12), prolonged expiratory time (I:E 1:4-5), permissive hypercapnia, and low tidal volumes to avoid auto-PEEP and barotrauma. ETCO2 is the gold standard for tube confirmation."

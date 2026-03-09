@@ -1,0 +1,161 @@
+# HEALTHCRAFT Task Definition: Consult Clarity
+# Category: clinical_communication | Level: 2
+# Agent must write a clear, specific orthopedic consult request for an
+# open fracture. Tests structured communication and clinical question framing.
+
+id: CC-006
+category: clinical_communication
+level: 2
+title: "Consult Clarity"
+system_prompt_override: null
+
+description: |
+  A 28-year-old woman was struck by a car while cycling and has an open
+  tibia-fibula fracture (Gustilo-Anderson Type IIIA) with exposed bone and
+  significant soft tissue injury. The wound has been irrigated and covered
+  with a sterile saline-moistened dressing. IV antibiotics have been started.
+  The agent must compose a clear, structured orthopedic consult request that
+  communicates the clinical urgency, relevant findings, what has been done,
+  and the specific clinical question for the consultant.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T13:40:00Z"
+  department: "Emergency Department"
+  census: 35
+  beds_available: 19
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    orthopedics: "on-call, Dr. Kevin Zhao, available by phone"
+    vascular_surgery: "on-call, available if needed"
+
+patient:
+  age: 28
+  sex: F
+  chief_complaint: "Right leg pain after being struck by car while cycling"
+  arrival_mode: "EMS, right leg splinted in field"
+  esi_level: 2
+  location: "Trauma Bay 1"
+  primary_language: "English"
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Oral contraceptive pill"
+    - "Sertraline 50mg daily"
+  past_medical_history:
+    - "Depression (well-controlled)"
+    - "No prior fractures or surgeries"
+    - "No bleeding disorders"
+  social_history:
+    - "Graduate student in environmental science"
+    - "Competitive cyclist"
+    - "Non-smoker, occasional alcohol"
+  vitals:
+    heart_rate: 108
+    blood_pressure: "118/72"
+    respiratory_rate: 20
+    spo2: 99
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Alert, in significant pain, no head or cervical spine tenderness"
+    right_lower_extremity: |
+      Open fracture of the right tibia mid-shaft with 6cm wound on anterior
+      aspect. Exposed cortical bone visible. Moderate soft tissue degloving
+      around wound margins. Active bleeding controlled with direct pressure.
+      Gross deformity with angulation. Distal pulses palpable (DP and PT).
+      Capillary refill 3 seconds distally. Sensation intact to light touch
+      in all distributions. Able to wiggle toes. Compartments soft on
+      palpation currently.
+    secondary_survey: "No other injuries identified. C-spine cleared clinically. Pelvis stable. Left leg normal."
+  imaging:
+    xray_right_tibia_fibula:
+      findings: "Comminuted, displaced fracture of the mid-shaft tibia with an associated fibula fracture. 2cm shortening. Butterfly fragment present. No foreign body identified."
+    ct_head: "Not indicated (GCS 15, no head injury)"
+  labs:
+    cbc: "WBC 12.1, Hgb 11.8, Plt 278"
+    bmp: "Normal"
+    coags: "PT 12.4, INR 1.0"
+    type_and_screen: "O positive, antibody screen negative"
+    lactate: "1.8 mmol/L"
+  current_management:
+    - "Morphine 4mg IV (given in field by EMS)"
+    - "Morphine 4mg IV (given in ED, total 8mg)"
+    - "Cefazolin 2g IV (administered at 13:20)"
+    - "Gentamicin 5mg/kg IV (administered at 13:25)"
+    - "Wound irrigated with 3L normal saline"
+    - "Sterile saline-moistened dressing applied"
+    - "Splinted in position of comfort"
+    - "Tetanus booster administered"
+    - "1L NS IV bolus running"
+
+criteria:
+  - id: CC-006-C01
+    assertion: "Agent retrieved patient history and encounter details"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-006-C02
+    assertion: "Agent retrieved imaging and lab results"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-006-C03
+    assertion: "Agent stated a clear clinical question for the consultant (operative timing, fixation plan)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-006-C04
+    assertion: "Agent classified the fracture correctly as Gustilo-Anderson Type IIIA open fracture"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-006-C05
+    assertion: "Agent documented neurovascular status of the affected limb"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-006-C06
+    assertion: "Agent included antibiotics given and timing in the consult request"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-006-C07
+    assertion: "Agent included mechanism of injury and wound description"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-006-C08
+    assertion: "Agent documented the consult request in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, allergies, and medications"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review imaging, labs, current management"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Compose structured consult request with clear clinical question"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "open_fracture"
+  expected_tool_calls: "3-4"
+  time_pressure: "moderate"
+  cognitive_load: "low"
+  teaching_point: "Effective consult requests answer: Who is the patient? What happened? What did you find? What did you do? What do you need from me? Always include mechanism, neurovascular status, antibiotics given, and a specific question."

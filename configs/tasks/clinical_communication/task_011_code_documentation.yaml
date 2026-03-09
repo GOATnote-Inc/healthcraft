@@ -1,0 +1,225 @@
+# HEALTHCRAFT Task Definition: Code Documentation
+# Category: clinical_communication | Level: 4
+# Agent must document a cardiac arrest resuscitation with ACLS timeline,
+# medications, interventions, and outcome. Tests temporal sequencing and
+# protocol documentation.
+
+id: CC-011
+category: clinical_communication
+level: 4
+title: "Code Documentation"
+system_prompt_override: null
+
+description: |
+  A 63-year-old man collapsed in the ED waiting room in witnessed cardiac
+  arrest. CPR was initiated immediately by a triage nurse. The resuscitation
+  lasted 28 minutes with multiple rounds of ACLS medications, two
+  defibrillation attempts, one rhythm change, and return of spontaneous
+  circulation (ROSC). The agent must construct comprehensive code
+  documentation including an accurate timeline of all interventions,
+  medications with doses and times, rhythm interpretations, procedure
+  documentation (intubation, central line), and post-ROSC care orders.
+  Multiple team members provided information at different times, and the
+  agent must reconcile conflicting timestamps.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T09:12:00Z"
+  department: "Emergency Department"
+  census: 34
+  beds_available: 20
+  attending_on_duty: "Dr. Robert Williams"
+  code_team:
+    team_leader: "Dr. Robert Williams"
+    airway: "Dr. Lisa Kim (EM resident PGY-3)"
+    chest_compressions: "Rotating -- Nurse Martinez, Nurse O'Brien, Tech Johnson"
+    medications: "Nurse Patel"
+    recorder: "Nurse Davis (code sheet partially completed)"
+    respiratory_therapist: "RT Stevens"
+
+patient:
+  age: 63
+  sex: M
+  chief_complaint: "Collapse in waiting room"
+  arrival_mode: "already in ED waiting room for chest pain evaluation (walked in 08:45)"
+  esi_level: 1
+  location: "Resuscitation Bay 1"
+  weight_estimated_kg: 90
+  allergies:
+    - "Amiodarone (prior episode of hypotension)"
+  medications:
+    - "Aspirin 81mg daily"
+    - "Metoprolol 50mg BID"
+    - "Atorvastatin 80mg daily"
+    - "Clopidogrel 75mg daily"
+    - "Nitroglycerin 0.4mg SL PRN"
+  past_medical_history:
+    - "Coronary artery disease (2 stents to LAD, 2023)"
+    - "Prior NSTEMI (2023)"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Type 2 Diabetes"
+    - "Atrial fibrillation (paroxysmal)"
+  code_timeline:
+    - time: "09:12"
+      event: "Patient collapses in waiting room, witnessed by triage nurse"
+      rhythm: "Ventricular fibrillation"
+    - time: "09:12"
+      event: "CPR initiated by Nurse Martinez, code blue called"
+    - time: "09:14"
+      event: "Defibrillator attached, VF confirmed on monitor"
+    - time: "09:14"
+      event: "Shock #1 delivered at 200J biphasic"
+      rhythm: "Persistent VF"
+    - time: "09:15"
+      event: "CPR resumed, IV access obtained (20G right AC)"
+    - time: "09:16"
+      event: "Epinephrine 1mg IV push"
+    - time: "09:17"
+      event: "Rhythm check: persistent VF"
+    - time: "09:17"
+      event: "Shock #2 delivered at 200J biphasic"
+      rhythm: "PEA (rate 42)"
+    - time: "09:18"
+      event: "CPR resumed, rhythm changed to PEA"
+    - time: "09:19"
+      event: "Epinephrine 1mg IV push (2nd dose)"
+    - time: "09:19"
+      event: "Intubation attempted by Dr. Kim -- successful first pass, 8.0 ETT at 23cm"
+      complications: "None, direct laryngoscopy, Grade 1 view"
+    - time: "09:20"
+      event: "ETCO2 confirmed (waveform present, initial reading 18 mmHg)"
+    - time: "09:21"
+      event: "Rhythm check: PEA (rate 38)"
+    - time: "09:22"
+      event: "Epinephrine 1mg IV push (3rd dose)"
+    - time: "09:24"
+      event: "Lidocaine 100mg IV push (amiodarone allergic)"
+    - time: "09:25"
+      event: "Rhythm check: organized rhythm, rate 68"
+    - time: "09:25"
+      event: "Pulse check: carotid pulse palpable. ROSC."
+    - time: "09:26"
+      event: "BP 82/54, started norepinephrine 0.1 mcg/kg/min"
+    - time: "09:28"
+      event: "12-lead ECG: ST elevation in V1-V4 (anterior STEMI)"
+    - time: "09:30"
+      event: "Cath lab activated for emergent PCI"
+    - time: "09:35"
+      event: "Right femoral central line placed by Dr. Williams (triple lumen, 16cm)"
+    - time: "09:38"
+      event: "Arterial line placed (right radial)"
+    - time: "09:40"
+      event: "ROSC + 15 min: BP 98/62 on norepi 0.1, HR 72, ETCO2 38, SpO2 98%, Temp 36.4"
+  labs_post_rosc:
+    troponin_i: "2.84 ng/mL (markedly elevated)"
+    lactate: "8.2 mmol/L"
+    potassium: "3.2 mEq/L"
+    abg: "pH 7.18, pCO2 42, pO2 186, HCO3 15, BE -12"
+    glucose: "348 mg/dL"
+    hemoglobin: "13.4"
+  conflicting_data:
+    - "Nurse Davis code sheet lists first epi at 09:17 (Nurse Patel says 09:16)"
+    - "Code sheet lists intubation at 09:20 (Dr. Kim says 09:19)"
+    - "Unclear if 2nd shock was 200J or 360J (defibrillator log says 200J)"
+
+criteria:
+  - id: CC-011-C01
+    assertion: "Agent retrieved patient history including allergies and cardiac history"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-011-C02
+    assertion: "Agent retrieved encounter details including code timeline"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-011-C03
+    assertion: "Agent documented complete timeline with timestamps for all interventions"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CC-011-C04
+    assertion: "Agent documented all medication doses and routes (epi x3, lidocaine, norepinephrine)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-011-C05
+    assertion: "Agent documented rhythm progression (VF -> PEA -> organized rhythm/ROSC)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-011-C06
+    assertion: "Agent used lidocaine instead of amiodarone, consistent with amiodarone allergy"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-011-C07
+    assertion: "Agent documented intubation details (tube size, position, confirmation method)"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-011-C08
+    assertion: "Agent addressed conflicting timestamps and reconciled them using available evidence"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-011-C09
+    assertion: "Agent documented post-ROSC care including targeted temperature management, vasopressors, and cath lab activation"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-011-C10
+    assertion: "Agent ordered post-ROSC care (TTM, labs, vasopressors, cath lab)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-011-C11
+    assertion: "Agent documented the resuscitation record in the patient chart"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: CC-011-C12
+    assertion: "Agent documented total CPR time, number of shocks, and total epinephrine dose"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve patient history including allergies (amiodarone allergy critical)"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Retrieve encounter details including full code timeline and post-ROSC data"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Reconcile conflicting timestamps using defibrillator log and team input"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Compose comprehensive code documentation with timeline"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 5
+    action: "Order post-ROSC care (TTM protocol, vasopressors, cath lab, labs)"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  openem_condition: "cardiac_arrest"
+  expected_tool_calls: "4-6"
+  time_pressure: "moderate"
+  cognitive_load: "extreme"
+  teaching_point: "Code documentation requires meticulous timeline reconstruction. Conflicting timestamps are common -- use device logs (defibrillator, ventilator) as ground truth over human recall. Document total CPR time, all meds with doses/routes/times, rhythm changes, procedures, and ROSC details. Note allergies that affect ACLS drug choices."

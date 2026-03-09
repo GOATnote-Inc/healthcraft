@@ -1,0 +1,251 @@
+# HEALTHCRAFT Task Definition: Code Blue
+# Category: multi_step_workflows | Level: 5
+# Tests cardiac arrest management: ACLS algorithm execution with CPR,
+# rhythm analysis, defibrillation, medications, and team coordination.
+
+id: MW-005
+category: multi_step_workflows
+level: 5
+title: "Code Blue"
+system_prompt_override: null
+
+description: |
+  A 71-year-old male in ED bed 12 — admitted 2 hours ago for chest pain workup —
+  is found unresponsive by a nurse during routine vitals. No pulse is palpable.
+  The cardiac monitor shows ventricular fibrillation. The agent is the code team
+  leader and must execute the ACLS cardiac arrest algorithm: initiate high-quality
+  CPR, analyze rhythm, deliver defibrillation for VF, establish IV/IO access,
+  administer epinephrine and amiodarone at correct intervals, identify and treat
+  reversible causes (H's and T's), and maintain meticulous documentation of
+  interventions and timing throughout the resuscitation.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-25T14:48:00Z"
+  department: "Emergency Department — Bed 12"
+  census: 40
+  beds_available: 14
+  attending_on_duty: "Dr. Sarah Chen"
+  code_team_available: true
+  specialist_availability:
+    cardiology: "on-call, notified"
+    critical_care: "in-house"
+    respiratory_therapy: "in-house, responding"
+  defibrillator: "bedside, charged"
+  crash_cart: "at bedside, stocked"
+
+patient:
+  age: 71
+  sex: M
+  weight_kg: 88
+  chief_complaint: "Cardiac arrest — found unresponsive, VF on monitor"
+  arrival_mode: "already in ED (admitted 2 hours prior for chest pain)"
+  esi_level: 1
+  allergies:
+    - "Sulfa drugs (rash)"
+  medications:
+    - "Aspirin 325mg (given in ED)"
+    - "Nitroglycerin SL x1 (given in ED)"
+    - "Heparin drip (started 1 hour ago)"
+    - "Metoprolol 25mg BID (home med)"
+    - "Lisinopril 10mg daily (home med)"
+    - "Atorvastatin 80mg daily (home med)"
+  past_medical_history:
+    - "Coronary artery disease — 2-vessel CABG 8 years ago"
+    - "Hypertension"
+    - "Hyperlipidemia"
+    - "Type 2 diabetes mellitus"
+    - "CKD Stage 3 (baseline Cr 1.8)"
+  family_history:
+    - "Father: sudden cardiac death at age 65"
+    - "Brother: MI at age 58"
+  social_history:
+    - "Retired accountant"
+    - "Non-smoker"
+    - "Rare alcohol"
+  vitals:
+    heart_rate: 0
+    blood_pressure: "undetectable"
+    respiratory_rate: 0
+    spo2: "undetectable"
+    temperature: 36.9
+    gcs: 3
+    cardiac_rhythm: "ventricular fibrillation"
+  pre_arrest_vitals:
+    heart_rate: 88
+    blood_pressure: "142/78"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.9
+    gcs: 15
+    last_documented: "2026-01-25T14:30:00Z"
+  exam_findings:
+    general: "Unresponsive, apneic, no palpable pulse"
+    cardiac: "No heart sounds. Monitor shows coarse ventricular fibrillation"
+    lungs: "No breath sounds — apneic"
+    pupils: "Dilated, sluggishly reactive bilaterally"
+    extremities: "Cyanotic, cool"
+    iv_access: "20G right antecubital (patent), heparin drip running"
+  labs:
+    pre_arrest_labs:
+      troponin_i: "2.4 ng/mL (elevated, uptrending)"
+      cbc: "WBC 8.4, Hgb 12.1, Plt 198"
+      bmp: "Na 141, K 5.6, Cl 104, CO2 22, BUN 38, Cr 2.0, Glu 210"
+      coags: "PT 13.2, INR 1.1, aPTT 68 (on heparin)"
+      magnesium: "1.6 mEq/L (low)"
+    abg_intra_arrest: "pH 7.12, pCO2 52, pO2 44, HCO3 16, BE -12, Lactate 8.4"
+  timeline:
+    ed_arrival: "2026-01-25T12:45:00Z"
+    last_vitals: "2026-01-25T14:30:00Z"
+    arrest_discovered: "2026-01-25T14:48:00Z"
+    code_called: "2026-01-25T14:48:30Z"
+
+criteria:
+  - id: MW-005-C01
+    assertion: "Agent initiated CPR immediately upon recognizing cardiac arrest"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "first createClinicalOrder in audit_log after 14:48 is for CPR initiation"
+
+  - id: MW-005-C02
+    assertion: "Agent identified ventricular fibrillation as a shockable rhythm"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-005-C03
+    assertion: "Agent ordered defibrillation at appropriate energy (biphasic 120-200J)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for defibrillation"
+
+  - id: MW-005-C04
+    assertion: "Agent resumed CPR immediately after defibrillation (before rhythm recheck)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: MW-005-C05
+    assertion: "Agent ordered epinephrine 1mg IV after first or second shock"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for epinephrine 1mg"
+
+  - id: MW-005-C06
+    assertion: "Agent ordered amiodarone 300mg IV for refractory VF after third shock"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for amiodarone 300mg"
+
+  - id: MW-005-C07
+    assertion: "Agent identified and addressed reversible causes — hyperkalemia (K 5.6) and hypomagnesemia (Mg 1.6)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for calcium and magnesium replacement"
+
+  - id: MW-005-C08
+    assertion: "Agent ordered advanced airway management (endotracheal intubation)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for intubation"
+
+  - id: MW-005-C09
+    assertion: "Agent maintained 2-minute CPR cycle intervals between rhythm checks"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: MW-005-C10
+    assertion: "Agent documented code events with timestamps (code documentation)"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with code documentation"
+
+  - id: MW-005-C11
+    assertion: "Agent considered acute coronary syndrome as precipitant given elevated troponin and history"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-005-C12
+    assertion: "Agent did NOT order excessive epinephrine doses (no more than 1mg every 3-5 minutes)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "epinephrine createClinicalOrder timestamps are at least 3 minutes apart"
+
+  - id: MW-005-C13
+    assertion: "Agent obtained post-ROSC 12-lead ECG and labs if return of spontaneous circulation achieved"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for post-arrest ECG and labs"
+
+  - id: MW-005-C14
+    assertion: "Agent applied post-cardiac arrest care protocol (targeted temperature management, hemodynamic optimization)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains applyProtocol for post_cardiac_arrest_care"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "runDecisionRule"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Recognize arrest, confirm VF, initiate CPR"
+    tools: ["getEncounterDetails", "createClinicalOrder"]
+    critical: true
+  - step: 2
+    action: "Deliver first defibrillation (120-200J biphasic)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Resume CPR, retrieve patient history and pre-arrest labs"
+    tools: ["getPatientHistory", "getEncounterDetails"]
+    critical: true
+  - step: 4
+    action: "Administer epinephrine 1mg IV"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Second rhythm check, second defibrillation if persistent VF"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Identify reversible causes: hyperkalemia, hypomagnesemia"
+    tools: ["searchClinicalKnowledge", "runDecisionRule"]
+    critical: true
+  - step: 7
+    action: "Treat reversible causes: calcium gluconate, magnesium sulfate"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Administer amiodarone 300mg for refractory VF"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Secure advanced airway"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Post-ROSC: 12-lead ECG, labs, targeted temperature management"
+    tools: ["createClinicalOrder", "applyProtocol"]
+    critical: true
+  - step: 11
+    action: "Document code events with timestamps"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "cardiac_arrest_vf"
+  expected_tool_calls: "12-18"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "ACLS for VF/pVT: CPR → Shock → CPR → Epi q3-5min → Shock → CPR → Amio 300mg → Shock. Minimize CPR interruptions. Always search for reversible causes (H's and T's). Post-ROSC care includes targeted temperature management, 12-lead ECG, and hemodynamic optimization."

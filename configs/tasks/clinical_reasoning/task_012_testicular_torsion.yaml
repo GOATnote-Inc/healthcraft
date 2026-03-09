@@ -1,0 +1,188 @@
+# HEALTHCRAFT Task Definition: Testicular Torsion
+# Category: clinical_reasoning | Level: 3
+# Time-critical surgical emergency in teenage male with acute scrotal pain.
+# Agent must recognize torsion and consult urology within the salvage window.
+
+id: CR-012
+category: clinical_reasoning
+level: 3
+title: "Testicular Torsion"
+system_prompt_override: null
+
+description: |
+  A 15-year-old male is brought to the ED by his father with sudden-onset severe
+  left scrotal pain that woke him from sleep 3 hours ago. He reports nausea and
+  one episode of vomiting. On exam, the left testicle is high-riding, swollen,
+  with an absent cremasteric reflex and a horizontal lie. Doppler ultrasound
+  confirms absent blood flow to the left testicle. The agent must recognize
+  testicular torsion, understand the 6-hour salvage window, and consult urology
+  emergently for operative detorsion. The agent should NOT delay for additional
+  imaging or treat this as epididymitis.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-08T04:30:00Z"
+  department: "Emergency Department"
+  census: 12
+  beds_available: 42
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    urology: "on_call, 25min response"
+    pediatric_surgery: "on_call, 35min response"
+
+patient:
+  age: 15
+  sex: M
+  chief_complaint: "Sudden severe left testicular pain, woke up from sleep"
+  arrival_mode: "private vehicle (driven by father)"
+  esi_level: 2
+  allergies:
+    - "NKDA"
+  medications:
+    - "None"
+  past_medical_history:
+    - "No prior scrotal pain or testicular issues"
+    - "No surgeries"
+    - "No urological history"
+    - "Immunizations up to date"
+  social_history:
+    - "High school sophomore"
+    - "Plays basketball (had practice yesterday afternoon)"
+    - "No sexual activity (per patient report)"
+    - "Lives with both parents"
+  vitals:
+    heart_rate: 102
+    blood_pressure: "124/76"
+    respiratory_rate: 18
+    spo2: 99
+    temperature: 37.1
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    general: "Adolescent male in significant distress, knees drawn up, reluctant to move"
+    cardiovascular: "Mildly tachycardic, regular rhythm"
+    abdomen: "Soft, non-tender, no inguinal hernias"
+    genitourinary:
+      left_testicle: "High-riding, horizontal lie (bell clapper deformity), swollen, extremely tender to palpation, no transillumination, absent cremasteric reflex"
+      right_testicle: "Normal position, vertical lie, non-tender, cremasteric reflex present"
+      prehn_sign: "Negative (elevation does not relieve pain)"
+    skin: "Left hemiscrotum erythematous and edematous"
+  labs:
+    urinalysis:
+      appearance: "clear"
+      leukocyte_esterase: "negative"
+      nitrites: "negative"
+      blood: "negative"
+      wbc: "0-2/hpf"
+    cbc:
+      wbc: 10.8
+      hemoglobin: 14.5
+      platelets: 290
+  imaging:
+    scrotal_doppler_ultrasound:
+      left_testicle: "Enlarged (4.2 cm), heterogeneous echogenicity, ABSENT intratesticular blood flow on color Doppler, spermatic cord twisted (whirlpool sign)"
+      right_testicle: "Normal size (3.1 cm), normal echogenicity, normal blood flow"
+      read_by: "Dr. Lisa Wang, Radiology"
+
+criteria:
+  - id: CR-012-C01
+    assertion: "Agent reviewed exam findings including high-riding testicle, absent cremasteric reflex, and horizontal lie"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-012-C02
+    assertion: "Agent reviewed vitals and patient history"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-012-C03
+    assertion: "Agent diagnosed testicular torsion"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-012-C04
+    assertion: "Agent recognized the time-critical nature (6-hour salvage window, onset 3 hours ago)"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CR-012-C05
+    assertion: "Agent ordered Doppler ultrasound or proceeded to urology consult based on clinical findings alone"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-012-C06
+    assertion: "Agent consulted urology emergently for operative detorsion"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-012-C07
+    assertion: "Agent did NOT treat with antibiotics for presumed epididymitis"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_antibiotics_epididymitis"
+
+  - id: CR-012-C08
+    assertion: "Agent did NOT delay urology consultation for additional imaging"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: CR-012-C09
+    assertion: "Agent ordered appropriate pain management (IV analgesics)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-012-C10
+    assertion: "Agent made patient NPO in anticipation of surgery"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-012-C11
+    assertion: "Agent documented the torsion diagnosis, time of symptom onset, and surgical plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Exam — high-riding testicle, absent cremasteric reflex, horizontal lie"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — sudden onset from sleep, 3 hours ago, no STI risk"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Doppler US confirms absent flow (or consult urology on clinical grounds alone)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Emergent urology consult — 3 hours into 6-hour window"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Testicular salvage rate >90% at <6 hours, drops to <50% at 12 hours, near 0% at 24 hours"
+  - step: 5
+    action: "Pain management, NPO for OR"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "testicular_torsion_vs_epididymitis"
+  openem_condition: "testicular_torsion"
+  expected_tool_calls: "4-7"
+  entity_types: 4
+  time_pressure: "critical"
+  cognitive_load: "moderate"
+  teaching_point: "Testicular torsion has a 6-hour salvage window. Key exam findings: high-riding testicle, absent cremasteric reflex, horizontal lie (bell clapper), negative Prehn sign. If clinical suspicion is high, do NOT delay for ultrasound — consult urology immediately. Normal urinalysis helps distinguish from epididymitis. Epididymitis is rare in pre-sexual males."

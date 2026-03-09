@@ -1,0 +1,133 @@
+# HEALTHCRAFT Task Definition: Protocol Lookup
+# Category: information_retrieval | Level: 1
+# Agent must find and apply the correct sepsis bundle protocol.
+# Straightforward protocol retrieval and application.
+
+id: IR-008
+category: information_retrieval
+level: 1
+title: "Protocol Lookup"
+system_prompt_override: null
+
+description: |
+  A 58-year-old woman with a history of type 2 diabetes presents with fever,
+  dysuria, and rigors. Her vitals show tachycardia, hypotension, and a
+  lactate of 4.2 mmol/L. The triage nurse has flagged a sepsis alert. The
+  agent must retrieve the hospital's sepsis bundle protocol (SEP-1 / CMS
+  Severe Sepsis and Septic Shock Management Bundle), verify which bundle
+  elements apply to this patient, and ensure the 3-hour and 6-hour targets
+  are initiated correctly.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:10:00Z"
+  department: "Emergency Department"
+  census: 38
+  beds_available: 16
+  attending_on_duty: "Dr. Sarah Chen"
+
+patient:
+  age: 58
+  sex: F
+  chief_complaint: "Fever, painful urination, shaking chills x 2 days"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 5"
+  allergies: []
+  medications:
+    - "Metformin 1000mg BID"
+    - "Glipizide 10mg daily"
+    - "Lisinopril 20mg daily"
+    - "Atorvastatin 20mg daily"
+  past_medical_history:
+    - "Type 2 Diabetes (A1c 8.2%)"
+    - "Hypertension"
+    - "Recurrent urinary tract infections (3 in the last year)"
+    - "Nephrolithiasis (2023)"
+  vitals:
+    heart_rate: 118
+    blood_pressure: "82/48"
+    respiratory_rate: 24
+    spo2: 94
+    temperature: 39.4
+    gcs: 14
+    pain_scale: 6
+  labs:
+    lactate: 4.2
+    wbc: 22.4
+    creatinine: 2.1
+    glucose: 286
+    urinalysis: "Positive nitrites, large leukocyte esterase, >100 WBC/hpf, bacteria present"
+
+criteria:
+  - id: IR-008-C01
+    assertion: "Agent retrieved the sepsis bundle protocol from the hospital knowledge base"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getProtocolDetails"
+
+  - id: IR-008-C02
+    assertion: "Agent identified this patient as meeting severe sepsis / septic shock criteria (suspected infection + hypotension + lactate >= 4)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-008-C03
+    assertion: "Agent identified the 3-hour bundle elements (lactate, blood cultures before antibiotics, broad-spectrum antibiotics, 30mL/kg crystalloid for hypotension or lactate >= 4)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-008-C04
+    assertion: "Agent identified the 6-hour bundle elements (repeat lactate if initial > 2, vasopressors if hypotension persists after fluids, reassess volume status)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-008-C05
+    assertion: "Agent recommended blood cultures BEFORE antibiotic administration"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: IR-008-C06
+    assertion: "Agent calculated the correct fluid bolus volume (30mL/kg)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-008-C07
+    assertion: "Agent did NOT delay antibiotic administration beyond 1 hour from sepsis recognition"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "getProtocolDetails"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve the sepsis bundle protocol (SEP-1)"
+    tools: ["getProtocolDetails"]
+    critical: true
+  - step: 2
+    action: "Verify patient meets severe sepsis / septic shock criteria"
+    tools: []
+    critical: true
+    reasoning: |
+      Suspected infection (UTI with fever, rigors) + hypotension
+      (SBP 82) + lactate 4.2 mmol/L = septic shock. This triggers
+      both the 3-hour and 6-hour bundles. The 3-hour clock starts
+      at triage time.
+  - step: 3
+    action: "Enumerate the required 3-hour and 6-hour bundle elements for this patient"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 4
+    action: "Ensure correct sequencing: blood cultures → antibiotics → fluid bolus"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "sepsis"
+  expected_tool_calls: "1-3"
+  entity_types: 2
+  time_pressure: "high"
+  cognitive_load: "low"
+  teaching_point: "The sepsis bundle is time-critical. Blood cultures must precede antibiotics, but antibiotics should not be delayed more than 1 hour. 30mL/kg crystalloid is the standard fluid bolus for septic shock. Know the 3-hour and 6-hour targets."

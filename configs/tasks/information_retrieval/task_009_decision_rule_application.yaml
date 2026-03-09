@@ -1,0 +1,172 @@
+# HEALTHCRAFT Task Definition: Decision Rule Application
+# Category: information_retrieval | Level: 2
+# Agent must find and apply the HEART score for a chest pain patient.
+# Tests retrieval of a clinical decision rule and correct application.
+
+id: IR-009
+category: information_retrieval
+level: 2
+title: "Decision Rule Application"
+system_prompt_override: null
+
+description: |
+  A 61-year-old man presents with substernal chest pressure that started
+  2 hours ago while watching television. He describes the pain as a heavy
+  pressure with radiation to his left arm. He has a history of hypertension,
+  diabetes, and is a current smoker. His ECG shows nonspecific ST-T wave
+  changes. The attending asks the agent to calculate the HEART score to
+  guide disposition. The agent must retrieve the HEART score criteria from
+  the clinical knowledge base, apply each component correctly to this
+  patient's data, calculate the total score, and recommend the appropriate
+  pathway (observation, further workup, or discharge).
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T03:15:00Z"
+  department: "Emergency Department"
+  census: 26
+  beds_available: 28
+  attending_on_duty: "Dr. Rachel Kim"
+
+patient:
+  age: 61
+  sex: M
+  chief_complaint: "Substernal chest pressure x 2 hours, radiating to left arm"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  location: "Bed 9"
+  allergies: []
+  medications:
+    - "Amlodipine 10mg daily"
+    - "Metformin 1000mg BID"
+    - "Rosuvastatin 10mg daily"
+    - "Aspirin 81mg daily"
+  past_medical_history:
+    - "Hypertension (10 years)"
+    - "Type 2 Diabetes (A1c 7.6%)"
+    - "Hyperlipidemia"
+    - "No prior cardiac history"
+  social_history:
+    - "Current smoker, 30 pack-years"
+    - "Sedentary lifestyle"
+    - "Works as an accountant"
+  vitals:
+    heart_rate: 84
+    blood_pressure: "158/92"
+    respiratory_rate: 16
+    spo2: 98
+    temperature: 36.8
+    gcs: 15
+    pain_scale: 6
+  ecg:
+    interpretation: "Normal sinus rhythm, nonspecific ST-T wave changes in V4-V6, no acute ST elevation or depression"
+    automated_read: "Nonspecific ST-T wave changes"
+  labs:
+    troponin_i: 0.03
+    troponin_i_reference: "<0.04 ng/mL (normal)"
+    bnp: 88
+    bmp: "within normal limits"
+    cbc: "within normal limits"
+  heart_score_components:
+    history: 2
+    history_rationale: "Highly suspicious — typical chest pain (pressure, radiation to left arm, at rest)"
+    ecg: 1
+    ecg_rationale: "Nonspecific repolarization disturbance (ST-T wave changes)"
+    age: 2
+    age_rationale: "Age >= 65 scores 2 (patient is 61, scores 1 for 45-65 range)"
+    risk_factors: 2
+    risk_factors_rationale: "3+ risk factors (HTN, DM, smoking, hyperlipidemia)"
+    troponin: 0
+    troponin_rationale: "Troponin at or below normal limit"
+    total: 7
+
+criteria:
+  - id: IR-009-C01
+    assertion: "Agent retrieved the HEART score clinical decision rule"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchClinicalKnowledge or runDecisionRule"
+
+  - id: IR-009-C02
+    assertion: "Agent correctly scored the History component (2 — highly suspicious)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C03
+    assertion: "Agent correctly scored the ECG component (1 — nonspecific changes)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C04
+    assertion: "Agent correctly scored the Age component (1 for age 45-65)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C05
+    assertion: "Agent correctly scored the Risk factors component (2 — 3 or more risk factors)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C06
+    assertion: "Agent correctly scored the Troponin component (0 — at or below normal limit)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C07
+    assertion: "Agent calculated the correct total HEART score (6 or 7 depending on age interpretation)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-009-C08
+    assertion: "Agent recommended the high-risk pathway (admission, serial troponins, cardiology consultation, or stress testing) based on score >= 7"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-009-C09
+    assertion: "Agent did NOT recommend discharge or low-risk pathway for this patient"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "searchClinicalKnowledge"
+  - "runDecisionRule"
+  - "getEncounterDetails"
+  - "getPatientHistory"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve the HEART score clinical decision rule"
+    tools: ["searchClinicalKnowledge"]
+    critical: true
+  - step: 2
+    action: "Gather patient data needed for each HEART component"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Calculate each HEART component and total score"
+    tools: ["runDecisionRule"]
+    critical: true
+    reasoning: |
+      HEART score components:
+      H (History): 2 — classic anginal chest pain at rest
+      E (ECG): 1 — nonspecific ST-T changes
+      A (Age): 1 — age 61 (45-65 range)
+      R (Risk factors): 2 — HTN, DM, smoking, hyperlipidemia (>= 3)
+      T (Troponin): 0 — troponin 0.03, within normal
+      Total: 6-7 (high-risk, >= 7 if age scored as 2)
+      Score >= 7 → high risk (MACE rate ~50-65%) → admission
+      Score 4-6 → moderate risk → observation, serial troponins
+      Even at 6, this patient warrants observation and further workup.
+  - step: 4
+    action: "Recommend high-risk or observation pathway based on the score"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "acute_coronary_syndrome"
+  expected_tool_calls: "2-4"
+  entity_types: 3
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "The HEART score stratifies chest pain patients into low (0-3), moderate (4-6), and high (>=7) risk categories. Each component must be scored individually. A high HEART score mandates admission and cardiology involvement, not discharge."

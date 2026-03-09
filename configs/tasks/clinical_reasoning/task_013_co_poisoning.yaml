@@ -1,0 +1,234 @@
+# HEALTHCRAFT Task Definition: Carbon Monoxide Poisoning
+# Category: clinical_reasoning | Level: 3
+# Confusion pair: CO Poisoning vs Viral Illness
+# Family presenting with headaches in winter. Subtle clue — pulse oximetry
+# is falsely normal. Agent must recognize the pattern and check CO-oximetry.
+
+id: CR-013
+category: clinical_reasoning
+level: 3
+title: "Carbon Monoxide Poisoning"
+system_prompt_override: null
+
+description: |
+  A family of four presents to the ED on a January evening: the mother (38),
+  father (42), and two children (ages 8 and 5). All four have headaches, nausea,
+  and dizziness that began this afternoon. The mother initially called their
+  pediatrician thinking the children had the flu, but was told to come to the ED
+  when she mentioned everyone in the house is sick simultaneously. Their home has
+  an old gas furnace. Standard pulse oximetry reads 98% on all family members
+  (falsely normal — pulse ox cannot distinguish carboxyhemoglobin from
+  oxyhemoglobin). The agent must recognize the cluster pattern, order
+  CO-oximetry on a venous or arterial blood gas, and initiate high-flow oxygen.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-18T20:15:00Z"
+  department: "Emergency Department"
+  census: 28
+  beds_available: 26
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    toxicology: "poison_control, phone consultation available"
+    hyperbaric_medicine: "regional center, 45min transport"
+  weather: "January, outdoor temperature -8C, home heating in heavy use"
+
+patient:
+  age: 38
+  sex: F
+  chief_complaint: "Whole family has headaches, nausea, and dizziness since this afternoon"
+  arrival_mode: "private vehicle (all four family members)"
+  esi_level: 3
+  allergies:
+    - "NKDA"
+  medications:
+    - "Sertraline 100mg daily"
+    - "Ibuprofen PRN"
+  past_medical_history:
+    - "Mild depression"
+    - "No cardiac or pulmonary disease"
+    - "No prior CO exposure"
+  social_history:
+    - "Lives in older home (built 1972) with gas furnace"
+    - "Furnace has not been serviced in 3+ years"
+    - "No CO detector in home"
+    - "Non-smoker"
+    - "No recent travel"
+  family_members_presenting:
+    - name: "Father"
+      age: 42
+      symptoms: "Headache, dizziness, mild confusion"
+      vitals:
+        heart_rate: 98
+        blood_pressure: "134/82"
+        spo2: 97
+        gcs: 15
+    - name: "Child 1"
+      age: 8
+      symptoms: "Headache, nausea, vomited once"
+      vitals:
+        heart_rate: 110
+        blood_pressure: "102/64"
+        spo2: 99
+        gcs: 15
+    - name: "Child 2"
+      age: 5
+      symptoms: "Headache, irritable, sleepy"
+      vitals:
+        heart_rate: 118
+        blood_pressure: "94/58"
+        spo2: 98
+        gcs: 14
+  vitals:
+    heart_rate: 104
+    blood_pressure: "128/78"
+    respiratory_rate: 20
+    spo2: 98
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 6
+  exam_findings:
+    general: "Appears well but uncomfortable, holding head"
+    heent: "No cherry-red lips (only seen in severe/fatal CO), mild conjunctival injection"
+    cardiovascular: "Mildly tachycardic, regular rhythm, no murmurs"
+    pulmonary: "Clear bilaterally"
+    abdomen: "Soft, non-tender"
+    neurological: "Alert, oriented x4, mild difficulty with serial 7s, no focal deficits"
+    skin: "Warm, well-perfused, no cyanosis"
+  labs:
+    co_oximetry:
+      carboxyhemoglobin_mother: 24
+      carboxyhemoglobin_father: 28
+      carboxyhemoglobin_child_1: 22
+      carboxyhemoglobin_child_2: 26
+      units: "% (normal non-smoker <3%)"
+    standard_pulse_ox: 98
+    venous_blood_gas:
+      ph: 7.36
+      pco2: 38
+      po2: 68
+      hco3: 22
+    lactate: 3.1
+    cbc:
+      wbc: 8.4
+      hemoglobin: 13.2
+      platelets: 255
+    bmp:
+      sodium: 140
+      potassium: 4.0
+      creatinine: 0.8
+    troponin_i: 0.02
+    troponin_units: "ng/mL (normal <0.04)"
+  ecg:
+    interpretation: "Sinus tachycardia at 104 bpm, no ST changes, normal intervals"
+
+criteria:
+  - id: CR-013-C01
+    assertion: "Agent reviewed vitals and noted that standard pulse ox of 98% does not rule out CO poisoning"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-013-C02
+    assertion: "Agent recognized the cluster presentation pattern (entire household symptomatic simultaneously)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-013-C03
+    assertion: "Agent obtained relevant history including gas furnace, lack of CO detector, winter season"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-013-C04
+    assertion: "Agent ordered CO-oximetry (venous or arterial blood gas with co-oximetry)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-013-C05
+    assertion: "Agent initiated high-flow oxygen (100% non-rebreather mask) on all family members immediately"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-013-C06
+    assertion: "Agent identified carbon monoxide poisoning as the diagnosis"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-013-C07
+    assertion: "Agent contacted poison control or toxicology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-013-C08
+    assertion: "Agent considered hyperbaric oxygen therapy (COHb >25% or symptoms of end-organ damage)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-013-C09
+    assertion: "Agent ordered ECG and troponin to assess for cardiac involvement"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-013-C10
+    assertion: "Agent instructed family NOT to return home until the furnace is inspected and cleared"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CR-013-C11
+    assertion: "Agent prioritized treatment of the youngest child (5 y/o, most vulnerable to CO effects)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-013-C12
+    assertion: "Agent documented CO poisoning diagnosis, COHb levels, and treatment plan"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "searchClinicalKnowledge"
+
+expected_sequence:
+  - step: 1
+    action: "Review vitals on all family members — note pulse ox falsely normal"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "History — gas furnace, no CO detector, winter, all sick simultaneously"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Order CO-oximetry on all family members"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Initiate high-flow O2 (100% NRB) on all four patients immediately"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Contact poison control, consider hyperbaric oxygen"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Order ECG, troponin, and serial COHb monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "co_poisoning_vs_viral_illness"
+  openem_condition: "carbon_monoxide_poisoning"
+  expected_tool_calls: "6-10"
+  entity_types: 5
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Standard pulse oximetry CANNOT detect carboxyhemoglobin — it reads falsely normal in CO poisoning. The key clue is the cluster pattern: entire household sick simultaneously, especially in winter with gas heating. Always order CO-oximetry when suspecting CO. High-flow oxygen halves the CO half-life (from 5 hours to 1.5 hours). Consider hyperbaric oxygen for COHb >25% or neurological symptoms."

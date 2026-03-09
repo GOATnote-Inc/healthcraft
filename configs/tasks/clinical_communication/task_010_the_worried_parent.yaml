@@ -1,0 +1,174 @@
+# HEALTHCRAFT Task Definition: The Worried Parent
+# Category: clinical_communication | Level: 2
+# Pediatric patient with anxious parent. Agent must communicate workup plan
+# and results clearly while managing parental anxiety.
+
+id: CC-010
+category: clinical_communication
+level: 2
+title: "The Worried Parent"
+system_prompt_override: null
+
+description: |
+  A 3-year-old boy is brought in by his mother after a first-time febrile
+  seizure lasting 90 seconds at daycare. The child is now post-ictal but
+  rapidly improving. The mother is extremely anxious, crying, and asking
+  whether her child has epilepsy or brain damage. The agent must communicate
+  the workup plan, explain what a febrile seizure is, address the mother's
+  specific fears, and provide appropriate reassurance without dismissing her
+  concerns. The child needs basic labs and observation but likely does not
+  need neuroimaging or an EEG in the ED.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T15:45:00Z"
+  department: "Emergency Department -- Pediatric Area"
+  census: 38
+  beds_available: 16
+  attending_on_duty: "Dr. Michael Park"
+  specialist_availability:
+    pediatric_neurology: "phone consult available"
+    pediatrics: "on-call, available within 30 minutes"
+
+patient:
+  age: 3
+  sex: M
+  chief_complaint: "Seizure at daycare"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Pediatric Bed 3"
+  primary_language: "English"
+  weight_kg: 14.5
+  allergies:
+    - "No known allergies"
+  medications:
+    - "None"
+  past_medical_history:
+    - "Full-term birth, no NICU stay"
+    - "Developmentally appropriate"
+    - "Immunizations up to date"
+    - "No prior seizures"
+    - "No significant medical history"
+    - "No family history of epilepsy"
+  parent:
+    name: "Angela Torres"
+    relationship: "mother"
+    age: 29
+    occupation: "Elementary school teacher"
+    concerns:
+      - "Does he have epilepsy?"
+      - "Is there brain damage?"
+      - "Will it happen again?"
+      - "Should he have an MRI?"
+      - "Can he go back to daycare?"
+  vitals:
+    heart_rate: 128
+    blood_pressure: "92/58"
+    respiratory_rate: 24
+    spo2: 99
+    temperature: 39.2
+    gcs: 14
+    gcs_notes: "E4V4M6 -- slightly drowsy but arousable, appropriate for post-ictal state"
+  vitals_30_minutes_later:
+    heart_rate: 118
+    blood_pressure: "94/60"
+    respiratory_rate: 22
+    spo2: 99
+    temperature: 38.6
+    gcs: 15
+    notes: "Back to baseline, interactive, playful"
+  exam_findings:
+    general: "Sleepy but arousable toddler, no distress. Mother in tears at bedside."
+    heent: "Bilateral ear exam: left TM erythematous, bulging with loss of light reflex (acute otitis media). Right TM normal. Pharynx mildly erythematous."
+    neurological: "Post-ictal initially, now alert and age-appropriate. Moves all extremities symmetrically. No focal deficits. Normal tone."
+    skin: "No rash, no petechiae, no signs of meningismus"
+    neck: "Supple, no nuchal rigidity"
+  seizure_details:
+    type: "Generalized tonic-clonic"
+    duration: "approximately 90 seconds per daycare staff"
+    resolved: "spontaneously"
+    post_ictal: "15 minutes of drowsiness"
+    preceded_by: "fever noticed at daycare 1 hour prior"
+  labs:
+    cbc: "WBC 14.8, Hgb 12.1, Plt 310"
+    bmp: "Na 138, K 4.2, Glucose 102, Ca 9.8"
+    ua: "normal"
+
+criteria:
+  - id: CC-010-C01
+    assertion: "Agent retrieved patient history and encounter details"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-010-C02
+    assertion: "Agent retrieved lab results and vitals"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-010-C03
+    assertion: "Agent explained what a simple febrile seizure is in parent-friendly language"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-010-C04
+    assertion: "Agent addressed mother's specific concerns (epilepsy, brain damage, recurrence) directly"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-010-C05
+    assertion: "Agent explained why neuroimaging and EEG are NOT indicated for a simple febrile seizure"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-010-C06
+    assertion: "Agent identified and addressed the source of fever (acute otitis media)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-010-C07
+    assertion: "Agent provided seizure first-aid teaching for recurrence (lateral position, do not restrain, time the seizure, call 911 if >5 minutes)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-010-C08
+    assertion: "Agent documented parent communication and understanding in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+  - "createClinicalOrder"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, seizure details, and developmental history"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review vitals, labs, and exam findings"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Communicate with mother: explain febrile seizure, address fears, provide reassurance"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Treat the fever source (antibiotics for otitis media, antipyretics)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Document communication and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "febrile_seizure"
+  expected_tool_calls: "4-5"
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: "Simple febrile seizures are common (2-5% of children 6mo-5yr), benign, and do not cause epilepsy or brain damage. Parental anxiety is the primary challenge. Address specific fears directly, explain what will NOT be done (MRI, EEG) and why, and teach seizure first-aid for recurrence."

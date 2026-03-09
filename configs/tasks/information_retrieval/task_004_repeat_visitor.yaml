@@ -1,0 +1,183 @@
+# HEALTHCRAFT Task Definition: The Repeat Visitor
+# Category: information_retrieval | Level: 2
+# Patient with 5 prior ED visits in 6 weeks. Agent must retrieve and
+# synthesize the visit pattern to identify an undertreated condition.
+
+id: IR-004
+category: information_retrieval
+level: 2
+title: "The Repeat Visitor"
+system_prompt_override: null
+
+description: |
+  A 29-year-old woman presents to the ED with severe headache and blurred
+  vision. She appears frustrated and tells the nurse "nobody ever fixes this."
+  She has had 5 ED visits in the last 6 weeks, all for headache. The agent
+  must retrieve all prior encounters, identify the pattern across visits
+  (escalating severity, rising blood pressures, proteinuria on last visit),
+  and recognize this is not simple migraine but likely secondary hypertension
+  requiring urgent workup rather than another discharge with analgesics.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T07:20:00Z"
+  department: "Emergency Department"
+  census: 22
+  beds_available: 32
+  attending_on_duty: "Dr. Marcus Thompson"
+
+patient:
+  age: 29
+  sex: F
+  chief_complaint: "Worst headache of my life, blurred vision"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  location: "Bed 3"
+  allergies:
+    - name: "Sulfa drugs"
+      reaction: "Rash"
+      severity: "mild"
+      year_reported: 2020
+      verified: true
+  medications:
+    - "Sumatriptan 50mg PRN (prescribed visit 2)"
+    - "Ibuprofen 600mg PRN"
+    - "Oral contraceptive (desogestrel-ethinyl estradiol)"
+  past_medical_history:
+    - "Migraine without aura (diagnosed age 22)"
+    - "Obesity (BMI 38)"
+  social_history:
+    - "Works as an overnight stocker at warehouse"
+    - "Single mother, 2 children"
+    - "No PCP — uses ED as primary care"
+    - "Insured (employer plan, high deductible)"
+  vitals:
+    heart_rate: 96
+    blood_pressure: "198/118"
+    respiratory_rate: 18
+    spo2: 98
+    temperature: 37.0
+    gcs: 15
+    pain_scale: 9
+  exam_findings:
+    neurological: "Alert and oriented x4, visual acuity 20/40 bilaterally (baseline 20/20 per patient), no papilledema on fundoscopy, no focal deficits"
+    cardiovascular: "Tachycardic, regular rhythm, no murmurs"
+  prior_ed_visits:
+    - date: "2025-12-05"
+      chief_complaint: "Headache"
+      vitals_bp: "156/92"
+      diagnosis: "Tension headache"
+      disposition: "discharged"
+      notes: "Ketorolac 30mg IV. Discharged with ibuprofen. Told to follow up with PCP."
+    - date: "2025-12-14"
+      chief_complaint: "Headache, nausea"
+      vitals_bp: "162/98"
+      diagnosis: "Migraine"
+      disposition: "discharged"
+      notes: "IV fluids, metoclopramide, ketorolac. Prescribed sumatriptan. BP noted, attributed to pain."
+    - date: "2025-12-27"
+      chief_complaint: "Severe headache"
+      vitals_bp: "174/104"
+      diagnosis: "Migraine"
+      disposition: "discharged"
+      notes: "Sumatriptan not helping. Given IV magnesium, diphenhydramine, prochlorperazine. BP elevated — 'will need outpatient follow-up.'"
+    - date: "2026-01-05"
+      chief_complaint: "Headache, epistaxis"
+      vitals_bp: "182/110"
+      diagnosis: "Hypertensive urgency, migraine"
+      disposition: "discharged"
+      notes: "Nosebleed self-resolved. Labetalol 20mg IV x1. BP down to 158/94. Discharged with PCP referral (patient has no PCP). UA showed 1+ protein."
+    - date: "2026-01-11"
+      chief_complaint: "Headache, dizziness"
+      vitals_bp: "190/112"
+      diagnosis: "Hypertensive urgency"
+      disposition: "discharged"
+      notes: "Labetalol 40mg IV. Observation 4 hours. BP 164/98 at discharge. Amlodipine 5mg daily prescribed. Patient unable to fill — $45 copay."
+
+criteria:
+  - id: IR-004-C01
+    assertion: "Agent retrieved all 5 prior ED encounters within the last 6 weeks"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to searchEncounters"
+
+  - id: IR-004-C02
+    assertion: "Agent identified the escalating blood pressure trend across visits (156 → 162 → 174 → 182 → 190 → 198)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-004-C03
+    assertion: "Agent noted the proteinuria (1+ protein on UA) from the January 5 visit"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-004-C04
+    assertion: "Agent recognized this pattern as secondary hypertension requiring urgent workup, not simple migraine"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-004-C05
+    assertion: "Agent identified social barriers to care (no PCP, inability to afford prescribed medication)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-004-C06
+    assertion: "Agent ordered or recommended workup for secondary causes of hypertension in a young woman (renal artery stenosis, pheochromocytoma, renal parenchymal disease, Cushing's, OCP-related)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-004-C07
+    assertion: "Agent recommended admission or extended observation rather than routine discharge"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: IR-004-C08
+    assertion: "Agent documented the visit pattern and trend analysis for the treating physician"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: IR-004-C09
+    assertion: "Agent did NOT treat this as an isolated headache and discharge with analgesics only"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "searchEncounters"
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve all ED encounters for the patient in the last 6 weeks"
+    tools: ["searchEncounters"]
+    critical: true
+  - step: 2
+    action: "Review details of each encounter including vitals, diagnoses, and notes"
+    tools: ["getEncounterDetails", "getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Synthesize the pattern: escalating BP, proteinuria, failed outpatient follow-up, medication non-adherence due to cost"
+    tools: []
+    critical: true
+    reasoning: |
+      Steadily rising BP in a 29-year-old on OCPs with proteinuria is not
+      migraine. Differential includes renovascular disease, renal
+      parenchymal disease, pheochromocytoma, OCP-induced hypertension,
+      Cushing syndrome, or coarctation. The BP of 198/118 with blurred
+      vision suggests hypertensive emergency with end-organ threat.
+      Repeated discharge has failed — this patient needs inpatient workup.
+  - step: 4
+    action: "Document pattern analysis and recommend admission for secondary hypertension workup"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "hypertensive_emergency"
+  expected_tool_calls: "3-6"
+  entity_types: 4
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: "Repeated visits for the same complaint demand pattern analysis, not isolated evaluation. A 29-year-old with BP 198/118 and proteinuria has secondary hypertension until proven otherwise. Social determinants (cost, no PCP) explain why outpatient plans fail."

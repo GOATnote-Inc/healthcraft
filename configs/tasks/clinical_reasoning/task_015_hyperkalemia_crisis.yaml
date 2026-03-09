@@ -1,0 +1,221 @@
+# HEALTHCRAFT Task Definition: Hyperkalemia Crisis
+# Category: clinical_reasoning | Level: 4
+# Dialysis patient with peaked T-waves and bradycardia. Agent must treat
+# hyperkalemia emergently before cardiac arrest occurs.
+
+id: CR-015
+category: clinical_reasoning
+level: 4
+title: "Hyperkalemia Crisis"
+system_prompt_override: null
+
+description: |
+  A 58-year-old male on hemodialysis presents with generalized weakness and
+  "feeling like my heart is skipping" after missing his last two dialysis
+  sessions. His ECG shows peaked T-waves, widened QRS complexes (140 ms), and
+  a heart rate of 48 bpm with a junctional escape rhythm. Serum potassium
+  returns at 7.8 mEq/L. The agent must recognize the ECG changes as
+  hyperkalemia-induced and initiate the emergent treatment cascade: IV calcium
+  gluconate (membrane stabilization first), insulin/dextrose, and arrange
+  emergent hemodialysis. Delay in calcium administration risks degeneration
+  into ventricular fibrillation.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-18T10:45:00Z"
+  department: "Emergency Department"
+  census: 27
+  beds_available: 27
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    nephrology: "on_call, 20min response"
+    dialysis_unit: "available, 2 machines open"
+    critical_care: "in_house"
+
+patient:
+  age: 58
+  sex: M
+  chief_complaint: "Weakness, heart skipping, missed dialysis"
+  arrival_mode: "EMS"
+  esi_level: 2
+  allergies:
+    - "Lisinopril (angioedema)"
+  medications:
+    - "Sevelamer 800mg TID with meals"
+    - "Epoetin alfa 10,000 units with dialysis"
+    - "Calcitriol 0.25 mcg daily"
+    - "Amlodipine 10mg daily"
+    - "Carvedilol 25mg BID"
+    - "Insulin glargine 14 units at bedtime"
+  past_medical_history:
+    - "End-stage renal disease on hemodialysis (MWF schedule, via left AV fistula)"
+    - "Type 2 Diabetes Mellitus"
+    - "Hypertension"
+    - "Peripheral vascular disease"
+    - "Left AV fistula placed 3 years ago"
+    - "Missed last 2 dialysis sessions (car broke down)"
+  social_history:
+    - "Retired, lives alone"
+    - "Limited transportation"
+    - "Former smoker (20 pack-years, quit 8 years ago)"
+    - "No alcohol"
+  vitals:
+    heart_rate: 48
+    blood_pressure: "92/58"
+    respiratory_rate: 18
+    spo2: 96
+    temperature: 36.6
+    gcs: 15
+    pain_scale: 2
+  exam_findings:
+    general: "Lethargic male, mildly confused, not in acute distress"
+    heent: "Dry mucous membranes"
+    cardiovascular: "Bradycardic, irregular rhythm, no murmurs, left arm AV fistula with palpable thrill and audible bruit"
+    pulmonary: "Bibasilar crackles (mild fluid overload)"
+    abdomen: "Soft, non-tender, no organomegaly"
+    extremities: "Bilateral lower extremity 2+ pitting edema, AV fistula left forearm patent"
+    neurological: "Alert, oriented to person and place (not date), 4/5 diffuse weakness, decreased DTRs, no fasciculations"
+  labs:
+    bmp:
+      sodium: 132
+      potassium: 7.8
+      chloride: 98
+      co2: 16
+      bun: 98
+      creatinine: 12.4
+      glucose: 186
+      calcium: 7.2
+    cbc:
+      wbc: 7.8
+      hemoglobin: 9.4
+      platelets: 198
+    magnesium: 2.8
+    phosphorus: 8.2
+    venous_blood_gas:
+      ph: 7.24
+      pco2: 32
+      hco3: 14
+  ecg:
+    interpretation: "Junctional escape rhythm at 48 bpm, widened QRS (140 ms), peaked T-waves in precordial leads (V2-V5, >10mm), prolonged PR interval (280 ms), loss of P-waves, no ST elevation"
+    automated_read: "CRITICAL: Bradycardia with wide QRS, consider hyperkalemia"
+
+criteria:
+  - id: CR-015-C01
+    assertion: "Agent reviewed ECG and identified peaked T-waves, widened QRS, and bradycardia"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-015-C02
+    assertion: "Agent reviewed labs and identified critical hyperkalemia (K 7.8)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-015-C03
+    assertion: "Agent retrieved patient history including ESRD, missed dialysis, medications"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CR-015-C04
+    assertion: "Agent ordered IV calcium gluconate FIRST (cardiac membrane stabilization)"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C05
+    assertion: "Agent ordered IV insulin with dextrose (potassium-shifting agent)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C06
+    assertion: "Agent ordered sodium bicarbonate for metabolic acidosis"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C07
+    assertion: "Agent arranged emergent hemodialysis (definitive treatment)"
+    dimension: clinical_completeness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C08
+    assertion: "Agent consulted nephrology"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C09
+    assertion: "Agent placed patient on continuous cardiac monitoring"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-015-C10
+    assertion: "Agent recognized that calcium gluconate does not lower potassium but stabilizes the myocardium"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-015-C11
+    assertion: "Agent did NOT administer potassium-containing IV fluids (e.g., lactated Ringer's)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain administer_lr"
+
+  - id: CR-015-C12
+    assertion: "Agent considered and addressed the metabolic acidosis (pH 7.24)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-015-C13
+    assertion: "Agent documented hyperkalemia crisis management and ordered serial potassium monitoring"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review ECG — peaked T-waves, widened QRS, bradycardia"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review labs — K 7.8, acidosis, uremia"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "History — ESRD, missed 2 dialysis sessions"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "IV calcium gluconate IMMEDIATELY (membrane stabilization)"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Widened QRS can degenerate to VFib within minutes. Calcium buys time."
+  - step: 5
+    action: "IV insulin 10 units + D50 (shift K intracellularly), albuterol neb, kayexalate"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Arrange emergent hemodialysis, consult nephrology"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "hyperkalemia_vs_bradycardia_other_cause"
+  openem_condition: "hyperkalemia"
+  expected_tool_calls: "6-10"
+  entity_types: 5
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Hyperkalemia ECG progression: peaked T-waves → prolonged PR → widened QRS → sine wave → VFib/asystole. Calcium gluconate FIRST — it does not lower potassium but stabilizes the cardiac membrane. Insulin/dextrose shifts K intracellularly within 15-30 minutes. Dialysis is the only definitive removal. NEVER give potassium-containing fluids or delay treatment for confirmation."

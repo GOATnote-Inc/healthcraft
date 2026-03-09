@@ -1,0 +1,139 @@
+# HEALTHCRAFT Task Definition: The Insurance Barrier
+# Category: information_retrieval | Level: 1
+# Agent must check insurance prior authorization requirements before
+# ordering an MRI. Simple retrieval task.
+
+id: IR-007
+category: information_retrieval
+level: 1
+title: "The Insurance Barrier"
+system_prompt_override: null
+
+description: |
+  A 44-year-old man presents with 3 weeks of progressive low back pain
+  radiating to the left leg with new foot drop noticed this morning. The
+  attending wants a stat MRI lumbar spine to evaluate for cauda equina
+  syndrome. The patient's insurance (MediGold HMO) requires prior
+  authorization for all outpatient MRIs and has a 72-hour review process.
+  The agent must check the patient's insurance coverage, determine whether
+  prior auth is required for an emergency MRI, and navigate the
+  authorization pathway so the study is not delayed.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T14:00:00Z"
+  department: "Emergency Department"
+  census: 36
+  beds_available: 18
+  attending_on_duty: "Dr. David Patel"
+
+patient:
+  age: 44
+  sex: M
+  chief_complaint: "Low back pain with left leg weakness, new foot drop"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  location: "Bed 11"
+  allergies: []
+  medications:
+    - "Ibuprofen 800mg TID (self-prescribed)"
+    - "Cyclobenzaprine 10mg TID (prescribed by urgent care 1 week ago)"
+  past_medical_history:
+    - "Lumbar disc herniation L4-L5 (diagnosed 2024, managed conservatively)"
+    - "Obesity (BMI 32)"
+  social_history:
+    - "Construction worker"
+    - "Insured through MediGold HMO (employer-sponsored)"
+  vitals:
+    heart_rate: 78
+    blood_pressure: "134/82"
+    respiratory_rate: 14
+    spo2: 99
+    temperature: 36.9
+    gcs: 15
+    pain_scale: 7
+  exam_findings:
+    neurological: "Left foot dorsiflexion 2/5 (foot drop), left EHL 2/5, left ankle reflex absent, decreased sensation L5 dermatome, saddle anesthesia absent, rectal tone intact"
+    straight_leg_raise: "Positive left at 30 degrees, negative right"
+    gait: "Steppage gait left"
+  insurance:
+    carrier: "MediGold HMO"
+    plan_id: "MG-PPO-2026-4421"
+    group: "Builders United Local 447"
+    prior_auth_required:
+      outpatient_mri: true
+      emergency_mri: false
+      review_period: "72 hours for outpatient"
+    emergency_exception: "ED-ordered studies with documented emergency indication are exempt from prior auth per MediGold policy section 4.2.1"
+    contact: "1-800-555-0147 (utilization review)"
+
+criteria:
+  - id: IR-007-C01
+    assertion: "Agent retrieved the patient's insurance coverage details"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getInsuranceCoverage"
+
+  - id: IR-007-C02
+    assertion: "Agent identified that MediGold requires prior auth for outpatient MRI"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-007-C03
+    assertion: "Agent found the emergency exception clause exempting ED-ordered MRIs from prior auth"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-007-C04
+    assertion: "Agent documented the emergency indication (new foot drop, concern for cauda equina) to satisfy the exemption"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: IR-007-C05
+    assertion: "Agent did NOT delay the MRI order due to insurance concerns"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain delay_order_for_prior_auth"
+
+  - id: IR-007-C06
+    assertion: "Agent communicated to the ordering physician that the study can proceed under the emergency exemption"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+expected_tools:
+  - "getInsuranceCoverage"
+  - "getPatientHistory"
+
+expected_sequence:
+  - step: 1
+    action: "Look up the patient's insurance plan and coverage details"
+    tools: ["getInsuranceCoverage"]
+    critical: true
+  - step: 2
+    action: "Check whether prior authorization is required for the MRI"
+    tools: []
+    critical: true
+  - step: 3
+    action: "Identify the emergency exemption that allows the ED-ordered MRI to proceed without prior auth"
+    tools: []
+    critical: true
+    reasoning: |
+      Most HMO plans require prior auth for outpatient imaging but
+      have emergency exemption clauses for ED-ordered studies when there
+      is documented clinical urgency. New foot drop with history of disc
+      herniation raises concern for cauda equina syndrome, a surgical
+      emergency. Delaying for prior auth could result in permanent
+      neurological deficit.
+  - step: 4
+    action: "Confirm the MRI can proceed and document the emergency indication"
+    tools: []
+    critical: true
+
+metadata:
+  openem_condition: "cauda_equina_syndrome"
+  expected_tool_calls: "1-2"
+  entity_types: 2
+  time_pressure: "moderate"
+  cognitive_load: "low"
+  teaching_point: "Insurance prior authorization should never delay emergency imaging. Most plans have emergency exemptions. Document the clinical urgency clearly, and proceed with the study. Cauda equina syndrome is a time-sensitive surgical emergency."

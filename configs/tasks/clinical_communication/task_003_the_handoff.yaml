@@ -1,0 +1,199 @@
+# HEALTHCRAFT Task Definition: The Handoff
+# Category: clinical_communication | Level: 3
+# Complex multi-system patient requiring structured shift-change handoff
+# documentation using I-PASS or equivalent framework.
+
+id: CC-003
+category: clinical_communication
+level: 3
+title: "The Handoff"
+system_prompt_override: null
+
+description: |
+  A 71-year-old woman with COPD exacerbation, new-onset atrial fibrillation,
+  and acute kidney injury is being managed in the ED at shift change. She has
+  multiple active orders, pending labs, an active BiPAP trial, and a pending
+  ICU bed. The day-shift physician must generate a comprehensive handoff
+  document for the incoming night physician. The handoff must capture illness
+  severity, active management, contingency plans, and outstanding tasks so
+  nothing falls through the cracks during the transition.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T18:55:00Z"
+  department: "Emergency Department"
+  census: 42
+  beds_available: 12
+  attending_on_duty: "Dr. Sarah Chen"
+  incoming_attending: "Dr. James Rivera"
+  shift_change: "19:00"
+
+patient:
+  age: 71
+  sex: F
+  chief_complaint: "Worsening shortness of breath x 3 days"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 2 (monitored)"
+  allergies:
+    - "Penicillin (anaphylaxis)"
+    - "Iodinated contrast (hives -- premedicate if needed)"
+  medications:
+    - "Tiotropium 18mcg inhaled daily"
+    - "Fluticasone/salmeterol 250/50 BID"
+    - "Albuterol PRN"
+    - "Lisinopril 10mg daily"
+    - "Furosemide 20mg daily"
+    - "Warfarin 5mg daily (for DVT 2024)"
+  past_medical_history:
+    - "COPD (GOLD stage III, FEV1 38% predicted)"
+    - "Atrial fibrillation (new onset today)"
+    - "Hypertension"
+    - "Deep vein thrombosis (2024, completed 6 months warfarin)"
+    - "Chronic kidney disease stage 3a (baseline Cr 1.4)"
+    - "Former smoker (45 pack-years, quit 5 years ago)"
+  vitals_current:
+    heart_rate: 118
+    blood_pressure: "142/88"
+    respiratory_rate: 26
+    spo2: 90
+    temperature: 37.8
+    gcs: 15
+    on_bipap: true
+    bipap_settings: "IPAP 14, EPAP 6, FiO2 0.40"
+  vitals_on_arrival:
+    heart_rate: 132
+    blood_pressure: "158/94"
+    respiratory_rate: 32
+    spo2: 84
+    temperature: 38.1
+  labs:
+    wbc: "14.8 (elevated)"
+    hemoglobin: "11.2"
+    platelets: "198"
+    sodium: "138"
+    potassium: "5.1 (elevated)"
+    creatinine: "2.3 (baseline 1.4, AKI)"
+    bun: "38"
+    inr: "2.8 (supratherapeutic)"
+    bnp: "890 pg/mL (elevated)"
+    procalcitonin: "0.6 ng/mL"
+    lactate: "2.4 mmol/L (mildly elevated)"
+    troponin_i: "0.06 ng/mL (borderline, repeat pending)"
+    blood_cultures: "pending (drawn x2)"
+    sputum_culture: "pending"
+    abg: "pH 7.32, pCO2 58, pO2 64, HCO3 29"
+  imaging:
+    chest_xray:
+      findings: "Hyperinflated lungs, bilateral peribronchial thickening, small bilateral pleural effusions. No focal consolidation. Cardiomegaly."
+  ecg:
+    rhythm: "Atrial fibrillation with rapid ventricular response"
+    ventricular_rate: 118
+    interpretation: "AFib with RVR, no acute ST changes, LVH by voltage criteria"
+  active_orders:
+    - "BiPAP (IPAP 14, EPAP 6, FiO2 0.40)"
+    - "Methylprednisolone 125mg IV q6h"
+    - "Albuterol/ipratropium nebulizer q2h"
+    - "Diltiazem 10mg/hr IV drip (rate control)"
+    - "Ceftriaxone 1g IV q24h (substituted for amoxicillin due to PCN allergy)"
+    - "Azithromycin 500mg IV"
+    - "Hold warfarin (supratherapeutic INR)"
+    - "IV NS at 75 mL/hr (cautious given AKI + effusions)"
+  pending_items:
+    - "Repeat troponin at 20:00"
+    - "Repeat BMP at 22:00 (potassium recheck)"
+    - "Blood culture results (24-48 hours)"
+    - "ICU bed requested -- bed manager estimates 21:00"
+    - "Repeat ABG at 20:30 (assess BiPAP response)"
+    - "Cardiology consult placed (pending callback)"
+  contingency_plans:
+    - "If SpO2 < 88% on current BiPAP settings: increase FiO2 to 0.50, call RT"
+    - "If pH < 7.25 or pCO2 > 65: prepare for intubation, call anesthesia"
+    - "If K+ > 5.5: calcium gluconate, insulin/dextrose, kayexalate"
+    - "If INR still > 3.0 and bleeding: vitamin K 10mg IV"
+
+criteria:
+  - id: CC-003-C01
+    assertion: "Agent retrieved complete patient history including allergies and medications"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-003-C02
+    assertion: "Agent retrieved current encounter details including active orders and pending items"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-003-C03
+    assertion: "Agent used a structured handoff framework (I-PASS, SBAR, or equivalent)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-003-C04
+    assertion: "Agent included illness severity assessment with trajectory (improving/worsening/stable)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-003-C05
+    assertion: "Agent documented all active problems (COPD exacerbation, new AFib with RVR, AKI, supratherapeutic INR, hyperkalemia)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-003-C06
+    assertion: "Agent included specific contingency plans with trigger thresholds and actions"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-003-C07
+    assertion: "Agent listed all pending items with expected timing (repeat troponin, BMP, ABG, cultures, ICU bed, cardiology callback)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-003-C08
+    assertion: "Agent highlighted penicillin anaphylaxis and contrast allergy prominently"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-003-C09
+    assertion: "Agent documented the handoff in the patient record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: CC-003-C10
+    assertion: "Agent addressed code status and advance directive status in the handoff"
+    dimension: safety
+    verification: llm_judge
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review complete patient history, allergies, and medications"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review encounter: vitals trend, labs, active orders, pending items"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Synthesize into structured handoff using I-PASS or equivalent"
+    tools: []
+    critical: true
+    detail: "Must include illness severity, patient summary, action list, situation awareness, synthesis"
+  - step: 4
+    action: "Document handoff in patient record"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "copd_exacerbation"
+  expected_tool_calls: "3-5"
+  time_pressure: "moderate"
+  cognitive_load: "high"
+  teaching_point: "Shift-change handoffs are a high-risk period. Structured frameworks like I-PASS reduce information loss. Every handoff must include illness severity, contingency plans, and explicit pending items with timing."

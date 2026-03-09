@@ -1,0 +1,198 @@
+# HEALTHCRAFT Task Definition: Breaking Bad News
+# Category: clinical_communication | Level: 4
+# Agent must communicate a terminal diagnosis to a family member using
+# structured empathic communication. Tests SPIKES protocol adherence.
+
+id: CC-004
+category: clinical_communication
+level: 4
+title: "Breaking Bad News"
+system_prompt_override: null
+
+description: |
+  A 58-year-old man presented to the ED with progressive jaundice and weight
+  loss. CT abdomen reveals a large pancreatic head mass with liver metastases
+  and peritoneal carcinomatosis, consistent with Stage IV pancreatic
+  adenocarcinoma. His wife is at bedside and the patient has asked the agent
+  to explain the CT results to both of them. The agent must deliver this
+  devastating news with appropriate empathy, assess understanding, address
+  immediate concerns, and document the conversation. The patient is alert,
+  oriented, and has capacity for medical decisions.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T16:20:00Z"
+  department: "Emergency Department"
+  census: 36
+  beds_available: 18
+  attending_on_duty: "Dr. Michael Park"
+  specialist_availability:
+    oncology: "on-call, Dr. Priya Mehta, available by phone"
+    palliative_care: "on-call, available within 2 hours"
+  support_services:
+    social_work: "on-duty until 22:00"
+    chaplain: "on-call"
+    patient_advocate: "on-call"
+
+patient:
+  age: 58
+  sex: M
+  chief_complaint: "Jaundice and 25-pound weight loss over 2 months"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  location: "Bed 14"
+  primary_language: "English"
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Omeprazole 20mg daily"
+    - "Metoprolol 25mg BID"
+  past_medical_history:
+    - "Hypertension"
+    - "GERD"
+    - "No prior cancer history"
+    - "No prior surgeries"
+  social_history:
+    - "High school principal for 30 years, recently retired"
+    - "Married 32 years, wife Linda (age 56) at bedside"
+    - "Two adult children (son age 28, daughter age 25)"
+    - "Non-smoker, social alcohol only"
+    - "Active in community -- coaches youth baseball"
+  vitals:
+    heart_rate: 88
+    blood_pressure: "138/82"
+    respiratory_rate: 16
+    spo2: 98
+    temperature: 37.2
+    gcs: 15
+    pain_scale: 4
+  exam_findings:
+    general: "Alert, oriented, appears thin and fatigued. Marked scleral icterus."
+    abdomen: "Distended, palpable non-tender mass in epigastrium, hepatomegaly 4cm below costal margin, shifting dullness suggestive of ascites"
+    skin: "Jaundiced, excoriations from pruritus"
+    lymph: "Left supraclavicular node palpable (Virchow node)"
+  labs:
+    total_bilirubin: "14.2 mg/dL (elevated)"
+    direct_bilirubin: "11.8 mg/dL (elevated)"
+    alkaline_phosphatase: "842 U/L (elevated)"
+    alt: "128 U/L (elevated)"
+    ast: "156 U/L (elevated)"
+    ca_19_9: "1,248 U/mL (markedly elevated)"
+    albumin: "2.4 g/dL (low)"
+    cbc: "WBC 11.2, Hgb 10.1, Plt 342"
+    inr: "1.3"
+    bmp: "Normal except glucose 218"
+  imaging:
+    ct_abdomen:
+      findings: |
+        5.8 cm mass in pancreatic head encasing the superior mesenteric artery
+        and portal vein. Multiple liver metastases (largest 3.2 cm in right
+        hepatic lobe). Peritoneal carcinomatosis with omental caking.
+        Moderate ascites. Dilated common bile duct (14mm) with abrupt
+        cutoff at pancreatic head. No evidence of bowel obstruction.
+      impression: "Findings consistent with Stage IV pancreatic adenocarcinoma with liver metastases and peritoneal carcinomatosis. Unresectable."
+
+criteria:
+  - id: CC-004-C01
+    assertion: "Agent reviewed imaging and lab results before the conversation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-004-C02
+    assertion: "Agent reviewed patient history and social context"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-004-C03
+    assertion: "Agent delivered the diagnosis using clear, non-euphemistic language (said 'cancer' not just 'mass' or 'growth')"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-004-C04
+    assertion: "Agent assessed the patient's prior understanding before delivering news (SPIKES: Perception)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-004-C05
+    assertion: "Agent gave a warning shot before delivering the diagnosis (e.g., 'I'm afraid the results show something serious')"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CC-004-C06
+    assertion: "Agent paused for emotional response and acknowledged feelings with empathic statements"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-004-C07
+    assertion: "Agent did NOT give a specific survival timeline or prognosis number in the ED"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-004-C08
+    assertion: "Agent arranged appropriate follow-up (oncology consult, palliative care referral)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CC-004-C09
+    assertion: "Agent offered support resources (social work, chaplain, patient advocate)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-004-C10
+    assertion: "Agent addressed immediate medical needs (pain, jaundice, nutrition)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-004-C11
+    assertion: "Agent documented the conversation including who was present and patient understanding"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+  - id: CC-004-C12
+    assertion: "Agent did NOT abandon the conversation after delivering the diagnosis -- provided next steps and plan"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review all results (CT, labs, tumor markers) thoroughly before talking to patient"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Review social history to understand patient context"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 3
+    action: "Deliver diagnosis using SPIKES protocol: Setting, Perception, Invitation, Knowledge, Emotions, Summary"
+    tools: []
+    critical: true
+  - step: 4
+    action: "Arrange oncology consult and palliative care referral"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Address immediate symptoms (pain management, jaundice workup, nutrition)"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 6
+    action: "Document the conversation and plan"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "pancreatic_cancer"
+  expected_tool_calls: "4-7"
+  time_pressure: "low"
+  cognitive_load: "extreme"
+  teaching_point: "Breaking bad news is a clinical skill. The SPIKES protocol provides structure: assess perception first, give a warning shot, use clear language (say 'cancer'), pause for emotions, and always end with a plan. Never give specific survival numbers in the ED -- that is the oncologist's role after staging is complete."

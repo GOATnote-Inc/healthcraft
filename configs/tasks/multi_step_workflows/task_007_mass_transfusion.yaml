@@ -1,0 +1,257 @@
+# HEALTHCRAFT Task Definition: Mass Transfusion
+# Category: multi_step_workflows | Level: 5
+# Tests massive transfusion protocol activation and execution for
+# hemorrhaging trauma patient with coordinated resuscitation.
+
+id: MW-007
+category: multi_step_workflows
+level: 5
+title: "Mass Transfusion"
+system_prompt_override: null
+
+description: |
+  A 42-year-old male is brought by EMS from an industrial accident — a steel beam
+  fell across his pelvis and lower abdomen. He is conscious but pale, tachycardic
+  to 140, and hypotensive at 68/38 despite 2 liters of NS en route. His abdomen
+  is rigid and distending. FAST exam reveals large-volume free fluid in all four
+  quadrants. Pelvis is mechanically unstable. Labs show hemoglobin 6.2 and
+  coagulopathy with INR 1.6 and fibrinogen 120. The agent must activate the
+  massive transfusion protocol, coordinate blood product delivery in 1:1:1 ratios,
+  manage the lethal triad (hypothermia, acidosis, coagulopathy), obtain emergent
+  surgical consult, and prepare for damage-control laparotomy.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-02-01T15:22:00Z"
+  department: "Trauma Bay 2"
+  census: 42
+  beds_available: 12
+  trauma_level: "Level 1 activation"
+  attending_on_duty: "Dr. Emily Rodriguez"
+  specialist_availability:
+    trauma_surgery: "Dr. David Kim — in-house, available"
+    anesthesia: "in-house, responding"
+    orthopedics: "on-call, 15-minute response"
+    interventional_radiology: "Dr. Yuki Tanaka — on-call, 25-minute response"
+    vascular_surgery: "on-call, 30-minute response"
+  blood_bank:
+    type_o_negative: "6 units available"
+    type_o_positive: "12 units available"
+    ffp_thawed: "4 units available"
+    platelets: "2 units available"
+    cryoprecipitate: "10 units available"
+    mtp_cooler: "ready for release"
+  or_status: "OR 1 available in 10 minutes, OR 2 occupied"
+
+patient:
+  age: 42
+  sex: M
+  weight_kg: 95
+  chief_complaint: "Crush injury pelvis/abdomen, industrial accident, hemorrhagic shock"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Ibuprofen PRN (OTC)"
+  past_medical_history:
+    - "Healthy, no chronic conditions"
+    - "Appendectomy age 18"
+  family_history:
+    - "Non-contributory"
+  social_history:
+    - "Steel worker"
+    - "Social drinker"
+    - "No tobacco"
+  vitals:
+    heart_rate: 140
+    blood_pressure: "68/38"
+    respiratory_rate: 32
+    spo2: 91
+    temperature: 35.2
+    gcs: 13
+    gcs_breakdown: "E3V4M6"
+    pain_scale: 10
+    shock_index: 2.06
+  exam_findings:
+    general: "Young male, pale, diaphoretic, in severe distress, cold extremities"
+    abdomen: "Rigid, distended, diffusely tender. No bowel sounds. Obvious ecchymosis across lower abdomen and flanks."
+    pelvis: "Mechanically unstable — lateral compression produces palpable movement. Pelvic binder applied by EMS."
+    extremities: "Cool, mottled below knees. Capillary refill >5 seconds. Peripheral pulses thready. No gross deformity of extremities."
+    genitourinary: "Foley placed by EMS — gross hematuria noted"
+    back: "Log-roll: large ecchymosis across sacrum. No step-off."
+  imaging:
+    fast_exam:
+      rlq: "Positive — large volume free fluid in Morison's pouch"
+      llq: "Positive — free fluid in splenorenal recess"
+      subxiphoid: "No pericardial effusion"
+      suprapubic: "Large volume free fluid in pelvis"
+      bilateral_thoracic: "No hemothorax"
+      impression: "Massively positive FAST — all four abdominal quadrants"
+    pelvic_xray: "Complex pelvic fracture: bilateral superior/inferior pubic rami fractures, left sacral fracture, left SI joint diastasis"
+    chest_xray: "Clear lung fields. Normal mediastinum. No rib fractures."
+  labs:
+    cbc: "WBC 18.6, Hgb 6.2, Plt 88"
+    bmp: "Na 136, K 5.2, Cl 108, CO2 14, BUN 28, Cr 1.4, Glu 162"
+    coags: "PT 18.1, INR 1.6, aPTT 42, Fibrinogen 120"
+    abg: "pH 7.18, pCO2 32, pO2 72, HCO3 12, BE -14, Lactate 9.4"
+    type_and_screen: "Type A positive — crossmatch initiated"
+    thromboelastography: "R-time prolonged, MA decreased, LY30 3%"
+    poc_lactate: "9.4 mmol/L (critical)"
+  timeline:
+    injury_time: "2026-02-01T14:45:00Z"
+    ems_arrival_scene: "2026-02-01T14:55:00Z"
+    ed_arrival: "2026-02-01T15:18:00Z"
+    trauma_activation: "2026-02-01T15:19:00Z"
+    fast_completed: "2026-02-01T15:22:00Z"
+
+criteria:
+  - id: MW-007-C01
+    assertion: "Agent activated massive transfusion protocol immediately upon recognizing hemorrhagic shock with positive FAST"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains applyProtocol for massive_transfusion_protocol within 5 minutes of encounter start"
+
+  - id: MW-007-C02
+    assertion: "Agent ordered type O-negative or uncrossmatched blood as initial resuscitation"
+    dimension: protocol_adherence
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for type_O_negative_pRBC"
+
+  - id: MW-007-C03
+    assertion: "Agent ordered blood products in balanced ratios (1:1:1 pRBC:FFP:platelets)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for pRBC AND FFP AND platelets"
+
+  - id: MW-007-C04
+    assertion: "Agent addressed coagulopathy with cryoprecipitate or fibrinogen replacement (fibrinogen 120, below 150 threshold)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for cryoprecipitate or fibrinogen_concentrate"
+
+  - id: MW-007-C05
+    assertion: "Agent ordered tranexamic acid (TXA) within 3 hours of injury"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for tranexamic_acid"
+
+  - id: MW-007-C06
+    assertion: "Agent addressed hypothermia with active warming measures (part of lethal triad)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for warming or blood_warmer"
+
+  - id: MW-007-C07
+    assertion: "Agent obtained emergent trauma surgery consult for damage-control laparotomy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for trauma_surgery"
+
+  - id: MW-007-C08
+    assertion: "Agent booked OR for emergent surgery"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains checkResourceAvailability for OR or createClinicalOrder for OR_booking"
+
+  - id: MW-007-C09
+    assertion: "Agent ordered serial labs (CBC, coags, ABG) to monitor resuscitation"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for repeat labs"
+
+  - id: MW-007-C10
+    assertion: "Agent addressed acidosis as part of lethal triad management"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-007-C11
+    assertion: "Agent considered interventional radiology for pelvic angioembolization given complex pelvic fracture"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for interventional_radiology"
+
+  - id: MW-007-C12
+    assertion: "Agent minimized crystalloid resuscitation in favor of blood products (damage control resuscitation)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-007-C13
+    assertion: "Agent documented massive transfusion activation, units transfused, and resuscitation endpoints"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with MTP documentation"
+
+  - id: MW-007-C14
+    assertion: "Agent used permissive hypotension strategy (target SBP 80-90) until surgical hemorrhage control"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "searchAvailableResources"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Assess patient, review FAST and vitals, recognize hemorrhagic shock"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Activate massive transfusion protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 3
+    action: "Order type O-negative pRBC stat"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "Order balanced blood products (FFP, platelets, cryoprecipitate)"
+    tools: ["createClinicalOrder", "createClinicalOrder", "createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Order TXA within 3-hour window"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Address lethal triad: warming, monitor acidosis"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 7
+    action: "Consult trauma surgery for damage-control laparotomy"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult IR for potential pelvic angioembolization"
+    tools: ["createClinicalOrder"]
+    critical: false
+  - step: 9
+    action: "Book OR, confirm availability"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 10
+    action: "Order serial labs for resuscitation monitoring"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 11
+    action: "Document MTP activation, products given, resuscitation status"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "hemorrhagic_shock"
+  expected_tool_calls: "12-16"
+  entity_types: 9
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Massive transfusion protocol: 1:1:1 pRBC:FFP:platelets. Damage control resuscitation: minimize crystalloid, permissive hypotension (SBP 80-90), address lethal triad (hypothermia, acidosis, coagulopathy). TXA within 3 hours of injury. Fibrinogen <150 requires cryoprecipitate. Complex pelvic fractures may need IR angioembolization in addition to surgical hemorrhage control."

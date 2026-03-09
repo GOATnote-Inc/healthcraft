@@ -1,0 +1,144 @@
+# HEALTHCRAFT Task Definition: Resource Hunt
+# Category: information_retrieval | Level: 1
+# Agent must find an available CT scanner when 1 of 2 is in maintenance.
+# Simple resource availability check.
+
+id: IR-010
+category: information_retrieval
+level: 1
+title: "Resource Hunt"
+system_prompt_override: null
+
+description: |
+  A 68-year-old woman presents via EMS after a witnessed syncopal episode
+  with head strike on the sidewalk. She is on apixaban for atrial
+  fibrillation. The attending orders a stat non-contrast CT head to rule
+  out intracranial hemorrhage. The main ED CT scanner (CT-1) is down for
+  scheduled maintenance. The agent must check resource availability, locate
+  an alternative scanner, and coordinate the imaging study without
+  clinically significant delay.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T13:45:00Z"
+  department: "Emergency Department"
+  census: 40
+  beds_available: 14
+  attending_on_duty: "Dr. Marcus Thompson"
+  equipment_status:
+    ct_scanner_1:
+      location: "ED Radiology Suite A"
+      status: "offline — scheduled maintenance"
+      estimated_return: "2026-01-15T18:00:00Z"
+    ct_scanner_2:
+      location: "Radiology Department, 2nd Floor"
+      status: "available"
+      current_queue: 2
+      estimated_wait: "15 minutes"
+    ct_scanner_3:
+      location: "Outpatient Imaging Center (adjacent building)"
+      status: "available"
+      current_queue: 0
+      note: "Not staffed for emergencies after 17:00"
+
+patient:
+  age: 68
+  sex: F
+  chief_complaint: "Syncope with head strike, on blood thinner"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 1"
+  allergies:
+    - name: "IV contrast (iodinated)"
+      reaction: "Mild urticaria"
+      severity: "mild"
+      year_reported: 2022
+      verified: true
+  medications:
+    - "Apixaban 5mg BID"
+    - "Metoprolol tartrate 25mg BID"
+    - "Diltiazem 120mg daily"
+    - "Levothyroxine 75mcg daily"
+  past_medical_history:
+    - "Atrial fibrillation (paroxysmal)"
+    - "Hypothyroidism"
+    - "Osteoporosis"
+    - "Prior TIA (2024)"
+  vitals:
+    heart_rate: 88
+    blood_pressure: "152/88"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.7
+    gcs: 14
+    pain_scale: 4
+  exam_findings:
+    head: "2 cm laceration to left temporal region, no palpable skull defect"
+    neurological: "GCS 14 (E3V5M6), oriented x3, mild confusion, no focal deficits, pupils equal and reactive"
+
+criteria:
+  - id: IR-010-C01
+    assertion: "Agent checked CT scanner availability"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: IR-010-C02
+    assertion: "Agent identified that CT-1 (ED scanner) is offline for maintenance"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: IR-010-C03
+    assertion: "Agent identified CT-2 (Radiology Department, 2nd Floor) as the best available alternative"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-010-C04
+    assertion: "Agent noted this is a non-contrast study so the patient's IV contrast allergy is not relevant"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: IR-010-C05
+    assertion: "Agent communicated the estimated wait time and logistics to the ordering physician"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: IR-010-C06
+    assertion: "Agent did NOT delay imaging by waiting for the ED scanner to come back online"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does not contain delay_imaging_for_ct1_maintenance"
+
+expected_tools:
+  - "checkResourceAvailability"
+  - "searchAvailableResources"
+
+expected_sequence:
+  - step: 1
+    action: "Check availability of all CT scanners in the facility"
+    tools: ["checkResourceAvailability"]
+    critical: true
+  - step: 2
+    action: "Identify CT-2 as the best alternative (staffed, available, 15-min wait)"
+    tools: []
+    critical: true
+    reasoning: |
+      CT-1 is down until 18:00. CT-2 on the 2nd floor has a 15-minute
+      queue — acceptable for a stat study. CT-3 in the outpatient center
+      has no queue but is in an adjacent building and not staffed for
+      emergencies after 17:00. CT-2 is the optimal choice. The study is
+      non-contrast (ruling out hemorrhage), so the patient's IV contrast
+      allergy is not a concern for this scan.
+  - step: 3
+    action: "Coordinate transport and communicate plan to the treating team"
+    tools: ["searchAvailableResources"]
+    critical: false
+
+metadata:
+  openem_condition: "intracranial_hemorrhage"
+  expected_tool_calls: "1-2"
+  entity_types: 2
+  time_pressure: "high"
+  cognitive_load: "low"
+  teaching_point: "When critical equipment is unavailable, check all facility resources immediately rather than waiting. Anticoagulated patients with head trauma need emergent imaging — any delay increases the risk of missing an expanding hematoma."

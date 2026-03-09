@@ -1,0 +1,246 @@
+# HEALTHCRAFT Task Definition: Stroke Pathway
+# Category: multi_step_workflows | Level: 4
+# Tests acute stroke pathway: door-to-CT, NIHSS scoring, tPA decision,
+# neurology consult, blood pressure management, and ICU admission.
+
+id: MW-006
+category: multi_step_workflows
+level: 4
+title: "Stroke Pathway"
+system_prompt_override: null
+
+description: |
+  A 62-year-old female is brought by EMS with sudden-onset right-sided weakness
+  and slurred speech witnessed by her husband at 10:15. EMS reports last known
+  well at 10:10. She arrives at 10:48 — the tPA window is open but closing. She
+  has right hemiparesis, global aphasia, and right facial droop. Her blood
+  pressure is 188/104. The agent must execute the acute stroke pathway: obtain
+  emergent non-contrast CT head within 25 minutes of arrival, perform NIHSS
+  assessment, determine tPA eligibility (including contraindication screening),
+  obtain neurology consult, manage blood pressure for thrombolytic candidacy,
+  administer tPA if indicated, and arrange ICU admission for close monitoring.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-28T10:52:00Z"
+  department: "Emergency Department"
+  census: 36
+  beds_available: 18
+  attending_on_duty: "Dr. James Okoro"
+  specialist_availability:
+    neurology: "Dr. Lisa Chang — on-call, TeleStroke available in 5 minutes"
+    neuroradiology: "available for CT read"
+    neurosurgery: "on-call, 30-minute response"
+  ct_scanner: "available, stroke protocol prioritized"
+  icu_beds_available: 4
+
+patient:
+  age: 62
+  sex: F
+  weight_kg: 68
+  chief_complaint: "Sudden right-sided weakness and slurred speech, 38 minutes ago"
+  arrival_mode: "EMS, ALS unit"
+  esi_level: 1
+  allergies: []
+  medications:
+    - "Amlodipine 10mg daily"
+    - "Metformin 500mg BID"
+    - "Warfarin 5mg daily (for atrial fibrillation)"
+  past_medical_history:
+    - "Atrial fibrillation (on warfarin)"
+    - "Hypertension"
+    - "Type 2 diabetes mellitus"
+    - "Hyperlipidemia"
+  family_history:
+    - "Mother: stroke at age 70"
+    - "Father: MI at age 68"
+  social_history:
+    - "Retired teacher"
+    - "Non-smoker"
+    - "Occasional wine"
+  vitals:
+    heart_rate: 92
+    heart_rhythm: "irregularly irregular"
+    blood_pressure: "188/104"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 37.0
+    gcs: 11
+    gcs_breakdown: "E4V1M6"
+    pain_scale: "unable to assess"
+  exam_findings:
+    general: "Elderly female, awake, unable to speak, right arm and leg flaccid"
+    neuro: |
+      NIHSS components observed: Gaze preference to left. Right facial droop (lower).
+      Right arm: no effort against gravity. Right leg: drifts before 5 seconds.
+      Global aphasia — no comprehensible output, does not follow commands.
+      Dysarthria: cannot assess (aphasic). Sensory: withdraws to pain on left,
+      absent response on right. Neglect: present (right-sided). Estimated NIHSS 18-22.
+    cardiac: "Irregularly irregular, no murmurs"
+    lungs: "Clear bilaterally"
+    pupils: "3mm bilaterally, reactive"
+  imaging:
+    ct_head_noncontrast:
+      status: "ORDERED — not yet performed"
+      expected_finding: "No acute hemorrhage. Loss of grey-white differentiation in left MCA territory. No midline shift. ASPECTS score 7."
+    ct_angiogram:
+      status: "ORDERED — not yet performed"
+      expected_finding: "Left M1 MCA occlusion. Left ICA patent. Circle of Willis incomplete (absent left PCOM)."
+  labs:
+    cbc: "WBC 7.8, Hgb 13.4, Plt 232"
+    bmp: "Na 142, K 4.3, Cl 105, CO2 25, BUN 20, Cr 0.9, Glu 198"
+    coags: "PT 18.4, INR 1.8, aPTT 32"
+    glucose_poc: "198 mg/dL"
+    type_and_screen: "A positive"
+  timeline:
+    last_known_well: "2026-01-28T10:10:00Z"
+    symptom_onset_witnessed: "2026-01-28T10:15:00Z"
+    ems_dispatch: "2026-01-28T10:18:00Z"
+    ed_arrival: "2026-01-28T10:48:00Z"
+    door_to_ct_target: "2026-01-28T11:13:00Z"
+    tpa_window_closes: "2026-01-28T14:40:00Z"
+    thrombectomy_window: "2026-01-28T10:10:00+24h"
+
+criteria:
+  - id: MW-006-C01
+    assertion: "Agent ordered emergent non-contrast CT head within 25 minutes of arrival"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CT_head with timestamp before 2026-01-28T11:13:00Z"
+
+  - id: MW-006-C02
+    assertion: "Agent performed or documented NIHSS assessment"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with NIHSS score"
+
+  - id: MW-006-C03
+    assertion: "Agent checked coagulation studies and identified elevated INR (1.8) as potential tPA contraindication"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: MW-006-C04
+    assertion: "Agent recognized that INR >1.7 on warfarin is a relative contraindication to IV tPA"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-006-C05
+    assertion: "Agent consulted neurology for tPA decision and thrombectomy candidacy"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder with consult for neurology"
+
+  - id: MW-006-C06
+    assertion: "Agent ordered CT angiogram to evaluate for large vessel occlusion and thrombectomy candidacy"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for CTA_head_neck"
+
+  - id: MW-006-C07
+    assertion: "Agent managed blood pressure appropriately for stroke — permissive hypertension if no tPA, or lowered to <185/110 for tPA candidacy"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: MW-006-C08
+    assertion: "Agent checked blood glucose and addressed hyperglycemia (198 mg/dL)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder addressing glucose management"
+
+  - id: MW-006-C09
+    assertion: "Agent applied stroke protocol"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to applyProtocol with stroke pathway"
+
+  - id: MW-006-C10
+    assertion: "Agent arranged ICU or stroke unit admission for close neurological monitoring"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains createClinicalOrder for ICU admission or checkResourceAvailability for ICU bed"
+
+  - id: MW-006-C11
+    assertion: "Agent considered mechanical thrombectomy given large vessel occlusion, NIHSS >6, and ASPECTS >6"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: MW-006-C12
+    assertion: "Agent documented time of last known well, symptom onset, and door time in encounter record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter with stroke timing documentation"
+
+  - id: MW-006-C13
+    assertion: "Agent ordered CT head BEFORE any thrombolytic decision"
+    dimension: temporal_sequencing
+    safety_critical: true
+    verification: world_state
+    check: "CT_head createClinicalOrder timestamp precedes any tPA-related order"
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "searchClinicalKnowledge"
+  - "getProtocolDetails"
+  - "applyProtocol"
+  - "createClinicalOrder"
+  - "updateEncounter"
+  - "checkResourceAvailability"
+  - "runDecisionRule"
+  - "validateTreatmentPlan"
+
+expected_sequence:
+  - step: 1
+    action: "Retrieve encounter details, establish timeline (last known well, onset, door)"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "Order emergent non-contrast CT head — must be within 25 minutes of door"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 3
+    action: "Retrieve patient history — medications (warfarin!), PMH, allergies"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 4
+    action: "Document NIHSS assessment"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 5
+    action: "Review labs — identify elevated INR 1.8 as tPA contraindication"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 6
+    action: "Apply stroke protocol"
+    tools: ["applyProtocol"]
+    critical: true
+  - step: 7
+    action: "Order CTA head/neck for large vessel occlusion evaluation"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 8
+    action: "Consult neurology for tPA/thrombectomy decision"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 9
+    action: "Manage blood pressure and glucose"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 10
+    action: "Arrange ICU/stroke unit admission"
+    tools: ["createClinicalOrder", "checkResourceAvailability"]
+    critical: true
+  - step: 11
+    action: "Document stroke timeline and interventions"
+    tools: ["updateEncounter"]
+    critical: true
+
+metadata:
+  openem_condition: "acute_ischemic_stroke"
+  expected_tool_calls: "11-15"
+  entity_types: 8
+  time_pressure: "critical"
+  cognitive_load: "high"
+  teaching_point: "Door-to-CT target is 25 minutes. INR >1.7 on warfarin is a relative contraindication to IV tPA. For large vessel occlusions (M1 MCA), mechanical thrombectomy extends the treatment window to 24 hours with favorable imaging. Always rule out hemorrhage before thrombolytics. NIHSS >6 with ASPECTS >6 supports thrombectomy candidacy."

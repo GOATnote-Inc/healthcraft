@@ -1,0 +1,196 @@
+# HEALTHCRAFT Task Definition: Follow-up Instructions
+# Category: clinical_communication | Level: 2
+# Complex discharge with multiple follow-up appointments, medications, and
+# return precautions for a patient with multiple comorbidities.
+
+id: CC-014
+category: clinical_communication
+level: 2
+title: "Follow-up Instructions"
+system_prompt_override: null
+
+description: |
+  A 72-year-old man with multiple comorbidities is being discharged after
+  evaluation for a syncopal episode. Workup revealed orthostatic hypotension
+  from overdiuresis, a new finding of moderate aortic stenosis on bedside
+  echo, and an incidental pulmonary nodule on chest X-ray requiring follow-up
+  CT. He needs coordination of multiple follow-up appointments, medication
+  adjustments, and clear return precautions. The patient lives alone, is
+  hard of hearing, and his primary caregiver (daughter) is available by phone.
+  The agent must produce discharge instructions that are clear, complete,
+  and account for the patient's communication needs.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T17:00:00Z"
+  department: "Emergency Department"
+  census: 41
+  beds_available: 13
+  attending_on_duty: "Dr. Michael Park"
+
+patient:
+  age: 72
+  sex: M
+  chief_complaint: "Passed out at grocery store"
+  arrival_mode: "EMS"
+  esi_level: 2
+  location: "Bed 12"
+  primary_language: "English"
+  hearing: "Bilateral hearing aids, moderate hearing loss"
+  lives_alone: true
+  emergency_contact:
+    name: "Karen Mitchell (daughter)"
+    phone: "555-0178"
+    relationship: "daughter, primary caregiver, visits twice weekly"
+  allergies:
+    - "ACE inhibitors (angioedema -- lisinopril)"
+    - "Sulfa drugs (rash)"
+  medications:
+    - "Furosemide 80mg daily"
+    - "Losartan 100mg daily"
+    - "Amlodipine 10mg daily"
+    - "Metoprolol XL 100mg daily"
+    - "Warfarin 7.5mg daily"
+    - "Atorvastatin 40mg daily"
+    - "Metformin 500mg BID"
+    - "Tamsulosin 0.4mg daily"
+    - "Vitamin D 2000 IU daily"
+  past_medical_history:
+    - "Hypertension"
+    - "Type 2 Diabetes (A1c 7.1%)"
+    - "Atrial fibrillation (chronic, on warfarin)"
+    - "Benign prostatic hyperplasia"
+    - "Osteoarthritis"
+    - "Former smoker (30 pack-years, quit 10 years ago)"
+    - "History of angioedema with ACE inhibitors"
+  vitals:
+    heart_rate: 74
+    blood_pressure_supine: "128/72"
+    blood_pressure_standing: "98/58"
+    respiratory_rate: 16
+    spo2: 97
+    temperature: 36.9
+    gcs: 15
+  orthostatic_test:
+    supine_bp: "128/72"
+    supine_hr: 74
+    standing_bp: "98/58"
+    standing_hr: 96
+    symptomatic: true
+    notes: "Lightheaded upon standing, reproducing his presenting symptom"
+  exam_findings:
+    general: "Alert, oriented, hearing aids in place, pleasant elderly gentleman"
+    cardiovascular: "Irregularly irregular, 3/6 late-peaking systolic murmur at right upper sternal border radiating to carotids"
+    pulmonary: "Clear bilaterally"
+    neurological: "No focal deficits, gait mildly unsteady"
+    extremities: "Trace bilateral pedal edema (improved from 1+ per patient)"
+  labs:
+    cbc: "WBC 7.2, Hgb 12.8, Plt 198"
+    bmp: "Na 132 (mildly low), K 3.4 (mildly low), Cr 1.3, BUN 32, Glucose 148"
+    inr: "2.6 (therapeutic)"
+    troponin_i: "0.02 ng/mL (normal)"
+    bnp: "320 pg/mL (mildly elevated)"
+  imaging:
+    chest_xray:
+      findings: "Cardiomegaly. No pulmonary edema. 8mm solitary pulmonary nodule in the right upper lobe, not seen on prior films. Recommend follow-up CT chest."
+    bedside_echo:
+      findings: "Moderate aortic stenosis (estimated valve area 1.2 cm2, mean gradient 28 mmHg). Normal LV function (EF 55%). Mild left atrial enlargement."
+  ecg:
+    rhythm: "Atrial fibrillation"
+    ventricular_rate: 74
+    interpretation: "AFib, LVH by voltage, no acute ST changes"
+  medication_changes:
+    - change: "Reduce furosemide from 80mg to 40mg daily"
+      reason: "Overdiuresis causing orthostatic hypotension, hyponatremia, hypokalemia"
+    - change: "Add potassium chloride 20mEq daily"
+      reason: "Hypokalemia (K 3.4)"
+    - change: "Hold amlodipine temporarily"
+      reason: "Contributing to orthostatic hypotension in setting of aortic stenosis"
+  required_follow_up:
+    - appointment: "PCP"
+      timing: "Within 3 days"
+      purpose: "Recheck electrolytes, BP, volume status"
+    - appointment: "Cardiology"
+      timing: "Within 1-2 weeks"
+      purpose: "Formal echocardiogram for aortic stenosis, discuss management"
+    - appointment: "Pulmonology or PCP"
+      timing: "Within 3 months"
+      purpose: "CT chest for incidental pulmonary nodule follow-up (Fleischner criteria)"
+    - appointment: "INR check"
+      timing: "Within 1 week"
+      purpose: "Recheck INR after furosemide dose change"
+
+criteria:
+  - id: CC-014-C01
+    assertion: "Agent retrieved complete patient history and medication list"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-014-C02
+    assertion: "Agent retrieved encounter details including labs, imaging, and echo findings"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-014-C03
+    assertion: "Agent documented all medication changes with clear before/after and reasons"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-014-C04
+    assertion: "Agent included all four required follow-up appointments with timing and purpose"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-014-C05
+    assertion: "Agent addressed the incidental pulmonary nodule with appropriate follow-up plan"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-014-C06
+    assertion: "Agent included specific return precautions (syncope, chest pain, worsening dyspnea, bleeding)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-014-C07
+    assertion: "Agent addressed communication needs (hearing impairment, daughter as caregiver, written instructions)"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-014-C08
+    assertion: "Agent processed discharge with all instructions"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processDischarge"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "processDischarge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review complete patient history, medication list, and allergies"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review encounter: labs, imaging (pulmonary nodule), echo, orthostatics"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Prepare comprehensive discharge instructions accounting for communication needs"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 4
+    action: "Process discharge with medication changes, follow-ups, and return precautions"
+    tools: ["processDischarge"]
+    critical: true
+
+metadata:
+  openem_condition: "syncope"
+  expected_tool_calls: "3-5"
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: "Complex discharges with multiple follow-ups are high-risk for dropped balls. Every incidental finding needs a documented follow-up plan. Medication changes must include clear before/after with reasons. Accommodate communication barriers (hearing loss, caregiver involvement) and ensure written instructions are provided."

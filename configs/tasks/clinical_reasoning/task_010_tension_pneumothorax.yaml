@@ -1,0 +1,199 @@
+# HEALTHCRAFT Task Definition: Tension Pneumothorax
+# Category: clinical_reasoning | Level: 5
+# Intubated trauma patient acutely decompensating. Clinical diagnosis — no
+# imaging delay allowed. Agent must perform needle decompression immediately.
+
+id: CR-010
+category: clinical_reasoning
+level: 5
+title: "Tension Pneumothorax"
+system_prompt_override: null
+
+description: |
+  A 38-year-old male, intubated in the field after a high-speed MVC, arrives
+  with initial vitals of HR 130, BP 82/50, and SpO2 dropping from 92% to 78%
+  over 3 minutes despite FiO2 100%. The ventilator is alarming with peak
+  pressures >40 cmH2O. On exam, the right hemithorax is hyperresonant to
+  percussion with absent breath sounds, and the trachea is deviated to the left.
+  JVP is markedly elevated. This is a clinical diagnosis of tension
+  pneumothorax requiring immediate needle decompression followed by tube
+  thoracostomy. The agent must NOT delay treatment for imaging — portable
+  chest X-ray will confirm but waiting for it is lethal.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-30T03:50:00Z"
+  department: "Emergency Department — Trauma Bay 1"
+  census: 18
+  beds_available: 36
+  trauma_activation: "Level 1"
+  attending_on_duty: "Dr. Mark Thompson"
+  specialist_availability:
+    trauma_surgery: "in_house"
+    thoracic_surgery: "on_call, 30min response"
+    anesthesiology: "in_house"
+
+patient:
+  age: 38
+  sex: M
+  chief_complaint: "MVC, unrestrained driver, high speed, intubated in field"
+  arrival_mode: "EMS — helicopter transport"
+  esi_level: 1
+  allergies:
+    - "Unknown (unresponsive)"
+  medications:
+    - "Unknown"
+  past_medical_history:
+    - "Unknown (no records available, no medical alert bracelet)"
+  ems_report: |
+    Unrestrained driver in high-speed MVC (~70 mph) with significant
+    front-end damage and steering wheel deformity. Found unresponsive
+    at scene. GCS 6 (E1V1M4). Intubated in the field for airway
+    protection. Right-sided chest wall bruising and crepitus noted.
+    Initial BP at scene 98/60, HR 120. During transport, patient
+    became increasingly hypotensive and harder to ventilate.
+  vitals:
+    heart_rate: 130
+    blood_pressure: "82/50"
+    respiratory_rate: "ventilator at 16 (peak pressure alarming >40 cmH2O)"
+    spo2: 78
+    spo2_trend: "dropping — was 92% on arrival, now 78% over 3 minutes"
+    temperature: 36.2
+    gcs: 3
+    gcs_breakdown:
+      eye: 1
+      verbal: 1
+      motor: 1
+    fio2: 1.0
+  exam_findings:
+    general: "Intubated, sedated, hemodynamically unstable, rapidly deteriorating"
+    heent: "ETT in situ, 23cm at lip, securing tape intact"
+    neck: "Trachea deviated to LEFT, JVP markedly elevated (distended neck veins)"
+    cardiovascular: "Tachycardic, muffled heart sounds, weak thready pulses, delayed capillary refill (>5 seconds)"
+    pulmonary:
+      right: "ABSENT breath sounds, hyperresonant to percussion, visible chest wall bruising and subcutaneous crepitus"
+      left: "Breath sounds present but diminished"
+    abdomen: "Distended, unable to assess tenderness (sedated)"
+    pelvis: "Stable to compression"
+    extremities: "Right forearm deformity (likely fracture), cool and mottled"
+  ventilator:
+    mode: "AC/VC"
+    rate: 16
+    tidal_volume: 500
+    fio2: 1.0
+    peep: 5
+    peak_pressure: 48
+    peak_pressure_alarm: "YES — alarming continuously"
+    plateau_pressure: "unable to obtain — auto-triggering"
+
+criteria:
+  - id: CR-010-C01
+    assertion: "Agent identified the clinical triad: absent breath sounds, hyperresonance, tracheal deviation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CR-010-C02
+    assertion: "Agent diagnosed tension pneumothorax clinically"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CR-010-C03
+    assertion: "Agent performed immediate needle decompression (14-gauge needle, 2nd intercostal space, midclavicular line, right side)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C04
+    assertion: "Agent did NOT delay decompression to obtain imaging (CXR or CT)"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log shows createClinicalOrder for decompression before any imaging order"
+
+  - id: CR-010-C05
+    assertion: "Agent followed needle decompression with tube thoracostomy (chest tube)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C06
+    assertion: "Agent addressed the hemodynamic instability with IV fluid resuscitation"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C07
+    assertion: "Agent ordered type-and-crossmatch and initiated massive transfusion protocol if needed"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C08
+    assertion: "Agent verified ETT position was correct (ruling out mainstem intubation as cause)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CR-010-C09
+    assertion: "Agent performed ATLS primary survey systematically (ABCDE)"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: CR-010-C10
+    assertion: "Agent ordered portable CXR AFTER decompression to confirm resolution and assess other injuries"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C11
+    assertion: "Agent consulted trauma surgery"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: CR-010-C12
+    assertion: "Agent documented the tension pneumothorax diagnosis and decompression procedure"
+    dimension: documentation_quality
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "createClinicalOrder"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Rapid assessment — identify absent breath sounds, hyperresonance, tracheal deviation, JVD"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 2
+    action: "IMMEDIATE needle decompression — right 2nd ICS, midclavicular line"
+    tools: ["createClinicalOrder"]
+    critical: true
+    safety: "Tension pneumothorax is a CLINICAL diagnosis. Imaging delay is lethal. Decompress FIRST."
+  - step: 3
+    action: "Follow with chest tube (32-36 Fr, right 5th ICS, anterior axillary line)"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 4
+    action: "IV fluids, type-and-cross, massive transfusion protocol standby"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 5
+    action: "Post-decompression CXR and complete trauma workup"
+    tools: ["createClinicalOrder"]
+    critical: true
+  - step: 6
+    action: "Consult trauma surgery"
+    tools: ["createClinicalOrder"]
+    critical: true
+
+metadata:
+  confusion_pair: "tension_pneumothorax_vs_cardiac_tamponade"
+  openem_condition: "tension_pneumothorax"
+  expected_tool_calls: "6-10"
+  entity_types: 4
+  time_pressure: "critical"
+  cognitive_load: "very_high"
+  teaching_point: "Tension pneumothorax is a CLINICAL diagnosis. The classic triad (absent breath sounds + hyperresonance + tracheal deviation) demands immediate needle decompression. In intubated patients, high peak pressures with dropping SpO2 should trigger immediate assessment for tension pneumo. NEVER delay for imaging — the patient will arrest."

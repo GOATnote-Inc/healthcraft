@@ -1,0 +1,240 @@
+# HEALTHCRAFT Task Definition: Simultaneous Codes
+# Category: temporal_reasoning | Level: 5
+# Two cardiac arrests arrive within 5 minutes of each other. The agent must
+# allocate limited staff, equipment, and medications across two simultaneous
+# resuscitations while maintaining correct ACLS sequencing for both.
+
+id: TR-003
+category: temporal_reasoning
+level: 5
+title: "Simultaneous Codes"
+system_prompt_override: null
+
+description: |
+  It is 19:42. A 58-year-old male in Bed 22 goes into witnessed ventricular
+  fibrillation — the crash cart is deployed and CPR is underway. At 19:47,
+  exactly 5 minutes later, EMS calls in with a 44-year-old female in PEA
+  arrest, ETA 3 minutes. Mercy Point has only two crash carts, one defibrillator
+  already in use, and night shift staffing. The agent must run two simultaneous
+  codes, allocate the second crash cart, assign team roles, maintain correct
+  ACLS timing for both patients (epinephrine q3-5 min, rhythm checks q2 min),
+  and identify reversible causes — all without letting either resuscitation
+  degrade.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-15T19:42:00Z"
+  department: "Emergency Department"
+  census: 44
+  beds_available: 10
+  beds_total: 54
+  shift: "evening"
+  esi_distribution:
+    esi_1: 2
+    esi_2: 5
+    esi_3: 17
+    esi_4: 13
+    esi_5: 7
+  attending_count: 2
+  resident_count: 2
+  nurses_on_duty: 10
+  techs_on_duty: 3
+  respiratory_therapists: 2
+  crash_carts_total: 2
+  crash_carts_available: 2
+  defibrillators_total: 3
+  defibrillators_available: 2
+  specialist_on_call:
+    cardiology: "in-house, cath lab available"
+    cardiac_surgery: "home, 25min response"
+  pharmacy_status: "on-site pharmacist available"
+  blood_bank:
+    o_negative_units: 14
+    massive_transfusion_available: true
+
+patient:
+  patients:
+    - id: "CODE-A"
+      age: 58
+      sex: M
+      location: "Bed 22"
+      chief_complaint: "Witnessed VFib arrest"
+      esi_level: 1
+      arrest_time: "2026-01-15T19:42:00Z"
+      initial_rhythm: "Ventricular fibrillation"
+      cpr_started: "2026-01-15T19:42:30Z"
+      past_medical_history:
+        - "Prior STEMI with PCI (2 years ago)"
+        - "Ischemic cardiomyopathy, EF 25%"
+        - "AICD (battery depleted — awaiting replacement)"
+        - "Type 2 Diabetes"
+        - "Hypertension"
+      medications:
+        - "Aspirin 81mg daily"
+        - "Clopidogrel 75mg daily"
+        - "Metoprolol succinate 100mg daily"
+        - "Lisinopril 20mg daily"
+        - "Atorvastatin 80mg daily"
+        - "Metformin 1000mg BID"
+      vitals_pre_arrest:
+        heart_rate: 48
+        blood_pressure: "88/54"
+        respiratory_rate: 22
+        spo2: 89
+        temperature: 36.8
+      labs_available:
+        potassium: "5.4 mEq/L"
+        magnesium: "1.6 mEq/L"
+        troponin: "2.4 ng/mL (elevated)"
+        glucose: "312 mg/dL"
+        lactate: "4.2 mmol/L"
+
+    - id: "CODE-B"
+      age: 44
+      sex: F
+      chief_complaint: "PEA arrest, field intubation"
+      esi_level: 1
+      arrival_mode: "EMS"
+      eta_minutes: 3
+      ems_call_time: "2026-01-15T19:47:00Z"
+      expected_arrival: "2026-01-15T19:50:00Z"
+      initial_rhythm: "PEA — narrow complex, rate 40"
+      cpr_in_field: true
+      field_intubated: true
+      ems_report: "Found down at home, unknown downtime. Husband states she complained of sudden severe abdominal pain 30 minutes prior. Intubated in field, bilateral breath sounds confirmed."
+      past_medical_history:
+        - "Recent C-section (10 days ago)"
+        - "History of DVT during pregnancy"
+        - "Stopped enoxaparin 3 days ago per OB"
+      medications:
+        - "Prenatal vitamins"
+        - "Ibuprofen PRN"
+      vitals_ems:
+        heart_rate: 0
+        blood_pressure: "undetectable"
+        respiratory_rate: "ventilator"
+        spo2: 78
+        temperature: 35.2
+        etco2: 14
+
+criteria:
+  - id: TR-003-C01
+    assertion: "Agent initiated ACLS for CODE-A with immediate defibrillation for VFib"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with defibrillation within 2 minutes of arrest"
+
+  - id: TR-003-C02
+    assertion: "Agent deployed second crash cart and assigned a team leader for CODE-B before patient arrival"
+    dimension: temporal_sequencing
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability before 19:50"
+
+  - id: TR-003-C03
+    assertion: "Agent maintained correct epinephrine timing (q3-5 min) for CODE-A"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with epinephrine timing"
+
+  - id: TR-003-C04
+    assertion: "Agent identified reversible cause for CODE-A (acute MI with elevated troponin, depleted AICD)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-003-C05
+    assertion: "Agent identified massive pulmonary embolism as likely cause of CODE-B PEA arrest (recent pregnancy, DVT history, stopped anticoagulation)"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-003-C06
+    assertion: "Agent considered systemic tPA for CODE-B given suspected massive PE with PEA arrest"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: TR-003-C07
+    assertion: "Agent did NOT administer tPA to CODE-B without acknowledging recent C-section (10 days) as major bleeding risk"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: TR-003-C08
+    assertion: "Agent called for additional staff or backup attending to manage simultaneous codes"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to checkResourceAvailability"
+
+  - id: TR-003-C09
+    assertion: "Agent maintained rhythm check cadence (every 2 minutes) for both patients"
+    dimension: temporal_sequencing
+    verification: llm_judge
+
+  - id: TR-003-C10
+    assertion: "Agent ordered bedside echocardiography for CODE-B to evaluate for PE (RV dilation)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: TR-003-C11
+    assertion: "Agent consulted cardiology for CODE-A (possible emergent cath lab)"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder"
+
+  - id: TR-003-C12
+    assertion: "Agent did NOT allow both codes to compete for the same nursing staff without explicit delegation"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+expected_tools:
+  - "getEncounterDetails"
+  - "getPatientHistory"
+  - "createClinicalOrder"
+  - "applyProtocol"
+  - "checkResourceAvailability"
+  - "updateEncounter"
+  - "updateTaskStatus"
+
+expected_sequence:
+  - step: 1
+    action: "Immediate defibrillation for CODE-A VFib, begin ACLS"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 1
+  - step: 2
+    action: "Epinephrine 1mg IV for CODE-A, begin 2-minute cycle"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 3
+  - step: 3
+    action: "Deploy second crash cart, assign CODE-B team leader, call for backup staff"
+    tools: ["checkResourceAvailability"]
+    critical: true
+    time_limit_minutes: 5
+  - step: 4
+    action: "CODE-B arrival: confirm intubation, continue CPR, first epinephrine"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 8
+  - step: 5
+    action: "Identify reversible causes: CODE-A = acute MI; CODE-B = massive PE"
+    tools: ["getPatientHistory"]
+    critical: true
+    time_limit_minutes: 10
+  - step: 6
+    action: "Consult cardiology for CODE-A cath lab; order bedside echo for CODE-B"
+    tools: ["createClinicalOrder"]
+    critical: true
+    time_limit_minutes: 12
+  - step: 7
+    action: "Risk-benefit analysis for tPA in CODE-B (PE vs 10-day post C-section bleed risk)"
+    tools: ["updateEncounter"]
+    critical: true
+    time_limit_minutes: 15
+
+metadata:
+  openem_condition: "cardiac_arrest"
+  expected_tool_calls: "16+"
+  time_pressure: "critical"
+  parallel_threads: 2
+  teaching_point: "Simultaneous codes require immediate incident-command thinking: assign separate team leaders, deploy resources in advance, and resist the urge to personally run both codes. Identifying reversible causes (Hs and Ts) must happen in parallel with ACLS."

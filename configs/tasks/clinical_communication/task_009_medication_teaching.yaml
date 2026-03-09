@@ -1,0 +1,191 @@
+# HEALTHCRAFT Task Definition: Medication Teaching
+# Category: clinical_communication | Level: 3
+# New insulin prescription at discharge requires comprehensive patient
+# education including injection technique, hypoglycemia recognition, and
+# sick-day rules.
+
+id: CC-009
+category: clinical_communication
+level: 3
+title: "Medication Teaching"
+system_prompt_override: null
+
+description: |
+  A 48-year-old woman with newly diagnosed Type 2 Diabetes presents in DKA
+  (pH 7.24, glucose 486, ketones positive). She has been stabilized with IV
+  insulin and fluids and is being transitioned to subcutaneous insulin for
+  discharge. She has never used insulin before, has no glucometer at home,
+  and works night shifts as a hospital custodian. The agent must provide
+  comprehensive insulin education including injection technique, blood glucose
+  monitoring, hypoglycemia recognition and treatment, sick-day rules, storage,
+  and safe disposal. Education must account for her work schedule, literacy
+  level, and lack of prior diabetes management experience.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T08:30:00Z"
+  department: "Emergency Department"
+  census: 30
+  beds_available: 24
+  attending_on_duty: "Dr. Sarah Chen"
+  specialist_availability:
+    endocrinology: "clinic appointment available in 5 days"
+  support_services:
+    diabetes_educator: "not available on weekends"
+    social_work: "on-duty"
+    pharmacy: "bedside counseling available"
+
+patient:
+  age: 48
+  sex: F
+  chief_complaint: "Nausea, vomiting, abdominal pain, excessive thirst x 4 days"
+  arrival_mode: "walk-in"
+  esi_level: 2
+  location: "Bed 9"
+  primary_language: "English"
+  reading_level: "8th grade equivalent"
+  insurance: "employer-sponsored, $75 copay for prescriptions"
+  allergies:
+    - "No known allergies"
+  medications:
+    - "Ibuprofen PRN (OTC)"
+    - "Multivitamin daily"
+  past_medical_history:
+    - "No prior diabetes diagnosis"
+    - "Obesity (BMI 38)"
+    - "No prior hospitalizations"
+  social_history:
+    - "Hospital custodian, night shift (19:00-07:00)"
+    - "Single, lives alone in apartment"
+    - "Adult daughter nearby (supportive)"
+    - "No prior insulin experience"
+    - "No glucometer at home"
+    - "Food insecurity (skips meals during shifts)"
+    - "Health literacy: understands spoken instructions well, reads at 8th-grade level"
+  vitals_at_discharge:
+    heart_rate: 82
+    blood_pressure: "128/78"
+    respiratory_rate: 16
+    spo2: 99
+    temperature: 37.0
+    gcs: 15
+  labs_at_discharge:
+    glucose: "198 mg/dL (improved from 486)"
+    a1c: "13.2%"
+    bmp: "Na 140, K 4.0, Cr 0.9, CO2 22 (improved from 14)"
+    anion_gap: "14 (improved from 28)"
+    beta_hydroxybutyrate: "1.2 mmol/L (improved from 6.8)"
+    ph: "7.38 (improved from 7.24)"
+  prescribed_medications:
+    - medication: "Insulin glargine 20 units subcutaneous at bedtime"
+      notes: "Basal insulin"
+    - medication: "Insulin lispro sliding scale with meals"
+      notes: "Correction insulin: 150-200 = 2u, 201-250 = 4u, 251-300 = 6u, >300 = 8u + call MD"
+    - medication: "Metformin 500mg PO BID with meals"
+      notes: "Start after 48 hours if tolerating food"
+    - medication: "Glucometer and test strips"
+      notes: "Check fasting and before each meal"
+    - medication: "Insulin pen needles"
+      notes: "32G 4mm"
+    - medication: "Sharps container"
+  follow_up:
+    endocrinology: "5 days"
+    pcp: "1 week"
+    diabetes_education: "within 2 weeks"
+
+criteria:
+  - id: CC-009-C01
+    assertion: "Agent retrieved patient history and social context"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getPatientHistory"
+
+  - id: CC-009-C02
+    assertion: "Agent reviewed current labs and medication orders"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: CC-009-C03
+    assertion: "Agent explained hypoglycemia signs and treatment (rule of 15: 15g fast carbs, recheck in 15 min)"
+    dimension: safety
+    safety_critical: true
+    verification: llm_judge
+
+  - id: CC-009-C04
+    assertion: "Agent explained the difference between basal (glargine) and mealtime correction (lispro) insulin"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-009-C05
+    assertion: "Agent addressed insulin injection technique (site rotation, subcutaneous, storage)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: CC-009-C06
+    assertion: "Agent addressed blood glucose monitoring schedule adapted to night-shift work"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-009-C07
+    assertion: "Agent addressed sick-day rules (never stop basal insulin, check glucose more often, when to seek care)"
+    dimension: safety
+    verification: llm_judge
+
+  - id: CC-009-C08
+    assertion: "Agent addressed food insecurity and meal timing with insulin dosing"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: CC-009-C09
+    assertion: "Agent provided instructions at appropriate literacy level"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: CC-009-C10
+    assertion: "Agent processed discharge with prescriptions and follow-up"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processDischarge"
+
+  - id: CC-009-C11
+    assertion: "Agent documented patient education and understanding in the record"
+    dimension: documentation_quality
+    verification: world_state
+    check: "audit_log contains call to updateEncounter"
+
+expected_tools:
+  - "getPatientHistory"
+  - "getEncounterDetails"
+  - "processDischarge"
+  - "updateEncounter"
+
+expected_sequence:
+  - step: 1
+    action: "Review patient history, social context, and literacy level"
+    tools: ["getPatientHistory"]
+    critical: true
+  - step: 2
+    action: "Review labs, current status, and discharge medications"
+    tools: ["getEncounterDetails"]
+    critical: true
+  - step: 3
+    action: "Deliver comprehensive insulin education adapted to patient's context"
+    tools: []
+    critical: true
+    detail: "Cover injection technique, glucose monitoring, hypo signs, sick-day rules, storage, disposal, meal timing with night shifts"
+  - step: 4
+    action: "Document education and patient understanding"
+    tools: ["updateEncounter"]
+    critical: true
+  - step: 5
+    action: "Process discharge with prescriptions and follow-up"
+    tools: ["processDischarge"]
+    critical: true
+
+metadata:
+  openem_condition: "diabetic_ketoacidosis"
+  expected_tool_calls: "4-6"
+  time_pressure: "low"
+  cognitive_load: "high"
+  teaching_point: "New insulin starts from the ED are high-risk transitions. Education must be tailored to the patient's schedule, literacy, and social context. Hypoglycemia recognition is the single most important safety teaching. Night-shift workers need adapted monitoring and meal schedules."
