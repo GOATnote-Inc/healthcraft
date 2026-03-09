@@ -58,11 +58,10 @@ class AnthropicClient:
         if self._client is None:
             try:
                 import anthropic
+
                 self._client = anthropic.Anthropic(api_key=self._api_key)
             except ImportError:
-                raise ImportError(
-                    "anthropic package required: pip install anthropic"
-                )
+                raise ImportError("anthropic package required: pip install anthropic")
 
     def _convert_messages(
         self, messages: list[dict[str, Any]]
@@ -89,16 +88,20 @@ class AnthropicClient:
                 if msg.get("content"):
                     content_blocks.append({"type": "text", "text": msg["content"]})
                 for tc in msg.get("tool_calls", []):
-                    content_blocks.append({
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "input": tc.get("arguments", {}),
-                    })
-                converted.append({
-                    "role": "assistant",
-                    "content": content_blocks if content_blocks else msg.get("content", ""),
-                })
+                    content_blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc["id"],
+                            "name": tc["name"],
+                            "input": tc.get("arguments", {}),
+                        }
+                    )
+                converted.append(
+                    {
+                        "role": "assistant",
+                        "content": content_blocks if content_blocks else msg.get("content", ""),
+                    }
+                )
 
             elif role == "tool":
                 # Anthropic: tool results go in role=user with tool_result blocks
@@ -111,11 +114,13 @@ class AnthropicClient:
                 if converted and converted[-1].get("_tool_results"):
                     converted[-1]["content"].append(tool_block)
                 else:
-                    converted.append({
-                        "role": "user",
-                        "content": [tool_block],
-                        "_tool_results": True,
-                    })
+                    converted.append(
+                        {
+                            "role": "user",
+                            "content": [tool_block],
+                            "_tool_results": True,
+                        }
+                    )
 
             else:
                 converted.append({"role": role, "content": msg.get("content", "")})
@@ -165,11 +170,13 @@ class AnthropicClient:
             if block.type == "text":
                 content += block.text
             elif block.type == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "name": block.name,
-                    "arguments": block.input,
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "name": block.name,
+                        "arguments": block.input,
+                    }
+                )
 
         return {
             "content": content,
@@ -190,15 +197,12 @@ class OpenAIClient:
         if self._client is None:
             try:
                 import openai
+
                 self._client = openai.OpenAI(api_key=self._api_key)
             except ImportError:
-                raise ImportError(
-                    "openai package required: pip install openai"
-                )
+                raise ImportError("openai package required: pip install openai")
 
-    def _convert_messages(
-        self, messages: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert generic messages to OpenAI format.
 
         OpenAI requires:
@@ -216,25 +220,31 @@ class OpenAIClient:
                     args = tc.get("arguments", {})
                     if isinstance(args, dict):
                         args = json.dumps(args)
-                    oai_tool_calls.append({
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": args,
-                        },
-                    })
-                converted.append({
-                    "role": "assistant",
-                    "content": msg.get("content") or None,
-                    "tool_calls": oai_tool_calls,
-                })
+                    oai_tool_calls.append(
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": args,
+                            },
+                        }
+                    )
+                converted.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.get("content") or None,
+                        "tool_calls": oai_tool_calls,
+                    }
+                )
             elif role == "tool":
-                converted.append({
-                    "role": "tool",
-                    "tool_call_id": msg.get("tool_call_id", ""),
-                    "content": msg.get("content", ""),
-                })
+                converted.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": msg.get("tool_call_id", ""),
+                        "content": msg.get("content", ""),
+                    }
+                )
             else:
                 converted.append(msg)
 
@@ -278,11 +288,13 @@ class OpenAIClient:
         tool_calls = []
         if message.tool_calls:
             for tc in message.tool_calls:
-                tool_calls.append({
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": json.loads(tc.function.arguments),
-                })
+                tool_calls.append(
+                    {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": json.loads(tc.function.arguments),
+                    }
+                )
 
         return {
             "content": message.content or "",
@@ -291,20 +303,176 @@ class OpenAIClient:
         }
 
 
+class GrokClient(OpenAIClient):
+    """Client for Grok models via the xAI API (OpenAI-compatible)."""
+
+    def __init__(self, api_key: str, model: str = "grok-4") -> None:
+        super().__init__(api_key=api_key, model=model)
+
+    def _ensure_client(self) -> None:
+        if self._client is None:
+            try:
+                import openai
+
+                self._client = openai.OpenAI(
+                    api_key=self._api_key,
+                    base_url="https://api.x.ai/v1",
+                )
+            except ImportError:
+                raise ImportError("openai package required: pip install openai")
+
+
+class GeminiClient:
+    """Client for Gemini models via the Google Generative AI API."""
+
+    def __init__(self, api_key: str, model: str = "gemini-3.1-pro") -> None:
+        self._api_key = api_key
+        self._model = model
+        self._client: Any = None
+
+    def _ensure_client(self) -> None:
+        if self._client is None:
+            try:
+                from google import genai
+
+                self._client = genai.Client(api_key=self._api_key)
+            except ImportError:
+                raise ImportError("google-genai package required: pip install google-genai")
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = MAX_RESPONSE_TOKENS,
+    ) -> dict[str, Any]:
+        self._ensure_client()
+        from google.genai import types
+
+        # Extract system instruction
+        system_text = None
+        contents = []
+        for msg in messages:
+            role = msg["role"]
+            if role == "system":
+                system_text = msg["content"]
+                continue
+
+            # Map roles: assistant -> model, tool -> function response
+            if role == "assistant":
+                parts = []
+                if msg.get("content"):
+                    parts.append(types.Part.from_text(text=msg["content"]))
+                for tc in msg.get("tool_calls", []):
+                    parts.append(
+                        types.Part.from_function_call(
+                            name=tc["name"],
+                            args=tc.get("arguments", {}),
+                        )
+                    )
+                contents.append(types.Content(role="model", parts=parts))
+            elif role == "tool":
+                tc_id = msg.get("tool_call_id", "")
+                result_str = msg.get("content", "{}")
+                try:
+                    result_data = json.loads(result_str)
+                except (json.JSONDecodeError, TypeError):
+                    result_data = {"result": result_str}
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_function_response(
+                                name=tc_id,
+                                response=result_data,
+                            )
+                        ],
+                    )
+                )
+            else:
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=msg.get("content", ""))],
+                    )
+                )
+
+        # Build tool declarations
+        tool_declarations = None
+        if tools:
+            func_decls = []
+            for t in tools:
+                func_decls.append(
+                    types.FunctionDeclaration(
+                        name=t["name"],
+                        description=t.get("description", ""),
+                        parameters=t.get("parameters", {"type": "object", "properties": {}}),
+                    )
+                )
+            tool_declarations = [types.Tool(function_declarations=func_decls)]
+
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            system_instruction=system_text,
+            tools=tool_declarations,
+        )
+
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=contents,
+            config=config,
+        )
+
+        # Parse response
+        content = ""
+        tool_calls = []
+        if response.candidates and response.candidates[0].content:
+            for part in response.candidates[0].content.parts:
+                if part.text:
+                    content += part.text
+                elif part.function_call:
+                    tool_calls.append(
+                        {
+                            "id": f"call_{part.function_call.name}_{len(tool_calls)}",
+                            "name": part.function_call.name,
+                            "arguments": (
+                                dict(part.function_call.args) if part.function_call.args else {}
+                            ),
+                        }
+                    )
+
+        stop_reason = "stop"
+        if tool_calls:
+            stop_reason = "tool_calls"
+
+        return {
+            "content": content,
+            "tool_calls": tool_calls,
+            "stop_reason": stop_reason,
+        }
+
+
 def create_client(model: str, api_key: str) -> ModelClient:
     """Create a model client based on model name.
 
     Args:
-        model: Model identifier (e.g., "claude-opus-4-6", "gpt-5.4").
+        model: Model identifier (e.g., "claude-opus-4-6", "gpt-5.4",
+               "gemini-3.1-pro", "grok-4").
         api_key: API key for the model provider.
 
     Returns:
         A ModelClient instance.
     """
-    if "claude" in model.lower() or "opus" in model.lower() or "sonnet" in model.lower():
+    m = model.lower()
+    if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return AnthropicClient(api_key=api_key, model=model)
-    elif "gpt" in model.lower() or "o1" in model.lower() or "o3" in model.lower():
+    elif "gpt" in m or "o1" in m or "o3" in m:
         return OpenAIClient(api_key=api_key, model=model)
+    elif "gemini" in m:
+        return GeminiClient(api_key=api_key, model=model)
+    elif "grok" in m:
+        return GrokClient(api_key=api_key, model=model)
     else:
         raise ValueError(f"Unknown model provider for: {model}")
 
@@ -313,11 +481,13 @@ def _build_tool_definitions(server: HealthcraftServer) -> list[dict[str, Any]]:
     """Build tool definitions from the MCP server for LLM function calling."""
     tools = []
     for camel_name in server.available_tools:
-        tools.append({
-            "name": camel_name,
-            "description": f"HEALTHCRAFT MCP tool: {camel_name}",
-            "parameters": {"type": "object", "properties": {}},
-        })
+        tools.append(
+            {
+                "name": camel_name,
+                "description": f"HEALTHCRAFT MCP tool: {camel_name}",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        )
     return tools
 
 
@@ -381,8 +551,7 @@ def run_agent_task(
             "assistant",
             content,
             tool_calls=[
-                {"name": tc["name"], "arguments": tc.get("arguments", {})}
-                for tc in tool_calls
+                {"name": tc["name"], "arguments": tc.get("arguments", {})} for tc in tool_calls
             ],
         )
 
@@ -411,11 +580,13 @@ def run_agent_task(
                 tool_call_id=tc.get("id", ""),
             )
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.get("id", ""),
-                "content": result_str,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": result_str,
+                }
+            )
 
     traj.duration_seconds = time.monotonic() - start_time
     return traj

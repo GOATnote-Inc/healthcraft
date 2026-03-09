@@ -222,8 +222,11 @@ def smoke_test() -> bool:
     criteria = [
         Criterion(id="C1", assertion="test", dimension="safety", verification=ws),
         Criterion(
-            id="C2", assertion="test", dimension="safety",
-            verification=ws, safety_critical=True,
+            id="C2",
+            assertion="test",
+            dimension="safety",
+            verification=ws,
+            safety_critical=True,
         ),
     ]
     results_all_pass = [

@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze
 
 install:
 	pip install -e ".[dev]"
@@ -26,6 +26,9 @@ eval:
 
 validate-tasks:
 	python -c "from healthcraft.tasks.loader import load_tasks; from pathlib import Path; tasks = load_tasks(Path('configs/tasks')); print(f'{len(tasks)} tasks validated')"
+
+analyze:
+	python scripts/analyze_results.py results/pilot-* -o docs/EVALUATION_FINDINGS.md
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

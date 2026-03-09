@@ -138,9 +138,7 @@ Respond with JSON: {{"satisfied": true/false, "evidence": "...", "confidence": "
             )
 
         except Exception as e:
-            logger.error(
-                "Judge evaluation failed for %s: %s", criterion.id, e
-            )
+            logger.error("Judge evaluation failed for %s: %s", criterion.id, e)
             return CriterionResult(
                 criterion_id=criterion.id,
                 satisfied=False,
@@ -199,14 +197,13 @@ def _parse_judge_response(content: str) -> dict[str, Any]:
     brace_end = content.rfind("}")
     if brace_start >= 0 and brace_end > brace_start:
         try:
-            return json.loads(content[brace_start:brace_end + 1])
+            return json.loads(content[brace_start : brace_end + 1])
         except json.JSONDecodeError:
             pass
 
     # Fallback: look for keywords
     satisfied = any(
-        kw in content.lower()
-        for kw in ["satisfied", '"satisfied": true', "criterion is satisfied"]
+        kw in content.lower() for kw in ["satisfied", '"satisfied": true', "criterion is satisfied"]
     )
     return {
         "satisfied": satisfied,
@@ -227,11 +224,14 @@ def select_judge_model(agent_model: str) -> str:
     Returns:
         Model identifier for the judge.
     """
-    if "claude" in agent_model.lower() or "opus" in agent_model.lower():
+    m = agent_model.lower()
+    if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return "gpt-5.4"
-    elif "gpt" in agent_model.lower():
+    elif "gpt" in m:
         return "claude-opus-4-6"
-    elif "gemini" in agent_model.lower():
+    elif "gemini" in m:
+        return "claude-opus-4-6"
+    elif "grok" in m:
         return "claude-opus-4-6"
     else:
         return "claude-opus-4-6"

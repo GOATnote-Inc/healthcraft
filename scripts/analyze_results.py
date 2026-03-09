@@ -73,9 +73,7 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
     total_trials = len(entries)
     total_tasks = len(by_task)
     total_passed = sum(1 for e in entries if e.get("passed", False))
-    total_safety_fail = sum(
-        1 for e in entries if not e.get("safety_gate_passed", True)
-    )
+    total_safety_fail = sum(1 for e in entries if not e.get("safety_gate_passed", True))
     rewards = [e.get("reward", 0.0) for e in entries]
     avg_reward = sum(rewards) / len(rewards) if rewards else 0.0
 
@@ -107,18 +105,20 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
         t_passed = sum(1 for t in trials if t.get("passed", False))
         t_safety = sum(1 for t in trials if not t.get("safety_gate_passed", True))
         t_tools = sum(t.get("total_tool_calls", 0) for t in trials)
-        task_details.append({
-            "task_id": tid,
-            "category": trials[0].get("category", "unknown"),
-            "trials": len(trials),
-            "passed": t_passed,
-            "safety_failures": t_safety,
-            "avg_reward": sum(t_rewards) / len(t_rewards),
-            "min_reward": min(t_rewards),
-            "max_reward": max(t_rewards),
-            "total_tools": t_tools,
-            "avg_tools": t_tools / len(trials),
-        })
+        task_details.append(
+            {
+                "task_id": tid,
+                "category": trials[0].get("category", "unknown"),
+                "trials": len(trials),
+                "passed": t_passed,
+                "safety_failures": t_safety,
+                "avg_reward": sum(t_rewards) / len(t_rewards),
+                "min_reward": min(t_rewards),
+                "max_reward": max(t_rewards),
+                "total_tools": t_tools,
+                "avg_tools": t_tools / len(trials),
+            }
+        )
 
     # Per-category summary
     cat_details = []
@@ -128,30 +128,29 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
         c_passed = sum(1 for t in trials if t.get("passed", False))
         c_safety = sum(1 for t in trials if not t.get("safety_gate_passed", True))
         c_tasks = len(set(t["task_id"] for t in trials))
-        cat_details.append({
-            "category": cat,
-            "tasks": c_tasks,
-            "trials": len(trials),
-            "passed": c_passed,
-            "pass_rate": c_passed / len(trials) if trials else 0,
-            "safety_failures": c_safety,
-            "avg_reward": sum(c_rewards) / len(c_rewards) if c_rewards else 0,
-        })
+        cat_details.append(
+            {
+                "category": cat,
+                "tasks": c_tasks,
+                "trials": len(trials),
+                "passed": c_passed,
+                "pass_rate": c_passed / len(trials) if trials else 0,
+                "safety_failures": c_safety,
+                "avg_reward": sum(c_rewards) / len(c_rewards) if c_rewards else 0,
+            }
+        )
 
     # Dimension scores (if available)
     dim_totals: dict[str, list[float]] = defaultdict(list)
     for e in entries:
         for dim, score in e.get("dimension_scores", {}).items():
             dim_totals[dim].append(score)
-    dim_avgs = {
-        dim: sum(vals) / len(vals)
-        for dim, vals in dim_totals.items()
-        if vals
-    }
+    dim_avgs = {dim: sum(vals) / len(vals) for dim, vals in dim_totals.items() if vals}
 
     # Safety-critical criteria failure analysis
     safety_fail_tasks = [
-        tid for tid, trials in by_task.items()
+        tid
+        for tid, trials in by_task.items()
         if any(not t.get("safety_gate_passed", True) for t in trials)
     ]
 
@@ -242,13 +241,9 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
         lines.append(f"### {a['model']}")
         lines.append("")
         lines.append(
-            "| Task | Category | Pass | Safety Fail | "
-            "Avg Reward | Min | Max | Avg Tools |"
+            "| Task | Category | Pass | Safety Fail | Avg Reward | Min | Max | Avg Tools |"
         )
-        lines.append(
-            "|------|----------|------|-------------|"
-            "-----------|-----|-----|-----------|"
-        )
+        lines.append("|------|----------|------|-------------|-----------|-----|-----|-----------|")
         for t in a.get("per_task", []):
             lines.append(
                 f"| {t['task_id']} | {t['category']} | "
@@ -281,35 +276,36 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
         sf = a.get("tasks_with_safety_failures", [])
         rate = a.get("safety_failure_rate", 0) * 100
         lines.append(
-            f"**{a['model']}:** {len(sf)} tasks with safety failures "
-            f"({rate:.1f}% of trials)"
+            f"**{a['model']}:** {len(sf)} tasks with safety failures ({rate:.1f}% of trials)"
         )
         if sf:
             lines.append(f"- Tasks: {', '.join(sorted(sf))}")
         lines.append("")
 
     # Failure patterns
-    lines.extend([
-        "## Failure Pattern Analysis",
-        "",
-        "### Poor Search Strategy (Corecraft Section 4.1)",
-        "",
-        "Tasks where agents used tools but achieved low reward suggest "
-        "inefficient search strategies — using generic queries rather than "
-        "targeted lookups.",
-        "",
-        "### Failure to Paginate",
-        "",
-        "Tasks requiring comprehensive data retrieval where agents accepted "
-        "truncated results (max 10 per search, no hasMore signal).",
-        "",
-        "### Incomplete Tool Exploration",
-        "",
-        "Tasks where agents anchored on first plausible tool rather than "
-        "exploring alternatives (e.g., using getEncounterDetails for each "
-        "encounter instead of getPatientHistory for a consolidated view).",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Failure Pattern Analysis",
+            "",
+            "### Poor Search Strategy (Corecraft Section 4.1)",
+            "",
+            "Tasks where agents used tools but achieved low reward suggest "
+            "inefficient search strategies — using generic queries rather than "
+            "targeted lookups.",
+            "",
+            "### Failure to Paginate",
+            "",
+            "Tasks requiring comprehensive data retrieval where agents accepted "
+            "truncated results (max 10 per search, no hasMore signal).",
+            "",
+            "### Incomplete Tool Exploration",
+            "",
+            "Tasks where agents anchored on first plausible tool rather than "
+            "exploring alternatives (e.g., using getEncounterDetails for each "
+            "encounter instead of getPatientHistory for a consolidated view).",
+            "",
+        ]
+    )
 
     report = "\n".join(lines)
 

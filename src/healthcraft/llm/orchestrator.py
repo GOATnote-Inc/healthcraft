@@ -147,7 +147,10 @@ def run_frontier_evaluation(
 
     logger.info(
         "Evaluation: %d tasks x %d trials, agent=%s, judge=%s",
-        len(tasks), trials, agent_model, judge_model,
+        len(tasks),
+        trials,
+        agent_model,
+        judge_model,
     )
 
     # Run evaluations
@@ -162,7 +165,10 @@ def run_frontier_evaluation(
 
             logger.info(
                 "Task %s trial %d/%d (seed=%d)",
-                task.id, trial, trials, trial_seed,
+                task.id,
+                trial,
+                trials,
+                trial_seed,
             )
 
             # Seed fresh world state for each trial
@@ -188,9 +194,7 @@ def run_frontier_evaluation(
                 "reasoning": " ".join(
                     turn.content for turn in traj.turns if turn.role == "assistant"
                 ),
-                "output": " ".join(
-                    turn.content for turn in traj.turns if turn.role == "assistant"
-                ),
+                "output": " ".join(turn.content for turn in traj.turns if turn.role == "assistant"),
             }
 
             result = evaluate_task(task, agent_output, server.world_state)
@@ -216,12 +220,11 @@ def run_frontier_evaluation(
                     compute_dimension_scores,
                     compute_reward,
                 )
+
                 merged_reward = compute_reward(list(merged_results), criteria)
                 merged_passed = all(r.satisfied for r in merged_results)
                 merged_safety = check_safety_gate(list(merged_results), criteria)
-                merged_dims = compute_dimension_scores(
-                    list(merged_results), criteria
-                )
+                merged_dims = compute_dimension_scores(list(merged_results), criteria)
             else:
                 merged_results = list(result.criteria_results)
                 merged_reward = result.reward
@@ -251,9 +254,7 @@ def run_frontier_evaluation(
             traj.save(traj_path)
 
             # Log experiment
-            traj_rel = (
-                f"trajectories/{task.category}/{traj_filename}"
-            )
+            traj_rel = f"trajectories/{task.category}/{traj_filename}"
             entry = ExperimentEntry.from_trajectory(traj, traj_rel)
             exp_log.append(entry)
 
@@ -266,7 +267,9 @@ def run_frontier_evaluation(
 
             logger.info(
                 "  -> reward=%.3f passed=%s safety=%s tools=%d",
-                merged_reward, merged_passed, merged_safety,
+                merged_reward,
+                merged_passed,
+                merged_safety,
                 traj.total_tool_calls,
             )
 
@@ -304,19 +307,33 @@ def run_frontier_evaluation(
     return summary
 
 
+def _resolve_api_key(model: str) -> str:
+    """Resolve API key from environment based on model name."""
+    m = model.lower()
+    if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
+        return os.environ.get("ANTHROPIC_API_KEY", "")
+    elif "gpt" in m or "o1" in m or "o3" in m:
+        return os.environ.get("OPENAI_API_KEY", "")
+    elif "gemini" in m:
+        return os.environ.get("GOOGLE_API_KEY", "")
+    elif "grok" in m:
+        return os.environ.get("XAI_API_KEY", "")
+    return os.environ.get("OPENAI_API_KEY", "")
+
+
 def main() -> None:
     """CLI entry point for frontier model evaluation."""
-    parser = argparse.ArgumentParser(
-        description="HEALTHCRAFT Frontier Model Evaluation"
-    )
+    parser = argparse.ArgumentParser(description="HEALTHCRAFT Frontier Model Evaluation")
     parser.add_argument("--agent-model", required=True, help="Agent model ID")
     parser.add_argument(
-        "--agent-key", default=None,
+        "--agent-key",
+        default=None,
         help="Agent API key (or ANTHROPIC_API_KEY / OPENAI_API_KEY env var)",
     )
     parser.add_argument("--judge-model", default=None, help="Judge model ID")
     parser.add_argument(
-        "--judge-key", default=None,
+        "--judge-key",
+        default=None,
         help="Judge API key (auto-detected from env if not set)",
     )
     parser.add_argument("--tasks", default="all", help="Task ID or 'all'")
@@ -333,18 +350,12 @@ def main() -> None:
     # Resolve API keys from env if not provided
     agent_key = args.agent_key
     if not agent_key:
-        if "claude" in args.agent_model.lower():
-            agent_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        else:
-            agent_key = os.environ.get("OPENAI_API_KEY", "")
+        agent_key = _resolve_api_key(args.agent_model)
 
     judge_key = args.judge_key
     if not judge_key:
         judge_model = args.judge_model or select_judge_model(args.agent_model)
-        if "claude" in judge_model.lower():
-            judge_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        else:
-            judge_key = os.environ.get("OPENAI_API_KEY", "")
+        judge_key = _resolve_api_key(judge_model)
 
     if not agent_key:
         logger.error("No API key for agent model. Set --agent-key or env var.")
