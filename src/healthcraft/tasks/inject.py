@@ -34,6 +34,83 @@ def _deterministic_id(prefix: str, task_id: str) -> str:
     return f"{prefix}-{h}"
 
 
+_FEMALE_NAMES = [
+    "Margaret",
+    "Dorothy",
+    "Helen",
+    "Ruth",
+    "Florence",
+    "Virginia",
+    "Martha",
+    "Eleanor",
+    "Catherine",
+    "Alice",
+    "Jean",
+    "Louise",
+    "Rose",
+    "Marie",
+    "Gloria",
+    "Evelyn",
+    "Irene",
+    "Frances",
+    "Dolores",
+    "Beatrice",
+]
+_MALE_NAMES = [
+    "Robert",
+    "James",
+    "William",
+    "Charles",
+    "George",
+    "Edward",
+    "Thomas",
+    "Richard",
+    "Joseph",
+    "Harold",
+    "Donald",
+    "Henry",
+    "Raymond",
+    "Arthur",
+    "Walter",
+    "Eugene",
+    "Albert",
+    "Frank",
+    "Howard",
+    "Lawrence",
+]
+_LAST_NAMES = [
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Davis",
+    "Miller",
+    "Wilson",
+    "Moore",
+    "Taylor",
+    "Anderson",
+    "Thomas",
+    "Jackson",
+    "White",
+    "Harris",
+    "Martin",
+    "Thompson",
+    "Garcia",
+    "Martinez",
+    "Robinson",
+    "Clark",
+    "Rodriguez",
+]
+
+
+def _generate_patient_name(task_id: str, sex: str) -> tuple[str, str]:
+    """Generate a deterministic realistic patient name from task ID and sex."""
+    h = int(hashlib.md5(task_id.encode()).hexdigest(), 16)
+    first_pool = _FEMALE_NAMES if sex.upper() in ("F", "FEMALE") else _MALE_NAMES
+    first_name = first_pool[h % len(first_pool)]
+    last_name = _LAST_NAMES[(h // len(first_pool)) % len(_LAST_NAMES)]
+    return first_name, last_name
+
+
 def _parse_bp(bp_str: str | None) -> tuple[int | None, int | None]:
     """Parse blood pressure string like '128/84' into (systolic, diastolic)."""
     if not bp_str or not isinstance(bp_str, str):
@@ -237,9 +314,33 @@ def inject_task_patient(
     patient_id = _deterministic_id("PAT", task_id)
     mrn = _deterministic_id("MRN", task_id)
 
-    # Calculate DOB from age
-    age = patient_data.get("age", 50)
+    # Calculate DOB from age (handle string ages like "0 minutes (newborn)")
+    raw_age = patient_data.get("age", 50)
     age_unit = patient_data.get("age_unit", "years")
+    try:
+        age = int(raw_age)
+    except (ValueError, TypeError):
+        # Parse descriptive ages: "0 minutes (newborn)", "3 days", etc.
+        age = 0
+        raw_str = str(raw_age).lower()
+        if "minute" in raw_str or "newborn" in raw_str:
+            age_unit = "days"
+            age = 0
+        elif "hour" in raw_str:
+            age_unit = "days"
+            age = 0
+        elif "day" in raw_str:
+            age_unit = "days"
+            import re
+
+            m = re.search(r"(\d+)", raw_str)
+            age = int(m.group(1)) if m else 0
+        elif "month" in raw_str:
+            age_unit = "months"
+            import re
+
+            m = re.search(r"(\d+)", raw_str)
+            age = int(m.group(1)) if m else 0
     if age_unit == "months":
         birth_year = encounter_time.year
         birth_month = max(1, encounter_time.month - age)
@@ -247,13 +348,15 @@ def inject_task_patient(
     elif age_unit == "days":
         dob = date(encounter_time.year, encounter_time.month, max(1, encounter_time.day - age))
     else:
-        dob = date(encounter_time.year - age, 6, 15)
+        dob = date(max(1, encounter_time.year - age), 6, 15)
 
     sex = patient_data.get("sex", "")
 
-    # Use task-specific names if provided, otherwise generate from task ID
-    first_name = patient_data.get("first_name", "Patient")
-    last_name = patient_data.get("last_name", task_id.replace("-", ""))
+    # Use task-specific names if provided, otherwise generate deterministically
+    first_name = patient_data.get("first_name")
+    last_name = patient_data.get("last_name")
+    if not first_name or not last_name:
+        first_name, last_name = _generate_patient_name(task_id, sex)
 
     allergies = tuple(patient_data.get("allergies", []))
     medications = tuple(patient_data.get("medications", []))
@@ -348,5 +451,17 @@ def inject_task_patient(
     )
 
     world.put_entity(EntityType.ENCOUNTER.value, encounter_id, encounter)
+
+    # Move task entities to front of their collections so they appear in the
+    # first page of search results (pagination limit = 10, seeded world has
+    # 500+ entities that would otherwise bury the task patient).
+    for etype, eid in [
+        (EntityType.PATIENT.value, patient_id),
+        (EntityType.ENCOUNTER.value, encounter_id),
+    ]:
+        store = world._entities.get(etype, {})
+        if eid in store:
+            entity = store.pop(eid)
+            world._entities[etype] = {eid: entity, **store}
 
     return {"patient_id": patient_id, "encounter_id": encounter_id}

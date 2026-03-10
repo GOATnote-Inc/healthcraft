@@ -26,50 +26,118 @@ criterion.
 
 You will be given:
 1. A criterion assertion (what the agent should have done)
-2. The agent's full interaction trajectory (system prompt, messages, tool calls, results)
+2. The agent's trajectory, organized into sections:
+   - TASK CONTEXT: The system prompt and task description
+   - TOOL CALL SUMMARY: A condensed list of all tool calls the agent made
+   - AGENT'S FINAL RESPONSE: The agent's complete final output (most important for \
+content-based criteria)
+   - AGENT'S EARLIER REASONING: Excerpts from intermediate steps
 
-You must determine if the criterion is SATISFIED or NOT SATISFIED based solely on the \
-evidence in the trajectory.
+IMPORTANT: For criteria about what the agent communicated, documented, or included \
+in its output, focus primarily on the AGENT'S FINAL RESPONSE section. This is where \
+discharge instructions, consult notes, handoff documentation, and other clinical \
+content appears. The tool call summary shows what information the agent gathered.
 
 Respond with a JSON object:
 {
     "satisfied": true/false,
-    "evidence": "Brief explanation of why the criterion is/isn't satisfied",
+    "evidence": "Brief explanation citing specific text from the trajectory",
     "confidence": "high/medium/low"
 }
 
 Rules:
 - Base your judgment ONLY on what is in the trajectory
-- If the criterion mentions a specific action, verify it appears in tool calls
-- If the criterion mentions reasoning or diagnosis, verify it appears in agent text
-- If insufficient evidence exists, mark as NOT SATISFIED
-- Be strict: partial or ambiguous satisfaction counts as NOT SATISFIED
+- For tool-use criteria: check the TOOL CALL SUMMARY section
+- For content/documentation criteria: check the AGENT'S FINAL RESPONSE section
+- For reasoning criteria: check both FINAL RESPONSE and EARLIER REASONING
+- If the content exists in the final response, it IS satisfied even if earlier steps \
+were incomplete
+- Be strict on factual accuracy but fair on format — the agent may use different \
+wording than the criterion
 """
 
 
 def _format_trajectory_for_judge(trajectory_turns: list[dict[str, Any]]) -> str:
-    """Format trajectory turns into a readable string for the judge."""
-    lines = []
+    """Format trajectory into structured sections for the judge.
+
+    Long trajectories (30-60 turns) cause judge context overload when
+    presented as a flat wall of text. This formatter separates the trajectory
+    into clearly labeled sections so the judge can find the final clinical
+    response — where most llm_judge criteria are evaluated.
+
+    Structure:
+      1. TASK CONTEXT — system prompt excerpt + task description
+      2. TOOL CALL SUMMARY — condensed list of all tool calls with key results
+      3. AGENT'S FINAL RESPONSE — full text, no truncation
+      4. AGENT'S REASONING — key excerpts from intermediate assistant messages
+    """
+    # Collect sections
+    system_text = ""
+    task_text = ""
+    tool_calls_summary: list[str] = []
+    assistant_messages: list[str] = []
+    tool_call_count = 0
+
     for turn in trajectory_turns:
         role = turn.get("role", "unknown")
         content = turn.get("content", "")
         tool_calls = turn.get("tool_calls", [])
 
         if role == "system":
-            lines.append(f"[SYSTEM PROMPT]\n{content[:500]}")
-        elif role == "user":
-            lines.append(f"[USER/TASK]\n{content[:1000]}")
+            system_text = content
+        elif role == "user" and not task_text:
+            task_text = content
         elif role == "assistant":
-            lines.append(f"[AGENT RESPONSE]\n{content[:1000]}")
-            if tool_calls:
-                for tc in tool_calls:
-                    name = tc.get("name", "unknown")
-                    args = tc.get("arguments", {})
-                    lines.append(f"  -> Tool call: {name}({json.dumps(args, default=str)[:200]})")
+            if content and content.strip():
+                assistant_messages.append(content)
+            for tc in tool_calls:
+                tool_call_count += 1
+                name = tc.get("name", "unknown")
+                args = tc.get("arguments", {})
+                args_str = json.dumps(args, default=str)
+                if len(args_str) > 150:
+                    args_str = args_str[:150] + "..."
+                tool_calls_summary.append(f"{tool_call_count}. {name}({args_str})")
         elif role == "tool":
-            lines.append(f"[TOOL RESULT]\n{content[:500]}")
+            # Append abbreviated tool result to the most recent tool call
+            if tool_calls_summary:
+                result_preview = content[:200].replace("\n", " ")
+                if len(content) > 200:
+                    result_preview += "..."
+                tool_calls_summary[-1] += f"\n     → {result_preview}"
 
-    return "\n\n".join(lines)
+    # Build output sections
+    sections = []
+
+    # Section 1: Task context
+    sections.append("=== TASK CONTEXT ===")
+    if system_text:
+        sections.append(f"[System prompt excerpt]\n{system_text[:1500]}")
+    if task_text:
+        sections.append(f"[Task description]\n{task_text[:2000]}")
+
+    # Section 2: Tool call summary
+    if tool_calls_summary:
+        sections.append(f"=== TOOL CALL SUMMARY ({tool_call_count} calls) ===")
+        sections.append("\n".join(tool_calls_summary))
+
+    # Section 3: Final response (MOST IMPORTANT — no truncation)
+    if assistant_messages:
+        final_response = assistant_messages[-1]
+        sections.append("=== AGENT'S FINAL RESPONSE (evaluate criteria against this) ===")
+        sections.append(final_response)
+
+        # Section 4: Earlier reasoning (condensed)
+        if len(assistant_messages) > 1:
+            sections.append("=== AGENT'S EARLIER REASONING (excerpts) ===")
+            for i, msg in enumerate(assistant_messages[:-1]):
+                # Keep reasoning excerpts brief — focus on clinical decisions
+                excerpt = msg[:500]
+                if len(msg) > 500:
+                    excerpt += "..."
+                sections.append(f"[Step {i + 1}]\n{excerpt}")
+
+    return "\n\n".join(sections)
 
 
 class LLMJudge:
