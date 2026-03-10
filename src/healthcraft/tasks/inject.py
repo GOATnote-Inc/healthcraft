@@ -426,22 +426,51 @@ def inject_task_patient(
         patient_data.get("vitals")
         or patient_data.get("vitals_current")
         or patient_data.get("vitals_at_discharge")
+        or patient_data.get("vitals_at_presentation")
+        or patient_data.get("vitals_initial")
     )
     if vitals_data and isinstance(vitals_data, dict):
         vitals_list.append(_parse_vitals(vitals_data, encounter_time))
 
-    # Also parse arrival vitals if present
-    vitals_arrival = patient_data.get("vitals_on_arrival")
+    # Also parse arrival vitals if present (multiple naming conventions)
+    vitals_arrival = (
+        patient_data.get("vitals_on_arrival")
+        or patient_data.get("vitals_at_arrival")
+    )
     if vitals_arrival and isinstance(vitals_arrival, dict):
         arrival_time = encounter_time - timedelta(hours=2)
         vitals_list.insert(0, _parse_vitals(vitals_arrival, arrival_time))
 
-    # Also parse post-treatment vitals if present
-    for key in ("vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat"):
+    # Also parse post-treatment / follow-up vitals if present
+    _POST_VITALS_KEYS = (
+        "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
+        "vitals_30_minutes_later", "vitals_2_hours_later",
+        "vitals_post_naloxone", "vitals_pre_sedation",
+        "vitals_during_reaction", "vitals_5min_post_error",
+        "vitals_intermediate", "vitals_at_tpa_bolus",
+        "vitals_at_admission", "vitals_pre_reaction", "vitals_pre_error",
+    )
+    for idx, key in enumerate(_POST_VITALS_KEYS):
         post_vitals = patient_data.get(key)
         if post_vitals and isinstance(post_vitals, dict):
-            post_time = encounter_time + timedelta(minutes=30)
+            post_time = encounter_time + timedelta(minutes=30 * (idx + 1))
             vitals_list.append(_parse_vitals(post_vitals, post_time))
+
+    # Parse vitals_series (list of timestamped vitals dicts)
+    vitals_series = patient_data.get("vitals_series")
+    if vitals_series and isinstance(vitals_series, list):
+        for entry in vitals_series:
+            if not isinstance(entry, dict):
+                continue
+            ts_str = entry.get("time")
+            if ts_str:
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                except (ValueError, TypeError):
+                    ts = encounter_time
+            else:
+                ts = encounter_time
+            vitals_list.append(_parse_vitals(entry, ts))
 
     # Parse labs
     labs = _parse_labs(patient_data.get("labs"), encounter_time)
@@ -501,7 +530,15 @@ def inject_task_patient(
         "allergies", "medications", "past_medical_history", "advance_directives",
         "chief_complaint", "esi_level", "location",
         "vitals", "vitals_current", "vitals_at_discharge",
-        "vitals_on_arrival", "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
+        "vitals_at_presentation", "vitals_initial",
+        "vitals_on_arrival", "vitals_at_arrival",
+        "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
+        "vitals_30_minutes_later", "vitals_2_hours_later",
+        "vitals_post_naloxone", "vitals_pre_sedation",
+        "vitals_during_reaction", "vitals_5min_post_error",
+        "vitals_intermediate", "vitals_at_tpa_bolus",
+        "vitals_at_admission", "vitals_pre_reaction", "vitals_pre_error",
+        "vitals_series",
         "labs", "imaging", "active_orders", "current_management",
         "exam_findings", "social_history", "family_history",
         "labs_post_rosc", "labs_available", "labs_at_discharge", "initial_labs",
