@@ -431,6 +431,15 @@ def inject_task_patient(
     # Bed assignment from location or setting
     bed = patient_data.get("location", setting.get("bed", ""))
 
+    # Parse exam findings (physical exam data)
+    exam_raw = patient_data.get("exam_findings", {})
+    exam_findings: tuple[tuple[str, str], ...] = ()
+    if exam_raw and isinstance(exam_raw, dict):
+        exam_findings = tuple(
+            (system.replace("_", " ").title(), str(finding))
+            for system, finding in exam_raw.items()
+        )
+
     encounter = Encounter(
         id=encounter_id,
         entity_type=EntityType.ENCOUNTER,
@@ -448,6 +457,7 @@ def inject_task_patient(
         labs=labs,
         imaging=imaging,
         meds_administered=meds_admin,
+        exam_findings=exam_findings,
     )
 
     world.put_entity(EntityType.ENCOUNTER.value, encounter_id, encounter)

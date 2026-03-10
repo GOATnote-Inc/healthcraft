@@ -192,3 +192,43 @@ class TestInjectTaskPatient:
         )
         vitals = result["data"]["vitals"]
         assert len(vitals) == 3, f"Expected 3 vitals sets, got {len(vitals)}"
+
+    def test_exam_findings_parsed(self, seeded_world):
+        """Exam findings from task YAML are accessible via getEncounterDetails."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {
+            "age": 2,
+            "sex": "F",
+            "chief_complaint": "Fever",
+            "exam_findings": {
+                "general": "Fussy, febrile toddler",
+                "heent": "Left TM erythematous, bulging with loss of light reflex",
+                "cardiovascular": "Regular rate, no murmur",
+                "pulmonary": "Clear bilaterally",
+            },
+        }
+        ids = inject_task_patient(seeded_world, "CC-010", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        assert result["status"] == "ok"
+        exam = result["data"]["exam_findings"]
+        assert len(exam) == 4
+        # Check that HEENT finding about otitis media is present
+        heent_found = any("erythematous" in str(finding) for finding in exam)
+        assert heent_found, f"HEENT finding not found in exam_findings: {exam}"
+
+    def test_exam_findings_empty_when_absent(self, seeded_world):
+        """Encounter without exam findings has empty exam_findings."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {"age": 50, "sex": "M", "chief_complaint": "Test"}
+        ids = inject_task_patient(seeded_world, "TEST-002", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        assert result["status"] == "ok"
+        assert result["data"]["exam_findings"] == ()
