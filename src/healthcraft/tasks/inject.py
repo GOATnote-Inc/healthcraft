@@ -128,6 +128,10 @@ def _parse_vitals(vitals_data: dict[str, Any], timestamp: datetime) -> VitalSign
     """Convert task YAML vitals dict to a VitalSigns dataclass."""
     sbp, dbp = _parse_bp(vitals_data.get("blood_pressure"))
 
+    # Fall back to right arm BP if standard BP not present (bilateral readings)
+    if sbp is None:
+        sbp, dbp = _parse_bp(vitals_data.get("blood_pressure_right"))
+
     hr = vitals_data.get("heart_rate")
     if isinstance(hr, str):
         hr = None  # e.g., "undetectable"
@@ -433,12 +437,27 @@ def inject_task_patient(
 
     # Parse exam findings (physical exam data)
     exam_raw = patient_data.get("exam_findings", {})
-    exam_findings: tuple[tuple[str, str], ...] = ()
+    exam_list: list[tuple[str, str]] = []
     if exam_raw and isinstance(exam_raw, dict):
-        exam_findings = tuple(
+        exam_list.extend(
             (system.replace("_", " ").title(), str(finding))
             for system, finding in exam_raw.items()
         )
+
+    # Surface bilateral BP readings as an exam finding when present
+    vitals_source = vitals_data or {}
+    bp_right = vitals_source.get("blood_pressure_right")
+    bp_left = vitals_source.get("blood_pressure_left")
+    if bp_right and bp_left:
+        r_sys, _ = _parse_bp(bp_right)
+        l_sys, _ = _parse_bp(bp_left)
+        diff = abs(r_sys - l_sys) if r_sys and l_sys else None
+        diff_note = f" ({diff} mmHg systolic differential)" if diff else ""
+        exam_list.append(
+            ("Bilateral Blood Pressures", f"Right arm {bp_right}, Left arm {bp_left}{diff_note}")
+        )
+
+    exam_findings: tuple[tuple[str, str], ...] = tuple(exam_list)
 
     encounter = Encounter(
         id=encounter_id,

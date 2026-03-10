@@ -232,3 +232,62 @@ class TestInjectTaskPatient:
         )
         assert result["status"] == "ok"
         assert result["data"]["exam_findings"] == ()
+
+    def test_bilateral_bp_surfaced_in_exam_findings(self, seeded_world):
+        """Bilateral BP readings appear as exam findings with differential."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {
+            "age": 52,
+            "sex": "M",
+            "chief_complaint": "Chest pain",
+            "vitals": {
+                "heart_rate": 112,
+                "blood_pressure_right": "178/92",
+                "blood_pressure_left": "135/88",
+                "respiratory_rate": 22,
+                "spo2": 96,
+            },
+        }
+        ids = inject_task_patient(seeded_world, "CR-001", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        assert result["status"] == "ok"
+        exam = result["data"]["exam_findings"]
+        # Should have bilateral BP finding
+        bp_found = any("Bilateral Blood Pressures" in str(f) for f in exam)
+        assert bp_found, f"Bilateral BP not found in exam_findings: {exam}"
+        # Should include both readings and the differential
+        bp_text = [f for f in exam if "Bilateral" in str(f)][0]
+        assert "178/92" in str(bp_text)
+        assert "135/88" in str(bp_text)
+        assert "43 mmHg" in str(bp_text)
+
+    def test_bilateral_bp_with_explicit_exam_findings(self, seeded_world):
+        """Bilateral BP appended alongside explicit exam findings."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {
+            "age": 52,
+            "sex": "M",
+            "chief_complaint": "Chest pain",
+            "vitals": {
+                "heart_rate": 112,
+                "blood_pressure_right": "178/92",
+                "blood_pressure_left": "135/88",
+            },
+            "exam_findings": {
+                "cardiovascular": "Tachycardic, diastolic murmur",
+                "pulmonary": "Clear bilaterally",
+            },
+        }
+        ids = inject_task_patient(seeded_world, "CR-001", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        exam = result["data"]["exam_findings"]
+        # Should have 3 findings: cardiovascular, pulmonary, bilateral BP
+        assert len(exam) == 3, f"Expected 3 exam findings, got {len(exam)}: {exam}"
