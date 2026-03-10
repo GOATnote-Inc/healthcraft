@@ -785,6 +785,66 @@ the right approach.
 
 ---
 
-*Generated 2026-03-10. Updated with complete V4 GPT and V2 Claude results,
-CC-018 model personality analysis, head-to-head comparison, and benchmark
-difficulty tiers. V4 Claude still in progress (11/20 tasks). Oracle seed=42.*
+## 19. Data Accessibility Audit (Critical Infrastructure Finding)
+
+**Discovery**: Systematic audit revealed that virtually ALL task data was
+invisible to the agent through MCP tools, across every version piloted (V0–V4).
+
+### Patient Data Gap
+
+| Data Type | Tasks Affected | Fix |
+|-----------|---------------|-----|
+| All unhandled patient keys | 186/186 (100%) | clinical_notes catch-all on Encounter |
+| social_history | 117 tasks | New field on Patient entity |
+| family_history | 55 tasks | New field on Patient entity |
+| ECG findings | 27 tasks | clinical_notes |
+| Timelines (code, clinical) | 34 tasks | clinical_notes |
+| Extra lab keys (post-ROSC, etc.) | 21 tasks | Parsed as LabResult entries |
+| exam_findings | 127 tasks (65%) | New field on Encounter entity |
+| Bilateral BP readings | 2 tasks | Exam finding with differential |
+| **Total**: 197 unique patient keys, 759 occurrences | | |
+
+### Setting Data Gap
+
+| Data Type | Tasks Affected | Fix |
+|-----------|---------------|-----|
+| specialist_availability | 99 tasks | User message context |
+| Staffing levels | 25 tasks | User message context |
+| pharmacy/blood_bank | 31 tasks | User message context |
+| Equipment status (CT, cath lab) | 17 tasks | User message context |
+| Transfer resources | 3 tasks | User message context |
+| **Total**: 199 unique setting keys, 611 occurrences | | |
+
+### Impact on Evaluation
+
+All V0–V4 pilots measured agent performance against an environment where
+critical clinical data was unreachable. For example:
+- **CC-011** (code documentation): The entire code timeline (23 events with
+  timestamps), conflicting data, and post-ROSC labs were invisible. Both models
+  scored 0.000 across all versions — not due to model failure, but because the
+  data literally didn't exist in the world state.
+- **CR-001** (aortic dissection): Family history of aortic aneurysm, ECG
+  findings, and bilateral BP differential were all invisible.
+- **CC-007-C07**: Accepting physician "Dr. Lisa Nakamura" was only in
+  setting.transfer_resources — unreachable through any tool.
+
+**Implication**: V4 results represent a FLOOR, not a ceiling. V5+ pilots with
+all data accessible will show the first true measurement of model capabilities.
+The V3→V4 improvement (+0.314 mean reward for Claude) was driven by judge and
+ordering fixes. The V4→V5 improvement from data accessibility is expected to
+be larger, since it unblocks entire categories of criteria that were
+structurally unsolvable.
+
+### V3→V4→V5 Fix Progression
+
+| Version | Fixes | Claude Avg Reward | GPT Avg Reward |
+|---------|-------|-------------------|----------------|
+| V3 | Entity injection only | 0.377 (11 tasks) | — |
+| V4 | + ordering + judge fmt + names | 0.691 (11 tasks) | 0.238 (20 tasks) |
+| V5 | + all data accessible + setting context | TBD | TBD |
+
+---
+
+*Generated 2026-03-10. Updated with data accessibility audit, complete V4
+results for GPT (20 tasks) and partial V4 Claude (11 tasks). V5 pilot pending
+after V4 completes. Oracle seed=42.*
