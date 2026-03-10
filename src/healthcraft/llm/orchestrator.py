@@ -35,6 +35,7 @@ from healthcraft.trajectory import (
     CriterionEvalResult,
     ExperimentEntry,
     ExperimentLog,
+    Trajectory,
 )
 from healthcraft.world.seed import WorldSeeder
 
@@ -100,6 +101,7 @@ def run_frontier_evaluation(
     results_dir: Path | None = None,
     tasks_dir: Path | None = None,
     max_tasks: int | None = None,
+    retry_errors: bool = False,
 ) -> dict[str, Any]:
     """Run a full frontier model evaluation.
 
@@ -114,6 +116,7 @@ def run_frontier_evaluation(
         results_dir: Where to save results.
         tasks_dir: Where to load tasks from.
         max_tasks: Maximum number of tasks to evaluate (for testing).
+        retry_errors: If True, re-run tasks that have error trajectories.
 
     Returns:
         Summary dict with pass rates and statistics.
@@ -175,6 +178,42 @@ def run_frontier_evaluation(
         for trial in range(1, trials + 1):
             trial_seed = seed + trial - 1
 
+            # Compute trajectory path once (used for checkpoint and save)
+            traj_filename = f"{task.id}_{agent_model}_{trial_seed}_t{trial}.json"
+            traj_path = results_dir / "trajectories" / task.category / traj_filename
+
+            # Resume: skip if trajectory already exists on disk
+            if traj_path.exists():
+                try:
+                    existing = Trajectory.load(traj_path)
+                    # If --retry-errors, re-run error trajectories
+                    if retry_errors and existing.error is not None:
+                        logger.info(
+                            "Task %s trial %d — retrying previous error",
+                            task.id,
+                            trial,
+                        )
+                    else:
+                        total_runs += 1
+                        rewards.append(existing.reward)
+                        if existing.passed:
+                            total_passed += 1
+                        if not existing.safety_gate_passed:
+                            safety_failures += 1
+                        logger.info(
+                            "Task %s trial %d — CACHED (reward=%.3f)",
+                            task.id,
+                            trial,
+                            existing.reward,
+                        )
+                        continue
+                except Exception as e:
+                    logger.warning(
+                        "Corrupt checkpoint %s, re-running: %s",
+                        traj_path,
+                        e,
+                    )
+
             logger.info(
                 "Task %s trial %d/%d (seed=%d)",
                 task.id,
@@ -183,112 +222,143 @@ def run_frontier_evaluation(
                 trial_seed,
             )
 
-            # Seed fresh world state for each trial
-            world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
+            try:
+                # Seed fresh world state for each trial
+                world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
 
-            # Inject task-described patient into world state
-            if task.patient:
-                inject_task_patient(world, task.id, task.patient, task.initial_state)
+                # Inject task-described patient into world state
+                if task.patient:
+                    inject_task_patient(world, task.id, task.patient, task.initial_state)
 
-            server = create_server(world)
+                server = create_server(world)
 
-            # Load system prompt
-            system_prompt = _load_system_prompt(task)
+                # Load system prompt
+                system_prompt = _load_system_prompt(task)
 
-            # Run agent
-            traj = run_agent_task(agent_client, task, server, system_prompt)
-            traj.model = agent_model
-            traj.seed = trial_seed
+                # Run agent
+                traj = run_agent_task(agent_client, task, server, system_prompt)
+                traj.model = agent_model
+                traj.seed = trial_seed
 
-            # Evaluate with world_state and pattern criteria
-            agent_output = {
-                "tool_calls": [
-                    tc.get("name", "")
-                    for turn in traj.turns
-                    if turn.tool_calls
-                    for tc in turn.tool_calls
-                ],
-                "reasoning": " ".join(
-                    turn.content for turn in traj.turns if turn.role == "assistant"
-                ),
-                "output": " ".join(turn.content for turn in traj.turns if turn.role == "assistant"),
-            }
+                # Evaluate with world_state and pattern criteria
+                agent_output = {
+                    "tool_calls": [
+                        tc.get("name", "")
+                        for turn in traj.turns
+                        if turn.tool_calls
+                        for tc in turn.tool_calls
+                    ],
+                    "reasoning": " ".join(
+                        turn.content for turn in traj.turns if turn.role == "assistant"
+                    ),
+                    "output": " ".join(
+                        turn.content for turn in traj.turns if turn.role == "assistant"
+                    ),
+                }
 
-            result = evaluate_task(task, agent_output, server.world_state)
+                result = evaluate_task(task, agent_output, server.world_state)
 
-            # Evaluate llm_judge criteria
-            if judge:
-                criteria = _parse_criteria(task.criteria)
-                llm_results = judge.evaluate_criteria(
-                    criteria,
-                    [t.__dict__ for t in traj.turns],
-                )
-                # Merge llm_judge results with world_state/pattern results
-                llm_results_map = {r.criterion_id: r for r in llm_results}
-                merged_results = []
-                for cr in result.criteria_results:
-                    if cr.criterion_id in llm_results_map:
-                        merged_results.append(llm_results_map[cr.criterion_id])
-                    else:
-                        merged_results.append(cr)
-                # Recompute reward with merged results
-                from healthcraft.tasks.rubrics import (
-                    check_safety_gate,
-                    compute_dimension_scores,
-                    compute_reward,
-                )
-
-                merged_reward = compute_reward(list(merged_results), criteria)
-                merged_passed = all(r.satisfied for r in merged_results)
-                merged_safety = check_safety_gate(list(merged_results), criteria)
-                merged_dims = compute_dimension_scores(list(merged_results), criteria)
-            else:
-                merged_results = list(result.criteria_results)
-                merged_reward = result.reward
-                merged_passed = result.passed
-                merged_safety = result.safety_gate_passed
-                merged_dims = result.dimension_scores
-
-            # Set results on trajectory
-            traj.set_results(
-                criteria_results=[
-                    CriterionEvalResult(
-                        id=cr.criterion_id,
-                        satisfied=cr.satisfied,
-                        evidence=cr.evidence,
+                # Evaluate llm_judge criteria
+                if judge:
+                    criteria = _parse_criteria(task.criteria)
+                    llm_results = judge.evaluate_criteria(
+                        criteria,
+                        [t.__dict__ for t in traj.turns],
                     )
-                    for cr in merged_results
-                ],
-                reward=merged_reward,
-                passed=merged_passed,
-                safety_gate_passed=merged_safety,
-                dimension_scores=merged_dims,
-            )
+                    # Merge llm_judge results with world_state/pattern results
+                    llm_results_map = {r.criterion_id: r for r in llm_results}
+                    merged_results = []
+                    for cr in result.criteria_results:
+                        if cr.criterion_id in llm_results_map:
+                            merged_results.append(llm_results_map[cr.criterion_id])
+                        else:
+                            merged_results.append(cr)
+                    # Recompute reward with merged results
+                    from healthcraft.tasks.rubrics import (
+                        check_safety_gate,
+                        compute_dimension_scores,
+                        compute_reward,
+                    )
 
-            # Save trajectory
-            traj_filename = f"{task.id}_{agent_model}_{trial_seed}_t{trial}.json"
-            traj_path = results_dir / "trajectories" / task.category / traj_filename
-            traj.save(traj_path)
+                    merged_reward = compute_reward(list(merged_results), criteria)
+                    merged_passed = all(r.satisfied for r in merged_results)
+                    merged_safety = check_safety_gate(list(merged_results), criteria)
+                    merged_dims = compute_dimension_scores(list(merged_results), criteria)
+                else:
+                    merged_results = list(result.criteria_results)
+                    merged_reward = result.reward
+                    merged_passed = result.passed
+                    merged_safety = result.safety_gate_passed
+                    merged_dims = result.dimension_scores
 
-            # Log experiment
-            traj_rel = f"trajectories/{task.category}/{traj_filename}"
-            entry = ExperimentEntry.from_trajectory(traj, traj_rel)
-            exp_log.append(entry)
+                # Set results on trajectory
+                traj.set_results(
+                    criteria_results=[
+                        CriterionEvalResult(
+                            id=cr.criterion_id,
+                            satisfied=cr.satisfied,
+                            evidence=cr.evidence,
+                        )
+                        for cr in merged_results
+                    ],
+                    reward=merged_reward,
+                    passed=merged_passed,
+                    safety_gate_passed=merged_safety,
+                    dimension_scores=merged_dims,
+                )
 
-            total_runs += 1
-            rewards.append(merged_reward)
-            if merged_passed:
-                total_passed += 1
-            if not merged_safety:
+                # Save trajectory
+                traj.save(traj_path)
+
+                # Log experiment
+                traj_rel = f"trajectories/{task.category}/{traj_filename}"
+                entry = ExperimentEntry.from_trajectory(traj, traj_rel)
+                exp_log.append(entry)
+
+                total_runs += 1
+                rewards.append(merged_reward)
+                if merged_passed:
+                    total_passed += 1
+                if not merged_safety:
+                    safety_failures += 1
+
+                logger.info(
+                    "  -> reward=%.3f passed=%s safety=%s tools=%d",
+                    merged_reward,
+                    merged_passed,
+                    merged_safety,
+                    traj.total_tool_calls,
+                )
+
+            except Exception as e:
+                logger.error("Task %s trial %d FAILED: %s", task.id, trial, e)
+                error_traj = Trajectory(
+                    task_id=task.id,
+                    model=agent_model,
+                    seed=trial_seed,
+                    system_prompt="",
+                    error=str(e),
+                )
+                error_traj.save(traj_path)
+                traj_rel = f"trajectories/{task.category}/{traj_filename}"
+                exp_log.append(
+                    ExperimentEntry(
+                        task_id=task.id,
+                        model=agent_model,
+                        seed=trial_seed,
+                        reward=0.0,
+                        passed=False,
+                        safety_gate_passed=False,
+                        total_tool_calls=0,
+                        duration_seconds=0.0,
+                        trajectory_path=traj_rel,
+                        error=str(e),
+                    )
+                )
+                total_runs += 1
+                rewards.append(0.0)
                 safety_failures += 1
-
-            logger.info(
-                "  -> reward=%.3f passed=%s safety=%s tools=%d",
-                merged_reward,
-                merged_passed,
-                merged_safety,
-                traj.total_tool_calls,
-            )
+                continue
 
     # Compute summary
     pass_rate = total_passed / total_runs if total_runs > 0 else 0.0
@@ -359,6 +429,11 @@ def main() -> None:
     parser.add_argument("--max-tasks", type=int, default=None, help="Limit tasks")
     parser.add_argument("--results-dir", default=None, help="Results directory")
     parser.add_argument("--tasks-dir", default=None, help="Tasks directory")
+    parser.add_argument(
+        "--retry-errors",
+        action="store_true",
+        help="Re-run tasks that previously failed with errors (skips successful cached results)",
+    )
     parser.add_argument("--log-level", default="INFO", help="Log level")
 
     args = parser.parse_args()
@@ -389,6 +464,7 @@ def main() -> None:
         results_dir=Path(args.results_dir) if args.results_dir else None,
         tasks_dir=Path(args.tasks_dir) if args.tasks_dir else None,
         max_tasks=args.max_tasks,
+        retry_errors=args.retry_errors,
     )
 
     if "error" in summary:
