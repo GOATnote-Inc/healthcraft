@@ -103,6 +103,7 @@ class Encounter(Entity):
     imaging: tuple[ImagingStudy, ...] = ()
     meds_administered: tuple[MedicationAdministration, ...] = ()
     exam_findings: tuple[tuple[str, str], ...] = ()
+    clinical_notes: tuple[tuple[str, str], ...] = ()
 
 
 # --- Chief complaints by ESI level ---

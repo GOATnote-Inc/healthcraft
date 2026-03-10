@@ -291,3 +291,83 @@ class TestInjectTaskPatient:
         exam = result["data"]["exam_findings"]
         # Should have 3 findings: cardiovascular, pulmonary, bilateral BP
         assert len(exam) == 3, f"Expected 3 exam findings, got {len(exam)}: {exam}"
+
+    def test_social_family_history_on_patient(self, seeded_world):
+        """Social and family history are accessible via getPatientHistory."""
+        from healthcraft.mcp.tools.read_tools import get_patient_history
+
+        patient_data = {
+            "age": 52,
+            "sex": "M",
+            "chief_complaint": "Chest pain",
+            "social_history": ["40 pack-year smoking", "Occasional alcohol"],
+            "family_history": ["Father: aortic aneurysm at 58"],
+        }
+        ids = inject_task_patient(seeded_world, "TEST-SH", patient_data)
+
+        result = get_patient_history(seeded_world, {"patient_id": ids["patient_id"]})
+        assert result["status"] == "ok"
+        assert "40 pack-year smoking" in result["data"]["social_history"]
+        assert "Father: aortic aneurysm at 58" in result["data"]["family_history"]
+
+    def test_clinical_notes_catch_all(self, seeded_world):
+        """Unhandled patient data keys appear as clinical notes."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {
+            "age": 63,
+            "sex": "M",
+            "chief_complaint": "Collapse",
+            "ecg": {
+                "interpretation": "ST elevation in V1-V4",
+                "automated_read": "STEMI ALERT",
+            },
+            "arrival_mode": "walked in",
+            "code_timeline": [
+                {"time": "09:12", "event": "Collapse witnessed"},
+                {"time": "09:14", "event": "Shock #1 at 200J"},
+            ],
+        }
+        ids = inject_task_patient(seeded_world, "TEST-CN", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        notes = result["data"]["clinical_notes"]
+        note_labels = [n[0] for n in notes]
+        assert "Ecg" in note_labels
+        assert "Arrival Mode" in note_labels
+        assert "Code Timeline" in note_labels
+
+        # ECG should have interpretation
+        ecg_note = [n for n in notes if n[0] == "Ecg"][0]
+        assert "ST elevation" in ecg_note[1]
+
+        # Timeline should have both events
+        timeline_note = [n for n in notes if n[0] == "Code Timeline"][0]
+        assert "Collapse witnessed" in timeline_note[1]
+        assert "Shock #1" in timeline_note[1]
+
+    def test_extra_lab_keys_parsed(self, seeded_world):
+        """Labs from labs_post_rosc and similar keys are parsed as lab results."""
+        from healthcraft.mcp.tools.read_tools import get_encounter_details
+
+        patient_data = {
+            "age": 63,
+            "sex": "M",
+            "chief_complaint": "Cardiac arrest",
+            "labs_post_rosc": {
+                "troponin_i": "2.84 ng/mL (markedly elevated)",
+                "lactate": "8.2 mmol/L",
+            },
+        }
+        ids = inject_task_patient(seeded_world, "TEST-LB", patient_data)
+
+        result = get_encounter_details(
+            seeded_world, {"encounter_id": ids["encounter_id"]}
+        )
+        labs = result["data"]["labs"]
+        assert len(labs) == 2
+        lab_names = [lab["test_name"] for lab in labs]
+        assert "Troponin I" in lab_names
+        assert "Lactate" in lab_names

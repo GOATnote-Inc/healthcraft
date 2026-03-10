@@ -277,6 +277,32 @@ def _parse_meds_administered(
     return tuple(results)
 
 
+def _format_note_value(value: Any) -> str:
+    """Format an arbitrary YAML value into a readable clinical note string."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, dict):
+                # Timeline entries: {time: "09:12", event: "...", ...}
+                segments = []
+                for k, v in item.items():
+                    segments.append(f"{k}: {v}")
+                parts.append("; ".join(segments))
+            else:
+                parts.append(str(item))
+        return " | ".join(parts)
+    if isinstance(value, dict):
+        parts = []
+        for k, v in value.items():
+            parts.append(f"{k.replace('_', ' ').title()}: {v}")
+        return "; ".join(parts)
+    return str(value)
+
+
 def inject_task_patient(
     world: WorldState,
     task_id: str,
@@ -365,6 +391,8 @@ def inject_task_patient(
     allergies = tuple(patient_data.get("allergies", []))
     medications = tuple(patient_data.get("medications", []))
     pmh = tuple(patient_data.get("past_medical_history", []))
+    social_history = tuple(patient_data.get("social_history", []))
+    family_history = tuple(patient_data.get("family_history", []))
     advance_directives = patient_data.get("advance_directives", "")
 
     patient = Patient(
@@ -380,6 +408,8 @@ def inject_task_patient(
         allergies=allergies,
         medications=medications,
         pmh=pmh,
+        social_history=social_history,
+        family_history=family_history,
         insurance_id="",
         advance_directives=advance_directives,
         prior_visit_ids=(),
@@ -459,6 +489,31 @@ def inject_task_patient(
 
     exam_findings: tuple[tuple[str, str], ...] = tuple(exam_list)
 
+    # Parse additional lab sources (labs_post_rosc, labs_available, etc.)
+    for lab_key in ("labs_post_rosc", "labs_available", "labs_at_discharge", "initial_labs"):
+        extra_labs = patient_data.get(lab_key)
+        if extra_labs and isinstance(extra_labs, dict):
+            labs = labs + _parse_labs(extra_labs, encounter_time)
+
+    # Collect unhandled patient data as clinical notes (catch-all)
+    _HANDLED_KEYS = {
+        "age", "age_unit", "sex", "first_name", "last_name",
+        "allergies", "medications", "past_medical_history", "advance_directives",
+        "chief_complaint", "esi_level", "location",
+        "vitals", "vitals_current", "vitals_at_discharge",
+        "vitals_on_arrival", "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
+        "labs", "imaging", "active_orders", "current_management",
+        "exam_findings", "social_history", "family_history",
+        "labs_post_rosc", "labs_available", "labs_at_discharge", "initial_labs",
+    }
+    notes_list: list[tuple[str, str]] = []
+    for key, value in patient_data.items():
+        if key in _HANDLED_KEYS:
+            continue
+        label = key.replace("_", " ").title()
+        notes_list.append((label, _format_note_value(value)))
+    clinical_notes: tuple[tuple[str, str], ...] = tuple(notes_list)
+
     encounter = Encounter(
         id=encounter_id,
         entity_type=EntityType.ENCOUNTER,
@@ -477,6 +532,7 @@ def inject_task_patient(
         imaging=imaging,
         meds_administered=meds_admin,
         exam_findings=exam_findings,
+        clinical_notes=clinical_notes,
     )
 
     world.put_entity(EntityType.ENCOUNTER.value, encounter_id, encounter)

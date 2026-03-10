@@ -25,6 +25,8 @@ class Patient(Entity):
     allergies: tuple[str, ...] = ()
     medications: tuple[str, ...] = ()
     pmh: tuple[str, ...] = ()  # Past medical history
+    social_history: tuple[str, ...] = ()
+    family_history: tuple[str, ...] = ()
     insurance_id: str = ""
     advance_directives: str = ""  # "full_code", "dnr", "dnr_dni", "comfort_only", ""
     prior_visit_ids: tuple[str, ...] = ()
