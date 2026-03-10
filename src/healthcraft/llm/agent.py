@@ -514,6 +514,42 @@ def _build_tool_definitions(server: HealthcraftServer) -> list[dict[str, Any]]:
     return tools
 
 
+def _build_setting_context(setting: dict[str, Any]) -> str:
+    """Format task setting data as contextual information for the agent.
+
+    Includes facility status, resource availability, specialist availability,
+    and other environmental details that the agent would know as the
+    attending physician. Excludes keys already in the system prompt
+    (facility, department) and technical keys (world_seed).
+    """
+    if not setting:
+        return ""
+
+    # Keys handled elsewhere (system prompt or inject)
+    skip = {"world_seed", "time", "bed"}
+    parts: list[str] = []
+
+    for key, value in setting.items():
+        if key in skip:
+            continue
+        label = key.replace("_", " ").title()
+        if isinstance(value, dict):
+            sub_parts = []
+            for k, v in value.items():
+                sub_parts.append(f"  {k.replace('_', ' ').title()}: {v}")
+            parts.append(f"{label}:\n" + "\n".join(sub_parts))
+        elif isinstance(value, list):
+            items = "\n".join(f"  - {item}" for item in value)
+            parts.append(f"{label}:\n{items}")
+        else:
+            parts.append(f"{label}: {value}")
+
+    if not parts:
+        return ""
+
+    return "\n\n--- Current Department Status ---\n" + "\n".join(parts)
+
+
 def run_agent_task(
     client: ModelClient,
     task: Task,
@@ -548,13 +584,19 @@ def run_agent_task(
 
     tools = _build_tool_definitions(server)
 
+    # Build user message: task description + setting context
+    user_content = task.description
+    setting_context = _build_setting_context(task.initial_state)
+    if setting_context:
+        user_content = user_content.rstrip() + "\n" + setting_context
+
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": task.description},
+        {"role": "user", "content": user_content},
     ]
 
     traj.add_turn("system", system_prompt)
-    traj.add_turn("user", task.description)
+    traj.add_turn("user", user_content)
 
     start_time = time.monotonic()
 
