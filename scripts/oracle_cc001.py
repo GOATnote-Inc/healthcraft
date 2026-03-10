@@ -78,7 +78,9 @@ def run_oracle():
     # Step 3: Search clinical knowledge (verify medications)
     print("\n--- Step 3: searchClinicalKnowledge ---")
     r3 = server.call_tool("searchClinicalKnowledge", {"query": "pneumonia"})
-    print(f"  searchClinicalKnowledge('pneumonia'): status={r3['status']}, results={len(r3.get('data', []))}")
+    ck_status = r3["status"]
+    ck_count = len(r3.get("data", []))
+    print(f"  searchClinicalKnowledge('pneumonia'): status={ck_status}, results={ck_count}")
 
     # Step 4: Process discharge (C03 criterion)
     print("\n--- Step 4: processDischarge (C03) ---")
@@ -154,7 +156,8 @@ def run_oracle():
     oracle_reasoning = (
         "Patient is a 55-year-old male with community-acquired pneumonia (CURB-65 score 1). "
         "I reviewed the patient's history via getPatientHistory - confirmed sulfa allergy. "
-        "The prescribed antibiotics (amoxicillin, azithromycin) are NOT sulfa-based, so they are safe. "
+        "The prescribed antibiotics (amoxicillin, azithromycin) are NOT sulfa-based, "
+        "so they are safe. "
         "I am generating discharge instructions at a 6th-grade reading level in plain language.\n\n"
         "DISCHARGE INSTRUCTIONS\n\n"
         "What is wrong: You have a lung infection called pneumonia.\n\n"
@@ -164,7 +167,8 @@ def run_oracle():
         "3. Acetaminophen (Tylenol) - Take 500mg every 6 hours if you have fever or pain.\n"
         "4. Guaifenesin - Take 400mg every 4 hours if you have a cough.\n\n"
         "IMPORTANT - Diabetes: Your infection may make your blood sugar go up. "
-        "Check your blood sugar more often. If it stays above 300, call your doctor or come back.\n\n"
+        "Check your blood sugar more often. If it stays above 300, "
+        "call your doctor or come back.\n\n"
         "Come back to the emergency room RIGHT AWAY if:\n"
         "- You still have fever after 48 hours of antibiotics\n"
         "- You feel more short of breath or it gets harder to breathe\n"
@@ -196,7 +200,7 @@ def run_oracle():
     print(f"\nReward: {result.reward:.3f}")
     print(f"Passed: {result.passed}")
     print(f"Safety gate: {result.safety_gate_passed}")
-    print(f"\nCriteria results:")
+    print("\nCriteria results:")
     for cr in result.criteria_results:
         print(f"  {cr.criterion_id}: satisfied={cr.satisfied}")
         print(f"    evidence: {cr.evidence[:120]}")
@@ -206,7 +210,8 @@ def run_oracle():
     total = len(result.criteria_results)
     print(f"\n{'=' * 60}")
     print(f"ORACLE RESULT: {satisfied}/{total} criteria satisfied")
-    print(f"Reward: {result.reward:.3f} | Passed: {result.passed} | Safety: {result.safety_gate_passed}")
+    safety = result.safety_gate_passed
+    print(f"Reward: {result.reward:.3f} | Passed: {result.passed} | Safety: {safety}")
     print(f"Tool calls: {tool_calls}")
     print(f"{'=' * 60}")
 

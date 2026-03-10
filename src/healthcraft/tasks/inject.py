@@ -433,22 +433,27 @@ def inject_task_patient(
         vitals_list.append(_parse_vitals(vitals_data, encounter_time))
 
     # Also parse arrival vitals if present (multiple naming conventions)
-    vitals_arrival = (
-        patient_data.get("vitals_on_arrival")
-        or patient_data.get("vitals_at_arrival")
-    )
+    vitals_arrival = patient_data.get("vitals_on_arrival") or patient_data.get("vitals_at_arrival")
     if vitals_arrival and isinstance(vitals_arrival, dict):
         arrival_time = encounter_time - timedelta(hours=2)
         vitals_list.insert(0, _parse_vitals(vitals_arrival, arrival_time))
 
     # Also parse post-treatment / follow-up vitals if present
     _POST_VITALS_KEYS = (
-        "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
-        "vitals_30_minutes_later", "vitals_2_hours_later",
-        "vitals_post_naloxone", "vitals_pre_sedation",
-        "vitals_during_reaction", "vitals_5min_post_error",
-        "vitals_intermediate", "vitals_at_tpa_bolus",
-        "vitals_at_admission", "vitals_pre_reaction", "vitals_pre_error",
+        "vitals_post_diltiazem",
+        "vitals_post_treatment",
+        "vitals_repeat",
+        "vitals_30_minutes_later",
+        "vitals_2_hours_later",
+        "vitals_post_naloxone",
+        "vitals_pre_sedation",
+        "vitals_during_reaction",
+        "vitals_5min_post_error",
+        "vitals_intermediate",
+        "vitals_at_tpa_bolus",
+        "vitals_at_admission",
+        "vitals_pre_reaction",
+        "vitals_pre_error",
     )
     for idx, key in enumerate(_POST_VITALS_KEYS):
         post_vitals = patient_data.get(key)
@@ -499,8 +504,7 @@ def inject_task_patient(
     exam_list: list[tuple[str, str]] = []
     if exam_raw and isinstance(exam_raw, dict):
         exam_list.extend(
-            (system.replace("_", " ").title(), str(finding))
-            for system, finding in exam_raw.items()
+            (system.replace("_", " ").title(), str(finding)) for system, finding in exam_raw.items()
         )
 
     # Surface bilateral BP readings as an exam finding when present
@@ -526,22 +530,51 @@ def inject_task_patient(
 
     # Collect unhandled patient data as clinical notes (catch-all)
     _HANDLED_KEYS = {
-        "age", "age_unit", "sex", "first_name", "last_name",
-        "allergies", "medications", "past_medical_history", "advance_directives",
-        "chief_complaint", "esi_level", "location",
-        "vitals", "vitals_current", "vitals_at_discharge",
-        "vitals_at_presentation", "vitals_initial",
-        "vitals_on_arrival", "vitals_at_arrival",
-        "vitals_post_diltiazem", "vitals_post_treatment", "vitals_repeat",
-        "vitals_30_minutes_later", "vitals_2_hours_later",
-        "vitals_post_naloxone", "vitals_pre_sedation",
-        "vitals_during_reaction", "vitals_5min_post_error",
-        "vitals_intermediate", "vitals_at_tpa_bolus",
-        "vitals_at_admission", "vitals_pre_reaction", "vitals_pre_error",
+        "age",
+        "age_unit",
+        "sex",
+        "first_name",
+        "last_name",
+        "allergies",
+        "medications",
+        "past_medical_history",
+        "advance_directives",
+        "chief_complaint",
+        "esi_level",
+        "location",
+        "vitals",
+        "vitals_current",
+        "vitals_at_discharge",
+        "vitals_at_presentation",
+        "vitals_initial",
+        "vitals_on_arrival",
+        "vitals_at_arrival",
+        "vitals_post_diltiazem",
+        "vitals_post_treatment",
+        "vitals_repeat",
+        "vitals_30_minutes_later",
+        "vitals_2_hours_later",
+        "vitals_post_naloxone",
+        "vitals_pre_sedation",
+        "vitals_during_reaction",
+        "vitals_5min_post_error",
+        "vitals_intermediate",
+        "vitals_at_tpa_bolus",
+        "vitals_at_admission",
+        "vitals_pre_reaction",
+        "vitals_pre_error",
         "vitals_series",
-        "labs", "imaging", "active_orders", "current_management",
-        "exam_findings", "social_history", "family_history",
-        "labs_post_rosc", "labs_available", "labs_at_discharge", "initial_labs",
+        "labs",
+        "imaging",
+        "active_orders",
+        "current_management",
+        "exam_findings",
+        "social_history",
+        "family_history",
+        "labs_post_rosc",
+        "labs_available",
+        "labs_at_discharge",
+        "initial_labs",
     }
     notes_list: list[tuple[str, str]] = []
     for key, value in patient_data.items():

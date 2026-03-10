@@ -137,9 +137,7 @@ def print_safety_analysis(all_data: dict[str, dict[str, list[dict]]]) -> None:
     print("=" * 70)
 
     for label, task_data in sorted(all_data.items()):
-        safety_crit_stats: dict[str, dict] = defaultdict(
-            lambda: {"pass": 0, "fail": 0}
-        )
+        safety_crit_stats: dict[str, dict] = defaultdict(lambda: {"pass": 0, "fail": 0})
         for tid, trials in task_data.items():
             for trial in trials:
                 for cr in trial["criteria"]:
@@ -155,9 +153,7 @@ def print_safety_analysis(all_data: dict[str, dict[str, list[dict]]]) -> None:
         for cid, stats in safety_crit_stats.items():
             total = stats["pass"] + stats["fail"]
             if total > 0 and stats["fail"] / total > 0.5:
-                problem_criteria.append(
-                    (cid, stats["fail"], total, stats["fail"] / total)
-                )
+                problem_criteria.append((cid, stats["fail"], total, stats["fail"] / total))
 
         if problem_criteria:
             problem_criteria.sort(key=lambda x: -x[3])

@@ -112,9 +112,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CC-002", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         assert result["status"] == "ok"
         vitals = result["data"]["vitals"]
         assert len(vitals) >= 1
@@ -137,9 +135,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CC-002", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         labs = result["data"]["labs"]
         assert len(labs) == 2
         lab_names = [lab["test_name"] for lab in labs]
@@ -187,9 +183,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CC-002", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         vitals = result["data"]["vitals"]
         assert len(vitals) == 3, f"Expected 3 vitals sets, got {len(vitals)}"
 
@@ -210,9 +204,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CC-010", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         assert result["status"] == "ok"
         exam = result["data"]["exam_findings"]
         assert len(exam) == 4
@@ -227,9 +219,7 @@ class TestInjectTaskPatient:
         patient_data = {"age": 50, "sex": "M", "chief_complaint": "Test"}
         ids = inject_task_patient(seeded_world, "TEST-002", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         assert result["status"] == "ok"
         assert result["data"]["exam_findings"] == ()
 
@@ -251,9 +241,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CR-001", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         assert result["status"] == "ok"
         exam = result["data"]["exam_findings"]
         # Should have bilateral BP finding
@@ -285,9 +273,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "CR-001", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         exam = result["data"]["exam_findings"]
         # Should have 3 findings: cardiovascular, pulmonary, bilateral BP
         assert len(exam) == 3, f"Expected 3 exam findings, got {len(exam)}: {exam}"
@@ -330,9 +316,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "TEST-CN", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         notes = result["data"]["clinical_notes"]
         note_labels = [n[0] for n in notes]
         assert "Ecg" in note_labels
@@ -363,9 +347,7 @@ class TestInjectTaskPatient:
         }
         ids = inject_task_patient(seeded_world, "TEST-LB", patient_data)
 
-        result = get_encounter_details(
-            seeded_world, {"encounter_id": ids["encounter_id"]}
-        )
+        result = get_encounter_details(seeded_world, {"encounter_id": ids["encounter_id"]})
         labs = result["data"]["labs"]
         assert len(labs) == 2
         lab_names = [lab["test_name"] for lab in labs]
