@@ -24,7 +24,9 @@ from healthcraft.world.state import WorldState
 
 # --- Valid enum values ---
 
-_VALID_ORDER_TYPES = frozenset({"lab", "imaging", "medication", "procedure", "consult"})
+_VALID_ORDER_TYPES = frozenset(
+    {"lab", "imaging", "medication", "procedure", "consult", "blood_product"}
+)
 
 _ORDER_TYPE_TO_TASK_TYPE = {
     "lab": "lab_draw",
@@ -32,6 +34,7 @@ _ORDER_TYPE_TO_TASK_TYPE = {
     "medication": "medication_admin",
     "procedure": "procedure",
     "consult": "consult",
+    "blood_product": "blood_admin",
 }
 
 _VALID_TASK_STATUSES = frozenset({"pending", "in_progress", "completed", "cancelled", "on_hold"})

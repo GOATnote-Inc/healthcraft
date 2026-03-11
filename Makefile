@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight
 
 install:
 	pip install -e ".[dev]"
@@ -29,6 +29,9 @@ validate-tasks:
 
 analyze:
 	python scripts/analyze_results.py results/pilot-* -o docs/EVALUATION_FINDINGS.md
+
+preflight:  ## Run before any evaluation launch
+	python scripts/preflight.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

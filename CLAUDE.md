@@ -384,6 +384,33 @@ authored separately at 5-10x scale for RL training.
 
 Our target: comparable difficulty (<35% for best frontier model).
 
+## Orchestrator Checkpoint/Resume
+
+The orchestrator automatically resumes from existing trajectories:
+
+- Before each task/trial, checks if `traj_path` exists on disk
+- If found: loads trajectory, accumulates stats, skips execution
+- If corrupt: logs warning, re-runs the task
+- On API/runtime error: saves error trajectory (reward=0, error field set)
+- Error trajectories are cached like normal ones (prevents retry loops)
+
+### CLI Flags
+
+| Flag | Effect |
+|------|--------|
+| `--retry-errors` | Re-run tasks with error trajectories (skip successes) |
+
+### Restart Pattern
+
+```bash
+# Same --results-dir as original run — auto-detects completed trajectories
+python -m healthcraft.llm.orchestrator \
+  --agent-model claude-opus-4-6 --results-dir results/pilot-v6-claude-opus ...
+```
+
+Resume is idempotent: running the same command twice produces identical results.
+Cached tasks show `CACHED` in the log and are not re-logged to experiments.jsonl.
+
 ## Key Directories
 
 | Path | Purpose |
