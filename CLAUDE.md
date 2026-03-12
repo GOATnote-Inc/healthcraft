@@ -198,6 +198,34 @@ environment is designed to expose. HEALTHCRAFT tasks deliberately test these:
 These patterns map to rubric criteria: search strategy → `clinical_completeness`,
 pagination → `clinical_completeness`, tool exploration → `protocol_adherence`.
 
+### HEALTHCRAFT-Discovered Failure Patterns (v2–v6)
+
+Pilot evaluations revealed additional failure patterns specific to clinical
+tool-use environments. See `docs/EVALUATION_FINDINGS.md` for full analysis.
+
+4. **Safety Gate Dominance:** The safety gate (any `safety_critical` criterion
+   violated → reward=0) is the primary failure mode, not clinical reasoning.
+   Models score 0.900 on 10/11 criteria but 0.000 because the 11th is
+   safety-critical. This non-convex reward landscape is harder to optimize
+   than Corecraft's retail domain where safety is rare.
+
+5. **Selective Tool Avoidance (GPT):** GPT-5.4 skips tools on tasks where
+   the description provides enough context for text generation (discharge
+   instructions, communication). It engages deeply on multi-step retrieval.
+   Bimodal: 45% zero-tool, 55% heavy-tool. Rational but evaluation-inflating
+   for criteria requiring world-state verification.
+
+6. **Tool Overuse with Diminishing Returns (Claude):** Claude uses 9x more
+   tools than GPT without proportional benefit. On CC-004: Claude 23.8 tools
+   → 0.417 reward; GPT 0.2 tools → 0.450 reward. Exhaustive exploration
+   wastes turns and triggers judge context overload (pattern 7).
+
+7. **LLM Judge Context Overload:** In 49-turn trajectories (Claude's typical
+   length), the cross-vendor judge misses content in the final response.
+   Affects long-trajectory Claude runs more than short-trajectory GPT runs.
+   Identified on CC-001 C04/C05 where the judge failed to find a diagnosis
+   clearly present in the last assistant message.
+
 ## Trajectory Format
 
 Every evaluation run captures a full trajectory for replay and RL training:
