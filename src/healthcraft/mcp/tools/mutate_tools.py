@@ -68,6 +68,40 @@ def _entity_to_dict(entity: Any) -> Any:
     return entity
 
 
+_ROMAN_TO_ARABIC = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5"}
+_ARABIC_TO_ROMAN = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
+
+
+def _normalize_protocol_name(name: str) -> str:
+    """Normalize protocol name for comparison.
+
+    Strips underscores, hyphens, and extra whitespace, then lowercases.
+    Also normalizes roman numerals to arabic (I->1, II->2) and vice versa
+    so "trauma_activation_level1" matches "Trauma Activation Level I".
+    """
+    result = name.lower().replace("_", " ").replace("-", " ")
+    # Normalize roman numeral suffixes to arabic
+    words = result.split()
+    normalized_words = []
+    for w in words:
+        if w in _ROMAN_TO_ARABIC:
+            normalized_words.append(_ROMAN_TO_ARABIC[w])
+        elif w in _ARABIC_TO_ROMAN:
+            normalized_words.append(w)  # keep arabic as-is
+        else:
+            # Handle "level1" -> "level 1"
+            import re
+
+            m = re.match(r"^(\D+)(\d+)$", w)
+            if m:
+                normalized_words.extend([m.group(1), m.group(2)])
+            else:
+                normalized_words.append(w)
+            continue
+        continue
+    return " ".join(normalized_words).strip()
+
+
 # ---------------------------------------------------------------------------
 # 1. create_clinical_order
 # ---------------------------------------------------------------------------
@@ -414,19 +448,25 @@ def apply_protocol(world: WorldState, params: dict) -> dict:
     if encounter is None:
         return _error("encounter_not_found", f"Encounter not found: {encounter_id}")
 
-    # Find protocol by name (case-insensitive)
+    # Find protocol by name (normalized comparison)
     protocols = world.list_entities("protocol")
     matched_protocol = None
-    search_name = protocol_name.lower()
+    search_name = _normalize_protocol_name(protocol_name)
 
+    search_words = set(search_name.split())
     for _pid, proto in protocols.items():
         name = ""
         if hasattr(proto, "name"):
             name = proto.name
         elif isinstance(proto, dict):
             name = proto.get("name", "")
-        # Match exact or substring (allows "sepsis" to match "Sepsis Hour-1 Bundle")
-        if name.lower() == search_name or search_name in name.lower():
+        normalized_name = _normalize_protocol_name(name)
+        # Match exact, substring, or all search words present in name
+        if (
+            normalized_name == search_name
+            or search_name in normalized_name
+            or search_words <= set(normalized_name.split())
+        ):
             matched_protocol = proto
             break
 

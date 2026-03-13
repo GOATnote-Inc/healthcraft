@@ -1,9 +1,12 @@
 """Pre-flight validation for HEALTHCRAFT evaluations.
 
-Runs three checks in <30 seconds:
+Runs six checks in <30 seconds:
   1. Schema-Handler Contract Tests — every tool in mcp-tools.json dispatches ok
   2. Evaluator Smoke Test — success/failure distinction in world_state verification
   3. Criteria-Tool Existence Check — world_state check targets exist in tool registry
+  4. Parameter Qualifier Coverage — qualifiers in check strings are parseable
+  5. Enum Exhaustiveness — schema enums are subsets of handler accepted values
+  6. Protocol Name Matching — protocol names from schema match seeded world
 
 Usage:
     python scripts/preflight.py
@@ -13,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -206,6 +210,148 @@ def check_criteria_tool_existence() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Check 4: Parameter Qualifier Coverage
+# ---------------------------------------------------------------------------
+
+
+def check_parameter_qualifier_coverage() -> list[str]:
+    """Verify that check strings with qualifiers are parseable by the evaluator."""
+    from healthcraft.tasks.evaluator import _extract_tool_and_params
+    from healthcraft.tasks.loader import load_tasks
+
+    failures: list[str] = []
+    tasks = load_tasks(TASK_DIR)
+
+    for task in tasks:
+        for raw_criterion in task.criteria:
+            if raw_criterion.get("verification") != "world_state":
+                continue
+            check = raw_criterion.get("check", "")
+            if not check:
+                continue
+
+            # Split on AND/OR and check each clause
+            clauses = re.split(r"\s+(?:AND|OR)\s+", check, flags=re.IGNORECASE)
+            for clause in clauses:
+                clause_lower = clause.lower().strip()
+                if "contains" not in clause_lower:
+                    continue
+                keyword = "not contain" if "not contain" in clause_lower else "contains"
+                tool_name, params = _extract_tool_and_params(clause_lower, keyword)
+                if not tool_name:
+                    failures.append(
+                        f"{task.id}/{raw_criterion['id']}: "
+                        f"cannot extract tool name from clause: '{clause.strip()}'"
+                    )
+
+    return failures
+
+
+# ---------------------------------------------------------------------------
+# Check 5: Enum Exhaustiveness
+# ---------------------------------------------------------------------------
+
+
+def check_enum_exhaustiveness() -> list[str]:
+    """Verify that schema enum values are accepted by their handlers."""
+    failures: list[str] = []
+
+    with open(TOOLS_JSON) as f:
+        data = json.load(f)
+
+    # Known handler accepted values for enum parameters
+    from healthcraft.mcp.tools.mutate_tools import _VALID_ORDER_TYPES, _VALID_TASK_STATUSES
+    from healthcraft.mcp.tools.workflow_tools import _VALID_TRANSPORT_MODES
+
+    handler_enums: dict[str, dict[str, frozenset[str]]] = {
+        "createClinicalOrder": {"order_type": _VALID_ORDER_TYPES},
+        "updateTaskStatus": {"status": _VALID_TASK_STATUSES},
+        "processTransfer": {"transport_mode": _VALID_TRANSPORT_MODES | frozenset({"ground"})},
+    }
+
+    for tool_schema in data["tools"]:
+        tool_name = tool_schema["name"]
+        if tool_name not in handler_enums:
+            continue
+        properties = tool_schema.get("parameters", {}).get("properties", {})
+        for param_name, handler_accepted in handler_enums[tool_name].items():
+            prop = properties.get(param_name, {})
+            schema_enum = prop.get("enum")
+            if not schema_enum:
+                continue
+            for val in schema_enum:
+                # "ground" is mapped to "ground_als" at runtime, so it's accepted
+                if val not in handler_accepted and val != "ground":
+                    failures.append(
+                        f"{tool_name}.{param_name}: schema enum value '{val}' "
+                        f"not in handler accepted values {sorted(handler_accepted)}"
+                    )
+
+    return failures
+
+
+# ---------------------------------------------------------------------------
+# Check 6: Protocol Name Matching
+# ---------------------------------------------------------------------------
+
+
+def check_protocol_name_matching() -> list[str]:
+    """Verify that schema protocol names match protocols in a seeded world."""
+    from healthcraft.mcp.tools.mutate_tools import _normalize_protocol_name
+    from healthcraft.world.seed import WorldSeeder
+
+    failures: list[str] = []
+
+    # Load protocol names from schema
+    with open(TOOLS_JSON) as f:
+        data = json.load(f)
+    protocol_enums: list[str] = []
+    for tool_schema in data["tools"]:
+        if tool_schema["name"] == "applyProtocol":
+            props = tool_schema.get("parameters", {}).get("properties", {})
+            protocol_enums = props.get("protocol_name", {}).get("enum", [])
+            break
+
+    if not protocol_enums:
+        return ["applyProtocol schema has no protocol_name enum"]
+
+    # Seed a world and get protocol names
+    seeder = WorldSeeder(seed=42)
+    world = seeder.seed_world(WORLD_CONFIG)
+    protocols = world.list_entities("protocol")
+
+    if not protocols:
+        failures.append("No protocols in seeded world — cannot verify name matching")
+        return failures
+
+    world_protocol_names = []
+    for _pid, proto in protocols.items():
+        name = proto.name if hasattr(proto, "name") else proto.get("name", "")
+        if name:
+            world_protocol_names.append(name)
+
+    # For each schema enum value, check if it would match at least one world protocol.
+    # Uses the same matching logic as apply_protocol: exact, substring, or
+    # all search words present in the protocol name.
+    for enum_val in protocol_enums:
+        normalized_enum = _normalize_protocol_name(enum_val)
+        search_words = set(normalized_enum.split())
+        matched = any(
+            normalized_enum in _normalize_protocol_name(wname)
+            or _normalize_protocol_name(wname) == normalized_enum
+            or search_words <= set(_normalize_protocol_name(wname).split())
+            for wname in world_protocol_names
+        )
+        if not matched:
+            failures.append(
+                f"Schema protocol '{enum_val}' (normalized: '{normalized_enum}') "
+                f"does not match any world protocol: {world_protocol_names[:5]}..."
+            )
+
+    return failures
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -215,6 +361,9 @@ def main() -> int:
         ("Schema-Handler Contracts", check_schema_handler_contracts),
         ("Evaluator Smoke", check_evaluator_smoke),
         ("Criteria-Tool Existence", check_criteria_tool_existence),
+        ("Parameter Qualifier Coverage", check_parameter_qualifier_coverage),
+        ("Enum Exhaustiveness", check_enum_exhaustiveness),
+        ("Protocol Name Matching", check_protocol_name_matching),
     ]
 
     total_failures = 0

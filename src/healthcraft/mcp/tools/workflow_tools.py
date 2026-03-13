@@ -266,15 +266,18 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
     if not encounter_id:
         return _error("missing_param", "encounter_id is required")
 
-    receiving_facility = params.get("receiving_facility")
+    receiving_facility = params.get("receiving_facility") or params.get("destination_facility")
     if not receiving_facility:
-        return _error("missing_param", "receiving_facility is required")
+        return _error("missing_param", "receiving_facility or destination_facility is required")
 
     reason = params.get("reason")
     if not reason:
         return _error("missing_param", "reason is required")
 
     transport_mode = params.get("transport_mode", "ground_als")
+    # Map schema shorthand "ground" to handler's "ground_als" for backward compat
+    if transport_mode == "ground":
+        transport_mode = "ground_als"
     if transport_mode not in _VALID_TRANSPORT_MODES:
         return _error(
             "invalid_param",
@@ -305,11 +308,13 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
                 facility_known = True
                 break
 
+    # Accept unknown facilities with a warning rather than blocking the transfer.
+    # In a real ED, transfers go to facilities not in the directory.
+    facility_warning = ""
     if not facility_known:
-        return _error(
-            "unknown_facility",
-            f"Receiving facility '{receiving_facility}' is not a known facility. "
-            f"Known facilities: {', '.join(sorted(_KNOWN_FACILITIES))}",
+        facility_warning = (
+            f"Note: '{receiving_facility}' is not in the known facility directory. "
+            "Proceeding with transfer."
         )
 
     # --- (c) EMTALA compliance check ---
@@ -408,6 +413,9 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
         "status": "requested",
         "requested_at": now.isoformat(),
     }
+
+    if facility_warning:
+        data["facility_warning"] = facility_warning
 
     return _ok(data)
 

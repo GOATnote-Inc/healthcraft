@@ -1,5 +1,8 @@
 # HEALTHCRAFT
 
+[![Tests](https://github.com/GOATnote-Inc/healthcraft/actions/workflows/tests.yml/badge.svg)](https://github.com/GOATnote-Inc/healthcraft/actions/workflows/tests.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 **Emergency Medicine RL Training Environment**
 
 An open-source, high-fidelity reinforcement learning environment for training and evaluating AI agents in emergency medicine workflows. Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with 24 tools, 14 entity types, and 6 task categories spanning the full complexity of a Level I Trauma Center ED.
@@ -14,6 +17,17 @@ An open-source, high-fidelity reinforcement learning environment for training an
 > rewards, and clinical uncertainty that creates substantially harder agent tasks.
 > See [`docs/CORECRAFT_ATTRIBUTION.md`](docs/CORECRAFT_ATTRIBUTION.md) for the
 > complete entity, tool, and task mapping.
+
+## Current Status
+
+**v7 evaluation complete** (2026-03-13). 195 tasks x 3 trials x 2 frontier models.
+
+| Model | Pass@1 | Pass@3 | Pass^3 | Avg Reward |
+|-------|--------|--------|--------|------------|
+| Claude Opus 4.6 | 26.8% | 38.5% | 14.4% | 0.730 |
+| GPT-5.4 | 4.6% | 9.2% | 1.0% | 0.264 |
+
+Corecraft parity confirmed -- Claude Pass@1 (26.8%) within Corecraft range (22.1%-30.8%). See [Evaluation Findings](docs/EVALUATION_FINDINGS.md).
 
 ## Setting: Mercy Point Emergency Department
 
@@ -106,6 +120,15 @@ make smoke
 pip install -e ".[openem]"
 ```
 
+## Known Limitations
+
+- Static world state -- patient vitals don't evolve during agent interaction
+- No interruption testing -- real EDs have interruptions every 3-5 minutes
+- Episodic tasks only -- no sustained multi-patient workload management
+- Single-agent -- no team coordination or consultant disagreement scenarios
+
+See [Task Expansion Roadmap](docs/TASK_EXPANSION_ROADMAP.md) for planned phases addressing these gaps.
+
 ## Development
 
 ```bash
@@ -120,6 +143,10 @@ make docker-up # Start Docker environment
 ## Clinical Knowledge Foundation
 
 HEALTHCRAFT builds on [OpenEM](https://github.com/GOATnote-Inc/openem-corpus), an open corpus of 370 emergency medicine conditions with structured safety metadata including 152 confusion pairs, 45 decision rules, and FHIR R4 bundles. OpenEM is Apache 2.0 / CC-BY-SA 4.0.
+
+## Roadmap
+
+Target: ~260 tasks covering the full operational complexity of a Level I Trauma Center ED. See [Task Expansion Roadmap](docs/TASK_EXPANSION_ROADMAP.md).
 
 ## License
 

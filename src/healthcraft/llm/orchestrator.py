@@ -227,16 +227,34 @@ def run_frontier_evaluation(
                 world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
 
                 # Inject task-described patient into world state
+                injected_ids: dict[str, str] = {}
                 if task.patient:
-                    inject_task_patient(world, task.id, task.patient, task.initial_state)
+                    injected_ids = inject_task_patient(
+                        world, task.id, task.patient, task.initial_state
+                    )
 
                 server = create_server(world)
 
                 # Load system prompt
                 system_prompt = _load_system_prompt(task)
 
+                # Append injected patient/encounter IDs to the task so
+                # the agent knows which patient to look up (prevents GPT
+                # from creating a new patient via registerPatient).
+                task_with_context = task
+                if injected_ids:
+                    pid = injected_ids.get("patient_id", "")
+                    eid = injected_ids.get("encounter_id", "")
+                    context_hint = f"\n\nRelevant patient ID: {pid}. Active encounter ID: {eid}."
+                    # Create a shallow copy of the task with augmented description
+                    from dataclasses import replace as dc_replace
+
+                    task_with_context = dc_replace(
+                        task, description=task.description.rstrip() + context_hint
+                    )
+
                 # Run agent
-                traj = run_agent_task(agent_client, task, server, system_prompt)
+                traj = run_agent_task(agent_client, task_with_context, server, system_prompt)
                 traj.model = agent_model
                 traj.seed = trial_seed
 
