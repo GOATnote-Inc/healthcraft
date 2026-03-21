@@ -18,16 +18,32 @@ An open-source, high-fidelity reinforcement learning environment for training an
 > See [`docs/CORECRAFT_ATTRIBUTION.md`](docs/CORECRAFT_ATTRIBUTION.md) for the
 > complete entity, tool, and task mapping.
 
-## Current Status
+## Evaluation Results
 
-**v7 evaluation complete** (2026-03-13). 195 tasks x 3 trials x 2 frontier models.
+**v8** (2026-03-15). 195 tasks, 2,241 criteria (515 safety-critical), 3 trials per model.
 
-| Model | Pass@1 | Pass@3 | Pass^3 | Avg Reward |
-|-------|--------|--------|--------|------------|
-| Claude Opus 4.6 | 26.8% | 38.5% | 14.4% | 0.730 |
-| GPT-5.4 | 4.6% | 9.2% | 1.0% | 0.264 |
+| Model | Pass@1 | Pass@3 | Pass^3 | Avg Reward | Safety Failures |
+|-------|--------|--------|--------|------------|-----------------|
+| Claude Opus 4.6 | 24.8% | 37.9% | 13.8% | 0.634 | 27.5% |
+| GPT-5.4 | 12.6% | 24.6% | 3.1% | 0.546 | 34.0% |
 
-Corecraft parity confirmed -- Claude Pass@1 (26.8%) within Corecraft range (22.1%-30.8%). See [Evaluation Findings](docs/EVALUATION_FINDINGS.md).
+Claude Pass@1 (24.8%) within Corecraft range (22.1%-30.8%).
+See [Evaluation Findings](docs/EVALUATION_FINDINGS.md) for per-category
+breakdown and [Evaluation Integrity](docs/EVALUATION_INTEGRITY.md) for
+version history, known limitations, and audit trail.
+
+### Per-Category Pass@1
+
+| Category | Tasks | Claude | GPT |
+|----------|-------|--------|-----|
+| Clinical Reasoning | 50 | 44.0% | 16.7% |
+| Information Retrieval | 30 | 38.9% | 18.9% |
+| Clinical Communication | 30 | 22.2% | 20.0% |
+| Safety-Critical Judgment | 27 | 16.0% | 9.9% |
+| Temporal Reasoning | 25 | 13.3% | 8.0% |
+| Multi-Step Workflows | 33 | 1.0% | 0.0% |
+
+104 tasks (53%) unsolved by both models across all 6 trials.
 
 ## Setting: Mercy Point Emergency Department
 
@@ -98,6 +114,19 @@ See [`docs/TOOL_MAPPING.md`](docs/TOOL_MAPPING.md) for the complete tool referen
 | Safety | 0.20 | No harmful actions; **hard gate** (lethal error = zero) |
 | Temporal Sequencing | 0.10 | Correct ordering and timing of actions |
 
+## Evaluate Your Model
+
+HEALTHCRAFT supports any MCP-compatible LLM. See
+[Evaluate Your Model](docs/EVALUATE_YOUR_MODEL.md) for setup and protocol.
+
+```bash
+python -m healthcraft.llm.orchestrator \
+  --agent-model <your-model> --trials 3 \
+  --results-dir results/<run-name>
+```
+
+Results welcome. Open a PR or issue with your summary.json.
+
 ## Quick Start
 
 ```bash
@@ -120,14 +149,30 @@ make smoke
 pip install -e ".[openem]"
 ```
 
+## Evaluation Integrity
+
+HEALTHCRAFT maintains a public audit trail of every evaluation version,
+bug discovery, and correction. See
+[Evaluation Integrity](docs/EVALUATION_INTEGRITY.md).
+
 ## Known Limitations
 
+**Environment:**
 - Static world state -- patient vitals don't evolve during agent interaction
 - No interruption testing -- real EDs have interruptions every 3-5 minutes
 - Episodic tasks only -- no sustained multi-patient workload management
 - Single-agent -- no team coordination or consultant disagreement scenarios
 
-See [Task Expansion Roadmap](docs/TASK_EXPANSION_ROADMAP.md) for planned phases addressing these gaps.
+**Evaluation methodology:**
+- Infrastructure bugs have affected every major version (V6 invalidated, V7
+  had 5 bugs, V8 corrected 6). V8 is current but not guaranteed bug-free.
+- 57% of criteria use LLM judge (non-deterministic). Judge context overload
+  on long trajectories is a known failure mode.
+- 3 trials per model. Confidence intervals are wide.
+- See [Evaluation Integrity](docs/EVALUATION_INTEGRITY.md) for the full
+  audit trail and known limitations.
+
+See [Task Expansion Roadmap](docs/TASK_EXPANSION_ROADMAP.md) for planned phases addressing environment gaps.
 
 ## Development
 

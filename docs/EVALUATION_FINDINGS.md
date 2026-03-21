@@ -1,8 +1,11 @@
 # HEALTHCRAFT Evaluation Findings
 
-Synthesized results from all pilot evaluations (v0–v7). For infrastructure
-audit details, see `ORACLE_VALIDATION.md`. For Corecraft paper alignment,
-see `CORECRAFT_ATTRIBUTION.md`.
+**V8 is authoritative. V7 contained 5 infrastructure bugs.**
+
+Synthesized results from all pilot evaluations (v0-v8). For infrastructure
+audit details, see `ORACLE_VALIDATION.md`. For the full audit trail and
+known limitations, see `EVALUATION_INTEGRITY.md`. For Corecraft paper
+alignment, see `CORECRAFT_ATTRIBUTION.md`.
 
 ## Run History
 
@@ -15,12 +18,15 @@ see `CORECRAFT_ATTRIBUTION.md`.
 | v4 | ordering+judge | 20 | 5 | 2 | 2026-03-10 | Entity ordering, judge formatting, age parser |
 | v5 | name fix | 1 | 3 | 1 | 2026-03-10 | CC-003 deterministic name generation (GPT only) |
 | v6 | criteria verification | 195 | 1 | 2 | 2026-03-11 | 218 criteria fixes. **Complete. Invalidated by audit (V6_AUDIT_FINDINGS.md).** |
-| v7 | clean run | 195 | 3 | 2 | 2026-03-13 | All V6 audit bugs fixed + IR-016-C03 fix + preflight in CI. **Complete.** |
+| v7 | clean run | 195 | 3 | 2 | 2026-03-13 | All V6 audit bugs fixed + IR-016-C03 fix + preflight in CI. Superseded by V8. |
+| v8 | bug fixes | 195 | 3 | 2 | 2026-03-15 | 6 infra bugs fixed (3 evaluator, 2 tool, 1 agent). 0 criteria flips on rescore validation. **Authoritative.** |
 
-v0–v1 were exploratory (incomplete infrastructure, no summary.json).
+v0-v1 were exploratory (incomplete infrastructure, no summary.json).
 v5 was a targeted single-task fix verification.
-v6 is complete but invalidated — results are immutable reference data only.
-v7 is the first clean run with 3 trials (enables Pass^k). Authoritative results.
+v6 is complete but invalidated -- results are immutable reference data only.
+v7 contained 5 infrastructure bugs discovered post-publication. Superseded.
+v8 is the current authoritative version. See `EVALUATION_INTEGRITY.md` for
+the full audit trail and `CHANGELOG.md` for version-by-version changes.
 
 ## Model Comparison
 
@@ -33,11 +39,12 @@ v7 is the first clean run with 3 trials (enables Pass^k). Authoritative results.
 | v4 | 0.611 (+65%) | 0.250 (+29%) | 11% | 0% |
 | v6† | 0.753 (+23%) | 0.351 (+40%) | 32.8% | 6.7% |
 | v7 | 0.730 (-3%) | 0.264 (-25%) | 26.8% | 4.6% |
+| v8 | 0.634 (-13%) | 0.546 (+107%) | 24.8% | 12.6% |
 
-†V6 complete but **invalidated** by post-audit bugs. V7 is authoritative.
-V6→V7 delta: Claude -0.022 mean reward, GPT -0.087. Audit fixes eliminated
-false passes (failed-call-counts-as-pass, substring matching). 89 Claude tasks
-degraded, 46 improved. 66 GPT tasks degraded, 43 improved.
+V6 complete but invalidated by post-audit bugs. V7 superseded by V8.
+V7->V8 delta: Claude -0.097 mean reward (qualifier enforcement removed false
+passes), GPT +0.282 (tool-side fixes enabled previously-impossible actions).
+Claude 80 tasks degraded, 58 improved. GPT 127 improved, 20 degraded.
 
 ### Safety Failure Rate
 
@@ -48,11 +55,12 @@ degraded, 46 improved. 66 GPT tasks degraded, 43 improved.
 | v4 | 23% | 44% |
 | v6† | 16.9% | 51.3% |
 | v7 | 17.9% | 60.9% |
+| v8 | 27.5% | 34.0% |
 
-V7 confirms Claude's safety improvement trend (17.9%). GPT safety worsened
-from V6 (51.3%→60.9%) — V6's evaluator was masking real safety failures.
-GPT hits the safety gate on 92.7% of clinical_reasoning and 93.9% of
-multi_step_workflows trials.
+V8 shows safety failure convergence: Claude increased (17.9% -> 27.5%) as
+qualifier enforcement exposed previously-undetected safety violations. GPT
+decreased dramatically (60.9% -> 34.0%) as tool-side fixes enabled GPT to
+complete tasks that previously errored before reaching safety-critical steps.
 
 ### V6 Per-Category Breakdown (invalidated — reference only)
 
@@ -209,12 +217,65 @@ is significantly harder for GPT than Corecraft's retail domain.
 
 **Why HEALTHCRAFT is harder for GPT than Corecraft:**
 1. Safety gate: 515 safety-critical criteria (23%) create a non-convex reward
-   landscape. GPT hits the safety gate on 60.9% of trials.
+   landscape. GPT hits the safety gate on 34.0% of V8 trials.
 2. Clinical reasoning requires domain knowledge absent from retail support.
 3. Tool-use strategy matters more: GPT's selective tool avoidance works in
    retail (answer from context) but fails in medicine (must query world state).
 
-## V7 Per-Category Breakdown
+## V8 Per-Category Breakdown
+
+| Category | Tasks | Claude Pass@1 | Claude Reward | GPT Pass@1 | GPT Reward |
+|----------|-------|---------------|---------------|------------|------------|
+| clinical_reasoning | 50 | 44.0% | 0.848 | 16.7% | 0.658 |
+| information_retrieval | 30 | 38.9% | 0.809 | 18.9% | 0.668 |
+| clinical_communication | 30 | 22.2% | 0.768 | 20.0% | 0.754 |
+| safety_critical_judgment | 27 | 16.0% | 0.386 | 9.9% | 0.392 |
+| temporal_reasoning | 25 | 13.3% | 0.658 | 8.0% | 0.626 |
+| multi_step_workflows | 33 | 1.0% | 0.211 | 0.0% | 0.143 |
+
+**Category insights (V8):**
+- **clinical_reasoning** remains Claude's strongest (44.0%). GPT jumped from
+  0.0% (V7) to 16.7% (V8) -- the largest V7->V8 category improvement for
+  either model. V7's GPT clinical_reasoning zero was largely an infrastructure
+  artifact.
+- **multi_step_workflows** remains the wall for both models (Claude 1.0%,
+  GPT 0.0%). 21 of 33 tasks score 0.000 across all 6 trials.
+- **clinical_communication** shows near-parity (Claude 22.2%, GPT 20.0%) --
+  the only category where GPT approaches Claude.
+- **safety_critical_judgment** rewards are nearly identical (Claude 0.386,
+  GPT 0.392) despite different pass rates, indicating similar partial
+  completion patterns.
+
+## V7 to V8 Delta
+
+V7->V8 infrastructure fixes had asymmetric effects:
+
+**Claude:** 80 tasks degraded, 58 improved, 57 unchanged. Mean reward delta
+-0.097. Degradations are concentrated in tasks where parameter qualifier
+enforcement removed false passes (tasks previously credited for any
+`createClinicalOrder` call regardless of order type).
+
+**GPT:** 127 tasks improved, 20 degraded, 48 unchanged. Mean reward delta
++0.282. GPT tripled in pass rate (4.6% -> 12.6%) from tool-side fixes
+alone. 127 tasks improved because `processTransfer` and entity ID injection
+fixes enabled GPT to complete tasks it previously could not attempt.
+
+Headline: GPT's V7 performance was severely underestimated. Most V7 "GPT
+failures" in clinical_reasoning (0.0% pass) were tool infrastructure
+failures, not model capability gaps.
+
+## V8 Hardest Tasks (both models fail all 3 trials, reward=0)
+
+33 tasks score 0.000 across all 6 trials (3 per model):
+- 21 multi_step_workflows
+- 10 safety_critical_judgment
+- 3 temporal_reasoning
+
+104 tasks (53%) are unsolved by both models across all 6 trials when
+including partial-reward failures. These should be investigated for task
+solvability via oracle validation.
+
+## V7 Per-Category Breakdown (superseded -- reference only)
 
 | Category | Tasks | Claude Pass@1 | Claude Reward | GPT Pass@1 | GPT Reward |
 |----------|-------|---------------|---------------|------------|------------|
@@ -225,58 +286,50 @@ is significantly harder for GPT than Corecraft's retail domain.
 | temporal_reasoning | 25 | 21.3% | 0.767 | 8.0% | 0.520 |
 | multi_step_workflows | 33 | 3.0% | 0.546 | 0.0% | 0.048 |
 
-**Category insights:**
-- **clinical_reasoning** is Claude's strongest (46.0%) and GPT's worst (0.0%).
-  This is the core capability gap.
-- **multi_step_workflows** is the hardest category for both models. Claude at
-  3.0% pass — 15 of 33 tasks are unsolved by both models in all trials.
-- **information_retrieval** is GPT's best (11.1%) — the only category where
-  GPT demonstrates meaningful tool-use competence.
-- **safety_critical_judgment** has the highest safety failure rates (Claude
-  42.0%, GPT 74.1%) — safety-critical tasks are designed to trigger safety
-  gate failures.
+## Key Findings (continued)
 
-## V7 Hardest Tasks (both models fail all 3 trials, reward=0)
+### 8. Infrastructure Disproportionately Affected GPT
 
-15 tasks score 0.000 across all 6 trials (3 per model):
-- 9 multi_step_workflows (MSW-001, MW-002, MW-003, MW-004, MW-009, MW-012,
-  MW-015, MW-017, MW-023)
-- 4 safety_critical_judgment (SCJ-009, SCJ-015, SCJ-017, SCJ-027)
-- 1 clinical_communication (CC-019)
-- 1 clinical_reasoning (CR-028)
+V7->V8 tool-side fixes (processTransfer, entity ID injection) improved GPT
+by +0.282 mean reward but Claude by only -0.097. GPT follows API schemas
+literally -- when schemas are wrong, GPT fails. Claude adapts to error
+messages and retries with corrected parameters. This means infrastructure
+bugs create a systematic bias against GPT-style models.
 
-These represent genuine capability boundaries, not infrastructure artifacts.
-They should be investigated for task solvability (oracle validation) before
-concluding they are unsolvable.
+### 9. Safety Failure Convergence
 
-## V6→V7 Audit Fix Validation
+V7 showed a large safety failure gap (Claude 17.9%, GPT 60.9%). V8 shows
+convergence (Claude 27.5%, GPT 34.0%). The convergence has two causes:
+Claude's rate increased because qualifier enforcement exposed previously-
+undetected safety violations. GPT's rate decreased because tool fixes
+allowed GPT to progress past the point where safety-critical actions occur.
+
+## V6->V7 Audit Fix Validation
 
 The delta analysis confirms the audit fixes worked as intended:
 
 **Claude:** 89 tasks degraded (mean -0.022). Largest degradations are tasks
-where failed tool calls previously counted as passes (MW-004: 0.929→0.000,
-MW-015: 0.917→0.000). 46 tasks improved — tasks where registerPatient and
+where failed tool calls previously counted as passes (MW-004: 0.929->0.000,
+MW-015: 0.917->0.000). 46 tasks improved -- tasks where registerPatient and
 blood_product fixes enabled previously-impossible tool calls.
 
 **GPT:** 66 tasks degraded (mean -0.087). 7 tasks dropped from ~1.000 to
-0.000 (CR-001, CR-009, MW-009, MW-012, MW-021, SCJ-004, SCJ-026) — all
-false passes from V6's buggy evaluator. GPT's true performance was worse
-than V6 reported.
+0.000 (CR-001, CR-009, MW-009, MW-012, MW-021, SCJ-004, SCJ-026) -- all
+false passes from V6's buggy evaluator.
 
-## Open Questions Post-V7
+## Open Questions
 
-1. **Are the 15 zero-reward tasks solvable?** Oracle validation needed.
+1. **Are the 33 zero-reward tasks solvable?** Oracle validation needed.
    If unsolvable, they should be fixed or excluded from pass rate computation.
-2. **Why does Claude fail multi_step_workflows?** 3.0% pass despite strong
-   clinical reasoning (46.0%). Is this protocol sequencing, resource
+2. **Why does Claude fail multi_step_workflows?** 1.0% pass despite strong
+   clinical reasoning (44.0%). Is this protocol sequencing, resource
    coordination, or a rubric strictness issue?
-3. **Can Gemini 3.1 Pro close the gap?** Corecraft shows Gemini at 27.2%.
-   A third model would strengthen the parity comparison.
-4. **Does 5 trials change Pass^k?** V7 used 3 trials. Expanding to 5
-   trials would enable Pass^5 for direct τ²-Bench comparison.
-5. **Is GPT's clinical_reasoning zero real?** 0.0% pass with 92.7% safety
-   failures suggests GPT may be making systematically unsafe clinical
-   decisions, not just failing to use tools.
+3. **Can a third model close the gap?** Corecraft reports Gemini at 27.2%.
+   Adding Gemini 3.1 Pro or Grok 4 would strengthen the parity comparison.
+4. **Does 5 trials change Pass^k?** V8 used 3 trials. Expanding to 5
+   trials would enable Pass^5 for direct tau2-Bench comparison.
+5. **What is inter-judge agreement?** Claude judges GPT the same way GPT
+   judges Claude? No cross-judge kappa analysis exists.
 
 ## V6 Audit Invalidation (2026-03-11)
 
@@ -311,5 +364,9 @@ V6 results are immutable. V7 will be the clean run with all fixes.
 | `results/pilot-v5-cc003-gpt/` | Complete | 3 | Yes |
 | `results/pilot-v6-claude-opus/` | Complete (invalidated) | 195 | Yes |
 | `results/pilot-v6-gpt54/` | Complete (invalidated) | 195 | Yes |
-| `results/pilot-v7-claude-opus/` | Complete | 585 (195×3) | Yes |
-| `results/pilot-v7-gpt54/` | Complete | 585 (195×3) | Yes |
+| `results/pilot-v7-claude-opus/` | Superseded | 585 (195x3) | Yes |
+| `results/pilot-v7-gpt54/` | Superseded | 585 (195x3) | Yes |
+| `results/pilot-v8-claude-opus/` | Complete (authoritative) | 585 (195x3) | Yes |
+| `results/pilot-v8-gpt54/` | Complete (authoritative) | 585 (195x3) | Yes |
+| `results/rescore-v7/` | Validation | -- | Yes |
+| `results/rescore-v8/` | Validation (0 flips) | -- | Yes |

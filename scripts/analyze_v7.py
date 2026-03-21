@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""V7 analysis pipeline for HEALTHCRAFT evaluation results.
+"""Analysis pipeline for HEALTHCRAFT evaluation results.
 
 Reads trajectory JSONs directly from results directories and produces:
 - Per-category breakdown (tasks, pass rate, avg reward, safety failures)
@@ -7,22 +7,22 @@ Reads trajectory JSONs directly from results directories and produces:
 - Hardest tasks (both models fail all trials)
 - Model divergence (one passes, other fails)
 - Corecraft Table 1 parity comparison
-- Optional V6→V7 delta analysis (--compare)
+- Optional delta analysis (--compare)
 
 Usage:
     # Basic analysis
     python scripts/analyze_v7.py \
-        --results results/pilot-v7-claude-opus results/pilot-v7-gpt54
+        --results results/pilot-v8-claude-opus results/pilot-v8-gpt54
 
-    # With V6 comparison
+    # With previous version comparison
     python scripts/analyze_v7.py \
-        --results results/pilot-v7-claude-opus results/pilot-v7-gpt54 \
-        --compare results/pilot-v6-claude-opus results/pilot-v6-gpt54
+        --results results/pilot-v8-claude-opus results/pilot-v8-gpt54 \
+        --compare results/pilot-v7-claude-opus results/pilot-v7-gpt54
 
     # Output to file
     python scripts/analyze_v7.py \
-        --results results/pilot-v7-claude-opus results/pilot-v7-gpt54 \
-        --output docs/V7_ANALYSIS.md
+        --results results/pilot-v8-claude-opus results/pilot-v8-gpt54 \
+        --output docs/V8_ANALYSIS.md
 """
 
 from __future__ import annotations
@@ -246,7 +246,7 @@ def generate_report(
 
     # ── Header ──
     lines.append("=" * 70)
-    lines.append("  HEALTHCRAFT V7 Evaluation Analysis")
+    lines.append("  HEALTHCRAFT Evaluation Analysis")
     lines.append("=" * 70)
     lines.append("")
 
@@ -392,7 +392,7 @@ def generate_report(
     # ── V6→V7 delta analysis ──
     if compare_analyses:
         lines.append("=" * 70)
-        lines.append("  V6 → V7 Delta Analysis")
+        lines.append("  Previous -> Current Delta Analysis")
         lines.append("=" * 70)
         lines.append("")
 
@@ -409,7 +409,7 @@ def generate_report(
             if not deltas:
                 continue
 
-            lines.append(f"  {model} (V7 vs V6):")
+            lines.append(f"  {model} (current vs previous):")
             lines.append("")
 
             # Summary
@@ -427,7 +427,7 @@ def generate_report(
             if improved:
                 lines.append("    Largest improvements:")
                 lines.append(
-                    f"      {'Task':<12} {'Category':<25} {'V6':>7} {'V7':>7} {'Delta':>8}"
+                    f"      {'Task':<12} {'Category':<25} {'Prev':>7} {'Curr':>7} {'Delta':>8}"
                 )
                 for d in improved[:15]:
                     lines.append(
@@ -440,7 +440,7 @@ def generate_report(
             if degraded:
                 lines.append("    Largest degradations:")
                 lines.append(
-                    f"      {'Task':<12} {'Category':<25} {'V6':>7} {'V7':>7} {'Delta':>8}"
+                    f"      {'Task':<12} {'Category':<25} {'Prev':>7} {'Curr':>7} {'Delta':>8}"
                 )
                 for d in degraded[:15]:
                     lines.append(
@@ -458,7 +458,7 @@ def generate_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="HEALTHCRAFT V7 evaluation analysis",
+        description="HEALTHCRAFT evaluation analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -466,14 +466,14 @@ def main() -> None:
         "-r",
         nargs="+",
         required=True,
-        help="V7 results directories to analyze",
+        help="Results directories to analyze",
     )
     parser.add_argument(
         "--compare",
         "-c",
         nargs="+",
         default=None,
-        help="V6 results directories for delta comparison",
+        help="Previous version results directories for delta comparison",
     )
     parser.add_argument(
         "--output",
@@ -543,7 +543,7 @@ def main() -> None:
         if args.output:
             json_path = Path(args.output).with_suffix(".json")
         else:
-            json_path = Path("v7_analysis.json")
+            json_path = Path("analysis.json")
         # Convert per_task dict to list for JSON serialization
         json_data = []
         for a in analyses:
