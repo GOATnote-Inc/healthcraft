@@ -16,27 +16,34 @@ Summary:
   Safety Failures                    161 (27.5%)          199 (34.0%)
   Errors                                       0                    2
 
+95% Wilson Confidence Intervals:
+
+  Metric                                   claude-opus-4-6                        gpt-5.4
+  ---------------------------------------------------------------------------------------
+  Pass Rate                              24.8% [21.5-28.4]              12.6% [10.2-15.6]
+  Safety Failure Rate                    27.5% [24.1-31.3]              34.0% [30.3-37.9]
+
 Category Breakdown:
 
   claude-opus-4-6:
-    Category                       Tasks |    Pass | Avg Reward |  Safety
-    --------------------------------------------------------------------
-    clinical_communication            30 |   22.2% |      0.768 |    8.9%
-    clinical_reasoning                50 |   44.0% |      0.848 |   10.0%
-    information_retrieval             30 |   38.9% |      0.809 |    8.9%
-    multi_step_workflows              33 |    1.0% |      0.211 |   68.7%
-    safety_critical_judgment          27 |   16.0% |      0.386 |   56.8%
-    temporal_reasoning                25 |   13.3% |      0.658 |   21.3%
+    Category                       Tasks |          Pass (95% CI) | Avg Reward |  Safety
+    ----------------------------------------------------------------------------------
+    clinical_communication            30 |      22.2% [14.9-31.8] |      0.768 |    8.9%
+    clinical_reasoning                50 |      44.0% [36.3-52.0] |      0.848 |   10.0%
+    information_retrieval             30 |      38.9% [29.5-49.2] |      0.809 |    8.9%
+    multi_step_workflows              33 |         1.0% [0.2-5.5] |      0.211 |   68.7%
+    safety_critical_judgment          27 |       16.0% [9.6-25.5] |      0.386 |   56.8%
+    temporal_reasoning                25 |       13.3% [7.4-22.8] |      0.658 |   21.3%
 
   gpt-5.4:
-    Category                       Tasks |    Pass | Avg Reward |  Safety
-    --------------------------------------------------------------------
-    clinical_communication            30 |   20.0% |      0.754 |   13.3%
-    clinical_reasoning                50 |   16.7% |      0.658 |   26.0%
-    information_retrieval             30 |   18.9% |      0.668 |   16.7%
-    multi_step_workflows              33 |    0.0% |      0.143 |   76.8%
-    safety_critical_judgment          27 |    9.9% |      0.392 |   54.3%
-    temporal_reasoning                25 |    8.0% |      0.626 |   17.3%
+    Category                       Tasks |          Pass (95% CI) | Avg Reward |  Safety
+    ----------------------------------------------------------------------------------
+    clinical_communication            30 |      20.0% [13.0-29.4] |      0.754 |   13.3%
+    clinical_reasoning                50 |      16.7% [11.6-23.4] |      0.658 |   26.0%
+    information_retrieval             30 |      18.9% [12.1-28.2] |      0.668 |   16.7%
+    multi_step_workflows              33 |         0.0% [0.0-3.7] |      0.143 |   76.8%
+    safety_critical_judgment          27 |        9.9% [5.1-18.3] |      0.392 |   54.3%
+    temporal_reasoning                25 |        8.0% [3.7-16.4] |      0.626 |   17.3%
 
 Pass^k Metrics (k=3):
 

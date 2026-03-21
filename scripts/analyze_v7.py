@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -158,6 +159,7 @@ def analyze_model(trajectories: list[dict], model_name: str, k: int = 3) -> dict
         c_passed = sum(1 for t in trials if t.get("passed", False))
         c_safety = sum(1 for t in trials if not t.get("safety_gate_passed", True))
         c_tasks = sorted(set(t["task_id"] for t in trials))
+        c_pass_ci = wilson_ci(c_passed, len(trials))
         cat_details.append(
             {
                 "category": cat,
@@ -165,11 +167,15 @@ def analyze_model(trajectories: list[dict], model_name: str, k: int = 3) -> dict
                 "trials": len(trials),
                 "passed": c_passed,
                 "pass_rate": c_passed / len(trials) if trials else 0.0,
+                "pass_rate_ci_95": list(c_pass_ci),
                 "safety_failures": c_safety,
                 "safety_rate": c_safety / len(trials) if trials else 0.0,
                 "avg_reward": sum(c_rewards) / len(c_rewards) if c_rewards else 0.0,
             }
         )
+
+    pass_rate_ci = wilson_ci(total_passed, total_trials)
+    safety_rate_ci = wilson_ci(total_safety_fail, total_trials)
 
     return {
         "model": model_name,
@@ -178,12 +184,14 @@ def analyze_model(trajectories: list[dict], model_name: str, k: int = 3) -> dict
         "total_trials": total_trials,
         "total_passed": total_passed,
         "pass_rate": total_passed / total_trials if total_trials else 0.0,
+        "pass_rate_ci_95": list(pass_rate_ci),
         "pass_at_1": agg_pass_at_1,
         f"pass_at_{k}": agg_pass_at_k,
         f"pass_{k}": agg_pass_k,
         "avg_reward": avg_reward,
         "safety_failures": total_safety_fail,
         "safety_rate": total_safety_fail / total_trials if total_trials else 0.0,
+        "safety_rate_ci_95": list(safety_rate_ci),
         "errors": error_count,
         "per_category": cat_details,
         "per_task": task_metrics,
@@ -223,6 +231,33 @@ def compute_delta(v7: dict, v6: dict) -> list[dict]:
 
     deltas.sort(key=lambda d: abs(d["delta"]), reverse=True)
     return deltas
+
+
+# ── Confidence intervals ─────────────────────────────────────────────
+
+
+def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score confidence interval for a binomial proportion.
+
+    Returns (lower, upper) as proportions in [0, 1].
+    z=1.96 gives 95% CI.
+    """
+    if n == 0:
+        return (0.0, 0.0)
+    p = successes / n
+    denom = 1 + z**2 / n
+    center = (p + z**2 / (2 * n)) / denom
+    margin = z * math.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denom
+    return (max(0.0, center - margin), min(1.0, center + margin))
+
+
+def _pct_ci(successes: int, n: int) -> str:
+    """Format a percentage with 95% Wilson CI: '24.8% [21.4-28.5]'."""
+    if n == 0:
+        return "0.0% [0.0-0.0]"
+    p = successes / n
+    lo, hi = wilson_ci(successes, n)
+    return f"{p * 100:.1f}% [{lo * 100:.1f}-{hi * 100:.1f}]"
 
 
 # ── Report generation ────────────────────────────────────────────────
@@ -279,19 +314,40 @@ def generate_report(
 
     lines.append("")
 
+    # ── Confidence intervals ──
+    lines.append("95% Wilson Confidence Intervals:")
+    lines.append("")
+    ci_header = f"  {'Metric':<25}"
+    for a in analyses:
+        ci_header += f" {a['model']:>30}"
+    lines.append(ci_header)
+    lines.append("  " + "-" * (25 + 31 * len(analyses)))
+
+    ci_rows = [
+        ("Pass Rate", lambda a: _pct_ci(a["total_passed"], a["total_trials"])),
+        ("Safety Failure Rate", lambda a: _pct_ci(a["safety_failures"], a["total_trials"])),
+    ]
+    for label, fn in ci_rows:
+        row = f"  {label:<25}"
+        for a in analyses:
+            row += f" {fn(a):>30}"
+        lines.append(row)
+    lines.append("")
+
     # ── Category breakdown ──
     lines.append("Category Breakdown:")
     lines.append("")
     for a in analyses:
         lines.append(f"  {a['model']}:")
         lines.append(
-            f"    {'Category':<30} {'Tasks':>5} | {'Pass':>7} | {'Avg Reward':>10} | {'Safety':>7}"
+            f"    {'Category':<30} {'Tasks':>5} | {'Pass (95% CI)':>22} | "
+            f"{'Avg Reward':>10} | {'Safety':>7}"
         )
-        lines.append("    " + "-" * 68)
+        lines.append("    " + "-" * 82)
         for cat in a["per_category"]:
             lines.append(
                 f"    {cat['category']:<30} {cat['tasks']:>5} | "
-                f"{_pct(cat['pass_rate']):>7} | "
+                f"{_pct_ci(cat['passed'], cat['trials']):>22} | "
                 f"{_f3(cat['avg_reward']):>10} | "
                 f"{_pct(cat['safety_rate']):>7}"
             )
