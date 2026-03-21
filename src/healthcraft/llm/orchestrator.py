@@ -142,13 +142,16 @@ def run_frontier_evaluation(
     if task_filter == "all":
         tasks = load_tasks(tasks_dir)
     else:
+        # Support comma-separated task IDs
+        wanted_ids = {tid.strip() for tid in task_filter.split(",")}
         tasks = []
         for path in sorted(tasks_dir.rglob("*.yaml")):
             try:
                 t = load_task(path)
-                if t.id == task_filter:
+                if t.id in wanted_ids:
                     tasks.append(t)
-                    break
+                    if len(tasks) == len(wanted_ids):
+                        break
             except (ValueError, FileNotFoundError):
                 continue
 

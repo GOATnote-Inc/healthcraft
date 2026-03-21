@@ -218,17 +218,23 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
     """Check if an audit log entry's params satisfy required parameter qualifiers.
 
     For structured params (e.g., order_type), checks exact match.
-    For _match/_qualifier, checks if the value appears anywhere in the entry's params.
+    For _match/_qualifier, checks if the value appears anywhere in the entry's
+    params. Normalizes underscores to spaces so that check-string qualifiers
+    like "tranexamic_acid" match agent params like "tranexamic acid".
     """
     if not required_params:
         return True
 
     entry_str = str(entry_params).lower()
+    # Normalize underscores so "tranexamic_acid" matches "tranexamic acid"
+    entry_str_normalized = entry_str.replace("_", " ")
 
     for key, value in required_params.items():
         if key.startswith("_"):
-            # Free-form match: check if value appears anywhere in entry params
-            if value not in entry_str:
+            # Free-form match: check if value appears anywhere in entry params.
+            # Try both raw and underscore-normalized forms.
+            value_normalized = value.replace("_", " ")
+            if value not in entry_str and value_normalized not in entry_str_normalized:
                 return False
         else:
             # Structured match: check specific parameter
@@ -240,6 +246,41 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
                 return False
 
     return True
+
+
+def _expand_tool_alternatives(check: str) -> str:
+    """Expand bare tool name alternatives into full compound check clauses.
+
+    Rewrites patterns like:
+      "audit_log contains call to X or Y"
+        → "audit_log contains call to X OR audit_log contains call to Y"
+      "audit_log contains call to X and Y"
+        → "audit_log contains call to X AND audit_log contains call to Y"
+
+    Only expands when the part after the operator looks like a bare tool name
+    (single camelCase word with no qualifier keywords like "for", "with",
+    "referencing", etc.).
+    """
+    for op in ("or", "and"):
+        pattern = re.compile(
+            r"(audit_log\s+(?:contains|does\s+not\s+contain)\s+(?:call\s+to\s+)?)"
+            rf"(\w+)\s+{op}\s+(\w+)"
+            r"(?:\s|$)",
+            re.IGNORECASE,
+        )
+        m = pattern.search(check)
+        if m:
+            prefix = m.group(1)  # e.g. "audit_log contains call to "
+            tool1 = m.group(2)
+            tool2 = m.group(3)
+            # Only expand if tool2 looks like a bare tool name (no qualifier
+            # keywords following). Check that what follows is end-of-string
+            # or whitespace only.
+            remainder = check[m.end() :].strip()
+            if not remainder:
+                expanded = f"{prefix}{tool1} {op.upper()} {prefix}{tool2}"
+                check = check[: m.start()] + expanded + check[m.end() :]
+    return check
 
 
 def _verify_world_state(
@@ -262,6 +303,10 @@ def _verify_world_state(
     """
     check = criterion.check.strip()
     audit_log = world_state.audit_log
+
+    # Expand bare tool name alternatives before compound splitting.
+    # e.g. "call to X or Y" → "call to X OR call to Y"
+    check = _expand_tool_alternatives(check)
 
     # Split on AND / OR (case-insensitive) to handle compound clauses.
     # Only split when both sides look like valid check directives (contain
