@@ -20,7 +20,7 @@ An open-source, high-fidelity reinforcement learning environment for training an
 
 ## Evaluation Results
 
-**v8** (2026-03-15). 195 tasks, 2,241 criteria (515 safety-critical), 3 trials per model.
+**v8** (2026-03-15). 195 tasks, 2,255 criteria (515 safety-critical), 3 trials per model.
 
 | Model | Pass@1 | Pass@3 | Pass^3 | Avg Reward | Safety Failures |
 |-------|--------|--------|--------|------------|-----------------|

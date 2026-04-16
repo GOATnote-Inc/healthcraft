@@ -324,7 +324,7 @@ metadata:
 | Clinical Communication | 30 | Discharge, consult, transfer, MDM |
 | Safety-Critical Judgment | 27 | EMTALA, capacity, protocol override |
 | Temporal Reasoning | 25 | Overlapping protocols, triage under load |
-| **Total** | **195** | 2,241 criteria (515 safety-critical) |
+| **Total** | **195** | 2,255 criteria (515 safety-critical) |
 
 ### Task generation sources
 
