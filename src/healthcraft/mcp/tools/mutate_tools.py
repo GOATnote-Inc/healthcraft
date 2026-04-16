@@ -13,6 +13,8 @@ dataclasses.replace().
 
 from __future__ import annotations
 
+import hashlib
+import os
 import random
 import uuid
 from dataclasses import asdict, replace
@@ -38,6 +40,20 @@ _ORDER_TYPE_TO_TASK_TYPE = {
 }
 
 _VALID_TASK_STATUSES = frozenset({"pending", "in_progress", "completed", "cancelled", "on_hold"})
+
+_TERMINAL_TASK_STATUSES = frozenset({"completed", "cancelled"})
+
+
+def _idempotent_tools_enabled() -> bool:
+    """Check if HC_IDEMPOTENT_TOOLS flag is on."""
+    return os.environ.get("HC_IDEMPOTENT_TOOLS", "0") == "1"
+
+
+def _deterministic_order_id(encounter_id: str, order_type: str, idem_key: str) -> str:
+    """Derive a deterministic order ID from (encounter_id, order_type, idempotency_key)."""
+    combined = f"{encounter_id}:{order_type}:{idem_key}"
+    h = hashlib.sha256(combined.encode()).hexdigest()[:8]
+    return f"ORD-{h}"
 
 
 # --- Helpers ---
@@ -171,7 +187,20 @@ def create_clinical_order(world: WorldState, params: dict) -> dict:
                             )
 
     # Build the order entity (stored as a plain dict, not a dataclass)
-    order_id = f"ORD-{uuid.uuid4().hex[:8]}"
+    idem_key = params.get("idempotency_key", "")
+
+    if _idempotent_tools_enabled() and idem_key:
+        # Deterministic order ID from (encounter_id, order_type, key)
+        order_id = _deterministic_order_id(encounter_id, order_type, idem_key)
+        existing = world.get_entity("order", order_id)
+        if existing is not None:
+            # Deduplicated: return existing order without creating a new one
+            result = _ok(existing if isinstance(existing, dict) else _entity_to_dict(existing))
+            result["deduplicated"] = True
+            return result
+    else:
+        order_id = f"ORD-{uuid.uuid4().hex[:8]}"
+
     order: dict[str, Any] = {
         "id": order_id,
         "encounter_id": encounter_id,
@@ -224,6 +253,16 @@ def update_task_status(world: WorldState, params: dict) -> dict:
     task = world.get_entity("clinical_task", task_id)
     if task is None:
         return _error("task_not_found", f"Clinical task not found: {task_id}")
+
+    # Terminal status guard (flag-gated)
+    if _idempotent_tools_enabled():
+        current_status = task.status if hasattr(task, "status") else task.get("status", "")
+        if current_status in _TERMINAL_TASK_STATUSES:
+            result = _ok(
+                _entity_to_dict(task) if hasattr(task, "__dataclass_fields__") else task,
+            )
+            result["deduplicated"] = True
+            return result
 
     notes = params.get("notes")
 
@@ -327,19 +366,29 @@ def update_patient_record(world: WorldState, params: dict) -> dict:
     changes: dict[str, Any] = {}
 
     # Append-mode fields: allergies and medications
+    # When HC_IDEMPOTENT_TOOLS=1, dedup (set-append semantics):
+    # tuple(dict.fromkeys(existing + new)) preserves order, drops dupes.
+    dedup = _idempotent_tools_enabled()
+
     if "allergies" in params:
         new_allergies = params["allergies"]
         if not isinstance(new_allergies, (list, tuple)):
             new_allergies = [new_allergies]
         existing = getattr(patient, "allergies", ()) if hasattr(patient, "allergies") else ()
-        changes["allergies"] = tuple(existing) + tuple(new_allergies)
+        combined = tuple(existing) + tuple(new_allergies)
+        if dedup:
+            combined = tuple(dict.fromkeys(combined))
+        changes["allergies"] = combined
 
     if "medications" in params:
         new_meds = params["medications"]
         if not isinstance(new_meds, (list, tuple)):
             new_meds = [new_meds]
         existing = getattr(patient, "medications", ()) if hasattr(patient, "medications") else ()
-        changes["medications"] = tuple(existing) + tuple(new_meds)
+        combined = tuple(existing) + tuple(new_meds)
+        if dedup:
+            combined = tuple(dict.fromkeys(combined))
+        changes["medications"] = combined
 
     # Replace-mode fields
     if "advance_directives" in params:
