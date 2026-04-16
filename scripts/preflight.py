@@ -1,12 +1,14 @@
 """Pre-flight validation for HEALTHCRAFT evaluations.
 
-Runs six checks in <30 seconds:
+Runs seven checks in <30 seconds:
   1. Schema-Handler Contract Tests — every tool in mcp-tools.json dispatches ok
   2. Evaluator Smoke Test — success/failure distinction in world_state verification
   3. Criteria-Tool Existence Check — world_state check targets exist in tool registry
   4. Parameter Qualifier Coverage — qualifiers in check strings are parseable
   5. Enum Exhaustiveness — schema enums are subsets of handler accepted values
   6. Protocol Name Matching — protocol names from schema match seeded world
+  7. Task Satisfiability — every world_state criterion is reachable through the
+     same compound-AND/OR split + qualifier parse the runtime uses
 
 Usage:
     python scripts/preflight.py
@@ -352,6 +354,86 @@ def check_protocol_name_matching() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Check 7: Task Satisfiability (runtime-aligned)
+# ---------------------------------------------------------------------------
+
+
+def check_task_satisfiability() -> list[str]:
+    """Every world_state criterion is reachable through the runtime parser.
+
+    Unlike Check 3 (which uses a single regex), this walks each criterion's
+    check string through ``_expand_tool_alternatives`` + ``_split_compound``
+    exactly like ``_verify_world_state`` does, then validates each clause
+    resolves to a real tool AND any enum-bound qualifier matches its
+    handler's enum.
+
+    A check like ``contains call to X AND contains call to Y`` would have
+    Check 3 only inspect the first clause; Check 7 inspects both.
+    """
+    from healthcraft.mcp.server import TOOL_NAME_MAP
+    from healthcraft.mcp.tools.mutate_tools import (
+        _VALID_ORDER_TYPES,
+        _VALID_TASK_STATUSES,
+    )
+    from healthcraft.mcp.tools.workflow_tools import _VALID_TRANSPORT_MODES
+    from healthcraft.tasks.evaluator import (
+        _expand_tool_alternatives,
+        _extract_tool_and_params,
+        _parse_criteria,
+        _split_compound,
+    )
+    from healthcraft.tasks.loader import load_tasks
+    from healthcraft.tasks.rubrics import VerificationMethod
+
+    valid_tools = {name.lower() for name in TOOL_NAME_MAP}
+    qualifier_enums: dict[str, frozenset[str]] = {
+        "order_type": frozenset(_VALID_ORDER_TYPES),
+        "status": frozenset(_VALID_TASK_STATUSES),
+        "transport_mode": frozenset(_VALID_TRANSPORT_MODES) | frozenset({"ground"}),
+    }
+
+    failures: list[str] = []
+    for task in load_tasks(TASK_DIR):
+        for crit in _parse_criteria(task.criteria):
+            if crit.verification != VerificationMethod.WORLD_STATE:
+                continue
+            expanded = _expand_tool_alternatives(crit.check)
+            clauses = _split_compound(expanded, "AND")
+            if len(clauses) == 1:
+                clauses = _split_compound(expanded, "OR")
+            for clause in clauses:
+                lower = clause.lower()
+                if "does not contain" in lower or "not contain" in lower:
+                    tool, params = _extract_tool_and_params(lower, "not contain")
+                elif "contains" in lower:
+                    tool, params = _extract_tool_and_params(lower, "contains")
+                else:
+                    # Unrecognized clause shape — surface for author review.
+                    failures.append(
+                        f"{task.id}/{crit.id}: no directive in clause {clause.strip()!r}"
+                    )
+                    continue
+                if not tool:
+                    failures.append(
+                        f"{task.id}/{crit.id}: tool unparseable in clause {clause.strip()!r}"
+                    )
+                    continue
+                if tool not in valid_tools:
+                    failures.append(
+                        f"{task.id}/{crit.id}: unknown tool {tool!r} in clause {clause.strip()!r}"
+                    )
+                    continue
+                for key, accepted in qualifier_enums.items():
+                    if key in params and params[key] not in accepted:
+                        failures.append(
+                            f"{task.id}/{crit.id}: qualifier {key}={params[key]!r}"
+                            f" not in handler enum {sorted(accepted)}"
+                        )
+
+    return failures
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -364,6 +446,7 @@ def main() -> int:
         ("Parameter Qualifier Coverage", check_parameter_qualifier_coverage),
         ("Enum Exhaustiveness", check_enum_exhaustiveness),
         ("Protocol Name Matching", check_protocol_name_matching),
+        ("Task Satisfiability", check_task_satisfiability),
     ]
 
     total_failures = 0
