@@ -279,6 +279,11 @@ def search_available_resources(world, params):
 def get_encounter_details(world, params):
     """Return full encounter details including vitals, labs, imaging, meds.
 
+    When dynamic state is enabled and a physiology trajectory is attached
+    for the encounter's patient, the most recent vitals set is replaced
+    with interpolated vitals at the current simulation time. All other
+    encounter data is returned unchanged (V8-compatible).
+
     Params:
         encounter_id (required)
     """
@@ -290,7 +295,26 @@ def get_encounter_details(world, params):
     if encounter is None:
         return _error("not_found", f"Encounter {encounter_id} not found")
 
-    return _ok(_serialize(encounter))
+    data = _serialize(encounter)
+
+    # Overlay dynamic vitals if available
+    patient_id = _get(encounter, "patient_id")
+    if patient_id:
+        dynamic_vitals = world.get_current_vitals(patient_id)
+        if dynamic_vitals is not None:
+            data["current_vitals"] = {
+                "heart_rate": dynamic_vitals.heart_rate,
+                "systolic_bp": dynamic_vitals.systolic_bp,
+                "diastolic_bp": dynamic_vitals.diastolic_bp,
+                "respiratory_rate": dynamic_vitals.respiratory_rate,
+                "spo2": dynamic_vitals.spo2,
+                "temperature": dynamic_vitals.temperature,
+                "gcs": dynamic_vitals.gcs,
+                "as_of_minutes": dynamic_vitals.offset_minutes,
+                "source": "dynamic_physiology",
+            }
+
+    return _ok(data)
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +430,21 @@ def get_patient_history(world, params):
         if _get(ins, "patient_id") == patient_id:
             insurance_records.append(_serialize(ins))
     data["insurance"] = insurance_records
+
+    # Overlay dynamic vitals if available
+    dynamic_vitals = world.get_current_vitals(patient_id)
+    if dynamic_vitals is not None:
+        data["current_vitals"] = {
+            "heart_rate": dynamic_vitals.heart_rate,
+            "systolic_bp": dynamic_vitals.systolic_bp,
+            "diastolic_bp": dynamic_vitals.diastolic_bp,
+            "respiratory_rate": dynamic_vitals.respiratory_rate,
+            "spo2": dynamic_vitals.spo2,
+            "temperature": dynamic_vitals.temperature,
+            "gcs": dynamic_vitals.gcs,
+            "as_of_minutes": dynamic_vitals.offset_minutes,
+            "source": "dynamic_physiology",
+        }
 
     return _ok(data)
 
