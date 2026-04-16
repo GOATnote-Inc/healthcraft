@@ -1,0 +1,131 @@
+% ============================================================
+% appendix.tex -- Supplementary material
+% ============================================================
+
+\appendix
+
+\section{Full MCP tool schema}
+\label{app:tools}
+
+Table~\ref{tab:tools} gives the complete list of the 24~MCP tools. The
+canonical JSON Schema (with per-argument constraints, return types, and
+error codes) lives in \texttt{configs/mcp-tools.json} and is loaded
+directly by the FastMCP server.
+
+\begin{table}[h]
+\centering
+\caption{MCP tool surface. Tool names are camelCase at the MCP
+boundary and snake\_case internally.}
+\label{tab:tools}
+\small
+\begin{tabular}{lll}
+\toprule
+Wave & Type & Tools \\
+\midrule
+1 & read
+    & \texttt{searchEncounters}, \texttt{searchPatients},
+      \texttt{searchClinicalKnowledge}, \\
+ & & \texttt{searchReferenceMaterials}, \texttt{searchAvailableResources}, \\
+ & & \texttt{getEncounterDetails}, \texttt{getConditionDetails},
+      \texttt{getPatientHistory}, \\
+ & & \texttt{getProtocolDetails}, \texttt{getTransferStatus},
+      \texttt{getInsuranceCoverage}, \\
+ & & \texttt{getReferenceArticle} \\
+\addlinespace
+2 & compute
+    & \texttt{checkResourceAvailability},
+      \texttt{calculateTransferTime}, \\
+ & & \texttt{runDecisionRule}, \texttt{validateTreatmentPlan} \\
+\addlinespace
+3 & mutate
+    & \texttt{createClinicalOrder}, \texttt{updateTaskStatus},
+      \texttt{updateEncounter}, \\
+ & & \texttt{updatePatientRecord}, \texttt{registerPatient},
+      \texttt{applyProtocol} \\
+\addlinespace
+4 & workflow & \texttt{processDischarge}, \texttt{processTransfer} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All wave-1 search tools cap results at 10 with no \texttt{hasMore}
+signal. All wave-3 and wave-4 tools validate inputs before applying
+the mutation and log structured audit entries. Error responses are
+uniform:
+$\{\texttt{status}{:}\,\texttt{"error"},\ \texttt{code}{:}\,\ldots,\ \texttt{message}{:}\,\ldots\}$.
+
+\section{Criteria by dimension}
+\label{app:criteria}
+
+The 2{,}255 binary criteria decompose approximately as follows
+across the six weighted dimensions, aggregated over all task
+categories: \textsf{clinical\_completeness}~$\sim$20\%;
+\textsf{clinical\_correctness}~$\sim$25\%;
+\textsf{protocol\_adherence}~$\sim$15\%;
+\textsf{documentation\_quality}~$\sim$10\%;
+\textsf{safety}~$\sim$20\% (the 515 safety-critical criteria are a
+superset of the \textsf{safety} dimension and can additionally appear
+in any of the other dimensions when they were authored with
+safety\_critical=true);
+\textsf{temporal\_sequencing}~$\sim$10\%. Exact counts per category
+are emitted by \texttt{scripts/analyze\_results.py}. Dimension weights
+are used only for post-hoc error decomposition; they do not enter
+Eq.~\ref{eq:reward}.
+
+\section{Pilot v2--v8 changelog}
+\label{app:pilots}
+
+The six infrastructure bugs described in \S\ref{sec:v7-superseded} were
+fixed across pilots v6, v7, and v8. Full per-task pass/fail tables for
+every pilot live in \texttt{results/pilot-v\{3..8\}-\{claude-opus,gpt54\}/}.
+Pilot-level deltas for Pass@1 and mean reward across the v3--v8 run
+are plotted in Figure~\ref{fig:progression}.
+
+\section{Wilson score confidence interval derivation}
+\label{app:wilson}
+
+For $k$ successes out of $n$ trials, the Wilson score 95\% CI is
+\[
+\left(\frac{\hat p + \frac{z^2}{2n}}{1 + z^2/n}\right)
+\pm
+\frac{z\sqrt{\frac{\hat p(1-\hat p)}{n} + \frac{z^2}{4n^2}}}{1 + z^2/n},
+\]
+with $\hat p = k/n$ and $z = 1.96$. Wilson is preferred over the
+normal approximation when $n \hat p (1 - \hat p)$ is small; over
+Clopper--Pearson it is less conservative without becoming
+anti-conservative in the $n\sim 200$ regime relevant for this
+benchmark. The implementation is
+\texttt{src/metrics/confidence\_intervals.py}.
+
+\section{Judge reliability details}
+\label{app:judge}
+
+Cross-vendor assignment is pinned by
+\texttt{src/healthcraft/llm/judge.py}:
+Claude Opus~4.6 $\to$ GPT-5.4 judge; GPT-5.4 $\to$ Claude Opus~4.6
+judge; Gemini~3.1~Pro $\to$ Claude Opus~4.6 judge. Cohen's
+$\kappa=0.553$ was computed over a 100-criterion test-retest sample
+(each criterion graded three times, $n=300$ calls), with 77.0\% raw
+self-agreement. Oracle validation on task CC-001 returned 5/5 agreement
+with the \texttt{world\_state} verification method, indicating that for
+the \texttt{world\_state}-verifiable subset the judge does not
+introduce additional drift.
+
+\paragraph{Stratification by trajectory length.}
+Agreement and $\kappa$ were stratified by trajectory length: short
+trajectories ($<15$ turns, $n=5$) showed 60.0\% agreement /
+$\kappa=0.444$; medium ($15$--$40$ turns, $n=70$) 72.9\% / $0.542$;
+long ($>40$ turns, $n=25$) 92.0\% / $0.306$. The long-trajectory
+stratum is the paradoxical case: raw agreement is highest there but
+$\kappa$ is lowest. This is Cohen's kappa's well-known base-rate
+artefact: when agreement is near the ceiling (the judge almost
+always returns ``satisfied'' on long trajectories because those
+trajectories tend to contain the evidence the criterion is looking
+for), the chance-agreement denominator grows faster than the observed
+agreement numerator and $\kappa$ collapses. We report both statistics
+because they answer different questions: raw agreement is the rate
+at which re-grading would flip a verdict, while $\kappa$ is the rate
+above chance. The long-trajectory regime is more relevant for Claude
+(median $\sim 49$ turns) than GPT-5.4 (median $\sim 8$ turns), which
+is why the judge-reliability concern in \S\ref{sec:limits} is framed
+as a bound on Claude-favouring variance rather than symmetric noise.

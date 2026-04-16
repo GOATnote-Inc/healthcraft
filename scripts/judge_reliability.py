@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 from collections import defaultdict
@@ -262,8 +263,7 @@ def main() -> None:
 
     # Full run requires API keys and healthcraft imports
     try:
-        from healthcraft.llm.clients import create_client
-
+        from healthcraft.llm.agent import create_client
         from healthcraft.llm.judge import LLMJudge, select_judge_model
         from healthcraft.tasks.rubrics import Criterion, VerificationMethod
     except ImportError as e:
@@ -283,11 +283,24 @@ def main() -> None:
     all_judgments: dict[str, list[list[bool]]] = defaultdict(list)
     results_data = []
 
+    def _resolve_api_key(model_name: str) -> str:
+        m = model_name.lower()
+        if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
+            return os.environ.get("ANTHROPIC_API_KEY", "")
+        elif "gpt" in m or "o1" in m or "o3" in m:
+            return os.environ.get("OPENAI_API_KEY", "")
+        elif "gemini" in m:
+            return os.environ.get("GOOGLE_API_KEY", "")
+        elif "grok" in m:
+            return os.environ.get("XAI_API_KEY", "")
+        return os.environ.get("OPENAI_API_KEY", "")
+
     for model, items in by_model.items():
         judge_model = select_judge_model(model)
         print(f"Judging {len(items)} criteria for {model} with {judge_model}", file=sys.stderr)
 
-        client = create_client(judge_model)
+        api_key = _resolve_api_key(judge_model)
+        client = create_client(judge_model, api_key)
         judge = LLMJudge(client, judge_model=judge_model)
 
         for item in items:

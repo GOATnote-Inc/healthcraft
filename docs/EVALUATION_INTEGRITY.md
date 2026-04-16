@@ -24,7 +24,8 @@ bugs, corrections, and known limitations.
 | v5 | 2026-03-10 | 1 | 3 | 1 | Complete | CC-003 name fix |
 | v6 | 2026-03-11 | 195 | 1 | 2 | INVALIDATED | Post-hoc audit found 2 critical bugs |
 | v7 | 2026-03-13 | 195 | 3 | 2 | Superseded | 5 infrastructure bugs discovered post-publication |
-| v8 | 2026-03-15 | 195 | 3 | 2 | Current | 6 bugs fixed. 0 criteria flips on offline rescore validation. |
+| v8 | 2026-03-15 | 195 | 3 | 2 | Superseded | 6 bugs fixed. 0 criteria flips on offline rescore validation. |
+| v9 | 2026-03-22 | 195 | 3 | 3 | Current | Added Gemini 3.1 Pro Preview. Judge reliability study (kappa=0.553). Gemini thought_signature fix. |
 
 ## V7 to V8: What Changed and Why
 
@@ -97,21 +98,26 @@ should consider when interpreting results.
 **Non-deterministic grading.** 57.1% of criteria (1,280 of 2,255) use
 `llm_judge` verification. Judge decisions are non-deterministic even at
 temperature 0.0. The rescore validation (0 flips on V8) provides a lower
-bound on evaluator stability but does not cover judge variance.
+bound on evaluator stability but does not cover judge variance. A judge
+reliability study (2026-03-22, n=100, 3 repeats each) measured Cohen's
+kappa = 0.553 (moderate agreement) with 77% self-agreement rate. See
+[Judge Reliability](JUDGE_RELIABILITY.md) for full results.
 
 **Judge context overload.** On trajectories exceeding ~40 turns, the
 cross-vendor judge misses content in the final agent response. This affects
 Claude (median ~49 turns) more than GPT (median ~8 turns). Identified on
 CC-001 C04/C05 where the judge failed to find a diagnosis clearly present
-in the last assistant message.
+in the last assistant message. The reliability study found kappa = 0.306
+for long trajectories (>40 turns) vs. 0.542 for medium (15-40 turns),
+confirming that judge accuracy degrades with trajectory length.
 
 **Limited trials.** 3 trials per task. Wilson confidence interval ceiling
 at n=3 is 0.57. Pass^5 (for direct comparison with tau2-Bench) requires 5
 trials. Confidence intervals on per-task metrics are wide.
 
-**Two models only.** Corecraft reports 3+ frontier models (Table 1). Adding
-a third model (e.g., Gemini 3.1 Pro, Grok 4) would strengthen the parity
-comparison and reduce the risk of benchmark-specific model advantages.
+**Two models (V8), three models (V9).** V8 evaluated 2 models. Corecraft
+reports 3+ frontier models (Table 1). V9 adds Gemini 3.1 Pro Preview as
+the third model, strengthening the parity comparison.
 
 **No external validation.** All evaluations have been run by the same team.
 No independent replication exists. The rescore validation pipeline provides
@@ -167,3 +173,4 @@ Prior versions are preserved as reference data:
 - `results/pilot-v8-*` -- V8 (current)
 - `results/rescore-v7/` -- V7 rescore validation report
 - `results/rescore-v8/` -- V8 rescore validation report (0 flips)
+- `results/pilot-v9-gemini-pro/` -- V9 Gemini 3.1 Pro Preview (current)

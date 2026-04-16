@@ -1,0 +1,89 @@
+name: Whitepaper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/whitepaper/**"
+      - "scripts/generate_paper_figures.py"
+      - "scripts/verify_canonical_numbers.py"
+      - "results/pilot-v*/**"
+      - ".github/workflows/whitepaper.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/whitepaper/**"
+      - "scripts/generate_paper_figures.py"
+      - "scripts/verify_canonical_numbers.py"
+      - "results/pilot-v*/**"
+      - ".github/workflows/whitepaper.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps for figure generation
+        run: |
+          python -m pip install --upgrade pip
+          pip install matplotlib
+
+      - name: Cache TeX Live
+        id: cache-texlive
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/texlive
+          key: texlive-2024-${{ runner.os }}
+
+      - name: Install TeX Live (if cache miss)
+        if: steps.cache-texlive.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            texlive-bibtex-extra \
+            texlive-science \
+            texlive-pictures \
+            biber \
+            poppler-utils
+
+      - name: Install poppler-utils (always, for pdftotext)
+        run: sudo apt-get install -y poppler-utils
+
+      - name: Generate figures
+        run: python scripts/generate_paper_figures.py
+
+      - name: Verify canonical numbers
+        run: python scripts/verify_canonical_numbers.py
+
+      - name: Build whitepaper (named + anonymous)
+        working-directory: docs/whitepaper
+        run: make ci
+
+      - name: Upload named PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: whitepaper-named
+          path: docs/whitepaper/output/whitepaper_named.pdf
+          if-no-files-found: error
+
+      - name: Upload anonymous PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: whitepaper-anonymous
+          path: docs/whitepaper/output/whitepaper_anonymous.pdf
+          if-no-files-found: error

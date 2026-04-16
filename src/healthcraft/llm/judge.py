@@ -241,43 +241,62 @@ def _parse_judge_response(content: str) -> dict[str, Any]:
     """Parse the judge's JSON response.
 
     Handles both clean JSON and JSON embedded in text/markdown.
+
+    Return contract: the returned dict ALWAYS contains ``"satisfied"``
+    (bool). Callers depend on this — ``LLMJudge.evaluate_criterion``
+    reads ``result.get("satisfied", False)`` and any code path that
+    returns a dict missing the key would default to False silently,
+    hiding a parse failure from the audit trail.
     """
     content = content.strip()
+    parsed: dict[str, Any] | None = None
 
     # Try direct JSON parse
     try:
-        return json.loads(content)
+        parsed = json.loads(content)
     except json.JSONDecodeError:
         pass
 
     # Try extracting JSON from markdown code blocks
-    for marker in ("```json", "```"):
-        if marker in content:
-            start = content.index(marker) + len(marker)
-            end = content.index("```", start) if "```" in content[start:] else len(content)
-            try:
-                return json.loads(content[start:end].strip())
-            except (json.JSONDecodeError, ValueError):
-                pass
+    if parsed is None:
+        for marker in ("```json", "```"):
+            if marker in content:
+                start = content.index(marker) + len(marker)
+                end = content.index("```", start) if "```" in content[start:] else len(content)
+                try:
+                    parsed = json.loads(content[start:end].strip())
+                    break
+                except (json.JSONDecodeError, ValueError):
+                    pass
 
     # Try finding JSON object in text
-    brace_start = content.find("{")
-    brace_end = content.rfind("}")
-    if brace_start >= 0 and brace_end > brace_start:
-        try:
-            return json.loads(content[brace_start : brace_end + 1])
-        except json.JSONDecodeError:
-            pass
+    if parsed is None:
+        brace_start = content.find("{")
+        brace_end = content.rfind("}")
+        if brace_start >= 0 and brace_end > brace_start:
+            try:
+                parsed = json.loads(content[brace_start : brace_end + 1])
+            except json.JSONDecodeError:
+                pass
 
-    # Fallback: look for keywords
-    satisfied = any(
-        kw in content.lower() for kw in ["satisfied", '"satisfied": true', "criterion is satisfied"]
-    )
-    return {
-        "satisfied": satisfied,
-        "evidence": f"Parsed from unstructured response: {content[:200]}",
-        "confidence": "low",
-    }
+    # Keyword fallback
+    if parsed is None:
+        satisfied = any(
+            kw in content.lower()
+            for kw in ["satisfied", '"satisfied": true', "criterion is satisfied"]
+        )
+        return {
+            "satisfied": satisfied,
+            "evidence": f"Parsed from unstructured response: {content[:200]}",
+            "confidence": "low",
+        }
+
+    # Normalize: guarantee "satisfied" key exists and is bool.
+    if "satisfied" not in parsed:
+        parsed["satisfied"] = False
+    else:
+        parsed["satisfied"] = bool(parsed["satisfied"])
+    return parsed
 
 
 def select_judge_model(agent_model: str) -> str:

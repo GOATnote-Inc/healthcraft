@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
@@ -365,12 +366,25 @@ class GeminiClient:
                 if msg.get("content"):
                     parts.append(types.Part.from_text(text=msg["content"]))
                 for tc in msg.get("tool_calls", []):
-                    parts.append(
-                        types.Part.from_function_call(
+                    ts = tc.get("thought_signature")
+                    if ts:
+                        fc = types.FunctionCall(
                             name=tc["name"],
                             args=tc.get("arguments", {}),
                         )
-                    )
+                        parts.append(
+                            types.Part(
+                                function_call=fc,
+                                thought_signature=base64.b64decode(ts),
+                            )
+                        )
+                    else:
+                        parts.append(
+                            types.Part.from_function_call(
+                                name=tc["name"],
+                                args=tc.get("arguments", {}),
+                            )
+                        )
                 contents.append(types.Content(role="model", parts=parts))
             elif role == "tool":
                 tc_id = msg.get("tool_call_id", "")
@@ -433,15 +447,18 @@ class GeminiClient:
                 if part.text:
                     content += part.text
                 elif part.function_call:
-                    tool_calls.append(
-                        {
-                            "id": f"call_{part.function_call.name}_{len(tool_calls)}",
-                            "name": part.function_call.name,
-                            "arguments": (
-                                dict(part.function_call.args) if part.function_call.args else {}
-                            ),
-                        }
-                    )
+                    tc_entry = {
+                        "id": f"call_{part.function_call.name}_{len(tool_calls)}",
+                        "name": part.function_call.name,
+                        "arguments": (
+                            dict(part.function_call.args) if part.function_call.args else {}
+                        ),
+                    }
+                    if getattr(part, "thought_signature", None):
+                        tc_entry["thought_signature"] = base64.b64encode(
+                            part.thought_signature
+                        ).decode("ascii")
+                    tool_calls.append(tc_entry)
 
         stop_reason = "stop"
         if tool_calls:
