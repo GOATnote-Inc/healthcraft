@@ -1,0 +1,47 @@
+# v9 Deterministic Overlay — Criterion rewrites from llm_judge to world_state
+#
+# This file maps criterion IDs to deterministic world_state checks that replace
+# their original llm_judge verification. Applied ONLY when rubric_channel=v9.
+# V8 behavior is unaffected (default rubric_channel=v8 ignores this file).
+#
+# Each entry rewrites ONE criterion:
+#   criterion_id: the original criterion ID (e.g., IR-001-C03)
+#   verification: world_state (the new method)
+#   check: the deterministic check string
+#   original_assertion: preserved for audit trail
+#   migration_confidence: high / medium (low-confidence proposals are excluded)
+#   migration_reason: why this conversion is defensible
+#
+# Authoring process:
+#   1. scripts/migrate_criteria.py proposes candidates -> v9_migrations_proposed.yaml
+#   2. Clinical reviewer signs off on high/medium proposals
+#   3. Signed-off entries land here
+#   4. Validation gate: re-grade V8 trajectories with overlay; require
+#      kappa >= 0.80 per category against original llm_judge verdicts
+#
+# This file starts as a curated skeleton. Entries are added incrementally
+# after clinical review of migrate_criteria.py proposals.
+
+version: 1
+description: >
+  v9 deterministic overlay for HEALTHCRAFT. Converts defensibly-deterministic
+  llm_judge criteria to world_state checks verified against the audit log.
+  Applied only when rubric_channel=v9. V8 rubrics are never modified.
+
+# Overlay entries: criterion_id -> deterministic rewrite
+#
+# Population workflow:
+#   1. Run: python scripts/migrate_criteria.py --output configs/rubrics/v9_migrations_proposed.yaml
+#   2. Review proposals (especially confidence=medium and confidence=low)
+#   3. Add reviewed entries below
+#   4. Validate: re-grade V8 trajectories, check kappa >= 0.80 per category
+
+overlays: []
+# Example entry (commented out until clinical review):
+#
+# - criterion_id: IR-001-C03
+#   verification: world_state
+#   check: "audit_log contains call to getPatientHistory"
+#   original_assertion: "Agent retrieved the patient's medical history"
+#   migration_confidence: high
+#   migration_reason: "Retrieval verb + 'patient history' -> getPatientHistory"

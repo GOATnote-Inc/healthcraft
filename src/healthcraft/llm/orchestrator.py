@@ -24,6 +24,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from healthcraft.llm.agent import create_client, run_agent_task
 from healthcraft.llm.judge import LLMJudge, select_judge_model
 from healthcraft.mcp.server import create_server
@@ -45,6 +47,37 @@ _TASKS_DIR = Path(__file__).parents[3] / "configs" / "tasks"
 _RESULTS_DIR = Path(__file__).parents[3] / "results"
 _CONFIG_PATH = Path(__file__).parents[3] / "configs" / "world" / "mercy_point_v1.yaml"
 _SYSTEM_PROMPT_DIR = Path(__file__).parents[3] / "system-prompts"
+_RUBRICS_DIR = Path(__file__).parents[3] / "configs" / "rubrics"
+
+_VALID_RUBRIC_CHANNELS = {"v8", "v9"}
+
+
+def _load_v9_overlay() -> dict[str, dict[str, str]]:
+    """Load the v9 deterministic overlay from configs/rubrics/.
+
+    Returns a dict mapping criterion_id -> overlay entry. Each entry
+    contains ``verification`` and ``check`` keys that replace the
+    original llm_judge criterion when rubric_channel=v9.
+
+    If the overlay file does not exist or has no entries, returns {}.
+    """
+    overlay_path = _RUBRICS_DIR / "v9_deterministic_overlay.yaml"
+    if not overlay_path.exists():
+        return {}
+
+    data = yaml.safe_load(overlay_path.read_text(encoding="utf-8"))
+    if not data or not data.get("overlays"):
+        return {}
+
+    overlay_map: dict[str, dict[str, str]] = {}
+    for entry in data["overlays"]:
+        crit_id = entry.get("criterion_id", "")
+        if crit_id:
+            overlay_map[crit_id] = {
+                "verification": entry.get("verification", "world_state"),
+                "check": entry.get("check", ""),
+            }
+    return overlay_map
 
 
 def _load_system_prompt(task: Task) -> str:
@@ -102,6 +135,8 @@ def run_frontier_evaluation(
     tasks_dir: Path | None = None,
     max_tasks: int | None = None,
     retry_errors: bool = False,
+    rubric_channel: str = "v8",
+    dynamic_state: bool = False,
 ) -> dict[str, Any]:
     """Run a full frontier model evaluation.
 
@@ -117,10 +152,21 @@ def run_frontier_evaluation(
         tasks_dir: Where to load tasks from.
         max_tasks: Maximum number of tasks to evaluate (for testing).
         retry_errors: If True, re-run tasks that have error trajectories.
+        rubric_channel: "v8" (default, V8 behavior) or "v9" (enables
+            deterministic overlay and BEFORE/AFTER temporal operators).
+        dynamic_state: If True, enable dynamic patient-state physiology
+            overlays. Default False (V8 behavior).
 
     Returns:
         Summary dict with pass rates and statistics.
     """
+    if rubric_channel not in _VALID_RUBRIC_CHANNELS:
+        return {
+            "error": (
+                f"Invalid rubric_channel: {rubric_channel!r}. "
+                f"Must be one of {_VALID_RUBRIC_CHANNELS}."
+            ),
+        }
     results_dir = results_dir or _RESULTS_DIR
     tasks_dir = tasks_dir or _TASKS_DIR
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -161,14 +207,24 @@ def run_frontier_evaluation(
     if max_tasks:
         tasks = tasks[:max_tasks]
 
+    # Load v9 overlay (no-op when channel is v8 or overlay is empty)
+    v9_overlay: dict[str, dict[str, str]] = {}
+    if rubric_channel == "v9":
+        v9_overlay = _load_v9_overlay()
+        logger.info(
+            "Rubric channel v9: loaded %d overlay entries",
+            len(v9_overlay),
+        )
+
     exp_log = ExperimentLog(results_dir / "experiments.jsonl")
 
     logger.info(
-        "Evaluation: %d tasks x %d trials, agent=%s, judge=%s",
+        "Evaluation: %d tasks x %d trials, agent=%s, judge=%s, channel=%s",
         len(tasks),
         trials,
         agent_model,
         judge_model,
+        rubric_channel,
     )
 
     # Run evaluations
@@ -229,12 +285,39 @@ def run_frontier_evaluation(
                 # Seed fresh world state for each trial
                 world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
 
+                # Enable dynamic state if requested (V8 default: off)
+                if dynamic_state:
+                    world._dynamic_state_enabled = True
+
                 # Inject task-described patient into world state
                 injected_ids: dict[str, str] = {}
                 if task.patient:
                     injected_ids = inject_task_patient(
                         world, task.id, task.patient, task.initial_state
                     )
+
+                # Attach physiology after injection (need patient_id)
+                if dynamic_state and injected_ids.get("patient_id"):
+                    clinical_trajectory = (
+                        task.initial_state.get("clinical_trajectory")
+                        if task.initial_state
+                        else None
+                    )
+                    if clinical_trajectory:
+                        from healthcraft.world.physiology import create_trajectory
+
+                        pid = injected_ids["patient_id"]
+                        traj = create_trajectory(
+                            clinical_trajectory,
+                            trial_seed,
+                            pid,
+                        )
+                        world.attach_physiology(pid, traj)
+                        logger.debug(
+                            "Attached %s trajectory to %s",
+                            clinical_trajectory,
+                            pid,
+                        )
 
                 server = create_server(world)
 
@@ -277,7 +360,34 @@ def run_frontier_evaluation(
                     ),
                 }
 
-                result = evaluate_task(task, agent_output, server.world_state)
+                # Apply v9 overlay: rewrite matching criteria from
+                # llm_judge -> world_state before evaluation
+                eval_task = task
+                if rubric_channel == "v9" and v9_overlay:
+                    rewritten_criteria = []
+                    for raw in task.criteria:
+                        crit_id = raw["id"]
+                        if crit_id in v9_overlay:
+                            overlay_entry = v9_overlay[crit_id]
+                            rewritten = dict(raw)
+                            rewritten["verification"] = overlay_entry["verification"]
+                            rewritten["check"] = overlay_entry["check"]
+                            rewritten_criteria.append(rewritten)
+                        else:
+                            rewritten_criteria.append(raw)
+                    from dataclasses import replace as dc_replace
+
+                    eval_task = dc_replace(
+                        task,
+                        criteria=tuple(rewritten_criteria),
+                    )
+
+                result = evaluate_task(
+                    eval_task,
+                    agent_output,
+                    server.world_state,
+                    rubric_channel=rubric_channel,
+                )
 
                 # Evaluate llm_judge criteria
                 if judge:
@@ -388,6 +498,8 @@ def run_frontier_evaluation(
     summary = {
         "agent_model": agent_model,
         "judge_model": judge_model,
+        "rubric_channel": rubric_channel,
+        "dynamic_state": dynamic_state,
         "seed": seed,
         "trials": trials,
         "total_tasks": len(tasks),
@@ -455,6 +567,17 @@ def main() -> None:
         action="store_true",
         help="Re-run tasks that previously failed with errors (skips successful cached results)",
     )
+    parser.add_argument(
+        "--rubric-channel",
+        default="v8",
+        choices=["v8", "v9"],
+        help="Rubric channel: v8 (default) or v9 (deterministic overlay + temporal ops)",
+    )
+    parser.add_argument(
+        "--dynamic-state",
+        action="store_true",
+        help="Enable dynamic patient-state physiology overlays (default off = V8)",
+    )
     parser.add_argument("--log-level", default="INFO", help="Log level")
 
     args = parser.parse_args()
@@ -474,6 +597,16 @@ def main() -> None:
         logger.error("No API key for agent model. Set --agent-key or env var.")
         sys.exit(1)
 
+    # Also check HC_DYNAMIC_STATE env var as a flag
+    use_dynamic_state = (
+        args.dynamic_state
+        or os.environ.get(
+            "HC_DYNAMIC_STATE",
+            "0",
+        )
+        == "1"
+    )
+
     summary = run_frontier_evaluation(
         agent_model=args.agent_model,
         agent_key=agent_key,
@@ -486,6 +619,8 @@ def main() -> None:
         tasks_dir=Path(args.tasks_dir) if args.tasks_dir else None,
         max_tasks=args.max_tasks,
         retry_errors=args.retry_errors,
+        rubric_channel=args.rubric_channel,
+        dynamic_state=use_dynamic_state,
     )
 
     if "error" in summary:
