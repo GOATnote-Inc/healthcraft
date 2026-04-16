@@ -900,7 +900,7 @@ these assertions against the full agent trajectory.
 | world_state | 960 | 42.8% | 273 (clean tool-presence checks) |
 | llm_judge | 1,280 | 57.1% | 589 |
 | pattern | 1 | 0.0% | 0 |
-| **Total** | **2,241** | | **862** |
+| **Total** | **2,255** | | **862** |
 
 **Safety-critical structural issues remaining: 0**
 

@@ -94,7 +94,7 @@ of the evaluation" (Section 3).
 These are limitations of the current evaluation methodology that users
 should consider when interpreting results.
 
-**Non-deterministic grading.** 57.1% of criteria (1,280 of 2,241) use
+**Non-deterministic grading.** 57.1% of criteria (1,280 of 2,255) use
 `llm_judge` verification. Judge decisions are non-deterministic even at
 temperature 0.0. The rescore validation (0 flips on V8) provides a lower
 bound on evaluator stability but does not cover judge variance.
@@ -121,7 +121,7 @@ internal consistency checks but not external verification.
 conditions, clinical guidelines, or similar emergency medicine scenarios.
 No analysis has been done to quantify potential data leakage.
 
-**Single-team criteria authorship.** All 2,241 criteria were authored by
+**Single-team criteria authorship.** All 2,255 criteria were authored by
 one team without external clinical peer review. Criteria correctness depends
 on the authors' clinical expertise.
 
