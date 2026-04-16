@@ -193,6 +193,19 @@ HEALTHCRAFT builds on [OpenEM](https://github.com/GOATnote-Inc/openem-corpus), a
 
 Target: ~260 tasks covering the full operational complexity of a Level I Trauma Center ED. See [Task Expansion Roadmap](docs/TASK_EXPANSION_ROADMAP.md).
 
+### v0.2 Hardening
+
+v0.2 addresses shortcomings identified in a staff-engineer review of v0.1.
+All changes are opt-in (default off) to preserve V8 result reproducibility.
+
+- **Evaluator integrity:** Schema-handler contracts, golden-trajectory replay, audit-log invariants, task satisfiability checks
+- **Judge validation:** 52 judge tests, v9 deterministic rubric overlay (`--rubric-channel v9`), BEFORE/AFTER temporal operators
+- **Dynamic patient state:** Vitals trajectories (sepsis, ACS, respiratory failure, stable) with reassessment triggers (`--dynamic-state`)
+- **Idempotent tools:** Duplicate-order and duplicate-append bug fixes behind `HC_IDEMPOTENT_TOOLS` flag
+- **Paper revision:** Sharpened limitations, measured-vs-not-measured separator for arXiv v2
+
+See [Paper Revision Notes](docs/PAPER_REVISION_NOTES.md) for v2 whitepaper planning and [Evaluation Integrity Hardening](docs/EVALUATION_INTEGRITY_HARDENING.md) for test coverage additions.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
