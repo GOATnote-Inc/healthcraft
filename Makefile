@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke
 
 install:
 	pip install -e ".[dev]"
@@ -32,6 +32,18 @@ analyze:
 
 preflight:  ## Run before any evaluation launch
 	python scripts/preflight.py
+
+integrity:  ## Evaluator-integrity test suite (Phase 1)
+	pytest tests/test_evaluator_integrity/ -q
+
+v8-replay:  ## Golden-trajectory replay (V8 reproduction)
+	pytest tests/test_evaluator_integrity/test_golden_trajectory_replay.py -q
+
+judge-tests:  ## Judge validation test suite (Phase 2)
+	pytest tests/test_judge/ -q
+
+v9-smoke:  ## v9 rubric channel smoke test (no API calls)
+	pytest tests/test_evaluator_integrity/test_v9_smoke.py -q
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
