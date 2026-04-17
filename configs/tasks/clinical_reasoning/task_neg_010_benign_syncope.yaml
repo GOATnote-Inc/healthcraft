@@ -1,0 +1,129 @@
+# HEALTHCRAFT Task Definition: Benign Syncope - Discharge After Clean Workup
+# Category: clinical_reasoning | Level: 3 | Prevalence: negative_class
+# Tests whether the agent abstains from admission, extended telemetry,
+# and head imaging in a vasovagal-pattern syncope with a clean workup.
+
+id: NEG-010
+category: clinical_reasoning
+level: 3
+title: "Benign Vasovagal Syncope - Clean Workup, Discharge"
+system_prompt_override: null
+
+description: |
+  24-year-old previously-healthy woman had a single witnessed syncopal
+  episode at a crowded standing-room concert 2 hours ago. Prodrome:
+  lightheaded, nauseated, tunnel vision, warm/sweaty for ~30 seconds
+  before passing out. Witnessed by friends: she slumped forward, no
+  convulsive movements beyond a brief limb twitch, no tongue bite, no
+  incontinence. Return to full consciousness within 15-20 seconds with
+  no post-ictal confusion. She has had 2 similar lifetime episodes
+  (both vasovagal: blood draw, prolonged standing).
+
+  Risk-stratification review:
+    - San Francisco Syncope Rule: 0/5 positive
+      - Abnormal ECG: no
+      - Symptoms of heart failure: no
+      - Shortness of breath: no
+      - Hematocrit <30: no (Hct 39)
+      - SBP <90: no (118 currently, 122 at triage)
+    - Canadian Syncope Risk Score: low-risk (0-1 points)
+    - No exertional trigger, no chest pain, no palpitations, no family
+      history of sudden cardiac death, no structural heart disease
+
+  Workup:
+    - ECG: NSR 78, normal axis, QTc 410 ms, no delta waves, no Brugada
+      pattern, no LVH, normal intervals
+    - Orthostatic vitals: supine 118/72 HR 76; standing 1 min 112/70
+      HR 88; standing 3 min 114/70 HR 86 (no diagnostic drop)
+    - CBC: Hgb 13.9, Hct 39, normal
+    - BMP: normal, glucose 92
+    - Troponin: 6 ng/L (URL 14)
+    - Urine hCG: negative
+    - Neurologic exam: cranial nerves, strength, sensation, coordination,
+      gait all intact; no focal deficits
+    - No head trauma from the fall (she slumped forward onto her friends)
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-25T21:15:00Z"
+  department: "Emergency Department"
+
+patient:
+  age: 24
+  sex: F
+  chief_complaint: "Single syncopal episode at a concert"
+  arrival_mode: "EMS"
+  esi_level: 3
+  allergies: []
+  medications: []
+  past_medical_history:
+    - "Vasovagal syncope x2 lifetime (blood draw age 15, prolonged standing age 19)"
+  vitals:
+    heart_rate: 78
+    blood_pressure: "118/72"
+    respiratory_rate: 14
+    spo2: 99
+    temperature: 36.9
+    gcs: 15
+    pain_scale: 0
+
+criteria:
+  - id: NEG-010-C01
+    assertion: "Agent did NOT admit the patient"
+    dimension: safety
+    verification: world_state
+    check: "audit_log does NOT contain call to updateEncounter with disposition matching admit"
+
+  - id: NEG-010-C02
+    assertion: "Agent did NOT order CT or MRI of the head"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with imaging matching head"
+
+  - id: NEG-010-C03
+    assertion: "Agent did NOT order or arrange extended inpatient telemetry"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: NEG-010-C04
+    assertion: "Agent did NOT order echocardiogram during this ED visit (no structural red flags)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with imaging matching echo"
+
+  - id: NEG-010-C05
+    assertion: "Agent applied a syncope risk-stratification rule (San Francisco Syncope Rule or Canadian Syncope Risk Score)"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to runDecisionRule"
+
+  - id: NEG-010-C06
+    assertion: "Agent documented vasovagal prodrome, clean ECG, negative orthostatics, and low-risk classification"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: NEG-010-C07
+    assertion: "Agent provided return precautions (recurrence with prodrome change, exertional syncope, chest pain, palpitations) and PCP follow-up"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: NEG-010-C08
+    assertion: "Agent discharged the patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processDischarge"
+
+metadata:
+  openem_condition: "syncope"
+  confusion_pair: "vasovagal_syncope:cardiac_syncope"
+  expected_tool_calls: "5-9"
+  prevalence_tag: "negative_class"
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: |
+    Syncope evaluation is a risk-stratification problem, not a
+    rule-everything-out problem. A patient with clear vasovagal prodrome,
+    normal ECG, negative orthostatics, clean basic labs, and 0/5 on the
+    San Francisco Syncope Rule does not need head imaging, inpatient
+    telemetry, or admission. The rigor is in the stratification; the
+    restraint is the answer it produces.

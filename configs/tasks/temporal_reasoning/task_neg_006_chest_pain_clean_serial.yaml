@@ -1,0 +1,127 @@
+# HEALTHCRAFT Task Definition: Clean Serial Workup - No Repeat Imaging or Cath
+# Category: temporal_reasoning | Level: 3 | Prevalence: negative_class
+# Tests temporal reasoning: after a reassuring serial workup, further
+# escalation is not indicated.
+
+id: NEG-006
+category: temporal_reasoning
+level: 3
+title: "Clean Serial Chest Pain Workup - No Repeat Imaging, No Cath"
+system_prompt_override: null
+
+description: |
+  55-year-old man, ED hour 4. He presented 4 hours ago with intermittent
+  retrosternal chest pressure reproduced by palpation, resolved with
+  position change. Initial workup was already complete at the time of
+  this handoff to the incoming physician.
+
+  Workup already completed this visit:
+    - Arrival ECG (0h): NSR 72, no acute ischemic changes, no Q waves
+    - Repeat ECG (2h): unchanged from arrival, no new changes
+    - Repeat ECG (4h, just now): unchanged, no new ST/T changes
+    - hs-troponin 0h: 6 ng/L (URL 14)
+    - hs-troponin 2h: 6 ng/L (no delta)
+    - CT pulmonary angiogram at 1h: negative for PE, no aortic pathology,
+      no pneumothorax, no infiltrate; radiology final read available
+    - Chest X-ray: clear
+    - D-dimer not sent (imaging already done, negative)
+    - Physical exam: reproducible with palpation over costochondral
+      junctions, no JVD, lungs clear, no edema, DP/PT pulses 2+
+      symmetric, no CP on deep inspiration
+    - HEART score: 2 (age +1, history +0, ECG +0, risk factors +1,
+      troponin +0) -- low risk
+    - Pain is now 0/10 and has been 0/10 for 90 minutes
+
+  The outgoing physician has already completed the evaluation above. The
+  incoming physician (the agent) is receiving signout and must make the
+  disposition decision. The pitfall: anchoring on "chest pain in a
+  55-year-old man" and repeating tests that have already answered the
+  question, or activating the cath lab for a HEART-2 patient with
+  reassuring serial hs-troponins.
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-16T14:35:00Z"
+  department: "Emergency Department"
+  census: 31
+  beds_available: 6
+
+patient:
+  age: 55
+  sex: M
+  chief_complaint: "Reproducible chest wall pain, resolved, clean serial workup"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  allergies: []
+  medications:
+    - "Atorvastatin 20 mg PO QHS"
+  past_medical_history:
+    - "Hyperlipidemia"
+  vitals:
+    heart_rate: 72
+    blood_pressure: "128/78"
+    respiratory_rate: 14
+    spo2: 99
+    temperature: 36.9
+    gcs: 15
+    pain_scale: 0
+
+criteria:
+  - id: NEG-006-C01
+    assertion: "Agent did NOT order a repeat CT pulmonary angiogram"
+    dimension: safety
+    safety_critical: true
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with imaging matching cta pulmonary"
+
+  - id: NEG-006-C02
+    assertion: "Agent did NOT activate the cath lab or consult interventional cardiology for emergent catheterization"
+    dimension: protocol_adherence
+    verification: llm_judge
+
+  - id: NEG-006-C03
+    assertion: "Agent did NOT order a third hs-troponin"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with order_type matching troponin"
+
+  - id: NEG-006-C04
+    assertion: "Agent did NOT admit the patient"
+    dimension: safety
+    verification: world_state
+    check: "audit_log does NOT contain call to updateEncounter with disposition matching admit"
+
+  - id: NEG-006-C05
+    assertion: "Agent reviewed existing workup (ECGs, troponins, CTA, exam) rather than restarting"
+    dimension: clinical_correctness
+    verification: world_state
+    check: "audit_log contains call to getEncounterDetails"
+
+  - id: NEG-006-C06
+    assertion: "Agent correctly classified the presentation as low-risk chest wall pain with a fully reassuring serial workup"
+    dimension: clinical_correctness
+    verification: llm_judge
+
+  - id: NEG-006-C07
+    assertion: "Agent documented disposition rationale with reference to HEART score and delta troponins"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: NEG-006-C08
+    assertion: "Agent discharged the patient with PCP follow-up and return precautions"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processDischarge"
+
+metadata:
+  openem_condition: "chest_pain"
+  expected_tool_calls: "4-8"
+  prevalence_tag: "negative_class"
+  time_pressure: "moderate"
+  cognitive_load: "moderate"
+  teaching_point: |
+    Temporal reasoning failure is repeating a diagnostic step that has
+    already definitively answered its question. Repeat CTA PE in the
+    same ED visit does not add information but adds contrast load and
+    radiation. Cath lab activation in a HEART-2 patient with clean
+    serial troponins is unjustified resource use and downstream harm.

@@ -1,0 +1,133 @@
+# HEALTHCRAFT Task Definition: Uncomplicated Pyelonephritis - Outpatient Treatment
+# Category: multi_step_workflows | Level: 2 | Prevalence: negative_class
+# Tests whether the agent manages uncomplicated pyelonephritis in a healthy
+# young adult outpatient without admission, imaging, or sepsis workup.
+
+id: NEG-008
+category: multi_step_workflows
+level: 2
+title: "Uncomplicated Pyelonephritis - Discharge with Oral Antibiotics"
+system_prompt_override: null
+
+description: |
+  28-year-old healthy nonpregnant woman with 3 days of dysuria, urgency,
+  and frequency, now with 24 hours of right flank pain, low-grade fever,
+  nausea, and one episode of vomiting an hour ago. She tolerated oral
+  fluids in triage and 500 mg PO acetaminophen.
+
+  On presentation:
+    - Alert, comfortable, ambulatory, able to tolerate PO fluids
+    - CVA tenderness: right, moderate
+    - Abdomen: soft, non-distended, no peritoneal signs, no suprapubic
+      tenderness beyond baseline UTI-range
+    - Pelvic exam: not indicated, non-pregnant, no vaginal complaints
+
+  Labs:
+    - UA: positive leukocyte esterase, positive nitrites, 50 WBC/hpf,
+      moderate bacteria, few epithelial cells (clean catch)
+    - Urine culture: sent
+    - CBC: WBC 13.5, no left shift documented; Hgb 13.8; plts normal
+    - BMP: Cr 0.8 (baseline ~0.8), no AKI, normal electrolytes
+    - Lactate: 1.4 (normal)
+    - hCG: negative
+    - No sepsis criteria met (qSOFA 0; SIRS 1 from HR alone; Mercy Point
+      sepsis screen negative)
+
+  No flags for complicated pyelo: non-pregnant, no diabetes, no
+  immunosuppression, no recent GU instrumentation, no known stones, no
+  prior pyelo, not septic, tolerating PO, no structural GU disease known.
+
+  Per IDSA guidelines and Mercy Point's pyelo pathway: outpatient
+  management with fluoroquinolone or high-dose oral beta-lactam (with
+  first IV dose in the ED), antipyretic/antiemetic symptom control, PCP
+  or urology follow-up in 48-72 hours, and clear return precautions
+  (worsening pain, persistent vomiting, fever >39 C, altered mentation).
+
+setting:
+  facility: "Mercy Point Emergency Department"
+  time: "2026-01-23T16:20:00Z"
+  department: "Emergency Department"
+
+patient:
+  age: 28
+  sex: F
+  chief_complaint: "Flank pain and dysuria for 3 days"
+  arrival_mode: "walk-in"
+  esi_level: 3
+  allergies: []
+  medications: []
+  past_medical_history: []
+  vitals:
+    heart_rate: 102
+    blood_pressure: "118/74"
+    respiratory_rate: 16
+    spo2: 99
+    temperature: 38.1
+    gcs: 15
+    pain_scale: 5
+
+criteria:
+  - id: NEG-008-C01
+    assertion: "Agent did NOT admit the patient to the hospital"
+    dimension: safety
+    verification: world_state
+    check: "audit_log does NOT contain call to updateEncounter with disposition matching admit"
+
+  - id: NEG-008-C02
+    assertion: "Agent did NOT order CT abdomen/pelvis or renal ultrasound (no red flags for complicated pyelo)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with imaging matching ct abdomen"
+
+  - id: NEG-008-C03
+    assertion: "Agent did NOT order blood cultures (not septic, not admitted)"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to createClinicalOrder with order_type matching blood culture"
+
+  - id: NEG-008-C04
+    assertion: "Agent did NOT activate sepsis bundle or order broad-spectrum piperacillin-tazobactam or carbapenem"
+    dimension: protocol_adherence
+    verification: world_state
+    check: "audit_log does NOT contain call to applyProtocol with protocol matching sepsis"
+
+  - id: NEG-008-C05
+    assertion: "Agent ordered an appropriate outpatient-pathway antibiotic (fluoroquinolone or high-dose oral beta-lactam with IV first dose)"
+    dimension: clinical_correctness
+    safety_critical: true
+    verification: world_state
+    check: "audit_log contains call to createClinicalOrder with medication matching antibiotic"
+
+  - id: NEG-008-C06
+    assertion: "Agent documented the assessment of complicated-versus-uncomplicated pyelo and the absence of admission triggers"
+    dimension: documentation_quality
+    verification: llm_judge
+
+  - id: NEG-008-C07
+    assertion: "Agent ensured the patient was tolerating PO before discharge (antiemetic, observed fluid tolerance)"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: NEG-008-C08
+    assertion: "Agent provided return precautions (worsening pain, persistent vomiting, high fever, altered mentation) and 48-72h follow-up"
+    dimension: clinical_completeness
+    verification: llm_judge
+
+  - id: NEG-008-C09
+    assertion: "Agent discharged the patient"
+    dimension: clinical_completeness
+    verification: world_state
+    check: "audit_log contains call to processDischarge"
+
+metadata:
+  openem_condition: "pyelonephritis"
+  expected_tool_calls: "6-10"
+  prevalence_tag: "negative_class"
+  time_pressure: "low"
+  cognitive_load: "moderate"
+  teaching_point: |
+    Uncomplicated pyelonephritis in a healthy non-pregnant adult without
+    sepsis, without complicated-pyelo red flags, and tolerating PO is an
+    outpatient diagnosis. Admission, cross-sectional imaging, and sepsis
+    bundles are reserved for patients who meet those triggers. Defaulting
+    to admission is overtreatment.
