@@ -151,8 +151,15 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 | `CN:neg_safety_critical` | Safety-critical criteria in NEG tasks | 14 | n/a | `configs/tasks/*/task_neg_*.yaml` |
 | `CN:post_neg_tasks` | Total tasks post-NEG | 205 | n/a | `configs/tasks/` aggregate |
 | `CN:post_neg_criteria` | Total criteria post-NEG | 2,323 | n/a | `configs/tasks/` aggregate |
-| `CN:post_neg_projected_prev` | Projected post-NEG audit-subset prevalence | ~0.70 | n/a | projected (pre-V10 pilot) |
-| `CN:neg_target_band` | Target-band prevalence (kappa-recovery) | 0.55-0.75 | n/a | overlay audit design spec |
+| `CN:post_neg_projected_prev` | Projected post-NEG audit-subset prevalence (FALSIFIED by smoke pilot) | ~0.70 | n/a | projected (pre-smoke pilot) |
+| `CN:neg_target_band` | Target-band prevalence (kappa-recovery, task-level Pass@1) | 0.55-0.75 | n/a | overlay audit design spec |
+| `CN:neg_smoke_claude_pass1` | Claude Opus 4.7 mean Pass@1 on 10 NEG tasks | 0.500 | n/a | `results/pilot-neg-smoke-claude/summary.json` |
+| `CN:neg_smoke_gpt_pass1` | GPT-5.4 mean Pass@1 on 10 NEG tasks | 0.533 | n/a | `results/pilot-neg-smoke-gpt/summary.json` |
+| `CN:neg_smoke_crit_prev` | Observed NEG-criterion PASS prevalence (60 runs) | 0.929 | n/a | 457/492, `docs/NEG_SMOKE_PILOT.md` |
+| `CN:neg_smoke_restraint_prev` | Observed restraint-criterion PASS prevalence | 0.962 | n/a | 225/234, `docs/NEG_SMOKE_PILOT.md` |
+| `CN:neg_smoke_positive_prev` | Observed positive-criterion PASS prevalence | 0.899 | n/a | 232/258, `docs/NEG_SMOKE_PILOT.md` |
+| `CN:neg_smoke_aka_insulin` | NEG-007 AKA-insulin restraint failures | 4/6 | n/a | `docs/NEG_SMOKE_PILOT.md` |
+| `CN:neg_smoke_tpa_hypoglycemic` | NEG-005 tPA-on-hypoglycemia failures | 2/6 | n/a | `docs/NEG_SMOKE_PILOT.md` |
 
 ### Dynamic-State Pilot
 

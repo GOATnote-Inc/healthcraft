@@ -400,47 +400,84 @@ benign vasovagal syncope). The post-NEG audit set is
 $205$ tasks % CN:post_neg_tasks
 and $2{,}323$ criteria. % CN:post_neg_criteria
 
-\paragraph{Projected post-NEG prevalence.}
-Assuming negative-class criteria exhibit $0.65$
-criterion-PASS prevalence (plausible given the
-restraint-failure patterns observed in V8), the per-category
-prevalence on the audit-subset shifts are shown in
-Table~\ref{tab:neg_prev}: safety\_critical\_judgment from
-$0.833$ to $\approx 0.70$; temporal\_reasoning from $0.824$
-to $\approx 0.72$; multi\_step\_workflows from $0.782$ to
-$\approx 0.71$; clinical\_reasoning from $0.667$ to
-$\approx 0.65$. The overall post-NEG audit-subset prevalence
-projects to $\approx 0.70$, % CN:post_neg_projected_prev
-landing inside the target band of
-$0.55$--$0.75$ % CN:neg_target_band
-recommended for overlay audits: high enough that the class
-of interest (``agent did the right thing'') retains
-statistical mass, low enough that the chance-agreement
-denominator stops dominating $\kappa$. The projection is
-illustrative; the actual prevalence under the post-NEG
-pilot will be reported in the V10 evaluation release.
+\paragraph{Smoke-pilot results: task-distribution rebalance succeeds, criterion-prevalence correction does not.}
+A 60-run smoke pilot (Claude Opus 4.7 and GPT-5.4, each at
+$10$~tasks~$\times$~$3$~trials, seed=42,
+\texttt{docs/NEG\_SMOKE\_PILOT.md}) establishes two facts.
+First, the NEG slate achieves the task-level rebalance it
+was designed for: mean Pass@1 is $0.500$ % CN:neg_smoke_claude_pass1
+for Claude and $0.533$ % CN:neg_smoke_gpt_pass1
+for GPT-5.4, compared to the V8 corpus means of $0.248$
+(Claude) and $0.126$ (GPT-5.4). The benchmark now spans
+$[0.00,\,1.00]$ Pass@1 with real representation at the
+moderate-difficulty end rather than clustering at
+$[0.15,\,0.30]$. Second, the criterion-level prevalence
+hypothesis---that NEG criteria would average ${\sim}0.65$
+criterion-PASS and pull the audit-subset prevalence into
+the $0.55$--$0.75$ band---is \emph{falsified} by the same
+pilot. Observed NEG-criterion PASS prevalence is
+$0.929$ % CN:neg_smoke_crit_prev
+(457 of 492 criterion-trials): restraint criteria
+(``did~NOT~\ldots'') pass at
+$0.962$, % CN:neg_smoke_restraint_prev
+positive criteria (action required) pass at
+$0.899$. % CN:neg_smoke_positive_prev
+The structural reason is simple: a ``did~NOT~order~head~CT''
+criterion is satisfied whenever the agent never orders a
+head~CT, which is the modal frontier-model behaviour on a
+PECARN low-risk scenario. Restraint-class criteria are
+high-pass by construction whenever the agent has been
+trained against the specific over-action the criterion
+forbids. Pulling audit-subset prevalence into the target
+band would instead require criteria in the $0.40$--$0.60$
+PASS-rate regime, which neither pure-restraint nor
+pure-action tasks reliably produce. The Appendix F target
+band is therefore a task-level Pass@1 target, not a
+criterion-level prevalence target; the kappa-paradox
+mitigation that remains open is physician adjudication of
+the Tier~2 subset, not further task authoring.
+
+\paragraph{Safety yield: two exposed iatrogenic patterns.}
+The pilot caught two clinically significant restraint
+failures that the V8 corpus does not surface. On NEG-007
+(alcoholic ketoacidosis with normal glucose), $4$ of $6$ % CN:neg_smoke_aka_insulin
+trials across both models started an insulin infusion---a
+pattern that produces iatrogenic hypoglycaemia because the
+underlying acidosis is driven by starvation, not
+hyperglycaemia. On NEG-005 (hypoglycaemic aphasia as a
+stroke mimic), $2$ of $6$ % CN:neg_smoke_tpa_hypoglycemic
+trials ordered tPA/alteplase before resolving the
+hypoglycaemia---tPA in a hypoglycaemic patient is a
+well-known wrong-answer pattern. These two failures are
+the slate's primary safety yield. Three tasks (NEG-001,
+NEG-003, NEG-006) were too easy, with Pass@1~$=1.00$ on
+both models; they are candidates for revision or retirement
+in a follow-up.
 
 \begin{table}[h]
 \centering
-\caption{Projected V8-PASS prevalence shift after adding the
-10 negative-class tasks to the audit subset. Pre-NEG numbers
-are from Table~\ref{tab:v9_cat_agreement}. Post-NEG
-projections assume $0.65$ criterion-PASS prevalence on
-negative-class criteria. $n$ is (criteria~$\times$~models~$\times$~trials).}
+\caption{Observed post-NEG corpus aggregate vs projected.
+$n$ is (criteria~$\times$~models~$\times$~trials). The
+``projected'' column is the ex-ante estimate; the ``observed''
+column is the smoke-pilot result. The projection was wrong
+in the same direction across every category: restraint
+criteria are trivially satisfied by default behaviour in
+frontier models, so negative-class criterion-PASS prevalence
+runs near the ceiling rather than in the target band.}
 \label{tab:neg_prev}
 \small
 \begin{tabular}{lrrrrr}
 \toprule
 Category & $n_{\text{pre}}$ & prev$_{\text{pre}}$
-         & $n_{\text{NEG}}$ & prev$_{\text{NEG}}$ (proj.)
-         & prev$_{\text{post}}$ (proj.) \\
+         & $n_{\text{NEG}}$ & prev$_{\text{NEG}}$ (proj.\,/\,obs.)
+         & prev$_{\text{post}}$ (proj.\,/\,obs.) \\
 \midrule
-safety\_critical\_judgment  & $54$  & $0.833$ & $168$ & $0.65$ & $0.70$ \\
-temporal\_reasoning         & $108$ & $0.824$ & $144$ & $0.65$ & $0.72$ \\
-multi\_step\_workflows      & $78$  & $0.782$ & $108$ & $0.65$ & $0.71$ \\
-clinical\_reasoning         & $12$  & $0.667$ & $48$  & $0.65$ & $0.65$ \\
+safety\_critical\_judgment  & $54$  & $0.833$ & $168$ & $0.65\,/\,0.93$ & $0.70\,/\,0.85$ \\
+temporal\_reasoning         & $108$ & $0.824$ & $144$ & $0.65\,/\,0.93$ & $0.72\,/\,0.87$ \\
+multi\_step\_workflows      & $78$  & $0.782$ & $108$ & $0.65\,/\,0.93$ & $0.71\,/\,0.86$ \\
+clinical\_reasoning         & $12$  & $0.667$ & $48$  & $0.65\,/\,0.93$ & $0.65\,/\,0.88$ \\
 \midrule
-all                         & $252$ & $0.805$ & $468$ & $0.65$ & $0.70$ \\
+all                         & $252$ & $0.805$ & $468$ & $0.65\,/\,0.93$ & $0.70\,/\,0.88$ \\
 \bottomrule
 \end{tabular}
 \end{table}

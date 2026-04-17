@@ -781,28 +781,36 @@ under one task per condition. There are known coverage gaps
 obstetric emergencies); the coverage-cycle methodology makes them
 visible but does not close them in this release.
 
-\paragraph{Prevalence bias and the negative-class slate.}
-The V8 task slate over-samples action-positive scenarios
-(where the correct behaviour is to order, escalate, or admit)
-relative to action-negative ones (where the correct behaviour
-is restraint). This imbalance drives the V9 audit's V8-PASS
-prevalence to $0.805$ on the audit subset and is the
-proximate cause of the kappa paradox in
-Table~\ref{tab:v9_cat_agreement}. As a shipped structural
-fix we committed a $10$-task % CN:neg_tasks
+\paragraph{Task-distribution balance and the negative-class slate.}
+The V8 slate over-samples action-positive scenarios where
+the correct behaviour is to order, escalate, or admit and
+under-samples action-negative ones where the correct
+behaviour is restraint. As a shipped structural fix we
+committed a $10$-task % CN:neg_tasks
 negative-class slate (NEG-001 through NEG-010,
-Appendix~\ref{app:v9-overlay} ``Prevalence correction'')
-adding $82$ criteria---% CN:neg_criteria
-$14$ safety-critical--% CN:neg_safety_critical
+Appendix~\ref{app:v9-overlay}) adding $82$ criteria--% CN:neg_criteria
+$14$ safety-critical-% CN:neg_safety_critical
 for a total of $205$ tasks % CN:post_neg_tasks
 and $2{,}323$ criteria. % CN:post_neg_criteria
-Under the projection that NEG criteria exhibit $0.65$
-criterion-PASS prevalence, the post-NEG audit-subset
-prevalence drops to $\approx 0.70$, % CN:post_neg_projected_prev
-inside the
-$0.55$--$0.75$ % CN:neg_target_band
-target band for overlay audits. The observed post-NEG
-prevalence will be reported at V10.
+A 60-run smoke pilot (\texttt{docs/NEG\_SMOKE\_PILOT.md})
+establishes that the slate rebalances \emph{task-level}
+difficulty: mean Pass@1 is $0.500$ % CN:neg_smoke_claude_pass1
+for Claude Opus 4.7 and $0.533$ % CN:neg_smoke_gpt_pass1
+for GPT-5.4, versus V8 corpus means of $0.248$ and $0.126$.
+It also caught two iatrogenic patterns the V8 corpus does
+not surface: insulin infusion on alcoholic ketoacidosis
+($4/6$ trials across both models) % CN:neg_smoke_aka_insulin
+and tPA on hypoglycaemic aphasia
+($2/6$ trials). % CN:neg_smoke_tpa_hypoglycemic
+The pilot also \emph{falsifies} the Appendix F.5 projection
+that NEG criteria would average ${\sim}0.65$ criterion-PASS
+and pull audit-subset prevalence into the target band:
+observed NEG-criterion prevalence is $0.929$. % CN:neg_smoke_crit_prev
+Restraint criteria are trivially satisfied whenever the
+agent has been trained against the specific over-action the
+criterion forbids, so the kappa-paradox mitigation that
+remains open is physician adjudication of the Tier~2 subset
+(Appendix~\ref{app:v9-overlay}), not further task authoring.
 
 \paragraph{Underpowered for scaling-law claims.}
 Two-model main results (Gemini~3.1~Pro pending) are diagnostic but
