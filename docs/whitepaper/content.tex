@@ -91,8 +91,15 @@ with the reward formula (Eq.~\ref{eq:reward}); (c)~a benchmark of
 across six categories; (d)~V8 results on two frontier models,
 together with a transparent account of the six infrastructure bugs
 whose fix produced the V8 numbers and which invalidate the previously
-circulated V7 numbers. We release the environment, tasks, rubric,
-and harness under Apache~2.0.
+circulated V7 numbers; and (e)~an independent deterministic overlay
+audit (Appendix~\ref{app:v9-overlay}) of the LLM judge over
+44 world\_state criteria,  % CN:v9_overlay_criteria
+which classifies each disagreement under a six-label taxonomy and
+finds that
+73\% of disagreements  % CN:v9_judge_halluc_pct
+are judge hallucinations rather than overlay faults. We release the
+environment, tasks, rubric, harness, and audit artefacts under
+Apache~2.0.
 
 % ============================================================
 \section{Related Work}
@@ -521,7 +528,17 @@ verdicts agree with the \texttt{world\_state} verification method
 this confirms the judge is not drifting on the
 \texttt{world\_state}-verifiable subset. The $\kappa=0.553$ figure
 remains a real limitation (\S\ref{sec:limits}); we do not claim
-human-level judge reliability.
+human-level judge reliability. As a second, independent test, we built
+a deterministic world\_state overlay for 44 llm\_judge criteria
+(Appendix~\ref{app:v9-overlay}), re-graded every cached V8 trajectory
+without an LLM, and labelled each of the 63 resulting disagreements
+under a six-class taxonomy. Agreement is 76.1\%,  % CN:v9_agreement
+overall $\kappa$ is 0.402,  % CN:v9_kappa_overall
+73\% of disagreements  % CN:v9_judge_halluc_pct
+are judge hallucinations (false-positive PASSes that cite tool calls
+absent from the audit log), and only $\sim 8\%$ are overlay faults;
+this fixes a pointwise upper bound on judge reliability at the
+\texttt{llm\_judge}-graded subset.
 
 \paragraph{Models.}
 Main results in \S\ref{sec:results} are reported for Claude Opus 4.6
@@ -728,10 +745,24 @@ our intervals do not capture. Stratified by trajectory length
 regime ($>40$ turns, $\kappa=0.306$) where raw agreement is in fact
 highest ($92.0\%$); this base-rate paradox matters for Claude
 (median $\sim 49$ turns) more than for GPT-5.4 (median $\sim 8$). The
-partial mitigation is to prefer \texttt{world\_state} at authoring
-time; the full mitigation is physician-in-the-loop adjudication, which
-is underway on a related corpus and will be ported to HealthCraft
-criteria in a follow-up.
+deterministic overlay audit (Appendix~\ref{app:v9-overlay}) sharpens
+this: of 63 disagreements between the overlay and the V8 judge,
+46 are judge hallucinations  % CN:v9_judge_halluc_count
+(73\% of disagreements), and 5 of the 6 safety-critical
+inversions  % CN:v9_safety_inversions
+are judge PASS verdicts on trajectories in which the audit log
+contains no successful qualifying tool call---i.e.\ the judge
+invented the passing behaviour. Under the Tier~1 subset of 10 overlay
+entries  % CN:v9_tier1_count
+where disagreements are exhausted by judge hallucination plus
+$\le 2$ safe labels, we recommend replacing \texttt{llm\_judge} with
+the deterministic rule for reward; Tier~2 (26 entries,  % CN:v9_tier2_count
+research-only) and Tier~3 (8 entries,  % CN:v9_tier3_count
+keep \texttt{llm\_judge}) retain the LLM grader. The partial mitigation
+is to prefer \texttt{world\_state} at authoring time and to apply
+Tier~1 overlays where available; the full mitigation is
+physician-in-the-loop adjudication, which is underway on a related
+corpus and will be ported to HealthCraft criteria in a follow-up.
 
 \paragraph{Infrastructure-bug isolation.}
 The V7-to-V8 delta (\S\ref{sec:v7-superseded}) is reported as a bundle

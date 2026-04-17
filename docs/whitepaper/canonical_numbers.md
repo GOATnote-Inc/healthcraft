@@ -115,7 +115,28 @@ trace to a `results/` artifact.
 |---|---|---|---|---|
 | `CN:v2_v9_claude_pass1` | Claude Pass@1 (v9 channel) | TBD | TBD | `results/pilot-v9-deterministic/summary.json` |
 | `CN:v2_v9_gpt_pass1` | GPT Pass@1 (v9 channel) | TBD | TBD | `results/pilot-v9-deterministic/summary.json` |
-| `CN:v2_v9_ws_criteria` | world\_state criteria after overlay | TBD | n/a | `configs/rubrics/v9_deterministic_overlay.yaml` |
+| `CN:v2_v9_ws_criteria` | world\_state criteria after overlay | 44 | n/a | `configs/rubrics/v9_deterministic_overlay.yaml` |
+
+### V9 Overlay Audit (judge reliability, 2026-04-17)
+
+Numbers derived from `docs/V9_OVERLAY_AUDIT.json`, reproduced by
+`scripts/kappa_validation.py` with no API calls. Source trajectories
+are the cached V8 runs in `results/pilot-v8-{claude-opus,gpt54}/`.
+
+| Tag | Claim | Value | 95% CI | Source |
+|---|---|---|---|---|
+| `CN:v9_overlay_criteria` | Overlay entries audited | 44 | n/a | `configs/rubrics/v9_deterministic_overlay.yaml` |
+| `CN:v9_n_observations` | (criterion x trial) observations | 264 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.summary.n_observations` |
+| `CN:v9_agreement` | Overall raw agreement v9 vs v8 judge | 76.1% | n/a | `docs/V9_OVERLAY_AUDIT.json#$.summary.overall_agreement` |
+| `CN:v9_kappa_overall` | Overall Cohen's kappa | 0.402 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.summary.overall_kappa` |
+| `CN:v9_safety_inversions` | Safety-critical verdict inversions | 6 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.summary.n_safety_inversions` |
+| `CN:v9_v8_prev_overall` | V8 PASS prevalence on audited subset | 79.5% | n/a | `docs/V9_OVERLAY_AUDIT.json#$.by_category[*].prevalence_v8` (weighted) |
+| `CN:v9_judge_halluc_count` | Disagreements labeled judge\_hallucination | 46 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.disagreement_labels.counts.judge_hallucination` |
+| `CN:v9_judge_halluc_pct` | judge\_hallucination share of disagreements | 73% | n/a | 46 / 63 |
+| `CN:v9_infra_err_count` | Disagreements labeled infrastructure\_error | 5 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.disagreement_labels.counts.infrastructure_error` |
+| `CN:v9_tier1_count` | Overlay entries in Tier 1 (reward-safe) | 10 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.tier_counts.tier_1_reward_safe` |
+| `CN:v9_tier2_count` | Overlay entries in Tier 2 (research-only) | 26 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.tier_counts.tier_2_research_only` |
+| `CN:v9_tier3_count` | Overlay entries in Tier 3 (keep llm\_judge) | 8 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.tier_counts.tier_3_keep_llm_judge` |
 
 ### Dynamic-State Pilot
 

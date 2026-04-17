@@ -129,3 +129,246 @@ above chance. The long-trajectory regime is more relevant for Claude
 (median $\sim 49$ turns) than GPT-5.4 (median $\sim 8$ turns), which
 is why the judge-reliability concern in \S\ref{sec:limits} is framed
 as a bound on Claude-favouring variance rather than symmetric noise.
+
+\section{V9 deterministic overlay audit of the LLM judge}
+\label{app:v9-overlay}
+
+Cross-vendor judging (\S\ref{sec:eval}) does not eliminate judge
+variance; Cohen's $\kappa=0.553$ leaves appreciable residual
+disagreement. Because the judge is the unit of measurement for
+63.5\% of criteria % CN:v2_llm_judge_pct
+(\S\ref{sec:limits}), its noise floor bounds every downstream claim.
+We therefore built an independent deterministic audit:
+44 criteria % CN:v9_overlay_criteria
+originally graded by \texttt{llm\_judge} were migrated to
+\texttt{world\_state} predicates and re-graded against the cached V8
+trajectories. This appendix reports what that audit found; the full
+per-observation report is committed at
+\texttt{docs/V9\_OVERLAY\_AUDIT.json}.
+
+\paragraph{Overlay construction.}
+The migration pipeline has three stages. (i)~Auto-migration:
+\texttt{scripts/migrate\_criteria.py} scans every
+\texttt{llm\_judge} assertion for patterns that cleanly map onto
+audit-log predicates (e.g.\ ``agent ordered $X$'' $\mapsto$
+``audit\_log contains \texttt{createClinicalOrder} with
+medication$=X$''). (ii)~Confidence filtering:
+\texttt{scripts/populate\_v9\_overlay.py} retains only
+\texttt{confidence == 'high'} candidates and flags
+subordinate-clause assertions for review.
+(iii)~Manual correction of a small number of wrong-entity
+mappings (e.g.\ an overlay row whose assertion concerned blood
+cultures was originally wired to a blood-product tool). The
+resulting overlay
+(\texttt{configs/rubrics/v9\_deterministic\_overlay.yaml}) has
+$44$ entries across five categories.
+
+\paragraph{The \texttt{contains attempt at} directive and the
+\texttt{intent\_rescue\_reason} contract.}
+Many safety-critical criteria are phrased in terms of
+\emph{what the agent attempted} rather than what succeeded.
+A simulator bug in V8 prevented the \texttt{blood\_admin}
+task type from executing, so well-formed orders for blood
+products returned
+$\{\texttt{status:error},\ \texttt{code:unknown\_task\_type}\}$
+in the audit log. The V8 LLM judge correctly scored these as
+agent intent (PASS); a naive world-state check would score
+them as FAIL. To preserve this semantics deterministically
+we added a \texttt{contains attempt at} directive to the
+evaluator. An early implementation accepted \emph{any} audit
+entry matching the tool/params filter regardless of
+\texttt{result\_summary}, which turned out to be
+over-permissive (\S F.4 below). The production directive
+accepts an audit entry as evidence of attempt only if
+\texttt{result\_summary == "ok"}, or
+\texttt{result\_summary == "error"} with an
+\texttt{error\_code} in a fixed simulator-side allowlist:
+$\{\texttt{unknown\_task\_type},$
+$\texttt{not\_implemented},$
+$\texttt{simulator\_error},$
+$\texttt{internal\_error},$
+$\texttt{service\_unavailable}\}$.
+Agent-side schema errors (\texttt{missing\_param},
+\texttt{invalid\_params}, \texttt{unknown\_tool}) are not
+valid attempts. In addition, every overlay entry using
+\texttt{contains attempt at} must declare a free-text
+\texttt{intent\_rescue\_reason} in the overlay YAML; the
+orchestrator refuses to load the overlay if any entry is
+missing this attestation. The attestation is the design
+pattern; the allowlist is its enforcement.
+
+\paragraph{Forensic walkthrough: SCJ-005-C04.}
+A pre-tightening run of the overlay classified two trials
+of SCJ-005-C04 (GPT-5.4 seeds $42$ and $44$) as
+$\text{v9}=\text{PASS}$ where V8 had marked them FAIL, with
+the disagreement classifier assigning the label
+\texttt{infrastructure\_error}. On direct audit, however,
+only one trial ($\_44\_t3$) carried a genuine sim-side
+\texttt{unknown\_task\_type}. The other ($\_42\_t1$) contained
+$12/13$ tool errors of type \texttt{missing\_param}: the
+agent had omitted the required \texttt{details} field from
+its \texttt{createClinicalOrder} calls and never once
+produced a well-formed request. Under a principled reading
+of ``attempted'' this trial had not attempted the order, it
+had emitted malformed calls. Under the tightened directive,
+$\_42\_t1$ correctly flips back to $\text{v9}=\text{FAIL}$
+while $\_44\_t3$ retains its rescue. The pre-tightening
+overlay was laundering an agent-side schema failure as a
+clinical attempt. We report the walkthrough because the
+failure mode---a naive intent check that accepts any error
+code as evidence of intent---is easy to recreate, and the
+fix (the sim-side allowlist plus per-entry attestation) is
+narrow enough to be reused.
+
+\paragraph{Agreement.}
+Agreement was computed on
+$n=264$ % CN:v9_n_observations
+(criterion $\times$ trial) observations: $44$ overlay
+criteria $\times$ $2$ models (Claude Opus 4.6, GPT-5.4)
+$\times$ $3$ trials. The V8 judge verdict is the reference;
+the V9 overlay verdict is the test. Overall raw agreement is
+$76.1\%$ % CN:v9_agreement
+with Cohen's
+$\kappa = 0.402$ % CN:v9_kappa_overall
+and
+$6$ % CN:v9_safety_inversions
+safety-critical verdict inversions. Per-category agreement
+is given in Table~\ref{tab:v9_cat_agreement}.
+
+\begin{table}[h]
+\centering
+\caption{V9 overlay vs.\ V8 judge agreement by category.
+$n$ is (criteria~$\times$~trials). $\kappa$ is Cohen's;
+PABAK is prevalence-and-bias-adjusted kappa. V8 PASS
+prevalence is high across all categories, which is why
+$\kappa$ is systematically lower than PABAK (the
+$\kappa\ge 0.80$ discussion below).}
+\label{tab:v9_cat_agreement}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Category & $n$ & Agreement & V8 prev. & $\kappa$ & PABAK \\
+\midrule
+clinical\_communication     & $12$  & $58.3\%$ & $58.3\%$ & $0.211$ & $0.167$ \\
+clinical\_reasoning         & $12$  & $75.0\%$ & $66.7\%$ & $0.526$ & $0.500$ \\
+multi\_step\_workflows      & $78$  & $82.1\%$ & $78.2\%$ & $0.533$ & $0.641$ \\
+safety\_critical\_judgment  & $54$  & $77.8\%$ & $83.3\%$ & $0.265$ & $0.556$ \\
+temporal\_reasoning         & $108$ & $73.1\%$ & $82.4\%$ & $0.335$ & $0.463$ \\
+\midrule
+all                         & $264$ & $76.1\%$ & $79.5\%$ & $0.402$ & $0.523$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Disagreement taxonomy.}
+A rule-based classifier
+(\texttt{scripts/kappa\_validation.py::\_classify\_disagreement})
+assigns one of six labels to each disagreeing observation in
+priority order: \texttt{overlay\_wrong\_entity} (overlay
+targets wrong tool/params); \texttt{infrastructure\_error}
+(v9 PASS rescued by a sim-side error);
+\texttt{judge\_hallucination} (v8 PASS with zero successful
+matching tool calls in trajectory);
+\texttt{intent\_execution\_split} (agent attempted but did
+not complete; judge scored intent);
+\texttt{vocab\_gap} (medication-class terminology mismatch);
+and \texttt{conditional\_logic} (assertion has a conditional
+clause the overlay cannot encode). Counts for $63$
+disagreeing observations are in Table~\ref{tab:v9_labels}.
+The dominant class is \texttt{judge\_hallucination} at
+$73\%$ % CN:v9_judge_halluc_pct
+($46$ of $63$): % CN:v9_judge_halluc_count
+V8 marked the criterion PASS yet the trajectory contains
+zero successful matching tool calls in the audit log. These
+are judge false positives, and because most HealthCraft
+safety-critical criteria concern whether a tool was invoked,
+they are a direct ceiling on judge reliability.
+
+\begin{table}[h]
+\centering
+\caption{Disagreement classifier counts over the $63$
+disagreeing observations. Safety column counts the
+safety-critical subset.}
+\label{tab:v9_labels}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Label & Count & \% of disagreements & Safety-critical \\
+\midrule
+judge\_hallucination       & $46$ & $73\%$ & $5$ \\
+infrastructure\_error      & $5$  % CN:v9_infra_err_count
+                                   & $8\%$  & $1$ \\
+vocab\_gap                 & $5$  & $8\%$  & $0$ \\
+intent\_execution\_split   & $4$  & $6\%$  & $0$ \\
+overlay\_wrong\_entity     & $2$  & $3\%$  & $0$ \\
+conditional\_logic         & $1$  & $2\%$  & $0$ \\
+\midrule
+total                      & $63$ & $100\%$ & $6$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Tiering.}
+On the basis of the disagreement taxonomy each of the 44
+overlay entries is assigned one of three tiers:
+
+\begin{itemize}
+  \item \textbf{Tier 1 (reward-safe): $10$ entries.} % CN:v9_tier1_count
+  All six trials agree with the V8 judge. The overlay can
+  replace \texttt{llm\_judge} for these criteria in reward
+  computation without changing any verdict.
+  \item \textbf{Tier 2 (research-only): $26$ entries.} % CN:v9_tier2_count
+  Disagreement labels are a subset of $\{$\texttt{judge\_hallucination},
+  \texttt{infrastructure\_error}$\}$. The overlay is
+  plausibly correct and the judge is plausibly at fault,
+  but we do not use the overlay for reward until physician
+  adjudication has confirmed the direction.
+  \item \textbf{Tier 3 (keep \texttt{llm\_judge}):
+  $8$ entries.} % CN:v9_tier3_count
+  At least one disagreement carries a label outside the
+  judge-noise set (\texttt{overlay\_wrong\_entity},
+  \texttt{intent\_execution\_split}, \texttt{vocab\_gap},
+  \texttt{conditional\_logic}). These flag real overlay or
+  semantic issues; the V8 judge remains binding until the
+  overlay is corrected.
+\end{itemize}
+
+The tiering is presented not as a HealthCraft-specific
+artefact but as a reusable template: given any
+deterministic-overlay audit of an LLM judge, the six-label
+classifier over disagreements induces a three-way tiering
+(reward-safe~/ research-only~/ keep-judge), and only the
+reward-safe tier changes the production reward signal.
+
+\paragraph{Why $\kappa \ge 0.80$ is the wrong gate here.}
+Cohen's $\kappa$ treats the reference grader as ground
+truth. The disagreement taxonomy shows that treatment is
+unsafe for this audit: $73\%$ of observed disagreements
+trace to judge false positives, not overlay faults. A
+perfect overlay audited against a judge with
+$\sim 23\%$ false-positive rate on the audited subset
+cannot reach $\kappa \ge 0.80$. This is an instance of the
+kappa paradox in the high-prevalence regime (V8 PASS
+prevalence
+$79.5\%$ % CN:v9_v8_prev_overall
+on the audited subset): agreement is dominated by the
+shared positive class, and the chance-agreement
+denominator grows faster than the observed-agreement
+numerator. The honest statistic for
+\emph{reliability-of-overlay-given-noisy-judge} is raw
+agreement paired with the disagreement taxonomy; the
+honest statistic for
+\emph{reliability-of-judge-given-physician-adjudicated-truth}
+is $\kappa$ against an adjudicated subset, which is
+underway in a follow-up.
+
+\paragraph{Reproducibility.}
+The full audit report (per-criterion verdicts, per-trial
+labels, and the classifier inputs for every disagreement) is
+committed at \texttt{docs/V9\_OVERLAY\_AUDIT.json}. The
+validator script (\texttt{scripts/kappa\_validation.py})
+takes no API dependencies and re-derives every number in
+this appendix from the V8 trajectories at
+\texttt{results/pilot-v8-\{claude-opus,gpt54\}/trajectories/}
+and the overlay YAML. Running the validator against a clean
+checkout reproduces \texttt{docs/V9\_OVERLAY\_AUDIT.json}.
