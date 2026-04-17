@@ -76,6 +76,7 @@ _RETRIEVAL_TOOL_MAP = {
 
 _ORDER_TYPE_MAP = {
     "lab": "lab",
+    "laboratory": "lab",
     "cbc": "lab",
     "bmp": "lab",
     "troponin": "lab",
@@ -85,19 +86,33 @@ _ORDER_TYPE_MAP = {
     "crossmatch": "lab",
     "imaging": "imaging",
     "ct": "imaging",
+    "cta": "imaging",
+    "ctv": "imaging",
     "x-ray": "imaging",
     "xray": "imaging",
     "ultrasound": "imaging",
     "mri": "imaging",
     "medication": "medication",
     "antibiotic": "medication",
+    "antibiotics": "medication",
     "analgesic": "medication",
     "iv fluid": "medication",
+    "iv fluids": "medication",
     "blood product": "blood_product",
+    "blood products": "blood_product",
     "transfusion": "blood_product",
     "procedure": "procedure",
     "consult": "consult",
 }
+
+
+def _match_keyword(keyword: str, text: str) -> bool:
+    """Match keyword at word boundaries.
+
+    Prevents substring false positives (e.g., 'ct' inside 'correct',
+    'products', 'spectrum', 'induction'). Callers lower-case `text` first.
+    """
+    return bool(re.search(rf"\b{re.escape(keyword)}\b", text))
 
 
 def _propose_retrieval(assertion: str) -> dict[str, str] | None:
@@ -107,7 +122,7 @@ def _propose_retrieval(assertion: str) -> dict[str, str] | None:
     if not any(verb in lower for verb in retrieval_verbs):
         return None
     for keyword, tool in _RETRIEVAL_TOOL_MAP.items():
-        if keyword in lower:
+        if _match_keyword(keyword, lower):
             return {
                 "proposed_check": f"audit_log contains call to {tool}",
                 "confidence": "medium",
@@ -123,7 +138,7 @@ def _propose_ordering(assertion: str) -> dict[str, str] | None:
     if not any(verb in lower for verb in order_verbs):
         return None
     for keyword, order_type in _ORDER_TYPE_MAP.items():
-        if keyword in lower:
+        if _match_keyword(keyword, lower):
             return {
                 "proposed_check": (
                     f"audit_log contains call to createClinicalOrder for {order_type}"
@@ -151,7 +166,7 @@ def _propose_negation(assertion: str) -> dict[str, str] | None:
         return None
     # Try to extract what was avoided
     for keyword, order_type in _ORDER_TYPE_MAP.items():
-        if keyword in lower:
+        if _match_keyword(keyword, lower):
             return {
                 "proposed_check": (
                     f"audit_log does NOT contain createClinicalOrder for {order_type}"

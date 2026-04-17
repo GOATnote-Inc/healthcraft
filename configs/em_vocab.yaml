@@ -1,0 +1,267 @@
+# Emergency Medicine vocabulary for v9 audit-log matching.
+#
+# Purpose: let rubric checks name a *class* (e.g. "anticoagulant") and have
+# the evaluator match any canonical synonym in that class against audit-log
+# params. Lives alongside OpenEM and is deliberately independent of it --
+# this is a matcher vocabulary, not a knowledge graph.
+#
+# Scope (MVP):
+#   - Pharmacologic classes that appear in HEALTHCRAFT safety criteria
+#     (anticoagulants, antibiotics, pressors, sedatives, paralytics, ...)
+#   - Blood-product subtypes for order_type="blood_product"
+#   - Forward-compatible with rxcui/SNOMED fields (null for now) -- the
+#     schema slot exists so future provenance work is a schema-free upgrade.
+#
+# Out of scope for MVP: attributes (dose ranges, routes), SNOMED/RxNorm
+# mapping, NDC codes, brand-name expansion beyond what a working ED
+# physician would actually write.
+#
+# Maintainer: add entries by class, keep synonyms lowercase, prefer terms
+# an agent or chart would actually produce. This file is consumed by
+# src/healthcraft/tasks/em_vocab.py.
+
+version: "0.1.0"
+
+classes:
+
+  # ---- Blood products ----
+  blood_product:
+    members:
+      - canonical: "PRBC"
+        synonyms: ["prbc", "prbcs", "packed red blood cells", "packed rbc", "red cells", "rbc unit"]
+        rxcui: null
+      - canonical: "O-negative PRBCs"
+        synonyms: ["o-negative prbc", "o neg prbc", "o-neg prbcs", "emergency release blood",
+                   "o negative blood", "o-neg blood", "uncrossmatched prbc"]
+        rxcui: null
+      - canonical: "type-specific PRBCs"
+        synonyms: ["type specific prbc", "type-matched blood", "abo-matched prbc"]
+        rxcui: null
+      - canonical: "cross-matched PRBCs"
+        synonyms: ["crossmatched prbc", "fully crossmatched blood", "type and crossmatch"]
+        rxcui: null
+      - canonical: "FFP"
+        synonyms: ["ffp", "fresh frozen plasma", "plasma"]
+        rxcui: null
+      - canonical: "platelets"
+        synonyms: ["plt", "apheresis platelets", "platelet concentrate", "platelet unit"]
+        rxcui: null
+      - canonical: "cryoprecipitate"
+        synonyms: ["cryo", "cryoprecipitate", "cryoprecipitated agp"]
+        rxcui: null
+      - canonical: "whole blood"
+        synonyms: ["whole blood", "low-titer o whole blood", "ltowb"]
+        rxcui: null
+      - canonical: "MTP"
+        synonyms: ["mtp", "massive transfusion protocol", "1:1:1 ratio", "balanced transfusion"]
+        rxcui: null
+
+  # ---- Anticoagulants (high-stakes safety class) ----
+  anticoagulant:
+    members:
+      - canonical: "heparin"
+        synonyms: ["heparin", "unfractionated heparin", "ufh", "heparin drip", "heparin infusion"]
+        rxcui: null
+      - canonical: "enoxaparin"
+        synonyms: ["enoxaparin", "lovenox", "lmwh", "low molecular weight heparin"]
+        rxcui: null
+      - canonical: "warfarin"
+        synonyms: ["warfarin", "coumadin"]
+        rxcui: null
+      - canonical: "apixaban"
+        synonyms: ["apixaban", "eliquis", "doac", "noac"]
+        rxcui: null
+      - canonical: "rivaroxaban"
+        synonyms: ["rivaroxaban", "xarelto"]
+        rxcui: null
+      - canonical: "dabigatran"
+        synonyms: ["dabigatran", "pradaxa"]
+        rxcui: null
+      - canonical: "edoxaban"
+        synonyms: ["edoxaban", "savaysa"]
+        rxcui: null
+      - canonical: "fondaparinux"
+        synonyms: ["fondaparinux", "arixtra"]
+        rxcui: null
+      - canonical: "argatroban"
+        synonyms: ["argatroban"]
+        rxcui: null
+      - canonical: "bivalirudin"
+        synonyms: ["bivalirudin", "angiomax"]
+        rxcui: null
+
+  # ---- Antibiotics (sepsis / time-to-antibiotics metrics) ----
+  antibiotic:
+    members:
+      - canonical: "ceftriaxone"
+        synonyms: ["ceftriaxone", "rocephin"]
+      - canonical: "piperacillin-tazobactam"
+        synonyms: ["piperacillin-tazobactam", "pip-tazo", "zosyn", "piperacillin/tazobactam"]
+      - canonical: "vancomycin"
+        synonyms: ["vancomycin", "vanc", "vanco"]
+      - canonical: "cefepime"
+        synonyms: ["cefepime", "maxipime"]
+      - canonical: "meropenem"
+        synonyms: ["meropenem", "merrem"]
+      - canonical: "imipenem"
+        synonyms: ["imipenem", "primaxin"]
+      - canonical: "gentamicin"
+        synonyms: ["gentamicin", "gent"]
+      - canonical: "ampicillin"
+        synonyms: ["ampicillin"]
+      - canonical: "ampicillin-sulbactam"
+        synonyms: ["ampicillin-sulbactam", "unasyn"]
+      - canonical: "azithromycin"
+        synonyms: ["azithromycin", "z-pak", "zithromax"]
+      - canonical: "clindamycin"
+        synonyms: ["clindamycin", "cleocin"]
+      - canonical: "metronidazole"
+        synonyms: ["metronidazole", "flagyl"]
+      - canonical: "levofloxacin"
+        synonyms: ["levofloxacin", "levaquin"]
+      - canonical: "ciprofloxacin"
+        synonyms: ["ciprofloxacin", "cipro"]
+      - canonical: "doxycycline"
+        synonyms: ["doxycycline"]
+      - canonical: "acyclovir"
+        synonyms: ["acyclovir", "zovirax"]
+
+  # ---- Vasoactive / pressor medications ----
+  pressor:
+    members:
+      - canonical: "norepinephrine"
+        synonyms: ["norepinephrine", "norepi", "levophed"]
+      - canonical: "epinephrine"
+        synonyms: ["epinephrine", "epi", "adrenaline"]
+      - canonical: "phenylephrine"
+        synonyms: ["phenylephrine", "neo-synephrine", "neo"]
+      - canonical: "vasopressin"
+        synonyms: ["vasopressin", "pitressin", "avp"]
+      - canonical: "dopamine"
+        synonyms: ["dopamine"]
+      - canonical: "dobutamine"
+        synonyms: ["dobutamine"]
+      - canonical: "milrinone"
+        synonyms: ["milrinone"]
+
+  # ---- Opioids ----
+  opioid:
+    members:
+      - canonical: "morphine"
+        synonyms: ["morphine", "ms04", "ms"]
+      - canonical: "fentanyl"
+        synonyms: ["fentanyl", "sublimaze"]
+      - canonical: "hydromorphone"
+        synonyms: ["hydromorphone", "dilaudid"]
+      - canonical: "oxycodone"
+        synonyms: ["oxycodone", "oxycontin", "percocet"]
+      - canonical: "hydrocodone"
+        synonyms: ["hydrocodone", "vicodin", "norco"]
+      - canonical: "tramadol"
+        synonyms: ["tramadol", "ultram"]
+      - canonical: "methadone"
+        synonyms: ["methadone"]
+
+  # ---- Analgesic (superset: opioids + NSAIDs + acetaminophen) ----
+  analgesic:
+    members:
+      - canonical: "acetaminophen"
+        synonyms: ["acetaminophen", "tylenol", "paracetamol", "apap"]
+      - canonical: "ibuprofen"
+        synonyms: ["ibuprofen", "motrin", "advil"]
+      - canonical: "ketorolac"
+        synonyms: ["ketorolac", "toradol"]
+      - canonical: "naproxen"
+        synonyms: ["naproxen", "naprosyn", "aleve"]
+      # opioid overlap: inherited via class hierarchy (see `includes` below)
+
+  # ---- Sedatives ----
+  sedative:
+    members:
+      - canonical: "lorazepam"
+        synonyms: ["lorazepam", "ativan"]
+      - canonical: "midazolam"
+        synonyms: ["midazolam", "versed"]
+      - canonical: "diazepam"
+        synonyms: ["diazepam", "valium"]
+      - canonical: "ketamine"
+        synonyms: ["ketamine"]
+      - canonical: "propofol"
+        synonyms: ["propofol", "diprivan"]
+      - canonical: "etomidate"
+        synonyms: ["etomidate", "amidate"]
+      - canonical: "dexmedetomidine"
+        synonyms: ["dexmedetomidine", "precedex"]
+
+  # ---- Paralytics / neuromuscular blockers (RSI) ----
+  paralytic:
+    members:
+      - canonical: "succinylcholine"
+        synonyms: ["succinylcholine", "sux", "anectine"]
+      - canonical: "rocuronium"
+        synonyms: ["rocuronium", "roc", "zemuron"]
+      - canonical: "vecuronium"
+        synonyms: ["vecuronium"]
+      - canonical: "cisatracurium"
+        synonyms: ["cisatracurium", "nimbex"]
+
+  # ---- Antiemetics ----
+  antiemetic:
+    members:
+      - canonical: "ondansetron"
+        synonyms: ["ondansetron", "zofran"]
+      - canonical: "promethazine"
+        synonyms: ["promethazine", "phenergan"]
+      - canonical: "metoclopramide"
+        synonyms: ["metoclopramide", "reglan"]
+      - canonical: "prochlorperazine"
+        synonyms: ["prochlorperazine", "compazine"]
+
+  # ---- Bronchodilators ----
+  bronchodilator:
+    members:
+      - canonical: "albuterol"
+        synonyms: ["albuterol", "salbutamol", "proventil", "ventolin"]
+      - canonical: "ipratropium"
+        synonyms: ["ipratropium", "atrovent"]
+      - canonical: "levalbuterol"
+        synonyms: ["levalbuterol", "xopenex"]
+
+  # ---- Steroids ----
+  steroid:
+    members:
+      - canonical: "methylprednisolone"
+        synonyms: ["methylprednisolone", "solu-medrol", "medrol"]
+      - canonical: "dexamethasone"
+        synonyms: ["dexamethasone", "decadron"]
+      - canonical: "hydrocortisone"
+        synonyms: ["hydrocortisone", "solu-cortef"]
+      - canonical: "prednisone"
+        synonyms: ["prednisone"]
+
+  # ---- Antiplatelet ----
+  antiplatelet:
+    members:
+      - canonical: "aspirin"
+        synonyms: ["aspirin", "asa", "acetylsalicylic acid"]
+      - canonical: "clopidogrel"
+        synonyms: ["clopidogrel", "plavix"]
+      - canonical: "ticagrelor"
+        synonyms: ["ticagrelor", "brilinta"]
+      - canonical: "prasugrel"
+        synonyms: ["prasugrel", "effient"]
+
+  # ---- Thrombolytic (stroke / STEMI) ----
+  thrombolytic:
+    members:
+      - canonical: "alteplase"
+        synonyms: ["alteplase", "tpa", "t-pa", "activase"]
+      - canonical: "tenecteplase"
+        synonyms: ["tenecteplase", "tnk", "tnkase"]
+
+# Hierarchy: classes that *include* another class by reference. When a
+# rubric says "matching analgesic", opioids are covered too. Resolution
+# is transitive.
+hierarchy:
+  analgesic:
+    includes: [opioid]

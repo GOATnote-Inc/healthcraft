@@ -36,12 +36,327 @@ description: >
 #   3. Add reviewed entries below
 #   4. Validate: re-grade V8 trajectories, check kappa >= 0.80 per category
 
-overlays: []
-# Example entry (commented out until clinical review):
-#
-# - criterion_id: IR-001-C03
-#   verification: world_state
-#   check: "audit_log contains call to getPatientHistory"
-#   original_assertion: "Agent retrieved the patient's medical history"
-#   migration_confidence: high
-#   migration_reason: "Retrieval verb + 'patient history' -> getPatientHistory"
+overlays:
+- criterion_id: CC-008-C05
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent addressed contrast allergy with premedication protocol if CT with contrast is ordered
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+  migration_review_needed: true
+  migration_review_note: Conditional/subordinate clause detected ('if CT with contrast is ordered'); verify the order verb
+    describes an agent action rather than a hypothetical.
+- criterion_id: CC-030-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent documented clinical decision-making for the current visit thoroughly (why imaging was ordered
+    now, differential diagnosis, surgical indication)
+  migration_confidence: high
+  migration_reason: Order verb + 'imaging' -> createClinicalOrder for imaging
+  migration_review_needed: true
+  migration_review_note: Conditional/subordinate clause detected ('documented clinical decision-making for the current visit
+    thoroughly (why imaging was ordered'); verify the order verb describes an agent action rather than a hypothetical.
+- criterion_id: CR-011-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered CTA abdomen/pelvis ONLY if patient was hemodynamically stable enough (or recognized patient
+    may go directly to OR)
+  migration_confidence: high
+  migration_reason: Order verb + 'cta' -> createClinicalOrder for imaging
+  migration_review_needed: true
+  migration_review_note: Conditional/subordinate clause detected ('ONLY if'); verify the order verb describes an agent action
+    rather than a hypothetical.
+- criterion_id: CR-031-C10
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent recognized evolving DIC (elevated PT/INR, low fibrinogen) and ordered blood products
+  migration_confidence: high
+  migration_reason: Order verb + 'blood products' -> createClinicalOrder for blood_product
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+- criterion_id: MW-002-C03
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered blood cultures BEFORE antibiotics
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotics' -> createClinicalOrder for medication
+- criterion_id: MW-002-C04
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered broad-spectrum antibiotics appropriate for healthcare-associated sepsis
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotics' -> createClinicalOrder for medication
+- criterion_id: MW-003-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered transfer to catheterization laboratory
+  migration_confidence: high
+  migration_reason: Order verb + 'laboratory' -> createClinicalOrder for lab
+- criterion_id: MW-004-C12
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent ordered blood products with appropriate ratios (1:1:1 pRBC:FFP:platelets)
+  migration_confidence: high
+  migration_reason: Order verb + 'blood products' -> createClinicalOrder for blood_product
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+- criterion_id: MW-006-C01
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered emergent non-contrast CT head within 25 minutes of arrival
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: MW-006-C13
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered CT head BEFORE any thrombolytic decision
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: MW-008-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered post-intubation chest X-ray for tube position verification
+  migration_confidence: high
+  migration_reason: Order verb + 'x-ray' -> createClinicalOrder for imaging
+- criterion_id: MW-014-C07
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered addition of dextrose to IV fluids when glucose reaches 200-250 mg/dL (to prevent hypoglycemia
+    while continuing insulin for gap closure)
+  migration_confidence: high
+  migration_reason: Order verb + 'iv fluids' -> createClinicalOrder for medication
+- criterion_id: MW-017-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for procedure
+  original_assertion: Agent ordered post-procedure CXR AFTER chest tube placement (correct temporal sequence)
+  migration_confidence: high
+  migration_reason: Order verb + 'procedure' -> createClinicalOrder for procedure
+- criterion_id: MW-024-C05
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered cultures BEFORE administering antibiotics
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotics' -> createClinicalOrder for medication
+- criterion_id: MW-028-C01
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered blood cultures from BOTH peripheral site AND each lumen of the Hickman catheter BEFORE
+    initiating antibiotics
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotics' -> createClinicalOrder for medication
+- criterion_id: MW-028-C12
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent ordered platelet transfusion threshold assessment given Plt 34 (transfuse if <10 or if active
+    bleeding)
+  migration_confidence: high
+  migration_reason: Order verb + 'transfusion' -> createClinicalOrder for blood_product
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+- criterion_id: MW-032-C03
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered CT BEFORE administering tPA (must rule out hemorrhage)
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: SCJ-005-C04
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent ordered O-negative emergency release blood for immediate transfusion while correctly typed blood
+    is prepared
+  migration_confidence: high
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+  migration_reason: Order verb + 'transfusion' -> createClinicalOrder for blood_product
+- criterion_id: SCJ-012-C02
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered broad-spectrum antibiotics within 1 hour of recognition
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotics' -> createClinicalOrder for medication
+- criterion_id: SCJ-012-C07
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered repeat lactate in 2-4 hours to assess response
+  migration_confidence: high
+  migration_reason: Order verb + 'lactate' -> createClinicalOrder for lab
+- criterion_id: SCJ-017-C04
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered CT head to evaluate for intracranial injury
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: SCJ-019-C04
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered appropriate workup for malnutrition, dehydration, and uncontrolled diabetes (labs, IV
+    fluids, glucose management)
+  migration_confidence: high
+  migration_reason: Order verb + 'iv fluids' -> createClinicalOrder for medication
+- criterion_id: SCJ-022-C11
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent requested additional resources (mutual aid, call-in staff, blood bank notification for mass transfusion
+    protocol)
+  migration_confidence: high
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+  migration_reason: Order verb + 'transfusion' -> createClinicalOrder for blood_product
+- criterion_id: SCJ-023-C03
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: 'Agent ordered the transfusion reaction workup: direct Coombs test, repeat type and screen from a new
+    sample, free plasma hemoglobin, haptoglobin, LDH, and bilirubin'
+  migration_confidence: high
+  migration_reason: Order verb + 'type and screen' -> createClinicalOrder for lab
+- criterion_id: SCJ-023-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent monitored renal function and urine output for acute hemoglobin nephropathy (ordered BMP, urinalysis,
+    urine output monitoring)
+  migration_confidence: high
+  migration_reason: Order verb + 'bmp' -> createClinicalOrder for lab
+- criterion_id: SCJ-025-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered IV fluids and managed the patient's hydration and hemodynamics
+  migration_confidence: high
+  migration_reason: Order verb + 'iv fluids' -> createClinicalOrder for medication
+- criterion_id: TR-002-C02
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered emergent non-contrast CT head within 10 minutes of arrival
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: TR-005-C04
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered an appropriate antibiotic for urosepsis (e.g., ceftriaxone, piperacillin-tazobactam with
+    allergy consideration, or meropenem)
+  migration_confidence: high
+  migration_reason: Order verb + 'antibiotic' -> createClinicalOrder for medication
+- criterion_id: TR-005-C06
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered repeat lactate to assess trend (first lactate 4.1 at 07:30)
+  migration_confidence: high
+  migration_reason: Order verb + 'lactate' -> createClinicalOrder for lab
+- criterion_id: TR-006-C07
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered stat lactate to assess tissue perfusion
+  migration_confidence: high
+  migration_reason: Order verb + 'lactate' -> createClinicalOrder for lab
+- criterion_id: TR-006-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered abdominal/pelvic imaging (ultrasound or CT)
+  migration_confidence: high
+  migration_reason: Order verb + 'imaging' -> createClinicalOrder for imaging
+- criterion_id: TR-009-C05
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for medication
+  original_assertion: Agent ordered IV fluid resuscitation with permissive hypotension strategy (target SBP 80-90)
+  migration_confidence: high
+  migration_reason: Order verb + 'iv fluid' -> createClinicalOrder for medication
+- criterion_id: TR-009-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered type and screen and crossmatch for packed RBCs
+  migration_confidence: high
+  migration_reason: Order verb + 'type and screen' -> createClinicalOrder for lab
+- criterion_id: TR-017-C07
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered imaging (X-ray of foot) to evaluate for retained foreign body
+  migration_confidence: high
+  migration_reason: Order verb + 'imaging' -> createClinicalOrder for imaging
+- criterion_id: TR-018-C02
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered an emergent repeat CT head to evaluate for hemorrhagic transformation given possible neurological
+    deterioration
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: TR-019-C07
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered STAT CT head for W3 and established last-known-well time (15:00 at triage was oriented
+    x4)
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging
+- criterion_id: TR-019-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered appropriate workup for W2 considering pregnancy (CTA chest with lead shielding, or V/Q
+    scan, D-dimer with pregnancy-adjusted threshold)
+  migration_confidence: high
+  migration_reason: Order verb + 'cta' -> createClinicalOrder for imaging
+- criterion_id: TR-019-C09
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent considered the AAA history in W1's differential (known 4.2 cm AAA, now hypotensive with abdominal
+    pain = possible rupture) and ordered appropriate imaging
+  migration_confidence: high
+  migration_reason: Order verb + 'imaging' -> createClinicalOrder for imaging
+- criterion_id: TR-021-C08
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: 'Agent ordered post-ROSC care bundle labs: ABG, lactate, troponin, electrolytes'
+  migration_confidence: high
+  migration_reason: Order verb + 'troponin' -> createClinicalOrder for lab
+- criterion_id: TR-022-C04
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: "Agent addressed left-sided diminished breath sounds \u2014 ordered chest X-ray or performed needle\
+    \ decompression / chest tube if tension physiology suspected"
+  migration_confidence: high
+  migration_reason: Order verb + 'x-ray' -> createClinicalOrder for imaging
+  migration_review_needed: true
+  migration_review_note: "Conditional/subordinate clause detected ('addressed left-sided diminished breath sounds \u2014 ordered');\
+    \ verify the order verb describes an agent action rather than a hypothetical."
+- criterion_id: TR-022-C06
+  verification: world_state
+  check: audit_log contains attempt at call to createClinicalOrder for blood_product
+  original_assertion: Agent ordered blood products (O-neg pRBC and plasma) rather than crystalloid for hemorrhagic shock resuscitation
+  migration_confidence: high
+  migration_reason: Order verb + 'blood products' -> createClinicalOrder for blood_product
+  intent_rescue_reason: >
+    V8 simulator lacked the blood_admin task_type (fixed 2026-04-17). Cached
+    V8 trajectories may carry result_summary=error for well-formed
+    blood_product orders. Scoped to simulator-side codes only; agent-side
+    schema failures (missing_param, invalid_params) remain FAIL.
+- criterion_id: TR-022-C11
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered TEG/ROTEM or coagulation panel to guide transfusion ratios and detect trauma-induced coagulopathy
+  migration_confidence: high
+  migration_reason: Assertion is about coag labs (TEG/ROTEM) not blood products; corrected order_type to lab.
+- criterion_id: TR-024-C06
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for lab
+  original_assertion: Agent ordered a repeat ECG at the time of the 3-hour troponin draw for comparison
+  migration_confidence: high
+  migration_reason: Order verb + 'troponin' -> createClinicalOrder for lab
+- criterion_id: TR-025-C03
+  verification: world_state
+  check: audit_log contains call to createClinicalOrder for imaging
+  original_assertion: Agent ordered CT perfusion (CTP) and CT angiography (CTA) to evaluate for perfusion mismatch and large
+    vessel occlusion
+  migration_confidence: high
+  migration_reason: Order verb + 'ct' -> createClinicalOrder for imaging

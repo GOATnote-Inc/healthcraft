@@ -60,6 +60,10 @@ def _load_v9_overlay() -> dict[str, dict[str, str]]:
     original llm_judge criterion when rubric_channel=v9.
 
     If the overlay file does not exist or has no entries, returns {}.
+
+    Validates that every entry using ``contains attempt at`` declares an
+    ``intent_rescue_reason`` field documenting why the intent-rescue is
+    justified. Raises ValueError if any attestation is missing.
     """
     overlay_path = _RUBRICS_DIR / "v9_deterministic_overlay.yaml"
     if not overlay_path.exists():
@@ -70,13 +74,25 @@ def _load_v9_overlay() -> dict[str, dict[str, str]]:
         return {}
 
     overlay_map: dict[str, dict[str, str]] = {}
+    missing_attestation: list[str] = []
     for entry in data["overlays"]:
         crit_id = entry.get("criterion_id", "")
-        if crit_id:
-            overlay_map[crit_id] = {
-                "verification": entry.get("verification", "world_state"),
-                "check": entry.get("check", ""),
-            }
+        if not crit_id:
+            continue
+        check = (entry.get("check") or "").lower()
+        if "attempt at" in check and not (entry.get("intent_rescue_reason") or "").strip():
+            missing_attestation.append(crit_id)
+        overlay_map[crit_id] = {
+            "verification": entry.get("verification", "world_state"),
+            "check": entry.get("check", ""),
+        }
+
+    if missing_attestation:
+        raise ValueError(
+            "Overlay entries using 'contains attempt at' must declare "
+            "intent_rescue_reason. Missing on: " + ", ".join(sorted(missing_attestation))
+        )
+
     return overlay_map
 
 

@@ -42,6 +42,7 @@ _TASK_TYPES = (
     "lab_draw",
     "imaging",
     "medication_admin",
+    "blood_admin",
     "procedure",
     "consult",
     "nursing",
@@ -97,6 +98,18 @@ _TASK_DESCRIPTIONS: dict[str, tuple[str, ...]] = {
         "Epinephrine 0.3mg IM",
         "Lorazepam 2mg IV push",
         "Metoclopramide 10mg IV",
+    ),
+    "blood_admin": (
+        "Emergency release O-negative PRBCs x2 units",
+        "Type-specific PRBCs x2 units",
+        "Cross-matched PRBCs x2 units",
+        "FFP 2 units",
+        "Platelets 1 apheresis unit",
+        "Cryoprecipitate 10 units",
+        "Massive transfusion protocol activation (1:1:1)",
+        "Whole blood 1 unit",
+        "PRBCs 1 unit with furosemide",
+        "Rh-negative PRBCs x2 units",
     ),
     "procedure": (
         "Peripheral IV placement (18g)",
@@ -227,6 +240,7 @@ _ASSIGNEE_POOL: dict[str, tuple[str, ...]] = {
     "lab_draw": _NURSE_IDS + _TECH_IDS,
     "imaging": _TECH_IDS,
     "medication_admin": _NURSE_IDS,
+    "blood_admin": _NURSE_IDS,
     "procedure": _ATTENDING_IDS,
     "consult": (),  # assigned_to left empty, external service
     "nursing": _NURSE_IDS,
@@ -263,7 +277,14 @@ def generate_clinical_task(
     description = rng.choice(_TASK_DESCRIPTIONS[task_type])
 
     # Priority distribution depends on task type
-    if task_type in ("procedure", "medication_admin"):
+    if task_type == "blood_admin":
+        # Blood products in the ED are almost always stat/urgent
+        priority = rng.choices(
+            population=["stat", "urgent", "routine"],
+            weights=[70, 25, 5],
+            k=1,
+        )[0]
+    elif task_type in ("procedure", "medication_admin"):
         priority = rng.choices(
             population=["stat", "urgent", "routine"],
             weights=[30, 40, 30],

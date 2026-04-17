@@ -241,6 +241,8 @@ class WorldState:
         tool_name: str,
         params: dict[str, Any],
         result_summary: str,
+        *,
+        error_code: str = "",
     ) -> AuditEntry:
         """Append an audit entry for a tool call.
 
@@ -248,6 +250,10 @@ class WorldState:
             tool_name: Name of the tool invoked.
             params: Parameters passed to the tool.
             result_summary: Brief summary of the result.
+            error_code: When ``result_summary == "error"``, the error code
+                from the tool response (e.g. ``"missing_param"``,
+                ``"unknown_task_type"``). Defaults to empty for backward
+                compatibility with V8 audit logs that didn't capture it.
 
         Returns:
             The created AuditEntry.
@@ -257,6 +263,7 @@ class WorldState:
             timestamp=self._current_time,
             params=dict(params),
             result_summary=result_summary,
+            error_code=error_code,
         )
         self._audit_log.append(entry)
         return entry

@@ -91,12 +91,19 @@ class TestV9OverlayLoads:
         assert isinstance(data, dict)
         assert "overlays" in data
 
-    def test_overlay_is_empty(self) -> None:
-        """The overlay starts empty -- entries added after clinical review."""
+    def test_overlay_is_populated(self) -> None:
+        """The overlay contains curated entries. Every entry has the required
+        schema fields used by the orchestrator's overlay application logic."""
         data = yaml.safe_load(OVERLAY_PATH.read_text())
         overlays = data.get("overlays", [])
-        # Empty list or None are both acceptable for "no entries"
-        assert not overlays or len(overlays) == 0
+        assert len(overlays) > 0, "Overlay must contain entries after population"
+        required_fields = {"criterion_id", "verification", "check", "migration_confidence"}
+        for entry in overlays:
+            missing = required_fields - set(entry.keys())
+            assert not missing, f"Entry {entry.get('criterion_id')} missing {missing}"
+            assert entry["verification"] == "world_state"
+            assert entry["check"].strip(), f"Empty check in {entry['criterion_id']}"
+            assert entry["migration_confidence"] in {"high", "medium"}
 
 
 class TestV9ChannelIdenticalToV8:
@@ -160,10 +167,14 @@ class TestV9ChannelIdenticalToV8:
 
         assert tested >= 5, f"Only tested {tested} trajectories (need >= 5)"
 
-    def test_v9_reward_matches_v8(self, golden_entries: list[dict]) -> None:
-        """Reward values are identical between v8 and v9 (empty overlay)."""
+    def test_v9_reward_matches_v8_on_untouched_tasks(self, golden_entries: list[dict]) -> None:
+        """Reward is identical between v8 and v9 for tasks whose criteria are
+        NOT in the overlay. Tasks that are overlaid may legitimately differ."""
+        from healthcraft.llm.orchestrator import _load_v9_overlay
+
+        overlay_ids = set(_load_v9_overlay().keys())
         tested = 0
-        for entry in golden_entries[:10]:  # Sample 10 for speed
+        for entry in golden_entries[:20]:
             traj = _load_trajectory(entry)
             if traj is None:
                 continue
@@ -171,6 +182,10 @@ class TestV9ChannelIdenticalToV8:
             task = _find_task(entry["task_id"])
             if task is None:
                 continue
+
+            task_crit_ids = {c["id"] for c in task.criteria}
+            if task_crit_ids & overlay_ids:
+                continue  # overlaid -- reward may differ by design
 
             world_v8 = _build_replay_world(traj)
             world_v9 = _build_replay_world(traj)
@@ -180,23 +195,28 @@ class TestV9ChannelIdenticalToV8:
             result_v9 = evaluate_task(task, agent_output, world_v9, rubric_channel="v9")
 
             assert abs(result_v8.reward - result_v9.reward) < 1e-12, (
-                f"Reward mismatch on {entry['task_id']}: "
+                f"Reward mismatch on non-overlaid task {entry['task_id']}: "
                 f"v8={result_v8.reward}, v9={result_v9.reward}"
             )
             tested += 1
 
-        assert tested >= 5, f"Only tested {tested} trajectories"
+        assert tested >= 3, f"Only tested {tested} non-overlaid trajectories"
 
 
 class TestV9OrchestratorOverlayLogic:
     """The orchestrator's v9 overlay application logic works correctly."""
 
-    def test_load_v9_overlay_returns_empty_dict(self) -> None:
-        """With empty overlay file, _load_v9_overlay returns {}."""
+    def test_load_v9_overlay_returns_populated_dict(self) -> None:
+        """_load_v9_overlay returns a dict keyed by criterion_id with
+        verification/check entries for every overlay row."""
         from healthcraft.llm.orchestrator import _load_v9_overlay
 
         overlay = _load_v9_overlay()
-        assert overlay == {}
+        assert len(overlay) > 0
+        # Every loaded entry must have the two fields the orchestrator reads.
+        for crit_id, entry in overlay.items():
+            assert entry.get("verification") == "world_state", crit_id
+            assert entry.get("check", "").strip(), crit_id
 
     def test_valid_rubric_channels(self) -> None:
         """Both v8 and v9 are valid channel values."""
