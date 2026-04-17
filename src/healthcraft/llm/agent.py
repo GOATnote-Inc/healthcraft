@@ -147,9 +147,12 @@ class AnthropicClient:
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": converted_messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        # Claude Opus 4.7+ deprecated `temperature` (API returns 400).
+        # Older Claude models still accept it.
+        if "4-7" not in self._model:
+            kwargs["temperature"] = temperature
 
         if system_msg:
             kwargs["system"] = system_msg
