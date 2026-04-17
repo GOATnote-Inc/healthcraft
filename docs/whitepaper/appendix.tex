@@ -362,6 +362,89 @@ honest statistic for
 is $\kappa$ against an adjudicated subset, which is
 underway in a follow-up.
 
+\paragraph{Prevalence correction: negative-class task slate.}
+\label{app:v9-neg}
+The kappa paradox in Table~\ref{tab:v9_cat_agreement}
+is driven by a structural imbalance, not a measurement
+artefact: the audited subset has a V8-PASS prevalence of
+$79.5\%$, % CN:v9_v8_prev_overall
+so even a well-calibrated overlay cannot reach
+$\kappa\ge 0.80$ without first re-balancing what the
+benchmark measures. The V8 task slate is dominated by
+scenarios where the correct behaviour is to \emph{act}
+(order the CT, start the antibiotic, escalate the
+disposition); it under-samples scenarios where the
+correct behaviour is to \emph{refrain} (no head CT for
+a low-risk headache, no admission for a vasovagal
+syncope with clean workup, no opioid for acute
+mechanical back pain). The structural fix, shipped in
+this release, is a $10$-task % CN:neg_tasks
+negative-class slate committed to the task corpus in
+which every criterion tests for restraint and is graded
+by a \texttt{world\_state} predicate of the form
+\texttt{audit\_log does NOT contain \ldots}. The slate
+adds $82$ criteria % CN:neg_criteria
+($14$ safety-critical), % CN:neg_safety_critical
+distributed across four categories: four
+safety-critical-judgment tasks (NEG-001 low-risk chest
+pain, NEG-002 PECARN minor head trauma, NEG-003 simple
+febrile seizure, NEG-004 asymptomatic severe
+hypertension), three temporal-reasoning tasks (NEG-005
+hypoglycaemic aphasia mimicking stroke, NEG-006 clean
+serial chest-pain workup at hour four, NEG-007
+alcoholic ketoacidosis distinguished from DKA), two
+multi-step-workflow tasks (NEG-008 uncomplicated
+pyelonephritis, NEG-009 acute low back pain without
+red flags), and one clinical-reasoning task (NEG-010
+benign vasovagal syncope). The post-NEG audit set is
+$205$ tasks % CN:post_neg_tasks
+and $2{,}323$ criteria. % CN:post_neg_criteria
+
+\paragraph{Projected post-NEG prevalence.}
+Assuming negative-class criteria exhibit $0.65$
+criterion-PASS prevalence (plausible given the
+restraint-failure patterns observed in V8), the per-category
+prevalence on the audit-subset shifts are shown in
+Table~\ref{tab:neg_prev}: safety\_critical\_judgment from
+$0.833$ to $\approx 0.70$; temporal\_reasoning from $0.824$
+to $\approx 0.72$; multi\_step\_workflows from $0.782$ to
+$\approx 0.71$; clinical\_reasoning from $0.667$ to
+$\approx 0.65$. The overall post-NEG audit-subset prevalence
+projects to $\approx 0.70$, % CN:post_neg_projected_prev
+landing inside the target band of
+$0.55$--$0.75$ % CN:neg_target_band
+recommended for overlay audits: high enough that the class
+of interest (``agent did the right thing'') retains
+statistical mass, low enough that the chance-agreement
+denominator stops dominating $\kappa$. The projection is
+illustrative; the actual prevalence under the post-NEG
+pilot will be reported in the V10 evaluation release.
+
+\begin{table}[h]
+\centering
+\caption{Projected V8-PASS prevalence shift after adding the
+10 negative-class tasks to the audit subset. Pre-NEG numbers
+are from Table~\ref{tab:v9_cat_agreement}. Post-NEG
+projections assume $0.65$ criterion-PASS prevalence on
+negative-class criteria. $n$ is (criteria~$\times$~models~$\times$~trials).}
+\label{tab:neg_prev}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Category & $n_{\text{pre}}$ & prev$_{\text{pre}}$
+         & $n_{\text{NEG}}$ & prev$_{\text{NEG}}$ (proj.)
+         & prev$_{\text{post}}$ (proj.) \\
+\midrule
+safety\_critical\_judgment  & $54$  & $0.833$ & $168$ & $0.65$ & $0.70$ \\
+temporal\_reasoning         & $108$ & $0.824$ & $144$ & $0.65$ & $0.72$ \\
+multi\_step\_workflows      & $78$  & $0.782$ & $108$ & $0.65$ & $0.71$ \\
+clinical\_reasoning         & $12$  & $0.667$ & $48$  & $0.65$ & $0.65$ \\
+\midrule
+all                         & $252$ & $0.805$ & $468$ & $0.65$ & $0.70$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \paragraph{Reproducibility.}
 The full audit report (per-criterion verdicts, per-trial
 labels, and the classifier inputs for every disagreement) is
@@ -372,3 +455,8 @@ this appendix from the V8 trajectories at
 \texttt{results/pilot-v8-\{claude-opus,gpt54\}/trajectories/}
 and the overlay YAML. Running the validator against a clean
 checkout reproduces \texttt{docs/V9\_OVERLAY\_AUDIT.json}.
+The negative-class task files are at
+\texttt{configs/tasks/*/task\_neg\_\{001..010\}\_*.yaml} and
+pass the repository's preflight check
+(\texttt{make preflight}) against the full schema and
+runtime evaluator.

@@ -138,6 +138,22 @@ are the cached V8 runs in `results/pilot-v8-{claude-opus,gpt54}/`.
 | `CN:v9_tier2_count` | Overlay entries in Tier 2 (research-only) | 26 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.tier_counts.tier_2_research_only` |
 | `CN:v9_tier3_count` | Overlay entries in Tier 3 (keep llm\_judge) | 8 | n/a | `docs/V9_OVERLAY_AUDIT.json#$.tier_counts.tier_3_keep_llm_judge` |
 
+### Negative-class prevalence correction (2026-04-17)
+
+Negative-class ("NEG-*") task slate committed to address the kappa paradox
+reported in Appendix F. Numbers reflect the corpus state as committed; the
+"projected" entries will be replaced with observed values from the V10 pilot.
+
+| Tag | Claim | Value | 95% CI | Source |
+|---|---|---|---|---|
+| `CN:neg_tasks` | Negative-class tasks in corpus | 10 | n/a | `configs/tasks/*/task_neg_*.yaml` |
+| `CN:neg_criteria` | Criteria across NEG tasks | 82 | n/a | `configs/tasks/*/task_neg_*.yaml` |
+| `CN:neg_safety_critical` | Safety-critical criteria in NEG tasks | 14 | n/a | `configs/tasks/*/task_neg_*.yaml` |
+| `CN:post_neg_tasks` | Total tasks post-NEG | 205 | n/a | `configs/tasks/` aggregate |
+| `CN:post_neg_criteria` | Total criteria post-NEG | 2,323 | n/a | `configs/tasks/` aggregate |
+| `CN:post_neg_projected_prev` | Projected post-NEG audit-subset prevalence | ~0.70 | n/a | projected (pre-V10 pilot) |
+| `CN:neg_target_band` | Target-band prevalence (kappa-recovery) | 0.55-0.75 | n/a | overlay audit design spec |
+
 ### Dynamic-State Pilot
 
 | Tag | Claim | Value | 95% CI | Source |
