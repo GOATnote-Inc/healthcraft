@@ -557,6 +557,65 @@ def _resolve_api_key(model: str) -> str:
     return os.environ.get("OPENAI_API_KEY", "")
 
 
+def _api_preflight(
+    agent_model: str,
+    agent_key: str,
+    judge_model: str | None,
+    judge_key: str,
+) -> None:
+    """Probe agent and judge APIs before the eval loop to catch
+    misconfigured keys (free-tier quota, auth failure, unknown model).
+    Without this, a 429-on-every-call key silently fills the trajectory
+    cache with reward=0 shells that resume then skips.
+    """
+    from healthcraft.llm.agent import create_client
+
+    def _probe(label: str, model: str, key: str) -> None:
+        if not model or not key:
+            logger.error("PREFLIGHT FAIL (%s): missing model or key", label)
+            sys.exit(2)
+        try:
+            create_client(model, key).chat(
+                messages=[{"role": "user", "content": "Reply with OK."}],
+                tools=None,
+                max_tokens=8,
+            )
+        except Exception as e:
+            msg = str(e)
+            if "limit: 0" in msg or "free_tier" in msg.lower() or "FreeTier" in msg:
+                logger.error(
+                    "PREFLIGHT FAIL (%s=%s): free-tier quota (limit 0). "
+                    "Enable billing on the project that owns this key.",
+                    label, model,
+                )
+                sys.exit(2)
+            up = msg.upper()
+            if "401" in msg or "403" in msg or "API_KEY_INVALID" in up:
+                logger.error(
+                    "PREFLIGHT FAIL (%s=%s): auth failure (key missing, "
+                    "revoked, or lacks model access).",
+                    label, model,
+                )
+                sys.exit(2)
+            if "404" in msg or "NOT_FOUND" in up:
+                logger.error(
+                    "PREFLIGHT FAIL (%s=%s): model id not found.",
+                    label, model,
+                )
+                sys.exit(2)
+            logger.warning(
+                "PREFLIGHT WARN (%s=%s): probe raised %s; continuing "
+                "(eval-loop retry logic will handle transients).",
+                label, model, type(e).__name__,
+            )
+            return
+        logger.info("PREFLIGHT OK: %s=%s", label, model)
+
+    _probe("agent", agent_model, agent_key)
+    if judge_model and judge_key:
+        _probe("judge", judge_model, judge_key)
+
+
 def main() -> None:
     """CLI entry point for frontier model evaluation."""
     parser = argparse.ArgumentParser(description="HEALTHCRAFT Frontier Model Evaluation")
@@ -612,6 +671,13 @@ def main() -> None:
     if not agent_key:
         logger.error("No API key for agent model. Set --agent-key or env var.")
         sys.exit(1)
+
+    _api_preflight(
+        agent_model=args.agent_model,
+        agent_key=agent_key,
+        judge_model=args.judge_model or select_judge_model(args.agent_model),
+        judge_key=judge_key,
+    )
 
     # Also check HC_DYNAMIC_STATE env var as a flag
     use_dynamic_state = (
