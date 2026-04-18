@@ -170,9 +170,9 @@ class TestV9ChannelIdenticalToV8:
     def test_v9_reward_matches_v8_on_untouched_tasks(self, golden_entries: list[dict]) -> None:
         """Reward is identical between v8 and v9 for tasks whose criteria are
         NOT in the overlay. Tasks that are overlaid may legitimately differ."""
-        from healthcraft.llm.orchestrator import _load_v9_overlay
+        from healthcraft.llm.orchestrator import _load_overlay
 
-        overlay_ids = set(_load_v9_overlay().keys())
+        overlay_ids = set(_load_overlay("v9").keys())
         tested = 0
         for entry in golden_entries[:20]:
             traj = _load_trajectory(entry)
@@ -207,11 +207,11 @@ class TestV9OrchestratorOverlayLogic:
     """The orchestrator's v9 overlay application logic works correctly."""
 
     def test_load_v9_overlay_returns_populated_dict(self) -> None:
-        """_load_v9_overlay returns a dict keyed by criterion_id with
+        """_load_overlay('v9') returns a dict keyed by criterion_id with
         verification/check entries for every overlay row."""
-        from healthcraft.llm.orchestrator import _load_v9_overlay
+        from healthcraft.llm.orchestrator import _load_overlay
 
-        overlay = _load_v9_overlay()
+        overlay = _load_overlay("v9")
         assert len(overlay) > 0
         # Every loaded entry must have the two fields the orchestrator reads.
         for crit_id, entry in overlay.items():
@@ -219,8 +219,9 @@ class TestV9OrchestratorOverlayLogic:
             assert entry.get("check", "").strip(), crit_id
 
     def test_valid_rubric_channels(self) -> None:
-        """Both v8 and v9 are valid channel values."""
+        """v8, v9, and v10 are all valid channel values."""
         from healthcraft.llm.orchestrator import _VALID_RUBRIC_CHANNELS
 
         assert "v8" in _VALID_RUBRIC_CHANNELS
         assert "v9" in _VALID_RUBRIC_CHANNELS
+        assert "v10" in _VALID_RUBRIC_CHANNELS

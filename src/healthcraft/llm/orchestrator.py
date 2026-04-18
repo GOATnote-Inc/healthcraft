@@ -49,27 +49,21 @@ _CONFIG_PATH = Path(__file__).parents[3] / "configs" / "world" / "mercy_point_v1
 _SYSTEM_PROMPT_DIR = Path(__file__).parents[3] / "system-prompts"
 _RUBRICS_DIR = Path(__file__).parents[3] / "configs" / "rubrics"
 
-_VALID_RUBRIC_CHANNELS = {"v8", "v9"}
+_VALID_RUBRIC_CHANNELS = {"v8", "v9", "v10"}
+
+_OVERLAY_FILES: dict[str, tuple[str, ...]] = {
+    "v9": ("v9_deterministic_overlay.yaml",),
+    # v10 is additive: load v9 first, then v10 (v10 overrides on duplicate criterion_id)
+    "v10": ("v9_deterministic_overlay.yaml", "v10_deterministic_overlay.yaml"),
+}
 
 
-def _load_v9_overlay() -> dict[str, dict[str, str]]:
-    """Load the v9 deterministic overlay from configs/rubrics/.
-
-    Returns a dict mapping criterion_id -> overlay entry. Each entry
-    contains ``verification`` and ``check`` keys that replace the
-    original llm_judge criterion when rubric_channel=v9.
-
-    If the overlay file does not exist or has no entries, returns {}.
-
-    Validates that every entry using ``contains attempt at`` declares an
-    ``intent_rescue_reason`` field documenting why the intent-rescue is
-    justified. Raises ValueError if any attestation is missing.
-    """
-    overlay_path = _RUBRICS_DIR / "v9_deterministic_overlay.yaml"
-    if not overlay_path.exists():
+def _load_overlay_file(path: Path) -> dict[str, dict[str, str]]:
+    """Load a single overlay YAML file and return criterion_id -> overlay entry."""
+    if not path.exists():
         return {}
 
-    data = yaml.safe_load(overlay_path.read_text(encoding="utf-8"))
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not data or not data.get("overlays"):
         return {}
 
@@ -89,11 +83,28 @@ def _load_v9_overlay() -> dict[str, dict[str, str]]:
 
     if missing_attestation:
         raise ValueError(
-            "Overlay entries using 'contains attempt at' must declare "
+            f"{path.name}: entries using 'contains attempt at' must declare "
             "intent_rescue_reason. Missing on: " + ", ".join(sorted(missing_attestation))
         )
 
     return overlay_map
+
+
+def _load_overlay(channel: str) -> dict[str, dict[str, str]]:
+    """Load the deterministic overlay(s) for a rubric channel.
+
+    For channel=v9: loads v9_deterministic_overlay.yaml.
+    For channel=v10: loads v9 entries first, then v10 entries; v10 entries
+    override v9 on duplicate criterion_id (v10 is newer). v8 loads nothing.
+
+    Returns a dict mapping criterion_id -> {verification, check} that
+    replaces the original llm_judge criterion during evaluation.
+    """
+    filenames = _OVERLAY_FILES.get(channel, ())
+    merged: dict[str, dict[str, str]] = {}
+    for filename in filenames:
+        merged.update(_load_overlay_file(_RUBRICS_DIR / filename))
+    return merged
 
 
 def _load_system_prompt(task: Task) -> str:
@@ -168,8 +179,9 @@ def run_frontier_evaluation(
         tasks_dir: Where to load tasks from.
         max_tasks: Maximum number of tasks to evaluate (for testing).
         retry_errors: If True, re-run tasks that have error trajectories.
-        rubric_channel: "v8" (default, V8 behavior) or "v9" (enables
-            deterministic overlay and BEFORE/AFTER temporal operators).
+        rubric_channel: "v8" (default, V8 behavior), "v9" (enables
+            deterministic overlay and BEFORE/AFTER temporal operators),
+            or "v10" (v9 entries plus v10 negation-promotion overlays).
         dynamic_state: If True, enable dynamic patient-state physiology
             overlays. Default False (V8 behavior).
 
@@ -223,13 +235,14 @@ def run_frontier_evaluation(
     if max_tasks:
         tasks = tasks[:max_tasks]
 
-    # Load v9 overlay (no-op when channel is v8 or overlay is empty)
-    v9_overlay: dict[str, dict[str, str]] = {}
-    if rubric_channel == "v9":
-        v9_overlay = _load_v9_overlay()
+    # Load deterministic overlay (no-op for v8; v9 loads v9 file; v10 loads v9+v10).
+    overlay: dict[str, dict[str, str]] = {}
+    if rubric_channel in ("v9", "v10"):
+        overlay = _load_overlay(rubric_channel)
         logger.info(
-            "Rubric channel v9: loaded %d overlay entries",
-            len(v9_overlay),
+            "Rubric channel %s: loaded %d overlay entries",
+            rubric_channel,
+            len(overlay),
         )
 
     exp_log = ExperimentLog(results_dir / "experiments.jsonl")
@@ -376,15 +389,15 @@ def run_frontier_evaluation(
                     ),
                 }
 
-                # Apply v9 overlay: rewrite matching criteria from
-                # llm_judge -> world_state before evaluation
+                # Apply deterministic overlay (v9 or v10): rewrite matching
+                # criteria from llm_judge -> world_state before evaluation.
                 eval_task = task
-                if rubric_channel == "v9" and v9_overlay:
+                if overlay:
                     rewritten_criteria = []
                     for raw in task.criteria:
                         crit_id = raw["id"]
-                        if crit_id in v9_overlay:
-                            overlay_entry = v9_overlay[crit_id]
+                        if crit_id in overlay:
+                            overlay_entry = overlay[crit_id]
                             rewritten = dict(raw)
                             rewritten["verification"] = overlay_entry["verification"]
                             rewritten["check"] = overlay_entry["check"]
@@ -586,7 +599,8 @@ def _api_preflight(
                 logger.error(
                     "PREFLIGHT FAIL (%s=%s): free-tier quota (limit 0). "
                     "Enable billing on the project that owns this key.",
-                    label, model,
+                    label,
+                    model,
                 )
                 sys.exit(2)
             up = msg.upper()
@@ -594,19 +608,23 @@ def _api_preflight(
                 logger.error(
                     "PREFLIGHT FAIL (%s=%s): auth failure (key missing, "
                     "revoked, or lacks model access).",
-                    label, model,
+                    label,
+                    model,
                 )
                 sys.exit(2)
             if "404" in msg or "NOT_FOUND" in up:
                 logger.error(
                     "PREFLIGHT FAIL (%s=%s): model id not found.",
-                    label, model,
+                    label,
+                    model,
                 )
                 sys.exit(2)
             logger.warning(
                 "PREFLIGHT WARN (%s=%s): probe raised %s; continuing "
                 "(eval-loop retry logic will handle transients).",
-                label, model, type(e).__name__,
+                label,
+                model,
+                type(e).__name__,
             )
             return
         logger.info("PREFLIGHT OK: %s=%s", label, model)
@@ -645,8 +663,11 @@ def main() -> None:
     parser.add_argument(
         "--rubric-channel",
         default="v8",
-        choices=["v8", "v9"],
-        help="Rubric channel: v8 (default) or v9 (deterministic overlay + temporal ops)",
+        choices=["v8", "v9", "v10"],
+        help=(
+            "Rubric channel: v8 (default), v9 (deterministic overlay + temporal ops), "
+            "or v10 (v9 + negation-promotion overlay)"
+        ),
     )
     parser.add_argument(
         "--dynamic-state",

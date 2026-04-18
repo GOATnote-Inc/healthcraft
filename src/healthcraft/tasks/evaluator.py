@@ -704,9 +704,37 @@ def _verify_llm_judge(
 # ---------------------------------------------------------------------------
 
 
+def _apply_overlay_to_task(task: Task, rubric_channel: str) -> Task:
+    """Rewrite task.criteria by applying the overlay for the given channel.
+
+    Imports the overlay loader lazily to avoid a circular import between
+    `healthcraft.tasks.evaluator` and `healthcraft.llm.orchestrator`.
+    """
+    from dataclasses import replace as dc_replace
+
+    from healthcraft.llm.orchestrator import _load_overlay
+
+    overlay = _load_overlay(rubric_channel)
+    if not overlay:
+        return task
+
+    rewritten = []
+    for raw in task.criteria:
+        crit_id = raw["id"]
+        if crit_id in overlay:
+            new_raw = dict(raw)
+            new_raw["verification"] = overlay[crit_id]["verification"]
+            new_raw["check"] = overlay[crit_id]["check"]
+            rewritten.append(new_raw)
+        else:
+            rewritten.append(raw)
+    return dc_replace(task, criteria=tuple(rewritten))
+
+
 def replay_from_trajectory(
     trajectory: dict[str, Any],
     task: Task,
+    rubric_channel: str = "v8",
 ) -> TaskResult:
     """Re-grade a saved trajectory against the current evaluator code.
 
@@ -731,13 +759,24 @@ def replay_from_trajectory(
         we still produce that verdict."
 
     Args:
-        trajectory: A saved trajectory dict (matching `Trajectory.to_dict()`
-                    output) from `results/pilot-v*/trajectories/`.
-        task:       The Task definition that the trajectory was run against.
+        trajectory:     A saved trajectory dict (matching `Trajectory.to_dict()`
+                        output) from `results/pilot-v*/trajectories/`.
+        task:           The Task definition that the trajectory was run against.
+        rubric_channel: "v8" (default, no overlay — byte-identical to V8 replay),
+                        "v9" (apply v9 deterministic overlay), or "v10" (apply
+                        v9+v10 overlays; promotes negation llm_judge criteria
+                        to world_state before re-grading).
 
     Returns:
         A TaskResult re-derived from the trajectory + saved llm_judge verdicts.
     """
+    # Apply deterministic overlay if requested. Overlay promotes specified
+    # llm_judge criteria to world_state by rewriting verification + check,
+    # so the fresh world_state re-derivation covers them instead of the
+    # saved judge verdicts.
+    if rubric_channel in ("v9", "v10"):
+        task = _apply_overlay_to_task(task, rubric_channel)
+
     # Reconstruct the audit log from the trajectory's tool calls.
     # The orchestrator's audit log is captured per call; the trajectory turns
     # carry assistant tool_calls and tool-role results. We treat any tool call
