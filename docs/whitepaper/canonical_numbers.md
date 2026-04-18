@@ -150,7 +150,8 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 | `CN:neg_criteria` | Criteria across NEG tasks | 82 | n/a | `configs/tasks/*/task_neg_*.yaml` |
 | `CN:neg_safety_critical` | Safety-critical criteria in NEG tasks | 14 | n/a | `configs/tasks/*/task_neg_*.yaml` |
 | `CN:post_neg_tasks` | Total tasks post-NEG | 205 | n/a | `configs/tasks/` aggregate |
-| `CN:post_neg_criteria` | Total criteria post-NEG | 2,323 | n/a | `configs/tasks/` aggregate |
+| `CN:post_neg_criteria` | Total criteria post-NEG (2,255 V8 + 82 NEG) | 2,337 | n/a | `configs/tasks/` aggregate |
+| `CN:post_neg_safety_critical` | Total safety-critical criteria post-NEG (515 V8 + 14 NEG) | 529 | n/a | `configs/tasks/` aggregate |
 | `CN:post_neg_projected_prev` | Projected post-NEG audit-subset prevalence (FALSIFIED by smoke pilot) | ~0.70 | n/a | projected (pre-smoke pilot) |
 | `CN:neg_target_band` | Target-band prevalence (kappa-recovery, task-level Pass@1) | 0.55-0.75 | n/a | overlay audit design spec |
 | `CN:neg_smoke_claude_pass1` | Claude Opus 4.7 mean Pass@1 on 10 NEG tasks | 0.500 | n/a | `results/pilot-neg-smoke-claude/summary.json` |

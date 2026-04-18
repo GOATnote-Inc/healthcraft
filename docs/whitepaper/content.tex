@@ -20,7 +20,11 @@ the Corecraft architecture. It is built on a FHIR~R4 world state with
 read/compute/mutate/workflow interaction, and defines a dual-layer
 rubric that gates reward to zero whenever any safety-critical criterion
 is violated. We release a benchmark of 195 tasks across six categories,
-graded against 2{,}255 binary criteria of which 515 are safety-critical.
+graded against 2{,}255 binary criteria of which 515 are safety-critical;
+a post-hoc 10-task negative-class slate extends this to
+$205$ tasks % CN:post_neg_tasks
+and $2{,}337$ criteria % CN:post_neg_criteria
+(\S\ref{sec:limits}, Appendix~F.5).
 V8 results on two frontier models show Claude Opus~4.6 achieves Pass@1
 of 24.8\% [21.5--28.4] and GPT-5.4 achieves 12.6\% [10.2--15.6], with
 safety-failure rates of 27.5\% and 34.0\% respectively. On multi-step
@@ -30,12 +34,18 @@ competence on individual steps. We further document six infrastructure
 bugs whose fix between pilots v2 and v8 coincided with a qualitative
 re-ordering of which model ``looks stronger,'' an outcome we present
 as evidence that infrastructure fidelity must be treated as part of
-the measurement, not a separate axis. HealthCraft is not only an
-evaluation benchmark but a training environment: the same reward signal
-that produces these numbers can drive a Megatron+SGLang+GRPO loop
-toward agents that are provably safer under multi-step clinical
-workflows. Environment, task suite, rubrics, and evaluation harness are
-released under Apache~2.0.
+the measurement, not a separate axis. HealthCraft is released as an evaluation benchmark. A deterministic
+LLM-judge audit overlay (Appendix~\ref{app:v9-overlay}) quantifies
+evaluator-noise bounds under high-prevalence rubrics, and a
+negative-class task slate with 60-run smoke pilot
+(\S\ref{sec:limits}) provides direct empirical evidence that the
+same reward signal is \emph{not} drop-in training-safe:
+restraint-pattern criteria pass at $0.929$ prevalence % CN:neg_smoke_crit_prev
+on the smoke pilot, a structural gameability an evaluation harness
+can tolerate but a training reward cannot. We scaffold the coupling to a Megatron+SGLang+GRPO
+loop per Corecraft~\S5.2 and leave training-reward ablations as
+future work. Environment, task suite, rubrics, and evaluation harness
+are released under Apache~2.0.
 \end{abstract}
 
 % ============================================================
@@ -709,6 +719,22 @@ We describe the real limits of this release directly. None of them
 invalidates the results reported above; all of them constrain what
 those results can be used to claim.
 
+\paragraph{Scope and non-claims.}
+HealthCraft measures \emph{execution correctness} under a fixed
+rubric in a deterministic FHIR tool-use environment; it does not
+measure clinical reasoning under uncertainty, calibrated risk
+judgement, or deployment-time behaviour. Safety is operationalized as
+binary criterion satisfaction with a hard gate, not as dynamic risk
+tradeoff management. Determinism---fixed seed, temperature zero,
+static patient state---is a methodological requirement for
+reproducible evaluation, distinct from the stochastic variability
+that deployment confronts. FHIR~R4 grounding is a claim about
+interoperability surfaces, not about team communication,
+interruptions, or the social dynamics of an emergency department. A
+strong result on HealthCraft is necessary but not sufficient evidence
+of clinical readiness, and we state this so downstream use of the
+benchmark does not overclaim.
+
 \paragraph{Static patient state.}
 Between agent actions, patient state does not evolve. Vitals do not
 trend, the septic patient does not decompensate, and the triaged-low
@@ -791,7 +817,7 @@ negative-class slate (NEG-001 through NEG-010,
 Appendix~\ref{app:v9-overlay}) adding $82$ criteria--% CN:neg_criteria
 $14$ safety-critical-% CN:neg_safety_critical
 for a total of $205$ tasks % CN:post_neg_tasks
-and $2{,}323$ criteria. % CN:post_neg_criteria
+and $2{,}337$ criteria. % CN:post_neg_criteria
 A 60-run smoke pilot (\texttt{docs/NEG\_SMOKE\_PILOT.md})
 establishes that the slate rebalances \emph{task-level}
 difficulty: mean Pass@1 is $0.500$ % CN:neg_smoke_claude_pass1
@@ -811,6 +837,20 @@ agent has been trained against the specific over-action the
 criterion forbids, so the kappa-paradox mitigation that
 remains open is physician adjudication of the Tier~2 subset
 (Appendix~\ref{app:v9-overlay}), not further task authoring.
+
+\paragraph{Evaluation-to-training boundary.}
+The same Eq.~1 signal that supports evaluation is the nominal reward
+an RL loop would read. The NEG smoke-pilot result above is direct
+empirical evidence that it is not drop-in training-safe: a
+training loop that credited restraint criteria at their observed
+PASS prevalence of $0.929$ % CN:neg_smoke_crit_prev
+would be pushed toward pattern-matching
+the specific over-actions frontier models have already been trained
+against, rather than toward generalized clinical judgement. We
+scaffold the coupling to Megatron+SGLang+GRPO per
+Corecraft~\S5.2 but do not claim training-safety; closing this
+boundary requires a soft-gate/hard-gate ablation, restraint-criterion
+reweighting, and reward-hacking probes that we leave as future work.
 
 \paragraph{Underpowered for scaling-law claims.}
 Two-model main results (Gemini~3.1~Pro pending) are diagnostic but
@@ -853,9 +893,10 @@ and their 2{,}255 criteria, the rubric, the cross-vendor judge rules,
 and the Docker bundle are all released under Apache~2.0
 \ifanon at a URL redacted for blind review\else at
 \url{https://github.com/GOATnote-Inc/healthcraft}\fi. The environment
-plugs directly into a Megatron+SGLang+GRPO training loop following
-Corecraft~\S5.2, so the same reward signal that produces these
-evaluation numbers can be used to train against. We encourage
+scaffolds coupling to a Megatron+SGLang+GRPO training loop per
+Corecraft~\S5.2; training-reward ablations are future work given
+the restraint-prevalence finding in Appendix~\ref{app:v9-overlay}
+and the Evaluation-to-training boundary in \S\ref{sec:limits}. We encourage
 others to break the environment, extend the task suite, and report
 results.
 
