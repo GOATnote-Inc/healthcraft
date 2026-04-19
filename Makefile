@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -47,6 +47,38 @@ judge-tests:  ## Judge validation test suite (Phase 2)
 
 v9-smoke:  ## v9 rubric channel smoke test (no API calls)
 	$(PYTEST) tests/test_evaluator_integrity/test_v9_smoke.py -q
+
+v10-smoke:  ## v10 rubric channel smoke test (includes 11 banned-IDs regression lock)
+	$(PYTEST) tests/test_evaluator_integrity/test_v10_smoke.py -q
+
+v11-smoke:  ## v11 rubric channel smoke test (consensus overlay scaffolding)
+	$(PYTEST) tests/test_evaluator_integrity/test_v11_smoke.py -q
+
+ensemble-tests:  ## EnsembleJudge unit tests (stub clients, no API calls)
+	$(PYTEST) tests/test_llm/ -q
+
+release-tests:  ## HuggingFace release contract tests (no network)
+	$(PYTEST) tests/test_release/ -q
+
+consensus:  ## Build HealthCraft-Consensus subset (requires judge API keys + Ensemble execution $)
+	$(PYTHON) scripts/build_consensus.py \
+		--results results/pilot-v8-claude-opus results/pilot-v8-gpt54 results/pilot-v9-gemini-pro \
+		--output data/consensus/healthcraft_consensus_v1.jsonl \
+		--manifest data/consensus/consensus_criteria.yaml
+
+hard:  ## Build HealthCraft-Hard subset (bottom 20% by frontier-agent mean reward, no API calls)
+	$(PYTHON) scripts/build_hard.py \
+		--results results/pilot-v8-claude-opus results/pilot-v8-gpt54 results/pilot-v9-gemini-pro \
+		--output data/hard/healthcraft_hard_v1.jsonl \
+		--manifest data/hard/hard_tasks.yaml
+
+release:  ## Build HuggingFace release artifacts (Full/Consensus/Hard JSONLs + manifest + dataset card)
+	$(PYTHON) scripts/build_huggingface_release.py \
+		--output-dir data/huggingface_release \
+		--version 1.0.0
+
+leaderboard:  ## Regenerate docs/LEADERBOARD.md from docs/MODEL_CARDS/*.md
+	$(PYTHON) scripts/regen_leaderboard.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

@@ -314,17 +314,17 @@ metadata:
   entity_types: 7
 ```
 
-### Task inventory (195 tasks)
+### Task inventory (205 tasks)
 
 | Category | Count | Source |
 |----------|-------|--------|
-| Clinical Reasoning | 50 | OpenEM confusion pairs, differentials |
-| Multi-Step Workflows | 33 | Protocol bundles, complex dispositions |
-| Information Retrieval | 30 | Entity lookups, search patterns |
+| Clinical Reasoning | 51 | OpenEM confusion pairs, differentials |
+| Multi-Step Workflows | 35 | Protocol bundles, complex dispositions |
+| Safety-Critical Judgment | 31 | EMTALA, capacity, protocol override |
 | Clinical Communication | 30 | Discharge, consult, transfer, MDM |
-| Safety-Critical Judgment | 27 | EMTALA, capacity, protocol override |
-| Temporal Reasoning | 25 | Overlapping protocols, triage under load |
-| **Total** | **195** | 2,255 criteria (515 safety-critical) |
+| Information Retrieval | 30 | Entity lookups, search patterns |
+| Temporal Reasoning | 28 | Overlapping protocols, triage under load |
+| **Total** | **205** | 2,323 criteria (529 safety-critical) |
 
 ### Task generation sources
 
@@ -377,7 +377,7 @@ Megatron reads batches from buffer, computes policy gradients, syncs weights
 back to SGLang rollout engine.
 
 **Training/eval split:** Corecraft uses 1000 training + 150 held-out eval tasks.
-HEALTHCRAFT's 195 tasks can serve as the eval set; training tasks should be
+HEALTHCRAFT's 205 tasks can serve as the eval set; training tasks should be
 authored separately at 5-10x scale for RL training.
 
 ## Evaluation Protocol
@@ -439,6 +439,50 @@ python -m healthcraft.llm.orchestrator \
 Resume is idempotent: running the same command twice produces identical results.
 Cached tasks show `CACHED` in the log and are not re-logged to experiments.jsonl.
 
+## Rubric Channels
+
+Rubric channels are additive overlays that rewrite specific `llm_judge`
+criteria into deterministic `world_state` checks. Each channel composes the
+channels below it, so pilots stay byte-identical reproducible under the
+older channels.
+
+| Channel | File(s) loaded | Semantics |
+|---------|----------------|-----------|
+| `v8` | (none) | Baseline — no overlay. V8 pilot verdicts. |
+| `v9` | `v9_deterministic_overlay.yaml` | Temporal + structural promotions (44 entries post-tightening). |
+| `v10` | v9 + `v10_deterministic_overlay.yaml` | Negation-class promotions (40 entries post WSA-2 round-2 qualifier audit). 11 banned IDs regression-locked. |
+| `v11` | v9 + v10 + `v11_consensus_overlay.yaml` | Consensus-validated promotions produced by `scripts/propose_overlay_entries.py`. Empty by default; populated by proposer execution. |
+
+CLI: `--rubric-channel v10` on orchestrator; `replay_from_trajectory(...,
+rubric_channel='v11')` in tests. `v10` remains the strictest channel
+suitable for paper metrics until v11 is populated.
+
+## v1.0 Benchmark Release (HealthBench Hard for Agents)
+
+HealthCraft v1.0 mirrors HealthBench's release surface — three subsets, a
+simple-evals-compatible grader, model cards, and a static leaderboard —
+but replaces HealthBench's 262-physician consensus layer with
+**compute-consensus**: three cross-vendor frontier judges in ensemble,
+supermajority (2-of-3) voting, agreement-based ambiguity dropout.
+
+| Layer | Script | Artifact |
+|-------|--------|----------|
+| Ensemble judge | `src/healthcraft/llm/ensemble_judge.py` | `EnsembleJudge(agent_model, judge_pool=[gpt-5.4, claude-opus-4-7, gemini-3.1-pro], min_agreement=2)` |
+| Consensus subset | `scripts/build_consensus.py` | `data/consensus/healthcraft_consensus_v1.jsonl` + `consensus_criteria.yaml` |
+| Hard subset | `scripts/build_hard.py` | `data/hard/healthcraft_hard_v1.jsonl` + `hard_tasks.yaml` |
+| v11 proposer (RLVR) | `scripts/propose_overlay_entries.py` | `configs/rubrics/v11_consensus_overlay.yaml` |
+| HuggingFace release | `scripts/build_huggingface_release.py` | `data/huggingface_release/{full,consensus,hard}.jsonl` + `manifest.json` + `README.md` + MIT `LICENSE` |
+| simple-evals grader | `evals/healthcraft_simple_eval.py` | Replay-only in v1.0; ensemble and single-judge modes |
+| Leaderboard | `scripts/regen_leaderboard.py` | `docs/LEADERBOARD.md` from `docs/MODEL_CARDS/*.md` |
+
+Convenience targets: `make consensus`, `make hard`, `make release`,
+`make leaderboard`, `make ensemble-tests`, `make v11-smoke`.
+
+**Execution gating:** Running Consensus over V8/V9 trajectories hits judge
+APIs (~$500 cold, ~$0 warm with the per-judge cache). Running the v11
+proposer against a reasoning model has its own spend. HuggingFace push is
+never triggered by CI — always a manual step after a green `make release`.
+
 ## Key Directories
 
 | Path | Purpose |
@@ -447,13 +491,18 @@ Cached tasks show `CACHED` in the log and are not re-logged to experiments.jsonl
 | `src/healthcraft/entities/` | One module per entity type (14 types) |
 | `src/healthcraft/mcp/` | FastMCP server, 24 tools, validation, audit |
 | `src/healthcraft/tasks/` | Task loader, evaluator, rubric scoring |
+| `src/healthcraft/llm/` | Agent + single-judge + ensemble judge + orchestrator |
 | `src/healthcraft/openem/` | OpenEM bridge, condition mapper, FHIR adapter |
 | `configs/tasks/` | Task YAML definitions (6 category subdirs) |
+| `configs/rubrics/` | Rubric channel overlays (v9, v10, v11) |
 | `configs/mcp-tools.json` | Tool schemas for MCP clients |
 | `configs/world/` | World state seed configs |
 | `configs/schemas/` | JSON schemas for all YAML formats |
 | `system-prompts/` | Agent system prompts (base, policies, tools, facility) |
+| `data/` | Release artifacts (consensus, hard, huggingface_release) — gitignored until promoted |
+| `docs/MODEL_CARDS/` | Per-model evaluation reports consumed by the leaderboard |
 | `docker/` | Docker Compose, Dockerfiles |
+| `evals/` | simple-evals-compatible grader entrypoint |
 | `tests/` | Mirrors src/ structure |
 
 ## Critical Files

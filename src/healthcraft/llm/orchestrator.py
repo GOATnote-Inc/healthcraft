@@ -49,12 +49,18 @@ _CONFIG_PATH = Path(__file__).parents[3] / "configs" / "world" / "mercy_point_v1
 _SYSTEM_PROMPT_DIR = Path(__file__).parents[3] / "system-prompts"
 _RUBRICS_DIR = Path(__file__).parents[3] / "configs" / "rubrics"
 
-_VALID_RUBRIC_CHANNELS = {"v8", "v9", "v10"}
+_VALID_RUBRIC_CHANNELS = {"v8", "v9", "v10", "v11"}
 
 _OVERLAY_FILES: dict[str, tuple[str, ...]] = {
     "v9": ("v9_deterministic_overlay.yaml",),
     # v10 is additive: load v9 first, then v10 (v10 overrides on duplicate criterion_id)
     "v10": ("v9_deterministic_overlay.yaml", "v10_deterministic_overlay.yaml"),
+    # v11 is additive: load v9 + v10 + v11 (v11 overrides on duplicate criterion_id)
+    "v11": (
+        "v9_deterministic_overlay.yaml",
+        "v10_deterministic_overlay.yaml",
+        "v11_consensus_overlay.yaml",
+    ),
 }
 
 
@@ -95,7 +101,9 @@ def _load_overlay(channel: str) -> dict[str, dict[str, str]]:
 
     For channel=v9: loads v9_deterministic_overlay.yaml.
     For channel=v10: loads v9 entries first, then v10 entries; v10 entries
-    override v9 on duplicate criterion_id (v10 is newer). v8 loads nothing.
+    override v9 on duplicate criterion_id (v10 is newer).
+    For channel=v11: loads v9 + v10 + v11 entries; later entries override
+    earlier on duplicate criterion_id. v8 loads nothing.
 
     Returns a dict mapping criterion_id -> {verification, check} that
     replaces the original llm_judge criterion during evaluation.
@@ -235,9 +243,10 @@ def run_frontier_evaluation(
     if max_tasks:
         tasks = tasks[:max_tasks]
 
-    # Load deterministic overlay (no-op for v8; v9 loads v9 file; v10 loads v9+v10).
+    # Load deterministic overlay (no-op for v8; v9 loads v9; v10 loads v9+v10;
+    # v11 loads v9+v10+v11).
     overlay: dict[str, dict[str, str]] = {}
-    if rubric_channel in ("v9", "v10"):
+    if rubric_channel in ("v9", "v10", "v11"):
         overlay = _load_overlay(rubric_channel)
         logger.info(
             "Rubric channel %s: loaded %d overlay entries",
