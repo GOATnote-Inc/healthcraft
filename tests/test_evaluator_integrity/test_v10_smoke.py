@@ -206,8 +206,11 @@ class TestV10NoInvertedSemantics:
     """Post-audit guard: entries with known-bad patterns must not be present.
 
     The 2026-04-18 replay audit flagged 5 entries as semantic inversions or
-    wrong-drug matches; they were removed. This test locks the removal in
-    so a future regenerator doesn't re-introduce them."""
+    wrong-drug matches; they were removed. A second 2026-04-18 audit (round 2)
+    flagged 6 additional entries for qualifier loss during promotion: the
+    check drops a required qualifier from the original assertion, producing
+    false-FAILs on benign agent behavior. This test locks both removal sets
+    in so a future regenerator doesn't re-introduce them."""
 
     BANNED_IDS = frozenset(
         {
@@ -216,6 +219,12 @@ class TestV10NoInvertedSemantics:
             "IR-028-C03",
             "TR-002-C05",
             "TR-025-C11",
+            "IR-023-C08",
+            "MW-027-C02",
+            "SCJ-009-C07",
+            "TR-003-C07",
+            "TR-013-C11",
+            "TR-016-C04",
         }
     )
 
@@ -223,7 +232,7 @@ class TestV10NoInvertedSemantics:
         v10 = _load_overlay("v10")
         intersect = self.BANNED_IDS & set(v10)
         assert not intersect, (
-            f"These criterion_ids were removed after the 2026-04-18 audit "
-            f"(semantic inversion / wrong-drug match) and must not reappear "
-            f"in v10: {sorted(intersect)}"
+            f"These criterion_ids were removed after the 2026-04-18 audits "
+            f"(semantic inversion / wrong-drug match / qualifier lost) and "
+            f"must not reappear in v10: {sorted(intersect)}"
         )
