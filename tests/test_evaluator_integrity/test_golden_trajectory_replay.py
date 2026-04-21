@@ -69,7 +69,7 @@ def manifest() -> dict[str, Any]:
 
 @pytest.fixture(scope="module")
 def tasks_by_id() -> dict[str, Task]:
-    """All 195 tasks, indexed by task.id for O(1) lookup."""
+    """All tasks, indexed by task.id for O(1) lookup."""
     return {t.id: t for t in load_tasks(TASK_DIR)}
 
 

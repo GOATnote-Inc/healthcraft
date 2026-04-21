@@ -7,7 +7,7 @@ writes an audit entry that satisfies the check. If a criterion references a
 tool that does not exist, that criterion will *always* fail — silently
 penalizing every model that sees the task.
 
-This test walks all 195 tasks and, for every ``world_state`` criterion:
+This test walks all tasks and, for every ``world_state`` criterion:
 
   1. Normalizes the check string the same way ``_verify_world_state`` does
      (expand bare-tool alternatives, then AND/OR split).
