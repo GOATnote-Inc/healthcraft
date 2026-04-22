@@ -89,10 +89,7 @@ def _report(records: list[dict], min_n: int) -> str:
     lines.append(f"criteria represented: {len(by_crit)}")
     lines.append("")
     lines.append("per-criterion agreement (judge vs validator):")
-    lines.append(
-        f"{'criterion':<18} {'n':>4} {'agree':>6} {'PPA':>6} "
-        f"{'NPA':>6} {'insuf':>6}"
-    )
+    lines.append(f"{'criterion':<18} {'n':>4} {'agree':>6} {'PPA':>6} {'NPA':>6} {'insuf':>6}")
     lines.append("-" * 54)
 
     for cid in sorted(by_crit):
@@ -104,8 +101,7 @@ def _report(records: list[dict], min_n: int) -> str:
         # Agreement numerator/denominator ignore insufficient_evidence.
         decided = [r for r in rows if r["validator_verdict"] != "insufficient_evidence"]
         n_agree = sum(
-            1 for r in decided
-            if _concur(r["judge_satisfied"], r["validator_verdict"]) is True
+            1 for r in decided if _concur(r["judge_satisfied"], r["validator_verdict"]) is True
         )
         # PPA: judge True -> validator verified
         judge_pos = [r for r in decided if r["judge_satisfied"] is True]
@@ -124,8 +120,7 @@ def _report(records: list[dict], min_n: int) -> str:
 
     lines.append("")
     lines.append(
-        "agreement = (#judge-verdict agrees with validator) / "
-        "(n - #insufficient_evidence)"
+        "agreement = (#judge-verdict agrees with validator) / (n - #insufficient_evidence)"
     )
     lines.append("PPA = P(validator=verified | judge=True)")
     lines.append("NPA = P(validator=contradicted | judge=False)")
