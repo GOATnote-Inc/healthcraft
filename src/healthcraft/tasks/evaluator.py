@@ -821,6 +821,24 @@ def replay_from_trajectory(
     passed = all(r.satisfied for r in merged)
     dim_scores = compute_dimension_scores(merged, criteria)
 
+    # PoC-validator shadow mode (Phase 1, off by default).
+    # Runs deterministic invariants for safety_critical + llm_judge
+    # criteria alongside the saved judge verdicts; writes (judge,
+    # validator) pairs to an append-only JSONL for agreement analysis.
+    # Does NOT alter `merged` -- TaskResult is byte-identical to V8.
+    try:
+        from healthcraft.evaluator.shadow import (
+            append_shadow_log,
+            is_shadow_enabled,
+            run_shadow_pass,
+        )
+
+        if is_shadow_enabled():
+            entries = run_shadow_pass(task.id, criteria, merged, world)
+            append_shadow_log(entries)
+    except Exception:  # pragma: no cover - shadow is never allowed to break replay
+        pass
+
     return TaskResult(
         task_id=task.id,
         criteria_results=tuple(merged),
