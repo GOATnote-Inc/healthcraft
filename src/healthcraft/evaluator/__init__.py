@@ -9,7 +9,10 @@ library used for agreement measurement against V8 judge verdicts.
 """
 
 # Import invariant modules so their @register decorators run.
-from healthcraft.evaluator import invariants_mw_011  # noqa: F401,E402
+from healthcraft.evaluator import (
+    invariants_mw_011,  # noqa: F401,E402
+    invariants_scj_006,  # noqa: F401,E402
+)
 from healthcraft.evaluator.shadow import (
     ShadowEntry,
     append_shadow_log,
