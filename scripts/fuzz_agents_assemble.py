@@ -53,14 +53,18 @@ def _random_variables(
     variables: dict[str, float] = {}
     expected_score: float = 0.0
     for var in rule["variables"]:
-        lo = float(var["min_value"])
-        hi = float(var["max_value"])
-        # Decision-rule variables are typically discrete points; sample
-        # from {lo, hi} when both are integer endpoints, else use uniform.
-        if lo.is_integer() and hi.is_integer() and (hi - lo) <= 5:
-            value = float(rng.choice([int(lo), int(hi)]))
+        scoring = var.get("scoring")
+        if isinstance(scoring, dict) and scoring:
+            # Discrete legal values declared by the rule manifest (e.g. Wells
+            # PE "Heart rate > 100" can only be 0 or 1.5). Sample from those.
+            value = float(rng.choice(list(scoring.keys())))
         else:
-            value = round(rng.uniform(lo, hi) * 2) / 2  # half-step (e.g. Wells 1.5)
+            lo = float(var["min_value"])
+            hi = float(var["max_value"])
+            if lo.is_integer() and hi.is_integer():
+                value = float(rng.randint(int(lo), int(hi)))
+            else:
+                value = round(rng.uniform(lo, hi) * 2) / 2
         variables[var["name"]] = value
         expected_score += value
 

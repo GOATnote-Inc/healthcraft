@@ -53,9 +53,13 @@ def all_rules() -> list[dict[str, Any]]:
 def _random_assignment(rule: dict[str, Any], rng: random.Random) -> dict[str, float]:
     out: dict[str, float] = {}
     for v in rule["variables"]:
+        scoring = v.get("scoring")
+        if isinstance(scoring, dict) and scoring:
+            out[v["name"]] = float(rng.choice(list(scoring.keys())))
+            continue
         lo, hi = float(v["min_value"]), float(v["max_value"])
-        if lo.is_integer() and hi.is_integer() and (hi - lo) <= 5:
-            out[v["name"]] = float(rng.choice([int(lo), int(hi)]))
+        if lo.is_integer() and hi.is_integer():
+            out[v["name"]] = float(rng.randint(int(lo), int(hi)))
         else:
             out[v["name"]] = round(rng.uniform(lo, hi) * 2) / 2
     return out

@@ -86,8 +86,14 @@ agents-assemble-smoke:  ## Smoke + E2E tests for the Agents Assemble hackathon s
 agents-assemble-validate:  ## End-to-end validation harness with metrics summary
 	$(PYTHON) scripts/validate_agents_assemble.py
 
-agents-assemble-fuzz:  ## Randomized breadth report (12 rules x 200 trials each)
+agents-assemble-fuzz:  ## Randomized breadth report (30 rules x 200 trials each)
 	$(PYTHON) scripts/fuzz_agents_assemble.py
+
+agents-assemble-cds-hooks:  ## Run the live CDS Hooks /cds-services HTTP service on :8080
+	$(PYTHON) -m healthcraft.agents_assemble.cds_hooks_server --port 8080
+
+agents-assemble-smart-demo:  ## Pull a synthetic patient from r4.smarthealthit.org and route them through the agent
+	$(PYTHON) scripts/load_smart_sandbox.py
 
 agents-assemble-demo:  ## Run the triage agent against each labeled demo bundle
 	@for sid in stemi pe_high pe_low sepsis; do \
