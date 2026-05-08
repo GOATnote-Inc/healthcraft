@@ -77,6 +77,17 @@ class TriagePlan:
 # explicit — exhaustive coverage belongs in HEALTHCRAFT's clinical knowledge,
 # not this orchestrator.
 _COMPLAINT_HEURISTICS: tuple[tuple[re.Pattern[str], list[DifferentialItem]], ...] = (
+    # PE-leaning chest pain — pleuritic, recent travel/immobilization, hemoptysis.
+    # Listed BEFORE the generic chest-pain pattern so PE is the primary rule
+    # when these red flags appear in the chief complaint.
+    (
+        re.compile(r"\b(pleuritic|hemoptysis|after\s+(a\s+)?flight)", re.I),
+        [
+            DifferentialItem("pulmonary_embolism", "pleuritic / VTE risk", "Wells Criteria for PE"),
+            DifferentialItem("pneumothorax", "pleuritic chest pain"),
+            DifferentialItem("acute_coronary_syndrome", "chest pain — rule out", "HEART Score"),
+        ],
+    ),
     (
         re.compile(r"\b(chest pain|chest pressure|cp\b|angin)", re.I),
         [

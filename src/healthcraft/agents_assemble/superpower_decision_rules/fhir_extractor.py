@@ -241,18 +241,116 @@ def _patient_age_years(bundle: dict[str, Any]) -> int | None:
     return None
 
 
-def _has_text(bundle: dict[str, Any], pattern: re.Pattern[str]) -> bool:
+_NEGATION_WINDOW = 25  # characters before a hit to scan for negation cues
+_NEGATION_PATTERN = re.compile(
+    r"\b(no|denies|denied|without|negative for|absent|ruled out|r/o|not?\b|none of)\b\s+[^.]*$",
+    re.I,
+)
+
+
+def _is_negated(text: str, match_start: int) -> bool:
+    """Heuristic: a match is negated when the preceding window inside the same
+    sentence contains a negation cue. Cheap and surprisingly effective for
+    medical free-text where most negations live within the same clause."""
+    window_start = max(0, match_start - _NEGATION_WINDOW)
+    window = text[window_start:match_start]
+    # Trim to the current sentence so "no leg swelling. PE likely" doesn't
+    # falsely negate "PE likely".
+    last_period = window.rfind(".")
+    if last_period >= 0:
+        window = window[last_period + 1 :]
+    return bool(_NEGATION_PATTERN.search(window))
+
+
+def _iter_text_blobs(bundle: dict[str, Any]) -> list[str]:
+    """All free-text strings inside a Bundle's note/text fields."""
+    blobs: list[str] = []
     for r in _bundle_resources(bundle):
         for field in ("note", "text"):
             value = r.get(field)
-            if isinstance(value, dict) and pattern.search(value.get("div", "") or ""):
-                return True
-            if isinstance(value, list):
+            if isinstance(value, dict):
+                div = value.get("div", "") or ""
+                if div:
+                    blobs.append(div)
+            elif isinstance(value, list):
                 for n in value:
-                    if isinstance(n, dict) and pattern.search(n.get("text", "") or ""):
-                        return True
-            if isinstance(value, str) and pattern.search(value):
-                return True
+                    if isinstance(n, dict):
+                        t = n.get("text", "") or ""
+                        if t:
+                            blobs.append(t)
+            elif isinstance(value, str):
+                blobs.append(value)
+    return blobs
+
+
+def _has_text(
+    bundle: dict[str, Any],
+    pattern: re.Pattern[str],
+    *,
+    respect_negation: bool = True,
+) -> bool:
+    """True if ``pattern`` is present anywhere in note/text fields and (when
+    ``respect_negation``) is not preceded by a negation cue in the same clause."""
+    for blob in _iter_text_blobs(bundle):
+        for m in pattern.finditer(blob):
+            if respect_negation and _is_negated(blob, m.start()):
+                continue
+            return True
+    return False
+
+
+def _observation_value(
+    bundle: dict[str, Any],
+    *,
+    loinc: str | None = None,
+    text_pattern: re.Pattern[str] | None = None,
+    component_loinc: str | None = None,
+) -> float | None:
+    """Find the numeric ``valueQuantity`` of an Observation matching either a
+    LOINC code or a text pattern. ``component_loinc`` extracts a sub-component
+    (e.g. systolic from a BP observation)."""
+    for r in _bundle_resources(bundle):
+        if r.get("resourceType") != "Observation":
+            continue
+        code = r.get("code") or {}
+        codings = code.get("coding") or []
+        text = code.get("text") or ""
+
+        loinc_match = loinc and any(
+            (c.get("system", "") == "http://loinc.org" and c.get("code") == loinc)
+            for c in codings
+            if isinstance(c, dict)
+        )
+        text_match = text_pattern is not None and text_pattern.search(text)
+        if not (loinc_match or text_match):
+            continue
+
+        if component_loinc:
+            for comp in r.get("component") or []:
+                comp_code = (comp.get("code") or {}).get("coding") or []
+                hit = any(
+                    c.get("system", "") == "http://loinc.org" and c.get("code") == component_loinc
+                    for c in comp_code
+                    if isinstance(c, dict)
+                )
+                if hit:
+                    val = (comp.get("valueQuantity") or {}).get("value")
+                    if isinstance(val, (int, float)):
+                        return float(val)
+        val = (r.get("valueQuantity") or {}).get("value")
+        if isinstance(val, (int, float)):
+            return float(val)
+    return None
+
+
+def _has_condition(bundle: dict[str, Any], pattern: re.Pattern[str]) -> bool:
+    """True if any Condition.code matches the pattern (text or coding display)."""
+    for r in _bundle_resources(bundle):
+        if r.get("resourceType") != "Condition":
+            continue
+        text = json.dumps(r.get("code", {}))
+        if pattern.search(text):
+            return True
     return False
 
 
@@ -303,6 +401,112 @@ def _heart_handler(
     return values, rationale
 
 
+def _qsofa_handler(
+    bundle: dict[str, Any],
+    rule_variables: list[dict[str, Any]],
+) -> tuple[dict[str, float | int | None], dict[str, str]]:
+    values: dict[str, float | int | None] = {}
+    rationale: dict[str, str] = {}
+
+    rr = _observation_value(bundle, loinc="9279-1") or _observation_value(
+        bundle, text_pattern=re.compile(r"respiratory rate", re.I)
+    )
+    if rr is not None:
+        hit = rr >= 22
+        values["Respiratory rate >= 22"] = 1 if hit else 0
+        rationale["Respiratory rate >= 22"] = f"RR={rr} ({'>=22' if hit else '<22'})"
+
+    sbp = _observation_value(
+        bundle, loinc="85354-9", component_loinc="8480-6"
+    ) or _observation_value(bundle, loinc="8480-6")
+    if sbp is not None:
+        hit = sbp <= 100
+        values["Systolic blood pressure <= 100 mmHg"] = 1 if hit else 0
+        rationale["Systolic blood pressure <= 100 mmHg"] = (
+            f"SBP={sbp} ({'<=100' if hit else '>100'})"
+        )
+
+    altered = _has_text(
+        bundle, re.compile(r"\b(altered ment|confus|gcs\s*<\s*15|encephalopath)", re.I)
+    ) or _has_condition(bundle, re.compile(r"altered.*mental|confus|encephalopath", re.I))
+    gcs = _observation_value(bundle, loinc="9269-2") or _observation_value(
+        bundle, text_pattern=re.compile(r"glasgow", re.I)
+    )
+    if gcs is not None and gcs < 15:
+        altered = True
+    values["Altered mentation"] = 1 if altered else 0
+    rationale["Altered mentation"] = "AMS detected" if altered else "no AMS findings"
+
+    return values, rationale
+
+
+def _wells_pe_handler(
+    bundle: dict[str, Any],
+    rule_variables: list[dict[str, Any]],
+) -> tuple[dict[str, float | int | None], dict[str, str]]:
+    values: dict[str, float | int | None] = {}
+    rationale: dict[str, str] = {}
+
+    dvt_signs = _has_condition(
+        bundle, re.compile(r"dvt|deep vein|leg swelling|calf tenderness", re.I)
+    ) or _has_text(bundle, re.compile(r"\b(leg swelling|calf tenderness|unilateral edema)", re.I))
+    values["Clinical signs/symptoms of DVT"] = 3 if dvt_signs else 0
+    rationale["Clinical signs/symptoms of DVT"] = (
+        "DVT signs documented" if dvt_signs else "no DVT signs"
+    )
+
+    pe_likely = _has_text(
+        bundle, re.compile(r"\b(pe (likely|suspected|first|primary)|pulmonary embolism)", re.I)
+    )
+    values["PE is #1 diagnosis or equally likely"] = 3 if pe_likely else 0
+    rationale["PE is #1 diagnosis or equally likely"] = (
+        "PE listed as primary/likely" if pe_likely else "no PE-as-primary text"
+    )
+
+    hr = _observation_value(bundle, loinc="8867-4") or _observation_value(
+        bundle, text_pattern=re.compile(r"heart rate|pulse", re.I)
+    )
+    if hr is not None:
+        hit = hr > 100
+        values["Heart rate > 100"] = 1.5 if hit else 0
+        rationale["Heart rate > 100"] = f"HR={hr} ({'>100' if hit else '<=100'})"
+
+    immobil = _has_text(
+        bundle,
+        re.compile(
+            r"\b(immobil|recent surgery|long[\s-]+(haul[\s-]+)?flight|"
+            r"bedridden|bed rest|prolonged travel)",
+            re.I,
+        ),
+    )
+    values["Immobilization or surgery in past 4 weeks"] = 1.5 if immobil else 0
+    rationale["Immobilization or surgery in past 4 weeks"] = (
+        "immobilization/recent-surgery cue found" if immobil else "no immobilization cues"
+    )
+
+    prior_vte = _has_condition(
+        bundle, re.compile(r"\b(history of pe|prior pe|dvt|pulmonary embolism)", re.I)
+    )
+    values["Previous PE or DVT"] = 1.5 if prior_vte else 0
+    rationale["Previous PE or DVT"] = (
+        "prior VTE Condition present" if prior_vte else "no prior VTE Conditions"
+    )
+
+    hemoptysis = _has_condition(bundle, re.compile(r"hemoptysis", re.I)) or _has_text(
+        bundle, re.compile(r"\bhemoptysis|coughing up blood", re.I)
+    )
+    values["Hemoptysis"] = 1 if hemoptysis else 0
+    rationale["Hemoptysis"] = "hemoptysis present" if hemoptysis else "no hemoptysis"
+
+    malignancy = _has_condition(
+        bundle, re.compile(r"\b(malignan|cancer|carcinoma|lymphoma|leukemia|sarcoma)", re.I)
+    )
+    values["Malignancy"] = 1 if malignancy else 0
+    rationale["Malignancy"] = "active malignancy Condition" if malignancy else "no malignancy"
+
+    return values, rationale
+
+
 _DETERMINISTIC_HANDLERS: dict[
     str,
     Callable[
@@ -311,4 +515,6 @@ _DETERMINISTIC_HANDLERS: dict[
     ],
 ] = {
     "heart_score": _heart_handler,
+    "qsofa": _qsofa_handler,
+    "wells_criteria_for_pe": _wells_pe_handler,
 }
