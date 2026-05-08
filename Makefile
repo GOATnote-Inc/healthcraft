@@ -86,6 +86,9 @@ agents-assemble-smoke:  ## Smoke + E2E tests for the Agents Assemble hackathon s
 agents-assemble-validate:  ## End-to-end validation harness with metrics summary
 	$(PYTHON) scripts/validate_agents_assemble.py
 
+agents-assemble-fuzz:  ## Randomized breadth report (12 rules x 200 trials each)
+	$(PYTHON) scripts/fuzz_agents_assemble.py
+
 agents-assemble-demo:  ## Run the triage agent against each labeled demo bundle
 	@for sid in stemi pe_high pe_low sepsis; do \
 		echo "=== $$sid ==="; \

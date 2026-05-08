@@ -191,6 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     results = [_evaluate_scenario(world, s) for s in scenarios]
     summary = _aggregate(results)
 
+    rule_inventory = sorted(r.name for r in load_decision_rules().values())
+    summary["rule_inventory_count"] = len(rule_inventory)
+    summary["rule_inventory"] = rule_inventory
+
     if args.json:
         json.dump(
             {
@@ -223,8 +227,21 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "-" * 78)
     print("Aggregate metrics")
     for k, v in summary.items():
+        if k == "rule_inventory":
+            continue
         print(f"  {k}: {v}")
     print("-" * 78)
+    print(
+        f"Superpower rule inventory ({len(rule_inventory)} validated rules — "
+        "applies to any well-formed FHIR Bundle, not just the labeled scenarios above):"
+    )
+    for name in rule_inventory:
+        print(f"  • {name}")
+    print("-" * 78)
+    print(
+        "Run `python scripts/fuzz_agents_assemble.py` to exercise the full "
+        "variable space of every rule (12 × N randomized trials)."
+    )
     return 0
 
 

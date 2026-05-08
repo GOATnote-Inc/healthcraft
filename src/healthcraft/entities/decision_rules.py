@@ -304,7 +304,7 @@ _BUNDLED_RULES: dict[str, dict[str, Any]] = {
             },
             {
                 "min_score": 3,
-                "max_score": 8,
+                "max_score": 9,
                 "risk_level": "high",
                 "recommendation": "Ultrasound indicated (53% prevalence)",
             },
