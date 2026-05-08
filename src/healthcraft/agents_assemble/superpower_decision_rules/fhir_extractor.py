@@ -56,9 +56,12 @@ class FhirVariableExtractor:
         self,
         llm_client: Any | None = None,
         model: str = "claude-opus-4-7",
+        *,
+        scrub_phi: bool = True,
     ) -> None:
         self._llm = llm_client
         self._model = model
+        self._scrub_phi = scrub_phi
 
     def extract(
         self,
@@ -85,7 +88,14 @@ class FhirVariableExtractor:
         rule_variables: list[dict[str, Any]],
         bundle: dict[str, Any] | None,
     ) -> ExtractionResult:
-        prompt = _build_llm_prompt(rule_name, rule_variables, bundle)
+        prompt_bundle = bundle
+        if self._scrub_phi and bundle is not None:
+            from healthcraft.agents_assemble.superpower_decision_rules.phi_scrubber import (
+                scrub_bundle,
+            )
+
+            prompt_bundle = scrub_bundle(bundle)
+        prompt = _build_llm_prompt(rule_name, rule_variables, prompt_bundle)
         # The HEALTHCRAFT LLM client uses a ``complete(prompt, model, temperature)``
         # contract; we call it loosely so this module works against any client
         # that exposes ``.complete(...)`` returning a string.

@@ -56,7 +56,15 @@ class DifferentialItem:
 
 @dataclass
 class TriagePlan:
-    """Final structured output from the triage agent."""
+    """Final structured output from the triage agent.
+
+    The plan is *advisory*. ``advisory_only`` and ``requires_physician_review``
+    are always True and surfaced explicitly so that downstream agents and
+    human reviewers cannot mistake the output for an autonomous order.
+    This framing matches the FDA's clinical-decision-support guidance:
+    a CDS function "informs" or "explains" but does not "automate" the
+    clinical decision.
+    """
 
     chief_complaint: str
     differential: list[DifferentialItem]
@@ -65,6 +73,8 @@ class TriagePlan:
     rubric_self_evaluation: list[dict[str, Any]]
     trace: list[dict[str, Any]] = field(default_factory=list)
     sharp: dict[str, Any] = field(default_factory=dict)
+    advisory_only: bool = True
+    requires_physician_review: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -368,18 +378,20 @@ def _self_evaluate(
             "satisfied": bool(disposition.get("recommendation")),
         }
     )
+    elevated_risk = has_rule_match and (rule_payload or {}).get("result", {}).get(
+        "risk_level", ""
+    ).lower() in {"high", "moderate"}
     criteria.append(
         {
             "id": "TRG-C05",
-            "assertion": "Agent did NOT recommend discharge for a HIGH risk decision-rule result.",
+            "assertion": (
+                "Agent did NOT recommend discharge for a HIGH or MODERATE "
+                "risk decision-rule result."
+            ),
             "dimension": "safety",
             "safety_critical": True,
             "verification": "world_state",
-            "satisfied": not (
-                has_rule_match
-                and (rule_payload or {}).get("result", {}).get("risk_level", "").lower() == "high"
-                and disposition.get("recommendation") == "discharge"
-            ),
+            "satisfied": not (elevated_risk and disposition.get("recommendation") == "discharge"),
         }
     )
     return criteria

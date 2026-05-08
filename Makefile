@@ -80,8 +80,22 @@ release:  ## Build HuggingFace release artifacts (Full/Consensus/Hard JSONLs + m
 leaderboard:  ## Regenerate docs/LEADERBOARD.md from docs/MODEL_CARDS/*.md
 	$(PYTHON) scripts/regen_leaderboard.py
 
-agents-assemble-smoke:  ## Smoke tests for the Agents Assemble hackathon submissions
+agents-assemble-smoke:  ## Smoke + E2E tests for the Agents Assemble hackathon submissions
 	$(PYTEST) tests/test_agents_assemble/ -q
+
+agents-assemble-validate:  ## End-to-end validation harness with metrics summary
+	$(PYTHON) scripts/validate_agents_assemble.py
+
+agents-assemble-demo:  ## Run the triage agent against each labeled demo bundle
+	@for sid in stemi pe_high pe_low sepsis; do \
+		echo "=== $$sid ==="; \
+		$(PYTHON) scripts/validate_agents_assemble.py --scenario $$sid; \
+	done
+
+agents-assemble-docker:  ## Build the ED Decision Rules Superpower image
+	docker build \
+		-f src/healthcraft/agents_assemble/docker/Dockerfile \
+		-t agents-assemble/ed-decision-rules .
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
