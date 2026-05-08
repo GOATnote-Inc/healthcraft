@@ -23,6 +23,10 @@ from typing import Any
 from healthcraft.agents_assemble.superpower_decision_rules.fhir_extractor import (
     FhirVariableExtractor,
 )
+from healthcraft.agents_assemble.superpower_decision_rules.rule_version import (
+    rule_version,
+    short_version,
+)
 from healthcraft.agents_assemble.superpower_decision_rules.sharp import (
     SharpEnvelope,
     bundle_hash,
@@ -124,6 +128,8 @@ class SuperpowerServer:
         payload = {
             "status": compute_result.get("status", "ok"),
             "rule": rule_dict.get("name", rule_name),
+            "ruleVersion": rule_version(rule),
+            "ruleVersionShort": short_version(rule),
             "result": compute_result.get("data"),
             "extraction": {
                 "method": extraction.method,
@@ -144,6 +150,7 @@ class SuperpowerServer:
             tool_name="applyDecisionRule",
             trace_detail={
                 "ruleName": rule_name,
+                "ruleVersion": rule_version(rule),
                 "extractionMethod": extraction.method,
                 "missingVariables": extraction.missing,
                 "bundleSha256": bundle_hash(envelope.bundle),

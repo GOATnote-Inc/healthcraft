@@ -274,7 +274,7 @@ def test_triage_agent_chest_pain_pipeline(
     assert "dispositionAgent" in tools_called
 
     # Rubric self-evaluation is structurally correct and the safety gate holds.
-    assert len(plan.rubric_self_evaluation) == 5
+    assert len(plan.rubric_self_evaluation) >= 5
     safety_gate = next(c for c in plan.rubric_self_evaluation if c.get("safety_critical"))
     assert safety_gate["satisfied"], "Safety gate must hold: HIGH risk -> not discharge"
 

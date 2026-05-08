@@ -74,9 +74,10 @@ def to_cds_hooks_card(plan: Any, *, source: dict[str, str] | None = None) -> dic
         summary_parts.append("SAFETY GATE TRIPPED — do not act without senior review.")
     summary = " ".join(summary_parts)
 
+    rule_version_short = (plan_d.get("rule_result") or {}).get("ruleVersionShort", "")
     detail_lines = [
         f"**Chief complaint:** {chief}",
-        f"**Rule:** {rule_name}",
+        f"**Rule:** {rule_name}" + (f" (v{rule_version_short})" if rule_version_short else ""),
     ]
     if score is not None:
         detail_lines.append(f"**Score:** {score} (risk={risk_level or 'unknown'})")

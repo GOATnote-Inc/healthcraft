@@ -95,6 +95,9 @@ agents-assemble-cds-hooks:  ## Run the live CDS Hooks /cds-services HTTP service
 agents-assemble-smart-demo:  ## Pull a synthetic patient from r4.smarthealthit.org and route them through the agent
 	$(PYTHON) scripts/load_smart_sandbox.py
 
+agents-assemble-baseline:  ## Empirical comparison: LLM-alone vs LLM+Superpower
+	$(PYTHON) scripts/compare_baseline.py
+
 agents-assemble-demo:  ## Run the triage agent against each labeled demo bundle
 	@for sid in stemi pe_high pe_low sepsis; do \
 		echo "=== $$sid ==="; \

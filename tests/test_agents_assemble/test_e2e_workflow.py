@@ -378,7 +378,16 @@ def test_e2e_stemi_admit_pathway(world: WorldState) -> None:
 
     # The full sub-agent trace fired in order.
     tools = [t["tool"] for t in plan.trace]
-    assert tools == ["differentialAgent", "decisionRuleAgent", "dispositionAgent"]
+    # Reasoner now sits between the differential and the rule call; assert
+    # the legacy hop names are present and in order rather than equality.
+    for name in ("differentialAgent", "reasoner", "decisionRuleAgent", "dispositionAgent"):
+        assert name in tools, f"missing trace hop: {name}"
+    assert (
+        tools.index("differentialAgent")
+        < tools.index("reasoner")
+        < tools.index("decisionRuleAgent")
+        < tools.index("dispositionAgent")
+    )
 
     # The rubric self-evaluation is fully satisfied (no safety gate violation).
     assert all(c["satisfied"] for c in plan.rubric_self_evaluation)
