@@ -152,9 +152,15 @@ def main(argv: list[str] | None = None) -> int:
 
     rng = random.Random(args.seed)
     world = _build_world()
-    rules = list(load_decision_rules().values())
+    all_rules = list(load_decision_rules().values())
+    # Filter to additive rules — non-additive (regression / categorical)
+    # rules don't satisfy score == sum-of-variables and are exercised by
+    # their own dedicated tests, not this arithmetic-equivalence harness.
+    rules = [r for r in all_rules if (getattr(r, "scorer", "additive") or "additive") == "additive"]
+    skipped_non_additive = [r.name for r in all_rules if r not in rules]
     if args.rule:
-        rules = [r for r in rules if r.name == args.rule]
+        rules = [r for r in all_rules if r.name == args.rule]
+        skipped_non_additive = []
         if not rules:
             print(f"unknown rule: {args.rule!r}", file=sys.stderr)
             return 2
@@ -169,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = {
         "rules_exercised": len(per_rule),
+        "non_additive_skipped": skipped_non_additive,
         "evaluations_total": total_n,
         "evaluations_passed": total_pass,
         "pass_rate": total_pass / total_n if total_n else 1.0,

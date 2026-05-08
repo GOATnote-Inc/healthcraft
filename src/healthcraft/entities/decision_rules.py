@@ -28,6 +28,11 @@ class DecisionRule(Entity):
     condition_refs: tuple[str, ...] = ()  # ClinicalKnowledge condition IDs
     evidence_level: str = ""  # validated, derived, expert_consensus
     url: str = ""
+    # Scoring strategy name; "additive" is the default and matches the legacy
+    # ``run_decision_rule`` engine. Non-additive rules (regression,
+    # categorical) name a strategy registered in
+    # ``agents_assemble.superpower_decision_rules.scoring_strategies``.
+    scorer: str = "additive"
 
 
 # --- Bundled decision rules ---
@@ -1022,6 +1027,7 @@ def load_decision_rules(
             condition_refs=tuple(data.get("condition_refs", ())),
             evidence_level=data.get("evidence_level", ""),
             url=data.get("url", ""),
+            scorer=data.get("scorer", "additive"),
         )
         result[rid] = rule
 

@@ -35,7 +35,13 @@ def world() -> WorldState:
 
 @pytest.fixture(scope="module")
 def all_rules() -> list[dict[str, Any]]:
-    return [asdict(r) for r in load_decision_rules().values()]
+    """Only additive rules — non-additive ones (``meld_na``,
+    ``tokyo_cholangitis``) are tested via their own dedicated tests."""
+    return [
+        asdict(r)
+        for r in load_decision_rules().values()
+        if (getattr(r, "scorer", "additive") or "additive") == "additive"
+    ]
 
 
 def test_default_strategy_is_additive() -> None:

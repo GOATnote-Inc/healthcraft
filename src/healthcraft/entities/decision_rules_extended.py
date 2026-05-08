@@ -1521,4 +1521,507 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "evidence_level": "validated",
         "url": "https://www.mdcalc.com/calc/1304/pulmonary-embolism-severity-index-pesi",
     },
+    # ----------------------------------------------------------------
+    # Syncope (alternatives, additional)
+    # ----------------------------------------------------------------
+    "RULE-ROSE-001": {
+        "rule_id": "RULE-ROSE-001",
+        "name": "ROSE Rule",
+        "full_name": "Risk Stratification of Syncope in the Emergency Department",
+        "category": "cardiac",
+        "description": (
+            "1-month adverse outcome risk in ED syncope; any positive "
+            "criterion = high-risk (admit)."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "BNP >= 300 pg/mL",
+                "Bradycardia <= 50",
+                "Rectal exam fecal occult positive",
+                "Hemoglobin <= 9 g/dL",
+                "Chest pain with syncope",
+                "ECG with Q wave (not lead III)",
+                "Saturation <= 94% on room air",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Low risk; consider outpatient.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 7,
+                "risk_level": "high",
+                "recommendation": "High risk; admit for monitoring/workup.",
+            },
+        ),
+        "condition_refs": ("SYNCOPE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2008/rose-rule-syncope",
+    },
+    "RULE-EGSYS-001": {
+        "rule_id": "RULE-EGSYS-001",
+        "name": "EGSYS",
+        "full_name": "EGSYS Score for Syncope",
+        "category": "cardiac",
+        "description": (
+            "Likelihood of cardiac syncope; >=3 = cardiac syncope likely. "
+            "Some variables contribute negative points."
+        ),
+        "variables": (
+            {"name": "Abnormal ECG and/or heart disease", "min_value": 0, "max_value": 3},
+            {"name": "Palpitations preceding syncope", "min_value": 0, "max_value": 4},
+            {"name": "Syncope during effort", "min_value": 0, "max_value": 3},
+            {"name": "Syncope while supine", "min_value": 0, "max_value": 2},
+            {"name": "Autonomic prodrome", "min_value": -1, "max_value": 0},
+            {"name": "Predisposing/precipitating factors", "min_value": -1, "max_value": 0},
+        ),
+        "score_ranges": (
+            {
+                "min_score": -2,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Cardiac syncope unlikely; outpatient cardiology.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": "Cardiac syncope likely (95% sens); admit / monitor.",
+            },
+        ),
+        "condition_refs": ("SYNCOPE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3922/egsys-score-syncope",
+    },
+    # ----------------------------------------------------------------
+    # Intracranial hemorrhage prognosis
+    # ----------------------------------------------------------------
+    "RULE-ICH-SCORE-001": {
+        "rule_id": "RULE-ICH-SCORE-001",
+        "name": "ICH Score",
+        "full_name": "Intracerebral Hemorrhage Score (30-day mortality)",
+        "category": "neuro",
+        "description": "30-day mortality after spontaneous ICH; 0 = ~0%, 6 = 100%.",
+        "variables": (
+            {"name": "GCS points (3-4=2; 5-12=1; 13-15=0)", "min_value": 0, "max_value": 2},
+            {"name": "Age >= 80", "min_value": 0, "max_value": 1},
+            {"name": "Infratentorial origin", "min_value": 0, "max_value": 1},
+            {"name": "ICH volume >= 30 mL", "min_value": 0, "max_value": 1},
+            {"name": "Intraventricular hemorrhage", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "0-13% 30-day mortality.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 3,
+                "risk_level": "moderate",
+                "recommendation": "26-72% 30-day mortality; ICU.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": "97-100% 30-day mortality; goals-of-care discussion.",
+            },
+        ),
+        "condition_refs": ("ICH",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1334/ich-score",
+    },
+    # ----------------------------------------------------------------
+    # Pancreatitis severity
+    # ----------------------------------------------------------------
+    "RULE-BISAP-001": {
+        "rule_id": "RULE-BISAP-001",
+        "name": "BISAP",
+        "full_name": "Bedside Index for Severity in Acute Pancreatitis",
+        "category": "gi",
+        "description": "5-criterion mortality score for acute pancreatitis; >=3 high risk.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "BUN > 25 mg/dL",
+                "Impaired mental status",
+                "SIRS >= 2",
+                "Age > 60",
+                "Pleural effusion",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "<=1.9% mortality.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 5,
+                "risk_level": "high",
+                "recommendation": ">=5.3% mortality; ICU consideration.",
+            },
+        ),
+        "condition_refs": ("PANCREATITIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1956/bisap-score-pancreatitis-mortality",
+    },
+    "RULE-GLASGOW-IMRIE-001": {
+        "rule_id": "RULE-GLASGOW-IMRIE-001",
+        "name": "Glasgow-Imrie",
+        "full_name": "Glasgow-Imrie Score for Pancreatitis",
+        "category": "gi",
+        "description": "Severity of acute pancreatitis at 48h; >=3 = severe.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "PaO2 < 60 mmHg",
+                "Age > 55",
+                "WBC > 15K",
+                "Calcium < 8 mg/dL",
+                "BUN > 45 mg/dL",
+                "LDH > 600 U/L",
+                "Albumin < 3.2 g/dL",
+                "Glucose > 180 mg/dL",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Mild pancreatitis; ward admission.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "Severe pancreatitis; ICU consideration.",
+            },
+        ),
+        "condition_refs": ("PANCREATITIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1957/glasgow-imrie-criteria-severity-acute-pancreatitis",
+    },
+    # ----------------------------------------------------------------
+    # Heparin-induced thrombocytopenia
+    # ----------------------------------------------------------------
+    "RULE-4TS-001": {
+        "rule_id": "RULE-4TS-001",
+        "name": "4Ts Score",
+        "full_name": "4Ts Score for Heparin-Induced Thrombocytopenia",
+        "category": "hematologic",
+        "description": "Pretest probability of HIT; >=6 = high probability.",
+        "variables": (
+            {"name": "Thrombocytopenia magnitude", "min_value": 0, "max_value": 2},
+            {"name": "Timing of platelet count fall", "min_value": 0, "max_value": 2},
+            {"name": "Thrombosis or other sequelae", "min_value": 0, "max_value": 2},
+            {"name": "Other causes of thrombocytopenia", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "<=5% HIT probability; alternative diagnosis.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 5,
+                "risk_level": "moderate",
+                "recommendation": "~14% HIT probability; send anti-PF4 antibody.",
+            },
+            {
+                "min_score": 6,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "~64% HIT probability; stop heparin, alternative anticoag.",
+            },
+        ),
+        "condition_refs": ("HIT",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1787/4ts-score-heparin-induced-thrombocytopenia",
+    },
+    # ----------------------------------------------------------------
+    # Acute MI severity
+    # ----------------------------------------------------------------
+    "RULE-KILLIP-001": {
+        "rule_id": "RULE-KILLIP-001",
+        "name": "Killip Class",
+        "full_name": "Killip Classification for Acute MI",
+        "category": "cardiac",
+        "description": "Hemodynamic severity at MI presentation; Class I-IV by exam.",
+        "variables": (
+            {
+                "name": "Killip class number (I=0, II=1, III=2, IV=3)",
+                "min_value": 0,
+                "max_value": 3,
+            },
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Class I; no signs of CHF; 6% 30-day mortality.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Class II; rales/S3; 17% 30-day mortality.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": "Class III; pulmonary edema; 38% 30-day mortality.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "Class IV; cardiogenic shock; 81% 30-day mortality.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1141/killip-classification-heart-failure",
+    },
+    # ----------------------------------------------------------------
+    # Febrile neutropenia risk
+    # ----------------------------------------------------------------
+    "RULE-MASCC-001": {
+        "rule_id": "RULE-MASCC-001",
+        "name": "MASCC",
+        "full_name": "Multinational Association for Supportive Care in Cancer Risk Index",
+        "category": "infectious",
+        "description": "Low-risk febrile neutropenia (>=21 = low risk for outpatient mgmt).",
+        "variables": (
+            {
+                "name": "Burden of illness (no/mild=5; moderate=3; severe=0)",
+                "min_value": 0,
+                "max_value": 5,
+            },
+            {"name": "No hypotension", "min_value": 0, "max_value": 5},
+            {"name": "No COPD", "min_value": 0, "max_value": 4},
+            {"name": "Solid tumor or no prior fungal", "min_value": 0, "max_value": 4},
+            {"name": "No dehydration requiring IV fluids", "min_value": 0, "max_value": 3},
+            {"name": "Outpatient at fever onset", "min_value": 0, "max_value": 3},
+            {"name": "Age < 60", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 20,
+                "risk_level": "high",
+                "recommendation": "High risk; admit, IV antibiotics.",
+            },
+            {
+                "min_score": 21,
+                "max_score": 26,
+                "risk_level": "low",
+                "recommendation": "Low risk; consider outpatient oral antibiotics.",
+            },
+        ),
+        "condition_refs": ("FEBRILE_NEUTROPENIA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3917/mascc-risk-index-febrile-neutropenia",
+    },
+    # ----------------------------------------------------------------
+    # Chest pain (primary care / triage rule-out)
+    # ----------------------------------------------------------------
+    "RULE-MARBURG-001": {
+        "rule_id": "RULE-MARBURG-001",
+        "name": "Marburg Heart Score",
+        "full_name": "Marburg Heart Score for Chest Pain in Primary Care",
+        "category": "cardiac",
+        "description": "Chest pain CAD likelihood in outpatient/triage; >=3 = high probability.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Female age >=65 OR male age >=55",
+                "Known CAD/cerebrovascular disease/PAD",
+                "Pain worse with exercise",
+                "Pain not reproducible by palpation",
+                "Patient assumes heart-related",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "<=1% CAD probability; outpatient evaluation.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 5,
+                "risk_level": "high",
+                "recommendation": ">=23% CAD probability; expedited cardiology referral.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3915/marburg-heart-score-mhs",
+    },
+    "RULE-INTERCHEST-001": {
+        "rule_id": "RULE-INTERCHEST-001",
+        "name": "INTERCHEST",
+        "full_name": "INTERCHEST Score for Chest Pain in Primary Care",
+        "category": "cardiac",
+        "description": "Likelihood of CAD-related chest pain in primary-care chest pain.",
+        "variables": (
+            {"name": "Age (M >=55 / F >=65)", "min_value": 0, "max_value": 1},
+            {"name": "Known CAD", "min_value": 0, "max_value": 1},
+            {"name": "Pain worse with exercise", "min_value": 0, "max_value": 1},
+            {"name": "Pain not reproducible by palpation", "min_value": 0, "max_value": 1},
+            {"name": "Patient assumes heart-related", "min_value": 0, "max_value": 1},
+            {"name": "Pressure-like chest discomfort", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "<=2% CAD probability.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 3,
+                "risk_level": "moderate",
+                "recommendation": "5-10% CAD probability; outpatient stress.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": ">=43% CAD probability; expedited workup.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10148/interchest-clinical-prediction-rule-chest-pain-primary-care",
+    },
+    # ----------------------------------------------------------------
+    # MELD-Na (regression scoring strategy demonstration)
+    # ----------------------------------------------------------------
+    "RULE-MELD-NA-001": {
+        "rule_id": "RULE-MELD-NA-001",
+        "name": "MELD-Na",
+        "full_name": "MELD-Na Score for End-Stage Liver Disease",
+        "category": "gi",
+        "description": (
+            "Regression-based 90-day mortality predictor in cirrhosis; uses "
+            "natural-log transforms of creatinine/bilirubin/INR plus a Na "
+            "correction. Computed by the ``meld_na`` scoring strategy, not "
+            "additive sum."
+        ),
+        "scorer": "meld_na",
+        "variables": (
+            {"name": "Creatinine (mg/dL)", "min_value": 0.0, "max_value": 4.0},
+            {"name": "Bilirubin (mg/dL)", "min_value": 0.0, "max_value": 50.0},
+            {"name": "INR", "min_value": 0.5, "max_value": 10.0},
+            {"name": "Sodium (mmol/L)", "min_value": 100.0, "max_value": 150.0},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 9,
+                "risk_level": "low",
+                "recommendation": "<=2% 90-day mortality.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 19,
+                "risk_level": "moderate",
+                "recommendation": "6-9% 90-day mortality.",
+            },
+            {
+                "min_score": 20,
+                "max_score": 29,
+                "risk_level": "high",
+                "recommendation": "20-30% 90-day mortality.",
+            },
+            {
+                "min_score": 30,
+                "max_score": 39,
+                "risk_level": "very_high",
+                "recommendation": "53-67% 90-day mortality; transplant evaluation.",
+            },
+            {
+                "min_score": 40,
+                "max_score": 99,
+                "risk_level": "extreme",
+                "recommendation": ">71% 90-day mortality; urgent transplant evaluation.",
+            },
+        ),
+        "condition_refs": ("CIRRHOSIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/78/meld-score-original-pre-2016-model-end-stage-liver-disease",
+    },
+    # ----------------------------------------------------------------
+    # Tokyo Guidelines (categorical scoring strategy demonstration)
+    # ----------------------------------------------------------------
+    "RULE-TOKYO-CHOL-001": {
+        "rule_id": "RULE-TOKYO-CHOL-001",
+        "name": "Tokyo Guidelines (Cholangitis Severity)",
+        "full_name": "Tokyo Guidelines TG18 Severity Grading for Acute Cholangitis",
+        "category": "gi",
+        "description": (
+            "Categorical decision tree: any organ dysfunction (Grade III "
+            "criterion) -> severe; else 2+ Grade II criteria -> moderate; "
+            "else mild. Computed by the ``tokyo_cholangitis`` strategy."
+        ),
+        "scorer": "tokyo_cholangitis",
+        "variables": (
+            {
+                "name": "Cardiovascular dysfunction (pressors required)",
+                "min_value": 0,
+                "max_value": 1,
+            },
+            {"name": "Neurologic dysfunction (consciousness)", "min_value": 0, "max_value": 1},
+            {"name": "Respiratory dysfunction (PaO2/FiO2 < 300)", "min_value": 0, "max_value": 1},
+            {"name": "Renal dysfunction (Cr > 2 or oliguria)", "min_value": 0, "max_value": 1},
+            {"name": "Hepatic dysfunction (PT-INR > 1.5)", "min_value": 0, "max_value": 1},
+            {"name": "Hematologic dysfunction (platelets < 100K)", "min_value": 0, "max_value": 1},
+            {"name": "WBC < 4 or > 12", "min_value": 0, "max_value": 1},
+            {"name": "Fever >= 39C", "min_value": 0, "max_value": 1},
+            {"name": "Age >= 75", "min_value": 0, "max_value": 1},
+            {"name": "Total bilirubin >= 5", "min_value": 0, "max_value": 1},
+            {"name": "Albumin < 0.7 x lower limit normal", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Grade I (mild); medical management.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "Grade II (moderate); urgent biliary drainage.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "high",
+                "recommendation": "Grade III (severe); ICU + emergent biliary drainage.",
+            },
+        ),
+        "condition_refs": ("CHOLANGITIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10231/tokyo-guidelines-acute-cholangitis-2018",
+    },
 }

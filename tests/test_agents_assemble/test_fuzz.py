@@ -47,7 +47,20 @@ def world() -> WorldState:
 
 @pytest.fixture(scope="module")
 def all_rules() -> list[dict[str, Any]]:
+    """All bundled rules — used by tests that exercise the loader/world."""
     return [asdict(r) for r in load_decision_rules().values()]
+
+
+@pytest.fixture(scope="module")
+def additive_rules() -> list[dict[str, Any]]:
+    """Only rules scored by the default additive engine. Non-additive rules
+    (``meld_na``, ``tokyo_cholangitis``, …) violate the additive invariants
+    by design and are exercised by their own dedicated tests."""
+    return [
+        asdict(r)
+        for r in load_decision_rules().values()
+        if (getattr(r, "scorer", "additive") or "additive") == "additive"
+    ]
 
 
 def _random_assignment(rule: dict[str, Any], rng: random.Random) -> dict[str, float]:
@@ -74,10 +87,10 @@ def _expected_risk(rule: dict[str, Any], score: float) -> str:
 
 @pytest.mark.parametrize("trial", range(N_TRIALS_PER_RULE))
 def test_score_arithmetic_and_risk_lookup_hold_for_all_rules(
-    world: WorldState, all_rules: list[dict[str, Any]], trial: int
+    world: WorldState, additive_rules: list[dict[str, Any]], trial: int
 ) -> None:
     rng = random.Random(SEED + trial)
-    for rule in all_rules:
+    for rule in additive_rules:
         variables = _random_assignment(rule, rng)
         result = run_decision_rule(world, {"rule_name": rule["name"], "variables": variables})
         assert result["status"] == "ok", (rule["name"], result)
@@ -92,10 +105,10 @@ def test_score_arithmetic_and_risk_lookup_hold_for_all_rules(
 
 
 def test_score_is_idempotent_to_variable_insertion_order(
-    world: WorldState, all_rules: list[dict[str, Any]]
+    world: WorldState, additive_rules: list[dict[str, Any]]
 ) -> None:
     rng = random.Random(SEED)
-    for rule in all_rules:
+    for rule in additive_rules:
         variables = _random_assignment(rule, rng)
         # Two permutations must yield byte-identical score+risk.
         keys = list(variables.keys())
@@ -109,12 +122,12 @@ def test_score_is_idempotent_to_variable_insertion_order(
 
 
 def test_score_is_monotonic_in_each_variable(
-    world: WorldState, all_rules: list[dict[str, Any]]
+    world: WorldState, additive_rules: list[dict[str, Any]]
 ) -> None:
     """Increasing one variable's value (within its declared range) must not
     decrease the total score. Holds for every additive rule by construction."""
     rng = random.Random(SEED + 7)
-    for rule in all_rules:
+    for rule in additive_rules:
         baseline = _random_assignment(rule, rng)
         baseline_result = run_decision_rule(
             world, {"rule_name": rule["name"], "variables": baseline}
@@ -137,10 +150,10 @@ def test_score_is_monotonic_in_each_variable(
 
 
 def test_risk_level_is_always_in_declared_vocabulary(
-    world: WorldState, all_rules: list[dict[str, Any]]
+    world: WorldState, additive_rules: list[dict[str, Any]]
 ) -> None:
     rng = random.Random(SEED + 13)
-    for rule in all_rules:
+    for rule in additive_rules:
         declared = {sr["risk_level"] for sr in rule["score_ranges"]}
         for _ in range(20):
             variables = _random_assignment(rule, rng)

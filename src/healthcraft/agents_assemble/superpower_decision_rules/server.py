@@ -27,6 +27,9 @@ from healthcraft.agents_assemble.superpower_decision_rules.rule_version import (
     rule_version,
     short_version,
 )
+from healthcraft.agents_assemble.superpower_decision_rules.scoring_strategies import (
+    score_rule,
+)
 from healthcraft.agents_assemble.superpower_decision_rules.sharp import (
     SharpEnvelope,
     bundle_hash,
@@ -122,15 +125,29 @@ class SuperpowerServer:
             elif value is not None:
                 merged_variables[name] = value
 
-        compute_params = {"rule_name": rule_name, "variables": merged_variables}
-        compute_result = run_decision_rule(self._world, compute_params)
+        # Dispatch via the scoring-strategy registry. ``additive`` (default)
+        # is bit-for-bit equivalent to ``run_decision_rule``; non-additive
+        # rules (``meld_na``, ``tokyo_cholangitis``, future logistic /
+        # categorical strategies) supply their own ``scorer`` field and are
+        # routed accordingly.
+        scorer_name = rule_dict.get("scorer") or "additive"
+        if scorer_name == "additive":
+            compute_result = run_decision_rule(
+                self._world, {"rule_name": rule_name, "variables": merged_variables}
+            )
+            data = compute_result.get("data") if compute_result.get("status") == "ok" else None
+            err = compute_result if compute_result.get("status") == "error" else None
+        else:
+            data = score_rule(merged_variables, rule_dict)
+            err = None
 
         payload = {
-            "status": compute_result.get("status", "ok"),
+            "status": "error" if err else "ok",
             "rule": rule_dict.get("name", rule_name),
             "ruleVersion": rule_version(rule),
             "ruleVersionShort": short_version(rule),
-            "result": compute_result.get("data"),
+            "scorer": scorer_name,
+            "result": data,
             "extraction": {
                 "method": extraction.method,
                 "rationale": extraction.rationale,
@@ -138,10 +155,10 @@ class SuperpowerServer:
                 "supplied": list(supplied.keys()),
             },
         }
-        if compute_result.get("status") == "error":
+        if err:
             payload["error"] = {
-                "code": compute_result.get("code"),
-                "message": compute_result.get("message"),
+                "code": err.get("code"),
+                "message": err.get("message"),
             }
 
         return reply_envelope(
