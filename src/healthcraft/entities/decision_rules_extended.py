@@ -2147,6 +2147,193 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/10153/hear-score-major-cardiac-events",
     },
     # ----------------------------------------------------------------
+    # Depression screen
+    # ----------------------------------------------------------------
+    "RULE-PHQ9-001": {
+        "rule_id": "RULE-PHQ9-001",
+        "name": "PHQ-9",
+        "full_name": "Patient Health Questionnaire-9 for Depression Severity",
+        "category": "psychiatric",
+        "description": (
+            "9 items, 0-3 each (frequency over past 2 weeks); total 0-27. "
+            "Score 5 = mild, 10 = moderate, 15 = moderately severe, 20+ = severe."
+        ),
+        "variables": tuple(
+            {"name": f"PHQ-9 item {i}", "min_value": 0, "max_value": 3} for i in range(1, 10)
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "No-minimal depression.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 9,
+                "risk_level": "moderate",
+                "recommendation": "Mild; PCP follow-up.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 14,
+                "risk_level": "high",
+                "recommendation": "Moderate; treatment consideration.",
+            },
+            {
+                "min_score": 15,
+                "max_score": 19,
+                "risk_level": "very_high",
+                "recommendation": "Moderately severe; active treatment indicated.",
+            },
+            {
+                "min_score": 20,
+                "max_score": 27,
+                "risk_level": "extreme",
+                "recommendation": "Severe; immediate treatment, consider hospitalization.",
+            },
+        ),
+        "condition_refs": ("DEPRESSION",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1725/phq-9-patient-health-questionnaire-9",
+    },
+    # ----------------------------------------------------------------
+    # Pediatric Appendicitis
+    # ----------------------------------------------------------------
+    "RULE-PAS-001": {
+        "rule_id": "RULE-PAS-001",
+        "name": "Pediatric Appendicitis Score (PAS)",
+        "full_name": "Pediatric Appendicitis Score",
+        "category": "gi",
+        "description": "Pediatric appendicitis likelihood; 0-3 unlikely, 7-10 likely.",
+        "variables": (
+            {"name": "Cough/percussion/hopping tenderness", "min_value": 0, "max_value": 2},
+            {"name": "Anorexia", "min_value": 0, "max_value": 1},
+            {"name": "Pyrexia (>= 38C)", "min_value": 0, "max_value": 1},
+            {"name": "Nausea/emesis", "min_value": 0, "max_value": 1},
+            {"name": "RLQ tenderness", "min_value": 0, "max_value": 2},
+            {"name": "Leukocytosis (WBC > 10K)", "min_value": 0, "max_value": 1},
+            {"name": "Polymorphonuclear neutrophilia (>75%)", "min_value": 0, "max_value": 1},
+            {"name": "Migration of pain to RLQ", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "Unlikely appendicitis; observation/discharge.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 6,
+                "risk_level": "moderate",
+                "recommendation": "Equivocal; imaging or surgical consult.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 10,
+                "risk_level": "high",
+                "recommendation": "Likely appendicitis; surgical evaluation.",
+            },
+        ),
+        "condition_refs": ("APPENDICITIS_PEDS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2059/pediatric-appendicitis-score-pas",
+    },
+    # ----------------------------------------------------------------
+    # Revised Geneva Score (PE; alternative to Wells)
+    # ----------------------------------------------------------------
+    "RULE-GENEVA-REV-001": {
+        "rule_id": "RULE-GENEVA-REV-001",
+        "name": "Geneva Score (Revised)",
+        "full_name": "Revised Geneva Score for Pulmonary Embolism",
+        "category": "pulmonary",
+        "description": (
+            "Pretest probability of PE; alternative to Wells. Fully objective "
+            "(no clinical-gestalt component)."
+        ),
+        "variables": (
+            {"name": "Age > 65", "min_value": 0, "max_value": 1},
+            {"name": "Previous DVT or PE", "min_value": 0, "max_value": 3},
+            {"name": "Surgery or fracture in past month", "min_value": 0, "max_value": 2},
+            {"name": "Active malignancy", "min_value": 0, "max_value": 2},
+            {"name": "Unilateral lower limb pain", "min_value": 0, "max_value": 3},
+            {"name": "Hemoptysis", "min_value": 0, "max_value": 2},
+            {"name": "Heart rate 75-94", "min_value": 0, "max_value": 3},
+            {"name": "Heart rate >= 95", "min_value": 0, "max_value": 5},
+            {
+                "name": "Pain on lower limb deep palpation and unilateral edema",
+                "min_value": 0,
+                "max_value": 4,
+            },
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "8% PE prevalence; D-dimer; if negative, PE excluded.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 10,
+                "risk_level": "moderate",
+                "recommendation": "29% PE prevalence; D-dimer; if positive, CTPA.",
+            },
+            {
+                "min_score": 11,
+                "max_score": 25,
+                "risk_level": "high",
+                "recommendation": "74% PE prevalence; CTPA indicated.",
+            },
+        ),
+        "condition_refs": ("PE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1750/geneva-score-revised-pulmonary-embolism",
+    },
+    # ----------------------------------------------------------------
+    # CART Score (cardiac arrest risk on wards)
+    # ----------------------------------------------------------------
+    "RULE-CART-001": {
+        "rule_id": "RULE-CART-001",
+        "name": "CART Score",
+        "full_name": "Cardiac Arrest Risk Triage Score",
+        "category": "general",
+        "description": (
+            "Predicts in-hospital cardiac arrest from RR/HR/DBP/Age points. "
+            "Scores >=20 = high risk, ICU consideration."
+        ),
+        "variables": (
+            {"name": "Respiratory rate points", "min_value": 0, "max_value": 22},
+            {"name": "Heart rate points", "min_value": 0, "max_value": 13},
+            {"name": "Diastolic BP points", "min_value": 0, "max_value": 23},
+            {"name": "Age points", "min_value": 0, "max_value": 9},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 9,
+                "risk_level": "low",
+                "recommendation": "Low; routine ward.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 19,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; intensify monitoring.",
+            },
+            {
+                "min_score": 20,
+                "max_score": 67,
+                "risk_level": "high",
+                "recommendation": "High; rapid response / ICU consideration.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/4055/cart-cardiac-arrest-risk-triage-score",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {

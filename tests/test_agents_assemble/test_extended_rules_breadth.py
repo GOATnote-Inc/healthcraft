@@ -144,6 +144,103 @@ def test_hear_score_loads_and_scores() -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# PHQ-9 (depression screen used in ED for psychiatric triage)
+# ---------------------------------------------------------------------------
+
+
+def test_phq9_loads_and_scores() -> None:
+    rule = _rule_by_name("PHQ-9")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    severe = score_rule(
+        {f"PHQ-9 item {i}": 3 for i in range(1, 10)},
+        rule,
+    )
+    assert severe["risk_level"] in {"high", "very_high", "extreme"}
+
+
+# ---------------------------------------------------------------------------
+# Pediatric Appendicitis Score (PAS)
+# ---------------------------------------------------------------------------
+
+
+def test_pas_pediatric_appendicitis_loads_and_scores() -> None:
+    rule = _rule_by_name("Pediatric Appendicitis Score (PAS)")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Cough/percussion/hopping tenderness": 2,
+            "Anorexia": 1,
+            "Pyrexia (>= 38C)": 1,
+            "Nausea/emesis": 1,
+            "RLQ tenderness": 2,
+            "Leukocytosis (WBC > 10K)": 1,
+            "Polymorphonuclear neutrophilia (>75%)": 1,
+            "Migration of pain to RLQ": 1,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# Geneva Score (revised) for PE
+# ---------------------------------------------------------------------------
+
+
+def test_geneva_score_revised_loads_and_scores() -> None:
+    rule = _rule_by_name("Geneva Score (Revised)")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Age > 65": 1,
+            "Previous DVT or PE": 3,
+            "Surgery or fracture in past month": 2,
+            "Active malignancy": 2,
+            "Unilateral lower limb pain": 3,
+            "Hemoptysis": 2,
+            "Heart rate 75-94": 0,
+            "Heart rate >= 95": 5,
+            "Pain on lower limb deep palpation and unilateral edema": 4,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# CART Score (cardiac arrest risk on wards)
+# ---------------------------------------------------------------------------
+
+
+def test_cart_score_loads_and_scores() -> None:
+    rule = _rule_by_name("CART Score")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Respiratory rate points": 22,
+            "Heart rate points": 13,
+            "Diastolic BP points": 23,
+            "Age points": 9,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# Aggregate
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.parametrize(
     "name",
     [
@@ -151,6 +248,10 @@ def test_hear_score_loads_and_scores() -> None:
         "A-DROP",
         "Bova Score",
         "HEAR Score",
+        "PHQ-9",
+        "Pediatric Appendicitis Score (PAS)",
+        "Geneva Score (Revised)",
+        "CART Score",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:
