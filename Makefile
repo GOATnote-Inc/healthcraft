@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -79,6 +79,9 @@ release:  ## Build HuggingFace release artifacts (Full/Consensus/Hard JSONLs + m
 
 leaderboard:  ## Regenerate docs/LEADERBOARD.md from docs/MODEL_CARDS/*.md
 	$(PYTHON) scripts/regen_leaderboard.py
+
+agents-assemble-smoke:  ## Smoke tests for the Agents Assemble hackathon submissions
+	$(PYTEST) tests/test_agents_assemble/ -q
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

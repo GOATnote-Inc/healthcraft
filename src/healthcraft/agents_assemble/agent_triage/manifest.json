@@ -1,0 +1,58 @@
+{
+  "name": "mercy-point-triage",
+  "version": "0.1.0",
+  "displayName": "Mercy Point Triage",
+  "description": "A2A Full Agent that triages an ED FHIR Bundle: generates a differential, invokes the relevant decision-rule Superpower, and recommends disposition (admit / discharge / transfer) with insurance and bed-availability context. Produces a binary-criteria rubric self-evaluation that downstream judges can verify.",
+  "publisher": "GOATnote / HEALTHCRAFT",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/GOATnote-Inc/healthcraft",
+  "transport": {
+    "type": "a2a",
+    "entrypoint": "python -m healthcraft.agents_assemble.agent_triage"
+  },
+  "sharp": {
+    "envelope": "v1",
+    "consumes": ["FHIR.R4.Bundle"],
+    "produces": ["Triage.Plan", "Rubric.SelfEvaluation"],
+    "propagates": ["contextId", "correlationId", "bundleSha256"]
+  },
+  "skills": [
+    {
+      "id": "triagePatient",
+      "description": "Run differential -> decision-rule -> disposition over a FHIR Bundle.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "bundle": {"type": "object"},
+          "bundleUri": {"type": "string"},
+          "contextId": {"type": "string"},
+          "correlationId": {"type": "string"}
+        }
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "chief_complaint": {"type": "string"},
+          "differential": {"type": "array"},
+          "rule_result": {"type": "object"},
+          "disposition": {"type": "object"},
+          "rubric_self_evaluation": {"type": "array"},
+          "trace": {"type": "array"},
+          "sharp": {"type": "object"}
+        }
+      }
+    }
+  ],
+  "delegatesTo": [
+    {
+      "name": "ed-decision-rules",
+      "tool": "applyDecisionRule",
+      "via": "mcp"
+    }
+  ],
+  "evidence": {
+    "rubric": "TRG-C01..C05 (binary criteria, Corecraft Eq. 1)",
+    "tests": "tests/test_agents_assemble/test_smoke.py",
+    "safety_gate": "TRG-C05 (no discharge on HIGH-risk rule result)"
+  }
+}
