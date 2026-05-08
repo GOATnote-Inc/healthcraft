@@ -42,7 +42,7 @@ Together these criteria match the FDA's "non-device CDS" carve-out. A vendor pur
 
 ### 4.1 Property-based testing (engine correctness)
 
-`tests/test_agents_assemble/test_fuzz.py` parameterizes 75 randomized variable assignments against each of 30 rules, asserting:
+`tests/test_agents_assemble/test_fuzz.py` parameterizes 75 randomized variable assignments against each of 47 bundled rules, asserting:
 
 - Score equals sum of supplied variables (Corecraft Eq. 1 contract).
 - Returned risk level is the unique entry in the rule's `score_ranges` containing the score.
@@ -54,7 +54,7 @@ Two real defects in bundled rule data were found and fixed during property-test 
 
 ### 4.2 Fuzz throughput (engine performance)
 
-`scripts/fuzz_agents_assemble.py` exercises **30 rules × 200 randomized trials = 6,000 evaluations per run** in ≤90 ms (~70K evals/sec, deterministic with `--seed`). 100% pass on every commit.
+`scripts/fuzz_agents_assemble.py` exercises **47 rules × 200 randomized trials = 9,400 evaluations per run** in ≤150 ms (~63K evals/sec, deterministic with `--seed`). 100% pass on every commit.
 
 ### 4.3 End-to-end labeled scenarios
 
@@ -79,7 +79,7 @@ The bundled rules cite their respective primary-validation cohorts (HEART on Bac
 
 ## 5. Limitations
 
-- **Rule library is 30 of ~80** routinely-used ED rules. Rules using non-additive/regression scoring (PESI full, NIHSS sub-items, GRACE) require an engine extension and are not yet supported.
+- **Rule library is 47 of ~80** routinely-used ED rules. The remaining ~33 (e.g. full GRACE with logistic regression, MELD-Na, APACHE II, PSI in detailed sub-scoring form) require either further data entry or non-additive scoring strategies. The submission ships a `scoring_strategies` registry (`agents_assemble.superpower_decision_rules.scoring_strategies`) that lets new strategies (logistic regression, categorical lookup) plug in without modifying the core engine; only the default `additive` strategy is implemented today.
 - **Heuristic reasoner is single-pattern** (most-specific chief-complaint match wins). True multi-rule synthesis requires an LLM client; without one, rules outside the dominant family are not run.
 - **Determinism vs LLM extraction.** The deterministic FHIR extractor covers HEART / Wells PE / qSOFA in regex; other rules require LLM extraction, which is non-deterministic without `temperature=0` (we set it).
 - **No SMART-on-FHIR launch context handling yet.** The CDS Hooks endpoint accepts unauthenticated POSTs by design (hackathon demo); production needs OAuth2.

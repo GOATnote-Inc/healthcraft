@@ -785,4 +785,740 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "evidence_level": "validated",
         "url": "https://www.mdcalc.com/calc/2129/bap-65-score-acute-exacerbation-copd",
     },
+    # ----------------------------------------------------------------
+    # Pneumonia severity (alternative to CURB-65 with more variables)
+    # ----------------------------------------------------------------
+    "RULE-PSI-001": {
+        "rule_id": "RULE-PSI-001",
+        "name": "PSI / PORT Score",
+        "full_name": "Pneumonia Severity Index (Pneumonia Outcomes Research Team)",
+        "category": "pulmonary",
+        "description": (
+            "Stratifies CAP mortality risk into 5 classes by additive points "
+            "(simplified scoring; detailed sub-scoring per MDCalc)."
+        ),
+        "variables": (
+            {"name": "Age (points)", "min_value": 0, "max_value": 100},
+            {"name": "Nursing home resident", "min_value": 0, "max_value": 10},
+            {"name": "Comorbidity score", "min_value": 0, "max_value": 30},
+            {"name": "Vital sign abnormalities", "min_value": 0, "max_value": 30},
+            {"name": "Lab abnormalities", "min_value": 0, "max_value": 50},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 70,
+                "risk_level": "low",
+                "recommendation": "Class I-II; outpatient management acceptable.",
+            },
+            {
+                "min_score": 71,
+                "max_score": 90,
+                "risk_level": "moderate",
+                "recommendation": "Class III; brief observation or admit.",
+            },
+            {
+                "min_score": 91,
+                "max_score": 220,
+                "risk_level": "high",
+                "recommendation": "Class IV-V; admit, consider ICU.",
+            },
+        ),
+        "condition_refs": ("PNEUMONIA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/33/psi-port-score-pneumonia-severity-index-cap",
+    },
+    "RULE-CRB-65-001": {
+        "rule_id": "RULE-CRB-65-001",
+        "name": "CRB-65",
+        "full_name": "CRB-65 Score for Pneumonia (no labs needed)",
+        "category": "pulmonary",
+        "description": "Simplified CURB-65 without urea; usable in primary-care/triage.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Confusion",
+                "Respiratory rate >= 30",
+                "BP (SBP < 90 or DBP <= 60)",
+                "Age >= 65",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "<1.2% mortality; outpatient.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "8.2% mortality; admit for short stay.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": ">=31% mortality; ICU consideration.",
+            },
+        ),
+        "condition_refs": ("PNEUMONIA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/324/crb-65-score-pneumonia-severity",
+    },
+    # ----------------------------------------------------------------
+    # Sepsis severity (organ dysfunction)
+    # ----------------------------------------------------------------
+    "RULE-SOFA-001": {
+        "rule_id": "RULE-SOFA-001",
+        "name": "SOFA",
+        "full_name": "Sequential Organ Failure Assessment",
+        "category": "infectious",
+        "description": (
+            "Six-organ-system score (resp/coag/liver/cardio/CNS/renal) 0-4 each. "
+            "Total 0-24; >=2 from baseline = sepsis (Sepsis-3 definition)."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 4}
+            for name in (
+                "Respiratory (PaO2/FiO2)",
+                "Coagulation (platelets)",
+                "Liver (bilirubin)",
+                "Cardiovascular (MAP/pressors)",
+                "CNS (GCS)",
+                "Renal (creatinine/UOP)",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 6,
+                "risk_level": "low",
+                "recommendation": "<10% in-hospital mortality.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 9,
+                "risk_level": "moderate",
+                "recommendation": "15-20% in-hospital mortality; ICU consideration.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 24,
+                "risk_level": "high",
+                "recommendation": ">40% in-hospital mortality; ICU.",
+            },
+        ),
+        "condition_refs": ("SEPSIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/691/sequential-organ-failure-assessment-sofa-score",
+    },
+    "RULE-MEDS-001": {
+        "rule_id": "RULE-MEDS-001",
+        "name": "MEDS Score",
+        "full_name": "Mortality in Emergency Department Sepsis Score",
+        "category": "infectious",
+        "description": "ED-specific 28-day mortality for suspected sepsis.",
+        "variables": (
+            {"name": "Terminal illness (<30d expected)", "min_value": 0, "max_value": 6},
+            {"name": "Tachypnea or hypoxia", "min_value": 0, "max_value": 3},
+            {"name": "Septic shock", "min_value": 0, "max_value": 3},
+            {"name": "Platelets < 150K", "min_value": 0, "max_value": 3},
+            {"name": "Bands > 5%", "min_value": 0, "max_value": 3},
+            {"name": "Age > 65", "min_value": 0, "max_value": 3},
+            {"name": "Lower respiratory infection", "min_value": 0, "max_value": 2},
+            {"name": "Nursing home resident", "min_value": 0, "max_value": 2},
+            {"name": "Altered mental status", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "1.1% mortality; standard care.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 7,
+                "risk_level": "moderate",
+                "recommendation": "9.0% mortality; admit.",
+            },
+            {
+                "min_score": 8,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": "21% mortality; ICU consideration.",
+            },
+            {
+                "min_score": 13,
+                "max_score": 27,
+                "risk_level": "very_high",
+                "recommendation": "50%+ mortality; aggressive ICU resuscitation.",
+            },
+        ),
+        "condition_refs": ("SEPSIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1872/meds-score-mortality-emergency-department-sepsis",
+    },
+    "RULE-SIRS-001": {
+        "rule_id": "RULE-SIRS-001",
+        "name": "SIRS Criteria",
+        "full_name": "Systemic Inflammatory Response Syndrome Criteria",
+        "category": "infectious",
+        "description": (
+            "4 criteria; >=2 = SIRS. Pre-Sepsis-3 sepsis screen, still used in many EDs."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Temp > 38C or < 36C",
+                "Heart rate > 90",
+                "Respiratory rate > 20 or PaCO2 < 32",
+                "WBC > 12K, < 4K, or > 10% bands",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "SIRS not met; standard workup.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": "SIRS met; if infection suspected, evaluate for sepsis.",
+            },
+        ),
+        "condition_refs": ("SEPSIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1096/sirs-sepsis-septic-shock-criteria",
+    },
+    # ----------------------------------------------------------------
+    # Pediatrics
+    # ----------------------------------------------------------------
+    "RULE-PED-GCS-001": {
+        "rule_id": "RULE-PED-GCS-001",
+        "name": "Pediatric Glasgow Coma Scale",
+        "full_name": "Pediatric Glasgow Coma Scale (children < 5 years)",
+        "category": "trauma",
+        "description": "Age-modified GCS for non-verbal children; total 3-15.",
+        "variables": (
+            {"name": "Eye opening (peds)", "min_value": 1, "max_value": 4},
+            {"name": "Verbal response (peds)", "min_value": 1, "max_value": 5},
+            {"name": "Motor response (peds)", "min_value": 1, "max_value": 6},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 3,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "Severe pediatric TBI; intubate, neurosurg consult.",
+            },
+            {
+                "min_score": 9,
+                "max_score": 12,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; CT and admit.",
+            },
+            {
+                "min_score": 13,
+                "max_score": 15,
+                "risk_level": "low",
+                "recommendation": "Mild; observe with reassessment.",
+            },
+        ),
+        "condition_refs": ("PEDIATRIC_TBI",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/30/glasgow-coma-scale-pediatric-pgcs",
+    },
+    "RULE-APGAR-001": {
+        "rule_id": "RULE-APGAR-001",
+        "name": "APGAR",
+        "full_name": "APGAR Score (Newborn)",
+        "category": "obstetric",
+        "description": "Newborn assessment at 1 and 5 minutes; total 0-10.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 2}
+            for name in (
+                "Appearance (color)",
+                "Pulse",
+                "Grimace (reflex)",
+                "Activity (muscle tone)",
+                "Respiration",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "high",
+                "recommendation": "Severely depressed; immediate resuscitation.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 6,
+                "risk_level": "moderate",
+                "recommendation": "Moderately depressed; supportive care + reassess.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 10,
+                "risk_level": "low",
+                "recommendation": "Reassuring; routine newborn care.",
+            },
+        ),
+        "condition_refs": ("NEWBORN",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/23/apgar-score",
+    },
+    # ----------------------------------------------------------------
+    # VTE prophylaxis risk
+    # ----------------------------------------------------------------
+    "RULE-PADUA-001": {
+        "rule_id": "RULE-PADUA-001",
+        "name": "Padua Prediction Score",
+        "full_name": "Padua Prediction Score for VTE in Hospitalized Patients",
+        "category": "hematologic",
+        "description": "VTE risk in medical inpatients; >=4 = high risk, prophylaxis indicated.",
+        "variables": (
+            {"name": "Active cancer", "min_value": 0, "max_value": 3},
+            {"name": "Previous VTE", "min_value": 0, "max_value": 3},
+            {"name": "Reduced mobility", "min_value": 0, "max_value": 3},
+            {"name": "Known thrombophilia", "min_value": 0, "max_value": 3},
+            {"name": "Recent trauma/surgery", "min_value": 0, "max_value": 2},
+            {"name": "Age >= 70", "min_value": 0, "max_value": 1},
+            {"name": "Heart or respiratory failure", "min_value": 0, "max_value": 1},
+            {"name": "Acute MI or stroke", "min_value": 0, "max_value": 1},
+            {"name": "Acute infection or rheumatologic disorder", "min_value": 0, "max_value": 1},
+            {"name": "BMI >= 30", "min_value": 0, "max_value": 1},
+            {"name": "Hormonal therapy", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "0.3% VTE; mechanical prophylaxis only.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 20,
+                "risk_level": "high",
+                "recommendation": "11% VTE; pharmacologic prophylaxis indicated.",
+            },
+        ),
+        "condition_refs": ("VTE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1873/padua-prediction-score-risk-vte",
+    },
+    "RULE-CAPRINI-001": {
+        "rule_id": "RULE-CAPRINI-001",
+        "name": "Caprini Score",
+        "full_name": "Caprini Score for Surgical VTE Risk",
+        "category": "hematologic",
+        "description": (
+            "Comprehensive VTE risk for surgical patients; categorized 0-1 / 2 / 3-4 / >=5."
+        ),
+        "variables": (
+            {"name": "Risk-1 factors (1 pt each)", "min_value": 0, "max_value": 10},
+            {"name": "Risk-2 factors (2 pts each)", "min_value": 0, "max_value": 8},
+            {"name": "Risk-3 factors (3 pts each)", "min_value": 0, "max_value": 6},
+            {"name": "Risk-5 factors (5 pts each)", "min_value": 0, "max_value": 10},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Very low risk; ambulation only.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "Low risk; mechanical prophylaxis.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": "Moderate risk; LMWH or heparin.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 34,
+                "risk_level": "very_high",
+                "recommendation": "High risk; LMWH + mechanical, consider extended.",
+            },
+        ),
+        "condition_refs": ("VTE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3970/caprini-score-venous-thromboembolism-2005",
+    },
+    # ----------------------------------------------------------------
+    # Anticoag risk (legacy / alternatives)
+    # ----------------------------------------------------------------
+    "RULE-CHADS2-001": {
+        "rule_id": "RULE-CHADS2-001",
+        "name": "CHADS2",
+        "full_name": "CHADS2 Score for Atrial Fibrillation Stroke Risk",
+        "category": "cardiac",
+        "description": "Legacy precursor to CHA2DS2-VASc; still cited in some guidelines.",
+        "variables": (
+            {"name": "Congestive heart failure", "min_value": 0, "max_value": 1},
+            {"name": "Hypertension", "min_value": 0, "max_value": 1},
+            {"name": "Age >= 75", "min_value": 0, "max_value": 1},
+            {"name": "Diabetes", "min_value": 0, "max_value": 1},
+            {"name": "Stroke/TIA history", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "1.9%/yr stroke; no anticoagulation routinely.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "2.8-4.0%/yr; consider anticoagulation.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": ">=5.9%/yr; anticoagulation indicated.",
+            },
+        ),
+        "condition_refs": ("AFIB",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/40/chads2-score-atrial-fibrillation-stroke-risk",
+    },
+    "RULE-HEMORR2HAGES-001": {
+        "rule_id": "RULE-HEMORR2HAGES-001",
+        "name": "HEMORR2HAGES",
+        "full_name": "HEMORR2HAGES Bleeding Risk on Anticoagulation",
+        "category": "hematologic",
+        "description": "Annual major-bleed risk for AFib patients on warfarin.",
+        "variables": (
+            {"name": "Hepatic/Renal disease", "min_value": 0, "max_value": 1},
+            {"name": "Ethanol abuse", "min_value": 0, "max_value": 1},
+            {"name": "Malignancy", "min_value": 0, "max_value": 1},
+            {"name": "Older (>75)", "min_value": 0, "max_value": 1},
+            {"name": "Reduced platelets/function", "min_value": 0, "max_value": 1},
+            {"name": "Rebleed history", "min_value": 0, "max_value": 2},
+            {"name": "Hypertension uncontrolled", "min_value": 0, "max_value": 1},
+            {"name": "Anemia", "min_value": 0, "max_value": 1},
+            {"name": "Genetic factors (CYP2C9)", "min_value": 0, "max_value": 1},
+            {"name": "Excessive fall risk", "min_value": 0, "max_value": 1},
+            {"name": "Stroke history", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "<=1.9 bleeds/100 patient-yr.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 3,
+                "risk_level": "moderate",
+                "recommendation": "2.5-5.3 bleeds/100 patient-yr.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": ">=8.4 bleeds/100 patient-yr; reconsider anticoag.",
+            },
+        ),
+        "condition_refs": ("AFIB",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/802/hemorr2hages-score-major-bleeding-risk",
+    },
+    "RULE-ATRIA-BLEED-001": {
+        "rule_id": "RULE-ATRIA-BLEED-001",
+        "name": "ATRIA Bleeding Risk",
+        "full_name": "ATRIA Bleeding Risk Score",
+        "category": "hematologic",
+        "description": "Major-bleed risk on warfarin in AFib patients; alternative to HAS-BLED.",
+        "variables": (
+            {"name": "Anemia", "min_value": 0, "max_value": 3},
+            {"name": "Severe renal disease", "min_value": 0, "max_value": 3},
+            {"name": "Age >= 75", "min_value": 0, "max_value": 2},
+            {"name": "Prior bleeding", "min_value": 0, "max_value": 1},
+            {"name": "Hypertension", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "0.8%/yr major bleeding.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "2.6%/yr major bleeding.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 10,
+                "risk_level": "high",
+                "recommendation": ">=5.8%/yr major bleeding.",
+            },
+        ),
+        "condition_refs": ("AFIB",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3938/atria-bleeding-risk-score",
+    },
+    # ----------------------------------------------------------------
+    # Syncope (alternatives to SF Syncope)
+    # ----------------------------------------------------------------
+    "RULE-OESIL-001": {
+        "rule_id": "RULE-OESIL-001",
+        "name": "OESIL",
+        "full_name": "OESIL Score for Syncope",
+        "category": "cardiac",
+        "description": "1-year mortality after ED syncope; >=2 = high.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Age > 65",
+                "Cardiovascular disease history",
+                "Syncope without prodrome",
+                "Abnormal ECG",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "<=0.6% 1-yr mortality.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": ">=14% 1-yr mortality; admit.",
+            },
+        ),
+        "condition_refs": ("SYNCOPE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1856/oesil-risk-score-syncope",
+    },
+    # ----------------------------------------------------------------
+    # General ED severity
+    # ----------------------------------------------------------------
+    "RULE-REMS-001": {
+        "rule_id": "RULE-REMS-001",
+        "name": "REMS",
+        "full_name": "Rapid Emergency Medicine Score",
+        "category": "general",
+        "description": "ED in-hospital mortality predictor across non-trauma presentations.",
+        "variables": (
+            {"name": "Age points", "min_value": 0, "max_value": 6},
+            {"name": "Mean arterial pressure points", "min_value": 0, "max_value": 4},
+            {"name": "Heart rate points", "min_value": 0, "max_value": 4},
+            {"name": "Respiratory rate points", "min_value": 0, "max_value": 4},
+            {"name": "Oxygen saturation points", "min_value": 0, "max_value": 4},
+            {"name": "GCS points", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 5,
+                "risk_level": "low",
+                "recommendation": "<5% mortality.",
+            },
+            {
+                "min_score": 6,
+                "max_score": 9,
+                "risk_level": "moderate",
+                "recommendation": "5-15% mortality.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 26,
+                "risk_level": "high",
+                "recommendation": ">=15% mortality; admit.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1862/rapid-emergency-medicine-score-rems",
+    },
+    # ----------------------------------------------------------------
+    # ACS — additional / mortality
+    # ----------------------------------------------------------------
+    "RULE-GRACE-001": {
+        "rule_id": "RULE-GRACE-001",
+        "name": "GRACE Score",
+        "full_name": "GRACE ACS Risk Score (in-hospital mortality, additive form)",
+        "category": "cardiac",
+        "description": (
+            "Predicts in-hospital mortality in ACS using additive points by tier "
+            "(simplified additive form; full GRACE uses logistic-regression "
+            "coefficients). Variable values are pre-computed point contributions."
+        ),
+        "variables": (
+            {"name": "Age points", "min_value": 0, "max_value": 100},
+            {"name": "Heart rate points", "min_value": 0, "max_value": 46},
+            {"name": "Systolic BP points", "min_value": 0, "max_value": 58},
+            {"name": "Creatinine points", "min_value": 1, "max_value": 28},
+            {"name": "Killip class points", "min_value": 0, "max_value": 59},
+            {"name": "Cardiac arrest at admission", "min_value": 0, "max_value": 39},
+            {"name": "ST-segment deviation", "min_value": 0, "max_value": 28},
+            {"name": "Elevated cardiac enzymes", "min_value": 0, "max_value": 14},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 108,
+                "risk_level": "low",
+                "recommendation": "<=1% in-hospital mortality; conservative pathway.",
+            },
+            {
+                "min_score": 109,
+                "max_score": 140,
+                "risk_level": "moderate",
+                "recommendation": "1-3% mortality; early invasive strategy.",
+            },
+            {
+                "min_score": 141,
+                "max_score": 372,
+                "risk_level": "high",
+                "recommendation": ">3% mortality; aggressive intervention indicated.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1099/grace-acs-risk-mortality-calculator",
+    },
+    # ----------------------------------------------------------------
+    # Stroke severity
+    # ----------------------------------------------------------------
+    "RULE-NIHSS-001": {
+        "rule_id": "RULE-NIHSS-001",
+        "name": "NIHSS",
+        "full_name": "NIH Stroke Scale",
+        "category": "neuro",
+        "description": (
+            "Stroke-severity instrument; 11 items (0-3 or 0-4 each). "
+            "Total 0-42; thresholds drive tPA decision-making."
+        ),
+        "variables": (
+            {"name": "Level of consciousness", "min_value": 0, "max_value": 3},
+            {"name": "LOC questions", "min_value": 0, "max_value": 2},
+            {"name": "LOC commands", "min_value": 0, "max_value": 2},
+            {"name": "Best gaze", "min_value": 0, "max_value": 2},
+            {"name": "Visual fields", "min_value": 0, "max_value": 3},
+            {"name": "Facial palsy", "min_value": 0, "max_value": 3},
+            {"name": "Motor arm", "min_value": 0, "max_value": 4},
+            {"name": "Motor leg", "min_value": 0, "max_value": 4},
+            {"name": "Limb ataxia", "min_value": 0, "max_value": 2},
+            {"name": "Sensory", "min_value": 0, "max_value": 2},
+            {"name": "Best language", "min_value": 0, "max_value": 3},
+            {"name": "Dysarthria", "min_value": 0, "max_value": 2},
+            {"name": "Extinction/inattention", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "Minor stroke; tPA may not be indicated.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 15,
+                "risk_level": "moderate",
+                "recommendation": "Moderate stroke; consider tPA + admit.",
+            },
+            {
+                "min_score": 16,
+                "max_score": 20,
+                "risk_level": "high",
+                "recommendation": "Moderate-severe stroke; tPA + neurology consult.",
+            },
+            {
+                "min_score": 21,
+                "max_score": 42,
+                "risk_level": "very_high",
+                "recommendation": "Severe stroke; high tPA-bleed risk; ICU.",
+            },
+        ),
+        "condition_refs": ("STROKE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/715/nih-stroke-scale-score-nihss",
+    },
+    # ----------------------------------------------------------------
+    # Full PESI (additive points form)
+    # ----------------------------------------------------------------
+    "RULE-PESI-FULL-001": {
+        "rule_id": "RULE-PESI-FULL-001",
+        "name": "PESI",
+        "full_name": "Pulmonary Embolism Severity Index (full)",
+        "category": "pulmonary",
+        "description": (
+            "30-day mortality after PE; 5 risk classes by additive points. "
+            "Each variable is a pre-computed point contribution per the "
+            "MDCalc lookup table."
+        ),
+        "variables": (
+            {"name": "Age (years as points)", "min_value": 0, "max_value": 120},
+            {"name": "Male sex", "min_value": 0, "max_value": 10},
+            {"name": "Cancer history", "min_value": 0, "max_value": 30},
+            {"name": "Heart failure", "min_value": 0, "max_value": 10},
+            {"name": "Chronic lung disease", "min_value": 0, "max_value": 10},
+            {"name": "Heart rate >= 110", "min_value": 0, "max_value": 20},
+            {"name": "Systolic BP < 100", "min_value": 0, "max_value": 30},
+            {"name": "Respiratory rate >= 30", "min_value": 0, "max_value": 20},
+            {"name": "Temperature < 36C", "min_value": 0, "max_value": 20},
+            {"name": "Altered mental status", "min_value": 0, "max_value": 60},
+            {"name": "SpO2 < 90%", "min_value": 0, "max_value": 20},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 65,
+                "risk_level": "low",
+                "recommendation": "Class I; <=1.6% 30-day mortality; outpatient possible.",
+            },
+            {
+                "min_score": 66,
+                "max_score": 85,
+                "risk_level": "moderate",
+                "recommendation": "Class II; 3.5% mortality; brief observation.",
+            },
+            {
+                "min_score": 86,
+                "max_score": 105,
+                "risk_level": "high",
+                "recommendation": "Class III; 7.1% mortality; admit.",
+            },
+            {
+                "min_score": 106,
+                "max_score": 125,
+                "risk_level": "very_high",
+                "recommendation": "Class IV; 11.4% mortality; ICU consideration.",
+            },
+            {
+                "min_score": 126,
+                "max_score": 350,
+                "risk_level": "extreme",
+                "recommendation": "Class V; 24.5% mortality; ICU + thrombolysis.",
+            },
+        ),
+        "condition_refs": ("PE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1304/pulmonary-embolism-severity-index-pesi",
+    },
 }
