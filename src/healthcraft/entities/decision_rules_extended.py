@@ -2334,6 +2334,90 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/4055/cart-cardiac-arrest-risk-triage-score",
     },
     # ----------------------------------------------------------------
+    # Pediatric early warning
+    # ----------------------------------------------------------------
+    "RULE-PEWS-001": {
+        "rule_id": "RULE-PEWS-001",
+        "name": "PEWS",
+        "full_name": "Pediatric Early Warning Score",
+        "category": "general",
+        "description": "Pediatric clinical-deterioration screen; 3 sub-scores 0-3 each.",
+        "variables": (
+            {"name": "Behavior", "min_value": 0, "max_value": 3},
+            {"name": "Cardiovascular", "min_value": 0, "max_value": 3},
+            {"name": "Respiratory", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Routine pediatric ward observation.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "Increase monitoring; nursing reassessment.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 9,
+                "risk_level": "high",
+                "recommendation": "Urgent senior review; consider pediatric ICU.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2070/brighton-pediatric-early-warning-score-pews",
+    },
+    # ----------------------------------------------------------------
+    # Frailty (peri-procedural / surgical risk)
+    # ----------------------------------------------------------------
+    "RULE-MFI5-001": {
+        "rule_id": "RULE-MFI5-001",
+        "name": "mFI-5",
+        "full_name": "Modified Frailty Index (5-item)",
+        "category": "general",
+        "description": (
+            "5 binary comorbidities; >=2 predicts post-op morbidity, mortality, "
+            "and prolonged length of stay."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Functional dependence",
+                "Diabetes mellitus",
+                "COPD or pneumonia",
+                "Congestive heart failure",
+                "Hypertension requiring medication",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Robust; standard surgical/procedural pathway.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 3,
+                "risk_level": "moderate",
+                "recommendation": "Pre-frail; optimize comorbidities, geriatric input.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 5,
+                "risk_level": "high",
+                "recommendation": "Frail; high post-op risk; shared decision-making.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10043/modified-frailty-index-mfi-5",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {

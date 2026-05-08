@@ -237,6 +237,41 @@ def test_cart_score_loads_and_scores() -> None:
 
 
 # ---------------------------------------------------------------------------
+# PEWS (pediatric early warning) and mFI-5 (frailty)
+# ---------------------------------------------------------------------------
+
+
+def test_pews_loads_and_scores() -> None:
+    rule = _rule_by_name("PEWS")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    high = score_rule(
+        {"Behavior": 3, "Cardiovascular": 3, "Respiratory": 3},
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_mfi5_loads_and_scores() -> None:
+    rule = _rule_by_name("mFI-5")
+    _assert_no_score_gaps(rule)
+    low = score_rule({}, rule)
+    assert low["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Functional dependence": 1,
+            "Diabetes mellitus": 1,
+            "COPD or pneumonia": 1,
+            "Congestive heart failure": 1,
+            "Hypertension requiring medication": 1,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+# ---------------------------------------------------------------------------
 # Aggregate
 # ---------------------------------------------------------------------------
 
@@ -252,6 +287,8 @@ def test_cart_score_loads_and_scores() -> None:
         "Pediatric Appendicitis Score (PAS)",
         "Geneva Score (Revised)",
         "CART Score",
+        "PEWS",
+        "mFI-5",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:
