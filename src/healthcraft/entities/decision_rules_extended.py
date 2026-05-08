@@ -1970,6 +1970,183 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/78/meld-score-original-pre-2016-model-end-stage-liver-disease",
     },
     # ----------------------------------------------------------------
+    # Blunt thoracic trauma (chest CT decision)
+    # ----------------------------------------------------------------
+    "RULE-NEXUS-CHEST-001": {
+        "rule_id": "RULE-NEXUS-CHEST-001",
+        "name": "NEXUS Chest Decision Instrument",
+        "full_name": "NEXUS Chest Decision Instrument for Blunt Thoracic Trauma",
+        "category": "trauma",
+        "description": (
+            "7 binary criteria; >=1 positive = imaging indicated. "
+            "98.8% sensitivity for thoracic injury."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Age > 60",
+                "Rapid deceleration mechanism",
+                "Chest pain",
+                "Intoxication",
+                "Altered mental status",
+                "Distracting injury",
+                "Tenderness to chest wall palpation",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "All criteria absent; chest imaging not indicated.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 7,
+                "risk_level": "high",
+                "recommendation": ">=1 criterion positive; chest CT or CXR indicated.",
+            },
+        ),
+        "condition_refs": ("THORACIC_TRAUMA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3009/nexus-chest-decision-instrument-blunt-chest-trauma",
+    },
+    # ----------------------------------------------------------------
+    # Pneumonia severity (Japanese alternative to CURB-65)
+    # ----------------------------------------------------------------
+    "RULE-A-DROP-001": {
+        "rule_id": "RULE-A-DROP-001",
+        "name": "A-DROP",
+        "full_name": "A-DROP Score for Community-Acquired Pneumonia",
+        "category": "pulmonary",
+        "description": (
+            "Japanese Respiratory Society modification of CURB-65; 5 binary "
+            "criteria, 30-day mortality risk by count."
+        ),
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Age (M >= 70 / F >= 75)",
+                "Dehydration (BUN >= 21 mg/dL)",
+                "Respiratory failure (SpO2 <= 90%)",
+                "Orientation disturbance",
+                "Low blood pressure (SBP <= 90)",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Mild; outpatient management.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; admit ward.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": "Severe; ICU consideration.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 5,
+                "risk_level": "very_high",
+                "recommendation": "Extremely severe; ICU.",
+            },
+        ),
+        "condition_refs": ("PNEUMONIA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10169/a-drop-score-community-acquired-pneumonia",
+    },
+    # ----------------------------------------------------------------
+    # PE intermediate-risk subgrouping
+    # ----------------------------------------------------------------
+    "RULE-BOVA-001": {
+        "rule_id": "RULE-BOVA-001",
+        "name": "Bova Score",
+        "full_name": "Bova Score for PE Complications in Hemodynamically Stable Patients",
+        "category": "pulmonary",
+        "description": (
+            "Subgrades intermediate-risk PE (sPESI >=1, hemodynamically stable) "
+            "into stages I-III by 30-day complications/mortality."
+        ),
+        "variables": (
+            {"name": "Heart rate >= 110", "min_value": 0, "max_value": 1},
+            {"name": "Systolic BP 90-100", "min_value": 0, "max_value": 2},
+            {"name": "Elevated cardiac troponin", "min_value": 0, "max_value": 2},
+            {"name": "RV dysfunction on imaging", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Stage I; 4.4% 30-day complications.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "Stage II; 18% 30-day complications.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 7,
+                "risk_level": "high",
+                "recommendation": "Stage III; 42% 30-day complications; ICU.",
+            },
+        ),
+        "condition_refs": ("PE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/4044/bova-score-pulmonary-embolism-complications",
+    },
+    # ----------------------------------------------------------------
+    # Chest pain triage without troponin (HEART without the T)
+    # ----------------------------------------------------------------
+    "RULE-HEAR-001": {
+        "rule_id": "RULE-HEAR-001",
+        "name": "HEAR Score",
+        "full_name": "HEAR Score for Chest Pain (HEART without troponin)",
+        "category": "cardiac",
+        "description": (
+            "Pre-troponin chest-pain triage; 0-1 = MACE rule-out (~99% NPV) without lab testing."
+        ),
+        "variables": (
+            {"name": "History suspicious", "min_value": 0, "max_value": 2},
+            {"name": "ECG findings", "min_value": 0, "max_value": 2},
+            {"name": "Age tier", "min_value": 0, "max_value": 2},
+            {"name": "Risk factors", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "<2% 30-day MACE; no troponin needed in selected cohorts.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "Equivocal; obtain troponin and apply HEART.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "High-risk; obtain troponin and admit/observe.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10153/hear-score-major-cardiac-events",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
