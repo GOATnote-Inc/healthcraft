@@ -367,6 +367,84 @@ def test_crusade_score_loads_and_scores() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Iteration 5: GDS-15, MUST, DECAF, HACOR, MACS
+# ---------------------------------------------------------------------------
+
+
+def test_gds15_loads_and_scores() -> None:
+    rule = _rule_by_name("GDS-15")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule({f"GDS item {i}": 1 for i in range(1, 16)}, rule)
+    assert high["risk_level"] in {"high", "very_high"}
+
+
+def test_must_loads_and_scores() -> None:
+    rule = _rule_by_name("MUST")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {"BMI score": 2, "Weight loss score": 2, "Acute disease effect score": 2},
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_decaf_loads_and_scores() -> None:
+    rule = _rule_by_name("DECAF")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Dyspnea points": 2,
+            "Eosinopenia": 1,
+            "Consolidation": 1,
+            "Acidemia (pH < 7.30)": 1,
+            "Atrial fibrillation": 1,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_hacor_loads_and_scores() -> None:
+    rule = _rule_by_name("HACOR")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Heart rate points": 1,
+            "Acidosis points": 4,
+            "Consciousness points": 4,
+            "Oxygenation points": 4,
+            "Respiratory rate points": 2,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_macs_loads_and_scores() -> None:
+    rule = _rule_by_name("MACS")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Heart-type fatty acid binding protein elevated": 4,
+            "ECG ischemia": 2,
+            "Worsening angina": 1,
+            "Sweating observed": 2,
+            "Vomiting with pain": 1,
+            "Systolic BP < 100": 3,
+            "Pain in right arm/shoulder": 1,
+            "Hypoperfusion (cool skin)": 1,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+# ---------------------------------------------------------------------------
 # Aggregate
 # ---------------------------------------------------------------------------
 
@@ -390,6 +468,11 @@ def test_crusade_score_loads_and_scores() -> None:
         "LACE Score",
         "HOSPITAL Score",
         "CRUSADE Score",
+        "GDS-15",
+        "MUST",
+        "DECAF",
+        "HACOR",
+        "MACS",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:

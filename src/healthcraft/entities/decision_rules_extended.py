@@ -2676,6 +2676,204 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/1873/crusade-score-post-mi-bleeding-risk",
     },
     # ----------------------------------------------------------------
+    # Geriatric depression
+    # ----------------------------------------------------------------
+    "RULE-GDS15-001": {
+        "rule_id": "RULE-GDS15-001",
+        "name": "GDS-15",
+        "full_name": "Geriatric Depression Scale (15-item)",
+        "category": "psychiatric",
+        "description": "Depression screen in older adults; >=5 = depression possible.",
+        "variables": tuple(
+            {"name": f"GDS item {i}", "min_value": 0, "max_value": 1} for i in range(1, 16)
+        ),
+        "score_ranges": (
+            {"min_score": 0, "max_score": 4, "risk_level": "low", "recommendation": "Normal."},
+            {
+                "min_score": 5,
+                "max_score": 9,
+                "risk_level": "moderate",
+                "recommendation": "Suggestive of depression; further evaluation.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 15,
+                "risk_level": "high",
+                "recommendation": "Indicative of depression; treatment indicated.",
+            },
+        ),
+        "condition_refs": ("DEPRESSION",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3322/geriatric-depression-scale-gds15",
+    },
+    # ----------------------------------------------------------------
+    # Adult malnutrition
+    # ----------------------------------------------------------------
+    "RULE-MUST-001": {
+        "rule_id": "RULE-MUST-001",
+        "name": "MUST",
+        "full_name": "Malnutrition Universal Screening Tool",
+        "category": "general",
+        "description": "Adult inpatient malnutrition screen; 5-step tool by BAPEN.",
+        "variables": (
+            {"name": "BMI score", "min_value": 0, "max_value": 2},
+            {"name": "Weight loss score", "min_value": 0, "max_value": 2},
+            {"name": "Acute disease effect score", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Routine clinical care; repeat screening per setting.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Document dietary intake; observe; repeat screening.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": "Refer to dietitian; nutrition support plan.",
+            },
+        ),
+        "condition_refs": ("MALNUTRITION",),
+        "evidence_level": "validated",
+        "url": "https://www.bapen.org.uk/screening-and-must/must",
+    },
+    # ----------------------------------------------------------------
+    # COPD exacerbation mortality
+    # ----------------------------------------------------------------
+    "RULE-DECAF-001": {
+        "rule_id": "RULE-DECAF-001",
+        "name": "DECAF",
+        "full_name": "DECAF Score for AECOPD Mortality",
+        "category": "pulmonary",
+        "description": "In-hospital mortality after AECOPD; 0-6 total points.",
+        "variables": (
+            {"name": "Dyspnea points", "min_value": 0, "max_value": 2},
+            {"name": "Eosinopenia", "min_value": 0, "max_value": 1},
+            {"name": "Consolidation", "min_value": 0, "max_value": 1},
+            {"name": "Acidemia (pH < 7.30)", "min_value": 0, "max_value": 1},
+            {"name": "Atrial fibrillation", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Low (1-2%) in-hospital mortality.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "Intermediate (8.4%); admit ward.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": "High (>=24%); ICU consideration.",
+            },
+        ),
+        "condition_refs": ("COPD",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3804/decaf-score-acute-exacerbation-copd",
+    },
+    # ----------------------------------------------------------------
+    # HFNC failure prediction
+    # ----------------------------------------------------------------
+    "RULE-HACOR-001": {
+        "rule_id": "RULE-HACOR-001",
+        "name": "HACOR",
+        "full_name": "HACOR Score for HFNC/NIV Failure",
+        "category": "pulmonary",
+        "description": "Likelihood of NIV/HFNC failure at 1h; >5 = high failure rate.",
+        "variables": (
+            {"name": "Heart rate points", "min_value": 0, "max_value": 1},
+            {"name": "Acidosis points", "min_value": 0, "max_value": 4},
+            {"name": "Consciousness points", "min_value": 0, "max_value": 4},
+            {"name": "Oxygenation points", "min_value": 0, "max_value": 4},
+            {"name": "Respiratory rate points", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 5,
+                "risk_level": "low",
+                "recommendation": "Low NIV failure (<20%).",
+            },
+            {
+                "min_score": 6,
+                "max_score": 10,
+                "risk_level": "moderate",
+                "recommendation": "Moderate NIV failure (~46%); intensive monitoring.",
+            },
+            {
+                "min_score": 11,
+                "max_score": 15,
+                "risk_level": "high",
+                "recommendation": "High NIV failure (~67%); intubation likely.",
+            },
+        ),
+        "condition_refs": ("RESPIRATORY_FAILURE",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10112/hacor-score-niv-failure",
+    },
+    # ----------------------------------------------------------------
+    # Manchester ACS rule (MACS)
+    # ----------------------------------------------------------------
+    "RULE-MACS-001": {
+        "rule_id": "RULE-MACS-001",
+        "name": "MACS",
+        "full_name": "Manchester Acute Coronary Syndromes Decision Rule",
+        "category": "cardiac",
+        "description": (
+            "Pretest probability of ACS in chest-pain patients using H-FABP and clinical signs."
+        ),
+        "variables": (
+            {
+                "name": "Heart-type fatty acid binding protein elevated",
+                "min_value": 0,
+                "max_value": 4,
+            },
+            {"name": "ECG ischemia", "min_value": 0, "max_value": 2},
+            {"name": "Worsening angina", "min_value": 0, "max_value": 1},
+            {"name": "Sweating observed", "min_value": 0, "max_value": 2},
+            {"name": "Vomiting with pain", "min_value": 0, "max_value": 1},
+            {"name": "Systolic BP < 100", "min_value": 0, "max_value": 3},
+            {"name": "Pain in right arm/shoulder", "min_value": 0, "max_value": 1},
+            {"name": "Hypoperfusion (cool skin)", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Very low ACS (<=2%); discharge possible.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 5,
+                "risk_level": "moderate",
+                "recommendation": "5-30% ACS; serial troponin.",
+            },
+            {
+                "min_score": 6,
+                "max_score": 15,
+                "risk_level": "high",
+                "recommendation": ">=30% ACS; aggressive workup.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/4044/macs-rule-acute-coronary-syndromes",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
