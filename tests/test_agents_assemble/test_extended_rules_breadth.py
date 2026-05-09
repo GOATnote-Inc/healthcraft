@@ -473,6 +473,12 @@ def test_macs_loads_and_scores() -> None:
         "DECAF",
         "HACOR",
         "MACS",
+        "NEWS",
+        "PRAM",
+        "Westley Croup Score",
+        "FOUR Score",
+        "EPDS",
+        "MMSE",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:

@@ -2874,6 +2874,262 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/4044/macs-rule-acute-coronary-syndromes",
     },
     # ----------------------------------------------------------------
+    # NEWS (original early warning, predecessor to NEWS2)
+    # ----------------------------------------------------------------
+    "RULE-NEWS-001": {
+        "rule_id": "RULE-NEWS-001",
+        "name": "NEWS",
+        "full_name": "National Early Warning Score (Original)",
+        "category": "general",
+        "description": "Original 2012 RCP score; 6 vital-sign sub-scores 0-3 each.",
+        "variables": (
+            {"name": "Respiratory rate", "min_value": 0, "max_value": 3},
+            {"name": "Oxygen saturation", "min_value": 0, "max_value": 3},
+            {"name": "Supplemental O2", "min_value": 0, "max_value": 2},
+            {"name": "Temperature", "min_value": 0, "max_value": 3},
+            {"name": "Systolic BP", "min_value": 0, "max_value": 3},
+            {"name": "Heart rate", "min_value": 0, "max_value": 3},
+            {"name": "Level of consciousness (AVPU)", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "Routine ward observation.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 6,
+                "risk_level": "moderate",
+                "recommendation": "Urgent ward review.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 20,
+                "risk_level": "high",
+                "recommendation": "Emergency assessment by critical-care team.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3938/national-early-warning-score-news",
+    },
+    # ----------------------------------------------------------------
+    # Pediatric Respiratory Assessment Measure
+    # ----------------------------------------------------------------
+    "RULE-PRAM-001": {
+        "rule_id": "RULE-PRAM-001",
+        "name": "PRAM",
+        "full_name": "Pediatric Respiratory Assessment Measure",
+        "category": "pulmonary",
+        "description": "Asthma severity in children; 0-12 total.",
+        "variables": (
+            {"name": "Suprasternal retractions", "min_value": 0, "max_value": 2},
+            {"name": "Scalene contraction", "min_value": 0, "max_value": 2},
+            {"name": "Air entry", "min_value": 0, "max_value": 3},
+            {"name": "Wheezing", "min_value": 0, "max_value": 3},
+            {"name": "O2 saturation", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "Mild; oral steroids, beta-agonist.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 7,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; ED treatment, repeat assessment.",
+            },
+            {
+                "min_score": 8,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": "Severe; aggressive treatment, consider ICU.",
+            },
+        ),
+        "condition_refs": ("ASTHMA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10073/pram-score-pediatric-asthma",
+    },
+    # ----------------------------------------------------------------
+    # Westley Croup Score
+    # ----------------------------------------------------------------
+    "RULE-WESTLEY-CROUP-001": {
+        "rule_id": "RULE-WESTLEY-CROUP-001",
+        "name": "Westley Croup Score",
+        "full_name": "Westley Croup Severity Score",
+        "category": "pulmonary",
+        "description": "Croup severity in children; 0-17 total.",
+        "variables": (
+            {"name": "Level of consciousness", "min_value": 0, "max_value": 5},
+            {"name": "Cyanosis", "min_value": 0, "max_value": 5},
+            {"name": "Stridor", "min_value": 0, "max_value": 2},
+            {"name": "Air entry", "min_value": 0, "max_value": 2},
+            {"name": "Retractions", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Mild; supportive care, dexamethasone.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 7,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; nebulized epinephrine, dexamethasone.",
+            },
+            {
+                "min_score": 8,
+                "max_score": 11,
+                "risk_level": "high",
+                "recommendation": "Severe; admit, consider ICU.",
+            },
+            {
+                "min_score": 12,
+                "max_score": 17,
+                "risk_level": "very_high",
+                "recommendation": "Impending respiratory failure; PICU.",
+            },
+        ),
+        "condition_refs": ("CROUP",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3092/westley-croup-score",
+    },
+    # ----------------------------------------------------------------
+    # FOUR Score (alternative to GCS for ICU)
+    # ----------------------------------------------------------------
+    "RULE-FOUR-SCORE-001": {
+        "rule_id": "RULE-FOUR-SCORE-001",
+        "name": "FOUR Score",
+        "full_name": "Full Outline of UnResponsiveness Score",
+        "category": "trauma",
+        "description": "Coma severity scale; 4 components, 0-4 each, total 0-16.",
+        "variables": (
+            {"name": "Eye response", "min_value": 0, "max_value": 4},
+            {"name": "Motor response", "min_value": 0, "max_value": 4},
+            {"name": "Brainstem reflexes", "min_value": 0, "max_value": 4},
+            {"name": "Respiration pattern", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "very_high",
+                "recommendation": "Severe coma / brain death evaluation.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "Severe brain injury; ICU.",
+            },
+            {
+                "min_score": 9,
+                "max_score": 12,
+                "risk_level": "moderate",
+                "recommendation": "Moderate impairment; close monitoring.",
+            },
+            {
+                "min_score": 13,
+                "max_score": 16,
+                "risk_level": "low",
+                "recommendation": "Mild impairment; ward observation.",
+            },
+        ),
+        "condition_refs": ("TBI",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2184/four-score-consciousness",
+    },
+    # ----------------------------------------------------------------
+    # Edinburgh Postnatal Depression Scale
+    # ----------------------------------------------------------------
+    "RULE-EPDS-001": {
+        "rule_id": "RULE-EPDS-001",
+        "name": "EPDS",
+        "full_name": "Edinburgh Postnatal Depression Scale",
+        "category": "psychiatric",
+        "description": "10-item postpartum depression screen; 0-30 total.",
+        "variables": tuple(
+            {"name": f"EPDS item {i}", "min_value": 0, "max_value": 3} for i in range(1, 11)
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 9,
+                "risk_level": "low",
+                "recommendation": "Low depression risk; routine monitoring.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 12,
+                "risk_level": "moderate",
+                "recommendation": "Possible depression; rescreen + discuss.",
+            },
+            {
+                "min_score": 13,
+                "max_score": 30,
+                "risk_level": "high",
+                "recommendation": "Likely depression; full assessment + treatment.",
+            },
+        ),
+        "condition_refs": ("PPD",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/35/edinburgh-postnatal-depression-scale",
+    },
+    # ----------------------------------------------------------------
+    # Mini-Mental State Exam
+    # ----------------------------------------------------------------
+    "RULE-MMSE-001": {
+        "rule_id": "RULE-MMSE-001",
+        "name": "MMSE",
+        "full_name": "Mini-Mental State Examination",
+        "category": "neuro",
+        "description": "Cognitive screening tool; total 0-30.",
+        "variables": (
+            {"name": "Orientation to time", "min_value": 0, "max_value": 5},
+            {"name": "Orientation to place", "min_value": 0, "max_value": 5},
+            {"name": "Registration", "min_value": 0, "max_value": 3},
+            {"name": "Attention and calculation", "min_value": 0, "max_value": 5},
+            {"name": "Recall", "min_value": 0, "max_value": 3},
+            {"name": "Language and praxis", "min_value": 0, "max_value": 9},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 9,
+                "risk_level": "very_high",
+                "recommendation": "Severe cognitive impairment.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 18,
+                "risk_level": "high",
+                "recommendation": "Moderate cognitive impairment.",
+            },
+            {
+                "min_score": 19,
+                "max_score": 23,
+                "risk_level": "moderate",
+                "recommendation": "Mild cognitive impairment.",
+            },
+            {
+                "min_score": 24,
+                "max_score": 30,
+                "risk_level": "low",
+                "recommendation": "No significant cognitive impairment.",
+            },
+        ),
+        "condition_refs": ("DEMENTIA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/43/mini-mental-state-exam-mmse",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
