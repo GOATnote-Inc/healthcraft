@@ -272,6 +272,101 @@ def test_mfi5_loads_and_scores() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Iteration 4: alcohol screens, sleep apnea, readmission, ACS bleeding
+# ---------------------------------------------------------------------------
+
+
+def test_cage_loads_and_scores() -> None:
+    rule = _rule_by_name("CAGE")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {"Cut down (felt need to)": 1, "Annoyed by criticism": 1, "Guilty about drinking": 1},
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_audit_c_loads_and_scores() -> None:
+    rule = _rule_by_name("AUDIT-C")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Frequency of drinking": 4,
+            "Drinks per typical drinking day": 4,
+            "Frequency of >=6 drinks on one occasion": 4,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_stop_bang_loads_and_scores() -> None:
+    rule = _rule_by_name("STOP-BANG")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Snoring loudly": 1,
+            "Tired/fatigued daily": 1,
+            "Observed apnea": 1,
+            "Pressure (high BP)": 1,
+            "BMI > 35": 1,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_lace_score_loads_and_scores() -> None:
+    rule = _rule_by_name("LACE Score")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Length of stay points": 7,
+            "Acuity of admission (emergent)": 3,
+            "Charlson comorbidity points": 5,
+            "ED visits in past 6 months points": 4,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_hospital_score_loads_and_scores() -> None:
+    rule = _rule_by_name("HOSPITAL Score")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Hemoglobin < 12 g/dL at discharge": 1,
+            "Discharge from oncology service": 2,
+            "Sodium < 135 at discharge": 1,
+            ">=1 admission in past year": 5,
+        },
+        rule,
+    )
+    assert high["risk_level"] == "high"
+
+
+def test_crusade_score_loads_and_scores() -> None:
+    rule = _rule_by_name("CRUSADE Score")
+    _assert_no_score_gaps(rule)
+    assert score_rule({}, rule)["risk_level"] == "low"
+    high = score_rule(
+        {
+            "Creatinine clearance points": 39,
+            "Systolic BP points": 10,
+            "Heart rate points": 11,
+        },
+        rule,
+    )
+    assert high["risk_level"] in {"high", "very_high", "extreme"}
+
+
+# ---------------------------------------------------------------------------
 # Aggregate
 # ---------------------------------------------------------------------------
 
@@ -289,6 +384,12 @@ def test_mfi5_loads_and_scores() -> None:
         "CART Score",
         "PEWS",
         "mFI-5",
+        "CAGE",
+        "AUDIT-C",
+        "STOP-BANG",
+        "LACE Score",
+        "HOSPITAL Score",
+        "CRUSADE Score",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:

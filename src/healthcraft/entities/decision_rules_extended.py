@@ -2418,6 +2418,264 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/10043/modified-frailty-index-mfi-5",
     },
     # ----------------------------------------------------------------
+    # Alcohol/substance screens
+    # ----------------------------------------------------------------
+    "RULE-CAGE-001": {
+        "rule_id": "RULE-CAGE-001",
+        "name": "CAGE",
+        "full_name": "CAGE Questionnaire for Alcohol Use Disorder",
+        "category": "psychiatric",
+        "description": "4 yes/no questions; >=2 = clinically significant alcohol use disorder.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Cut down (felt need to)",
+                "Annoyed by criticism",
+                "Guilty about drinking",
+                "Eye-opener (morning drink)",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "Negative; routine screening.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 4,
+                "risk_level": "high",
+                "recommendation": "Positive; full alcohol-use evaluation.",
+            },
+        ),
+        "condition_refs": ("ALCOHOL_USE_DISORDER",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3198/cage-questions-alcohol-use",
+    },
+    "RULE-AUDIT-C-001": {
+        "rule_id": "RULE-AUDIT-C-001",
+        "name": "AUDIT-C",
+        "full_name": "Alcohol Use Disorders Identification Test - Consumption",
+        "category": "psychiatric",
+        "description": (
+            "3 items, 0-4 each; cutoffs M >=4 / F >=3 = positive screen for hazardous drinking."
+        ),
+        "variables": (
+            {"name": "Frequency of drinking", "min_value": 0, "max_value": 4},
+            {"name": "Drinks per typical drinking day", "min_value": 0, "max_value": 4},
+            {"name": "Frequency of >=6 drinks on one occasion", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Negative; routine screening.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "Positive in women; possible hazardous drinking.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": (
+                    "Positive; high probability of alcohol use disorder; brief intervention."
+                ),
+            },
+        ),
+        "condition_refs": ("ALCOHOL_USE_DISORDER",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1990/audit-c-alcohol-use",
+    },
+    # ----------------------------------------------------------------
+    # Sleep apnea screen (used in pre-op / ED triage of OSA)
+    # ----------------------------------------------------------------
+    "RULE-STOP-BANG-001": {
+        "rule_id": "RULE-STOP-BANG-001",
+        "name": "STOP-BANG",
+        "full_name": "STOP-BANG Score for Obstructive Sleep Apnea",
+        "category": "pulmonary",
+        "description": "8 yes/no items; >=3 high probability of OSA.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 1}
+            for name in (
+                "Snoring loudly",
+                "Tired/fatigued daily",
+                "Observed apnea",
+                "Pressure (high BP)",
+                "BMI > 35",
+                "Age > 50",
+                "Neck circumference > 40 cm",
+                "Gender male",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 2,
+                "risk_level": "low",
+                "recommendation": "Low probability OSA.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 4,
+                "risk_level": "moderate",
+                "recommendation": "Intermediate probability; consider sleep study.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 8,
+                "risk_level": "high",
+                "recommendation": "High probability OSA; sleep study indicated.",
+            },
+        ),
+        "condition_refs": ("OSA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3992/stop-bang-score-obstructive-sleep-apnea",
+    },
+    # ----------------------------------------------------------------
+    # Readmission risk
+    # ----------------------------------------------------------------
+    "RULE-LACE-001": {
+        "rule_id": "RULE-LACE-001",
+        "name": "LACE Score",
+        "full_name": "LACE Index for Readmission",
+        "category": "general",
+        "description": (
+            "30-day readmission/death prediction based on Length, Acuity, Comorbidities, ED visits."
+        ),
+        "variables": (
+            {"name": "Length of stay points", "min_value": 0, "max_value": 7},
+            {"name": "Acuity of admission (emergent)", "min_value": 0, "max_value": 3},
+            {"name": "Charlson comorbidity points", "min_value": 0, "max_value": 5},
+            {"name": "ED visits in past 6 months points", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "Low (<5%) 30-day readmission/death.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 9,
+                "risk_level": "moderate",
+                "recommendation": "Moderate (8-12%); transitions-of-care follow-up.",
+            },
+            {
+                "min_score": 10,
+                "max_score": 19,
+                "risk_level": "high",
+                "recommendation": "High (>=15%); intensive discharge planning.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3805/lace-index-readmission",
+    },
+    "RULE-HOSPITAL-001": {
+        "rule_id": "RULE-HOSPITAL-001",
+        "name": "HOSPITAL Score",
+        "full_name": "HOSPITAL Score for Readmissions",
+        "category": "general",
+        "description": "30-day potentially avoidable readmission risk.",
+        "variables": (
+            {"name": "Hemoglobin < 12 g/dL at discharge", "min_value": 0, "max_value": 1},
+            {"name": "Discharge from oncology service", "min_value": 0, "max_value": 2},
+            {"name": "Sodium < 135 at discharge", "min_value": 0, "max_value": 1},
+            {"name": "Procedure during hospitalization", "min_value": 0, "max_value": 1},
+            {"name": "Index admission type (urgent)", "min_value": 0, "max_value": 1},
+            {"name": ">=1 admission in past year", "min_value": 0, "max_value": 5},
+            {"name": "Length of stay >= 5 days", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 4,
+                "risk_level": "low",
+                "recommendation": "<6% 30-day potentially-avoidable readmission.",
+            },
+            {
+                "min_score": 5,
+                "max_score": 6,
+                "risk_level": "moderate",
+                "recommendation": "9-13% readmission; standard transitions.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 13,
+                "risk_level": "high",
+                "recommendation": ">=18% readmission; intensive transitions.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3978/hospital-score-readmissions",
+    },
+    # ----------------------------------------------------------------
+    # ACS in-hospital bleeding risk
+    # ----------------------------------------------------------------
+    "RULE-CRUSADE-001": {
+        "rule_id": "RULE-CRUSADE-001",
+        "name": "CRUSADE Score",
+        "full_name": "CRUSADE Score for Major Bleeding in NSTEMI",
+        "category": "cardiac",
+        "description": (
+            "In-hospital major-bleeding risk in NSTEMI patients receiving anticoagulation."
+        ),
+        "variables": (
+            {"name": "Baseline hematocrit points", "min_value": 0, "max_value": 9},
+            {"name": "Creatinine clearance points", "min_value": 0, "max_value": 39},
+            {"name": "Heart rate points", "min_value": 0, "max_value": 11},
+            {"name": "Female sex", "min_value": 0, "max_value": 8},
+            {"name": "Signs of CHF at presentation", "min_value": 0, "max_value": 7},
+            {"name": "Prior vascular disease", "min_value": 0, "max_value": 6},
+            {"name": "Diabetes", "min_value": 0, "max_value": 6},
+            {"name": "Systolic BP points", "min_value": 0, "max_value": 10},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 20,
+                "risk_level": "low",
+                "recommendation": "Very low bleeding risk (3.1%).",
+            },
+            {
+                "min_score": 21,
+                "max_score": 30,
+                "risk_level": "moderate",
+                "recommendation": "Low (5.5%); standard anticoagulation.",
+            },
+            {
+                "min_score": 31,
+                "max_score": 40,
+                "risk_level": "high",
+                "recommendation": "Moderate (8.6%); careful anticoag selection.",
+            },
+            {
+                "min_score": 41,
+                "max_score": 50,
+                "risk_level": "very_high",
+                "recommendation": "High (11.9%); minimize anticoagulation.",
+            },
+            {
+                "min_score": 51,
+                "max_score": 96,
+                "risk_level": "extreme",
+                "recommendation": "Very high (19.5%); reconsider invasive strategy.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/1873/crusade-score-post-mi-bleeding-risk",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
