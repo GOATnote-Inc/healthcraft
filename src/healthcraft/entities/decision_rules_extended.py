@@ -3431,6 +3431,295 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/10095/modified-asthma-predictive-index",
     },
     # ----------------------------------------------------------------
+    # NYHA Class (heart failure functional class)
+    # ----------------------------------------------------------------
+    "RULE-NYHA-001": {
+        "rule_id": "RULE-NYHA-001",
+        "name": "NYHA Class",
+        "full_name": "New York Heart Association Functional Classification",
+        "category": "cardiac",
+        "description": "Heart-failure functional severity; Class I-IV by symptoms.",
+        "variables": (
+            {"name": "NYHA class number (I=0, II=1, III=2, IV=3)", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Class I; no symptoms with ordinary activity.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Class II; slight limitation; symptoms with ordinary activity.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": (
+                    "Class III; marked limitation; symptoms with less-than-ordinary activity."
+                ),
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "Class IV; symptoms at rest.",
+            },
+        ),
+        "condition_refs": ("CHF",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3987/nyha-functional-classification-heart-failure",
+    },
+    # ----------------------------------------------------------------
+    # CCS Angina Class
+    # ----------------------------------------------------------------
+    "RULE-CCS-ANGINA-001": {
+        "rule_id": "RULE-CCS-ANGINA-001",
+        "name": "CCS Angina Class",
+        "full_name": "Canadian Cardiovascular Society Angina Class",
+        "category": "cardiac",
+        "description": "Angina functional class; I (no limitation) - IV (rest pain).",
+        "variables": ({"name": "CCS class number (I=0..IV=3)", "min_value": 0, "max_value": 3},),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Class I; no limitation with ordinary activity.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Class II; slight limitation.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": "Class III; marked limitation.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "Class IV; rest pain.",
+            },
+        ),
+        "condition_refs": ("ACS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3992/ccs-angina-classification",
+    },
+    # ----------------------------------------------------------------
+    # GOLD COPD Class
+    # ----------------------------------------------------------------
+    "RULE-GOLD-COPD-001": {
+        "rule_id": "RULE-GOLD-COPD-001",
+        "name": "GOLD COPD Class",
+        "full_name": "GOLD COPD Stage by FEV1",
+        "category": "pulmonary",
+        "description": "COPD severity by FEV1 % predicted; GOLD 1-4.",
+        "variables": ({"name": "GOLD stage number (1=0..4=3)", "min_value": 0, "max_value": 3},),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "GOLD 1; mild (FEV1 >= 80%).",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "GOLD 2; moderate (FEV1 50-79%).",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": "GOLD 3; severe (FEV1 30-49%).",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "GOLD 4; very severe (FEV1 < 30%).",
+            },
+        ),
+        "condition_refs": ("COPD",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3954/gold-classification-copd",
+    },
+    # ----------------------------------------------------------------
+    # NACA Score (prehospital trauma severity)
+    # ----------------------------------------------------------------
+    "RULE-NACA-001": {
+        "rule_id": "RULE-NACA-001",
+        "name": "NACA Score",
+        "full_name": "National Advisory Committee for Aeronautics Score",
+        "category": "trauma",
+        "description": "Prehospital severity scale; 0 (no injury) to 7 (deceased).",
+        "variables": ({"name": "NACA grade (0-7)", "min_value": 0, "max_value": 7},),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "No / minor injury.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 3,
+                "risk_level": "moderate",
+                "recommendation": "Moderate injury; outpatient/ED.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 5,
+                "risk_level": "high",
+                "recommendation": "Acute life-threatening; trauma center.",
+            },
+            {
+                "min_score": 6,
+                "max_score": 7,
+                "risk_level": "very_high",
+                "recommendation": "Cardiac arrest / deceased.",
+            },
+        ),
+        "condition_refs": ("TRAUMA",),
+        "evidence_level": "validated",
+        "url": "https://en.wikipedia.org/wiki/NACA_score",
+    },
+    # ----------------------------------------------------------------
+    # Mallampati Score (airway exam)
+    # ----------------------------------------------------------------
+    "RULE-MALLAMPATI-001": {
+        "rule_id": "RULE-MALLAMPATI-001",
+        "name": "Mallampati Score",
+        "full_name": "Modified Mallampati Score for Airway Assessment",
+        "category": "trauma",
+        "description": "Visual airway exam predicting difficult intubation; Class I-IV.",
+        "variables": ({"name": "Mallampati class (I=0..IV=3)", "min_value": 0, "max_value": 3},),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Class I; full visualization of soft palate.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Class II; partial visualization of uvula.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": "Class III; soft palate visible only.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "Class IV; only hard palate; difficult airway likely.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2123/mallampati-score",
+    },
+    # ----------------------------------------------------------------
+    # Cormack-Lehane Grade (laryngoscopy view)
+    # ----------------------------------------------------------------
+    "RULE-CORMACK-LEHANE-001": {
+        "rule_id": "RULE-CORMACK-LEHANE-001",
+        "name": "Cormack-Lehane Grade",
+        "full_name": "Cormack-Lehane Grade of Laryngoscopic View",
+        "category": "trauma",
+        "description": "Direct-laryngoscopy view classification; Grade I-IV.",
+        "variables": (
+            {"name": "Cormack-Lehane grade (I=0..IV=3)", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Grade I; full glottis visible; easy intubation.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 1,
+                "risk_level": "moderate",
+                "recommendation": "Grade II; partial glottis.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 2,
+                "risk_level": "high",
+                "recommendation": "Grade III; epiglottis only; difficult intubation.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "Grade IV; no glottis or epiglottis; extreme difficulty.",
+            },
+        ),
+        "condition_refs": (),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3902/cormack-lehane-classification-direct-laryngoscopy",
+    },
+    # ----------------------------------------------------------------
+    # DOAC Score (bleeding risk on direct oral anticoagulants)
+    # ----------------------------------------------------------------
+    "RULE-DOAC-SCORE-001": {
+        "rule_id": "RULE-DOAC-SCORE-001",
+        "name": "DOAC Score",
+        "full_name": "DOAC Score for Bleeding Risk on Direct Oral Anticoagulants",
+        "category": "hematologic",
+        "description": "Bleeding risk for AFib patients on DOACs; >=8 = high.",
+        "variables": (
+            {"name": "Age tier", "min_value": 0, "max_value": 4},
+            {"name": "Creatinine clearance / eGFR tier", "min_value": 0, "max_value": 3},
+            {"name": "Underweight (BMI < 18.5)", "min_value": 0, "max_value": 1},
+            {"name": "Stroke / TIA / embolism history", "min_value": 0, "max_value": 1},
+            {"name": "Diabetes", "min_value": 0, "max_value": 1},
+            {"name": "Hypertension", "min_value": 0, "max_value": 1},
+            {"name": "Antiplatelet use", "min_value": 0, "max_value": 2},
+            {"name": "Bleeding history", "min_value": 0, "max_value": 3},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "Low bleeding risk on DOAC.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 7,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; standard monitoring.",
+            },
+            {
+                "min_score": 8,
+                "max_score": 16,
+                "risk_level": "high",
+                "recommendation": "High bleeding risk; intensive monitoring or alternative.",
+            },
+        ),
+        "condition_refs": ("AFIB",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10212/doac-score-bleeding-risk",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
