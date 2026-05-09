@@ -479,6 +479,13 @@ def test_macs_loads_and_scores() -> None:
         "FOUR Score",
         "EPDS",
         "MMSE",
+        "CIWA-B",
+        "Modified Marshall Score",
+        "Wood-Downes Score",
+        "Vasoactive-Inotropic Score",
+        "Khorana Score",
+        "Revised Trauma Score",
+        "mAPI",
     ],
 )
 def test_new_rules_round_trip_and_have_no_score_gaps(name: str) -> None:

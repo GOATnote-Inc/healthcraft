@@ -3130,6 +3130,307 @@ EXTENDED_RULES: dict[str, dict[str, Any]] = {
         "url": "https://www.mdcalc.com/calc/43/mini-mental-state-exam-mmse",
     },
     # ----------------------------------------------------------------
+    # CIWA-B (benzodiazepine withdrawal)
+    # ----------------------------------------------------------------
+    "RULE-CIWA-B-001": {
+        "rule_id": "RULE-CIWA-B-001",
+        "name": "CIWA-B",
+        "full_name": "Clinical Institute Withdrawal Assessment for Benzodiazepines",
+        "category": "toxicology",
+        "description": "Severity of benzo withdrawal; analogous to CIWA-Ar.",
+        "variables": tuple(
+            {"name": name, "min_value": 0, "max_value": 4}
+            for name in (
+                "Restlessness",
+                "Tremor",
+                "Sweating",
+                "Anxiety",
+                "Agitation",
+                "Tactile disturbance",
+                "Sensitivity to noise/light",
+                "Headache",
+                "Insomnia/sleep disturbance",
+                "Muscle stiffness",
+            )
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 6,
+                "risk_level": "low",
+                "recommendation": "Mild withdrawal; supportive care.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 14,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; symptom-triggered taper.",
+            },
+            {
+                "min_score": 15,
+                "max_score": 40,
+                "risk_level": "high",
+                "recommendation": "Severe; aggressive taper, monitored bed.",
+            },
+        ),
+        "condition_refs": ("BENZO_WITHDRAWAL",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/2017/ciwa-b-benzodiazepine-withdrawal",
+    },
+    # ----------------------------------------------------------------
+    # Modified Marshall Score (pancreatitis organ failure)
+    # ----------------------------------------------------------------
+    "RULE-MOD-MARSHALL-001": {
+        "rule_id": "RULE-MOD-MARSHALL-001",
+        "name": "Modified Marshall Score",
+        "full_name": "Modified Marshall Score for Acute Pancreatitis Organ Failure",
+        "category": "gi",
+        "description": "Organ-failure severity in acute pancreatitis; 3 organs scored 0-4.",
+        "variables": (
+            {"name": "Respiratory (PaO2/FiO2)", "min_value": 0, "max_value": 4},
+            {"name": "Renal (creatinine)", "min_value": 0, "max_value": 4},
+            {"name": "Cardiovascular (SBP)", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 1,
+                "risk_level": "low",
+                "recommendation": "No organ failure; mild pancreatitis.",
+            },
+            {
+                "min_score": 2,
+                "max_score": 5,
+                "risk_level": "moderate",
+                "recommendation": "Single-organ dysfunction; admit ward.",
+            },
+            {
+                "min_score": 6,
+                "max_score": 12,
+                "risk_level": "high",
+                "recommendation": "Multi-organ failure; ICU.",
+            },
+        ),
+        "condition_refs": ("PANCREATITIS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/4046/modified-marshall-pancreatitis",
+    },
+    # ----------------------------------------------------------------
+    # Wood-Downes Score (pediatric asthma)
+    # ----------------------------------------------------------------
+    "RULE-WOOD-DOWNES-001": {
+        "rule_id": "RULE-WOOD-DOWNES-001",
+        "name": "Wood-Downes Score",
+        "full_name": "Wood-Downes Score for Pediatric Asthma Severity",
+        "category": "pulmonary",
+        "description": "Pediatric asthma exacerbation severity; 5 vars 0-2 each.",
+        "variables": (
+            {"name": "Cyanosis", "min_value": 0, "max_value": 2},
+            {"name": "Inspiratory breath sounds", "min_value": 0, "max_value": 2},
+            {"name": "Accessory muscle use", "min_value": 0, "max_value": 2},
+            {"name": "Expiratory wheezing", "min_value": 0, "max_value": 2},
+            {"name": "Cerebral function", "min_value": 0, "max_value": 2},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "low",
+                "recommendation": "Mild; outpatient.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 6,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; nebulized treatment, observe.",
+            },
+            {
+                "min_score": 7,
+                "max_score": 10,
+                "risk_level": "high",
+                "recommendation": "Severe; admit, ICU consideration.",
+            },
+        ),
+        "condition_refs": ("ASTHMA_PEDS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3067/wood-downes-asthma",
+    },
+    # ----------------------------------------------------------------
+    # Vasoactive-Inotropic Score
+    # ----------------------------------------------------------------
+    "RULE-VIS-001": {
+        "rule_id": "RULE-VIS-001",
+        "name": "Vasoactive-Inotropic Score",
+        "full_name": "Vasoactive-Inotropic Score for Cardiac Support",
+        "category": "cardiac",
+        "description": (
+            "Cumulative score of inotrope/pressor doses (mcg/kg/min equivalents). "
+            "Higher = more hemodynamic support."
+        ),
+        "variables": (
+            {"name": "Dopamine dose", "min_value": 0, "max_value": 20},
+            {"name": "Dobutamine dose", "min_value": 0, "max_value": 20},
+            {"name": "Epinephrine dose x100", "min_value": 0, "max_value": 50},
+            {"name": "Norepinephrine dose x100", "min_value": 0, "max_value": 50},
+            {"name": "Milrinone dose x10", "min_value": 0, "max_value": 10},
+            {"name": "Vasopressin dose x10000", "min_value": 0, "max_value": 30},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 10,
+                "risk_level": "low",
+                "recommendation": "Minimal support.",
+            },
+            {
+                "min_score": 11,
+                "max_score": 20,
+                "risk_level": "moderate",
+                "recommendation": "Moderate support; monitor closely.",
+            },
+            {
+                "min_score": 21,
+                "max_score": 180,
+                "risk_level": "high",
+                "recommendation": "High support; consider mechanical circulatory support.",
+            },
+        ),
+        "condition_refs": ("CARDIOGENIC_SHOCK",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/4044/vasoactive-inotropic-score",
+    },
+    # ----------------------------------------------------------------
+    # Khorana Score (cancer-associated VTE)
+    # ----------------------------------------------------------------
+    "RULE-KHORANA-001": {
+        "rule_id": "RULE-KHORANA-001",
+        "name": "Khorana Score",
+        "full_name": "Khorana Risk Score for Cancer-Associated VTE",
+        "category": "hematologic",
+        "description": "Predicts chemotherapy-associated VTE risk; >=2 = consider prophylaxis.",
+        "variables": (
+            {"name": "Site of cancer (very high risk)", "min_value": 0, "max_value": 2},
+            {"name": "Site of cancer (high risk)", "min_value": 0, "max_value": 1},
+            {"name": "Platelet count >= 350K", "min_value": 0, "max_value": 1},
+            {"name": "Hemoglobin < 10 or ESA use", "min_value": 0, "max_value": 1},
+            {"name": "WBC > 11K", "min_value": 0, "max_value": 1},
+            {"name": "BMI >= 35", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "0.3-0.8% 6-mo VTE; no routine prophylaxis.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "1.8-2.0% 6-mo VTE; consider prophylaxis.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 7,
+                "risk_level": "high",
+                "recommendation": ">=7% 6-mo VTE; pharmacologic prophylaxis recommended.",
+            },
+        ),
+        "condition_refs": ("VTE", "CANCER"),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10000/khorana-risk-score-venous-thromboembolism-cancer",
+    },
+    # ----------------------------------------------------------------
+    # Revised Trauma Score (RTS)
+    # ----------------------------------------------------------------
+    "RULE-RTS-001": {
+        "rule_id": "RULE-RTS-001",
+        "name": "Revised Trauma Score",
+        "full_name": "Revised Trauma Score (Triage RTS)",
+        "category": "trauma",
+        "description": "Field-triage trauma severity; 3 vital sub-scores 0-4 each, total 0-12.",
+        "variables": (
+            {"name": "Glasgow Coma Scale points", "min_value": 0, "max_value": 4},
+            {"name": "Systolic BP points", "min_value": 0, "max_value": 4},
+            {"name": "Respiratory rate points", "min_value": 0, "max_value": 4},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 3,
+                "risk_level": "very_high",
+                "recommendation": "<=4% survival; trauma-center activation.",
+            },
+            {
+                "min_score": 4,
+                "max_score": 7,
+                "risk_level": "high",
+                "recommendation": "Severe; trauma-center transport.",
+            },
+            {
+                "min_score": 8,
+                "max_score": 10,
+                "risk_level": "moderate",
+                "recommendation": "Moderate; appropriate ED assessment.",
+            },
+            {
+                "min_score": 11,
+                "max_score": 12,
+                "risk_level": "low",
+                "recommendation": ">=99% survival; standard evaluation.",
+            },
+        ),
+        "condition_refs": ("TRAUMA",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/3057/revised-trauma-score",
+    },
+    # ----------------------------------------------------------------
+    # mAPI (Modified Asthma Predictive Index)
+    # ----------------------------------------------------------------
+    "RULE-MAPI-001": {
+        "rule_id": "RULE-MAPI-001",
+        "name": "mAPI",
+        "full_name": "Modified Asthma Predictive Index (under-3 wheezing)",
+        "category": "pulmonary",
+        "description": (
+            "Predicts persistent asthma in young children with recurrent wheezing. "
+            "Major + minor criteria summed."
+        ),
+        "variables": (
+            {"name": "Major: parental asthma", "min_value": 0, "max_value": 1},
+            {"name": "Major: atopic dermatitis", "min_value": 0, "max_value": 1},
+            {"name": "Major: aero-allergen sensitization", "min_value": 0, "max_value": 1},
+            {"name": "Minor: food-allergen sensitization", "min_value": 0, "max_value": 1},
+            {"name": "Minor: wheezing apart from colds", "min_value": 0, "max_value": 1},
+            {"name": "Minor: eosinophils >= 4%", "min_value": 0, "max_value": 1},
+        ),
+        "score_ranges": (
+            {
+                "min_score": 0,
+                "max_score": 0,
+                "risk_level": "low",
+                "recommendation": "Negative; standard reactive-airway management.",
+            },
+            {
+                "min_score": 1,
+                "max_score": 2,
+                "risk_level": "moderate",
+                "recommendation": "Borderline; reassess at follow-up.",
+            },
+            {
+                "min_score": 3,
+                "max_score": 6,
+                "risk_level": "high",
+                "recommendation": (
+                    "Positive; high probability of persistent asthma; controller therapy."
+                ),
+            },
+        ),
+        "condition_refs": ("ASTHMA_PEDS",),
+        "evidence_level": "validated",
+        "url": "https://www.mdcalc.com/calc/10095/modified-asthma-predictive-index",
+    },
+    # ----------------------------------------------------------------
     # Tokyo Guidelines (categorical scoring strategy demonstration)
     # ----------------------------------------------------------------
     "RULE-TOKYO-CHOL-001": {
