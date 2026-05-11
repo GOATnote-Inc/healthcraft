@@ -89,6 +89,44 @@ def test_initialize_returns_protocol_version(server_url: str) -> None:
     assert "tools" in result["capabilities"]
 
 
+def test_initialize_advertises_sharp_fhir_context_capability(server_url: str) -> None:
+    """Prompt Opinion / SHARP-aware hosts schema-validate the initialize result
+    and require ``capabilities.experimental.fhir_context_required = true`` so
+    they know to forward FHIR context headers (X-FHIR-Server-URL,
+    X-FHIR-Access-Token, X-Patient-ID) on subsequent calls. Without this flag,
+    the host's MCP-server registration endpoint returns 422 Unprocessable
+    Entity during the connectivity test.
+    """
+    body, _ = _post_jsonrpc(
+        server_url,
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    )
+    caps = body["result"]["capabilities"]
+    assert "experimental" in caps, "SHARP capability flag is required"
+    # Per MCP spec, each experimental capability is an OBJECT (not a primitive).
+    fhir_cap = caps["experimental"].get("fhir_context_required")
+    assert isinstance(fhir_cap, dict), (
+        "experimental capabilities must be objects (MCP spec / Inspector validation)"
+    )
+    assert fhir_cap.get("required") is True, (
+        "Hosts use this flag to opt into forwarding SHARP FHIR-context headers"
+    )
+
+
+def test_initialize_uses_current_mcp_protocol_version(server_url: str) -> None:
+    """MCP spec lists 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 as
+    supported. We advertise the latest so Streamable HTTP hosts that gate on
+    minimum version accept us."""
+    body, _ = _post_jsonrpc(
+        server_url,
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    )
+    version = body["result"]["protocolVersion"]
+    assert version in {"2025-11-25", "2025-06-18", "2025-03-26"}, version
+    # Pin the newest supported version so we don't silently regress.
+    assert version == "2025-11-25", f"expected latest MCP version, got {version}"
+
+
 def test_tools_list_includes_decision_rule_tools(server_url: str) -> None:
     body, status = _post_jsonrpc(
         server_url,

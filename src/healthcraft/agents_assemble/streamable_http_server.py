@@ -49,9 +49,42 @@ from healthcraft.world.state import WorldState
 logger = logging.getLogger("agents_assemble.streamable_http")
 
 
-PROTOCOL_VERSION = "2025-03-26"
+PROTOCOL_VERSION = "2025-11-25"
 SERVER_NAME = "agents-assemble/ed-decision-rules"
 SERVER_VERSION = "0.1.0"
+
+# SHARP (Standardised Healthcare Agent Remote Protocol) capability flag.
+# Advertising this on every ``initialize`` response tells SHARP-aware MCP
+# hosts (Prompt Opinion / Darena Health) to forward FHIR context headers
+# (X-FHIR-Server-URL, X-FHIR-Access-Token, X-Patient-ID) on subsequent
+# tool calls so the server can resolve patient context without owning the
+# OAuth dance itself.
+SERVER_CAPABILITIES: dict[str, Any] = {
+    "tools": {"listChanged": False},
+    # Per the MCP spec, ``experimental`` is ``Record<string, object>`` — each
+    # named experimental capability MUST be an object, not a primitive. So we
+    # publish the SHARP signal as a structured object the host can read while
+    # still validating against the canonical schema (MCP Inspector enforces).
+    "experimental": {
+        "fhir_context_required": {
+            "required": True,
+            "headers": [
+                "X-FHIR-Server-URL",
+                "X-FHIR-Access-Token",
+                "X-Patient-ID",
+            ],
+        },
+        "sharp": {
+            "version": "1.0",
+            "fhir_context_required": True,
+            "supported_headers": [
+                "X-FHIR-Server-URL",
+                "X-FHIR-Access-Token",
+                "X-Patient-ID",
+            ],
+        },
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +284,7 @@ def handle_jsonrpc(
             request_id,
             {
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": SERVER_CAPABILITIES,
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             },
         )
