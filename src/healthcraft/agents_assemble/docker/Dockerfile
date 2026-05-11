@@ -33,5 +33,9 @@ RUN pip install --upgrade pip && \
 RUN useradd --create-home --uid 10001 superpower
 USER superpower
 
-# Default command: stdio MCP server. Prompt Opinion attaches over stdin.
-CMD ["python", "-m", "healthcraft.agents_assemble.superpower_decision_rules"]
+# Default command: Streamable-HTTP MCP server on $PORT (default 8080).
+# Prompt Opinion attaches by URL (https://host/mcp). Override with the stdio
+# entrypoint (``python -m healthcraft.agents_assemble.superpower_decision_rules``)
+# when running locally as a stdin/stdout MCP transport.
+EXPOSE 8080
+CMD ["sh", "-c", "python -m healthcraft.agents_assemble.streamable_http_server --port ${PORT:-8080}"]
