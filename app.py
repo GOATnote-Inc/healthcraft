@@ -94,7 +94,19 @@ class handler(_Handler):  # noqa: N801 — Vercel naming convention
 
         body = self._read_json_body()
         if body is None:
-            self._send_json(HTTPStatus.BAD_REQUEST, _jsonrpc_error(None, -32700, "Parse error"))
+            # Tolerant probe response. Some MCP hosts (Prompt Opinion's "Test"
+            # button included) hit the endpoint with an empty body or a body
+            # that fails JSON parse purely to confirm connectivity. Reply with
+            # a valid JSON-RPC tools/list result so the probe populates the
+            # host's tool catalog. Real MCP traffic always includes a parsable
+            # body and reaches the dispatch branches below.
+            tools_list = handle_jsonrpc(
+                {"jsonrpc": "2.0", "id": None, "method": "tools/list"},
+                superpower=self.superpower,
+                coverage=self.coverage,
+                world=self.world,
+            )
+            self._send_json(HTTPStatus.OK, tools_list)
             return
 
         if isinstance(body, list):
