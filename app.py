@@ -1,33 +1,30 @@
-"""Vercel Function entrypoint for the Streamable-HTTP MCP server.
+"""Vercel ASGI entrypoint for the Streamable-HTTP MCP server.
 
-Vercel's Python builder uses a single ``app.py`` at repo root and routes
-every request to it. We expose a class derived from
-``BaseHTTPRequestHandler`` named ``handler`` (the runtime's detection
-convention) and dispatch internally by inspecting ``self.path``, so the
-public surface — ``/mcp`` and ``/healthz`` — hits the same code paths as
-the standalone stdlib server.
+We swapped from a stdlib ``BaseHTTPRequestHandler`` subclass to FastAPI
+because Vercel's Python serverless runtime does NOT deliver chunked
+request bodies via ``self.rfile`` to BaseHTTPRequestHandler — and Prompt
+Opinion's backend uses ``Transfer-Encoding: chunked`` on every POST to
+the MCP endpoint. FastAPI / Starlette's ASGI pipeline reads the body
+through the runtime's native receive() machinery, which handles chunked
+transparently.
 
-We:
-
-1. Add ``src/`` to ``sys.path`` so the bundled function imports the
-   in-repo ``healthcraft`` package without an editable install.
-2. Load the 100-rule world + Superpower + coverage matrix **once at import
-   time** so warm Fluid Compute instances reuse them across requests.
-3. Subclass ``_Handler`` to make path matching permissive — the underlying
-   handler enforces ``self.path == "/mcp"``, but Vercel's URL surface at the
-   function level is ``/api/mcp``. We accept either by normalizing.
+The underlying MCP dispatch (initialize / tools/list / tools/call) is
+unchanged — we still call ``handle_jsonrpc`` from
+``healthcraft.agents_assemble.streamable_http_server``.
 """
 
 from __future__ import annotations
 
+import json
 import pathlib
 import sys
-from http import HTTPStatus
 from typing import Any
 
-# Ensure the in-repo ``src/`` is importable without an editable install. The
-# Vercel build bundles the whole repo by default; we keep the package layout
-# unchanged so tests and Docker keep working.
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+# Make the in-repo ``src/`` importable without an editable install.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
@@ -38,7 +35,6 @@ from healthcraft.agents_assemble.streamable_http_server import (  # noqa: E402
     PROTOCOL_VERSION,
     SERVER_NAME,
     SERVER_VERSION,
-    _Handler,
     _build_world,
     _jsonrpc_error,
     handle_jsonrpc,
@@ -47,121 +43,137 @@ from healthcraft.agents_assemble.superpower_decision_rules.server import (  # no
     create_superpower,
 )
 
-# Module-level singletons. Class attributes survive across requests in the
-# same warm container; Vercel's runtime reuses the imported module.
+# Module-level singletons — survive across requests in the same warm container.
 _world = _build_world()
 _superpower = create_superpower(_world)
 _coverage = CoverageMatrix.load(
     _REPO_ROOT / "configs" / "agents_assemble" / "coverage_matrix.yaml"
 )
 
+app = FastAPI(
+    title="Agents Assemble — ED Decision Rules MCP",
+    version=SERVER_VERSION,
+    docs_url=None,
+    redoc_url=None,
+)
 
-class handler(_Handler):  # noqa: N801 — Vercel naming convention
-    """Path-permissive Vercel adapter over the stdlib MCP handler."""
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "content-type",
+        "accept",
+        "mcp-session-id",
+        "mcp-protocol-version",
+        "authorization",
+        "x-fhir-server-url",
+        "x-fhir-access-token",
+        "x-patient-id",
+    ],
+)
 
-    # Attach the preloaded state at class scope so all instances share it.
-    world = _world
-    superpower = _superpower
-    coverage = _coverage
 
-    def do_GET(self) -> None:  # noqa: N802
-        normalized = self._normalized_path()
-        # ``/``, ``/healthz``, and ``/health`` all return server-info JSON —
-        # MCP host validators often ping the bare URL before posting the
-        # initialize, and a 405 there gets misclassified as "endpoint
-        # unreachable".
-        if self._is_health_path() or normalized in ("/", ""):
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "status": "ok",
-                    "server": SERVER_NAME,
-                    "version": SERVER_VERSION,
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "endpoint": "/mcp",
-                    "rulesLoaded": len(self.world.list_entities("decision_rule")),
-                },
-            )
-            return
-        if normalized in ("/mcp",):
-            # MCP Streamable HTTP allows GET-as-SSE; we don't push events.
-            self._send_json(
-                HTTPStatus.METHOD_NOT_ALLOWED,
-                {"error": "sse_not_supported", "hint": "POST JSON-RPC to /mcp"},
-            )
-            return
-        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": self.path})
+def _healthz_payload() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "server": SERVER_NAME,
+        "version": SERVER_VERSION,
+        "protocolVersion": PROTOCOL_VERSION,
+        "endpoint": "/mcp",
+        "rulesLoaded": len(_world.list_entities("decision_rule")),
+    }
 
-    def do_POST(self) -> None:  # noqa: N802
-        if not self._is_mcp_path():
-            self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": self.path})
-            return
 
-        body = self._read_json_body()
-        if body is None:
-            # Tolerant probe response. Some MCP hosts (Prompt Opinion's "Test"
-            # button included) hit the endpoint with an empty body or a body
-            # that fails JSON parse purely to confirm connectivity. Reply with
-            # a valid JSON-RPC tools/list result so the probe populates the
-            # host's tool catalog. Real MCP traffic always includes a parsable
-            # body and reaches the dispatch branches below.
-            tools_list = handle_jsonrpc(
-                {"jsonrpc": "2.0", "id": None, "method": "tools/list"},
-                superpower=self.superpower,
-                coverage=self.coverage,
-                world=self.world,
-            )
-            self._send_json(HTTPStatus.OK, tools_list)
-            return
+@app.get("/")
+@app.get("/healthz")
+@app.get("/health")
+def healthz() -> dict[str, Any]:
+    return _healthz_payload()
 
-        if isinstance(body, list):
-            responses: list[Any] = []
-            for msg in body:
-                if not isinstance(msg, dict):
-                    continue
-                resp = handle_jsonrpc(
-                    msg,
-                    superpower=self.superpower,
-                    coverage=self.coverage,
-                    world=self.world,
-                )
-                if resp is not None:
-                    responses.append(resp)
-            if not responses:
-                self._send_empty(HTTPStatus.ACCEPTED)
-                return
-            self._send_json(HTTPStatus.OK, responses)
-            return
 
-        if not isinstance(body, dict):
-            self._send_json(HTTPStatus.BAD_REQUEST, _jsonrpc_error(None, -32600, "Invalid Request"))
-            return
+@app.get("/mcp")
+def mcp_get() -> Response:
+    # MCP Streamable HTTP allows GET-as-SSE; we don't push events.
+    return JSONResponse(
+        {"error": "sse_not_supported", "hint": "POST JSON-RPC to /mcp"},
+        status_code=405,
+    )
 
-        response = handle_jsonrpc(
-            body,
-            superpower=self.superpower,
-            coverage=self.coverage,
-            world=self.world,
+
+async def _dispatch_mcp_post(request: Request) -> Response:
+    raw = await request.body()
+    # Observability — methods + bytes-in. JSON-RPC carries no secrets.
+    try:
+        method_preview = "?"
+        preview = "<empty>"
+        if raw:
+            preview = raw.decode("utf-8", errors="replace")[:400]
+            try:
+                parsed_preview = json.loads(raw)
+                if isinstance(parsed_preview, dict):
+                    method_preview = str(parsed_preview.get("method", "?"))
+                elif isinstance(parsed_preview, list) and parsed_preview:
+                    method_preview = f"batch[{len(parsed_preview)}]"
+            except Exception:
+                pass
+        ua = request.headers.get("user-agent", "?")[:80]
+        print(
+            f"[MCP-IN] method={method_preview} bytes={len(raw)} ua={ua} body={preview}",
+            file=sys.stderr,
+            flush=True,
         )
-        if response is None:
-            self._send_empty(HTTPStatus.ACCEPTED)
-            return
-        self._send_json(HTTPStatus.OK, response)
+    except Exception:
+        pass
 
-    # ------------------------------------------------------------------
-    # Path normalization
-    # ------------------------------------------------------------------
+    if not raw:
+        # Empty-body probe — return an initialize result so connectivity
+        # validators populate their tool catalogs.
+        init = handle_jsonrpc(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            superpower=_superpower,
+            coverage=_coverage,
+            world=_world,
+        )
+        return JSONResponse(init)
 
-    def _normalized_path(self) -> str:
-        path = (self.path or "/").split("?", 1)[0].rstrip("/") or "/"
-        # Strip Vercel's function-mount prefix so ``/api/mcp`` and ``/mcp``
-        # both reach the same dispatch branch.
-        if path.startswith("/api/mcp"):
-            path = path[len("/api") :] or "/mcp"
-        return path
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return JSONResponse(_jsonrpc_error(None, -32700, "Parse error"), status_code=400)
 
-    def _is_mcp_path(self) -> bool:
-        return self._normalized_path() in ("/mcp", "/")
+    if isinstance(payload, list):
+        responses: list[Any] = []
+        for msg in payload:
+            if not isinstance(msg, dict):
+                continue
+            resp = handle_jsonrpc(
+                msg,
+                superpower=_superpower,
+                coverage=_coverage,
+                world=_world,
+            )
+            if resp is not None:
+                responses.append(resp)
+        if not responses:
+            return Response(status_code=202)
+        return JSONResponse(responses)
 
-    def _is_health_path(self) -> bool:
-        return self._normalized_path() in ("/healthz", "/health")
+    if not isinstance(payload, dict):
+        return JSONResponse(_jsonrpc_error(None, -32600, "Invalid Request"), status_code=400)
+
+    response = handle_jsonrpc(
+        payload,
+        superpower=_superpower,
+        coverage=_coverage,
+        world=_world,
+    )
+    if response is None:
+        return Response(status_code=202)
+    return JSONResponse(response)
+
+
+@app.post("/mcp")
+@app.post("/")
+async def mcp_post(request: Request) -> Response:
+    return await _dispatch_mcp_post(request)
