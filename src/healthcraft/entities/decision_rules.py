@@ -28,6 +28,11 @@ class DecisionRule(Entity):
     condition_refs: tuple[str, ...] = ()  # ClinicalKnowledge condition IDs
     evidence_level: str = ""  # validated, derived, expert_consensus
     url: str = ""
+    # Scoring strategy name; "additive" is the default and matches the legacy
+    # ``run_decision_rule`` engine. Non-additive rules (regression,
+    # categorical) name a strategy registered in
+    # ``agents_assemble.superpower_decision_rules.scoring_strategies``.
+    scorer: str = "additive"
 
 
 # --- Bundled decision rules ---
@@ -187,7 +192,7 @@ _BUNDLED_RULES: dict[str, dict[str, Any]] = {
         "score_ranges": (
             {
                 "min_score": 0,
-                "max_score": 1,
+                "max_score": 1.5,
                 "risk_level": "low",
                 "recommendation": "D-dimer; if negative, PE excluded (1.3% prevalence)",
             },
@@ -198,7 +203,7 @@ _BUNDLED_RULES: dict[str, dict[str, Any]] = {
                 "recommendation": "D-dimer; if positive, CTPA (16.2% prevalence)",
             },
             {
-                "min_score": 7,
+                "min_score": 6.5,
                 "max_score": 12.5,
                 "risk_level": "high",
                 "recommendation": "CTPA indicated (37.5% prevalence)",
@@ -304,7 +309,7 @@ _BUNDLED_RULES: dict[str, dict[str, Any]] = {
             },
             {
                 "min_score": 3,
-                "max_score": 8,
+                "max_score": 9,
                 "risk_level": "high",
                 "recommendation": "Ultrasound indicated (53% prevalence)",
             },
@@ -997,7 +1002,14 @@ def load_decision_rules(
     now = datetime.now(timezone.utc)
     result: dict[str, DecisionRule] = {}
 
-    source = external_rules if external_rules is not None else _BUNDLED_RULES
+    if external_rules is not None:
+        source = external_rules
+    else:
+        # Merge bundled core rules with the extended library so callers see a
+        # single namespace. Extended rules cannot shadow bundled ones.
+        from healthcraft.entities.decision_rules_extended import EXTENDED_RULES
+
+        source = {**EXTENDED_RULES, **_BUNDLED_RULES}
 
     for rid, data in source.items():
         rule = DecisionRule(
@@ -1015,6 +1027,7 @@ def load_decision_rules(
             condition_refs=tuple(data.get("condition_refs", ())),
             evidence_level=data.get("evidence_level", ""),
             url=data.get("url", ""),
+            scorer=data.get("scorer", "additive"),
         )
         result[rid] = rule
 

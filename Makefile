@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -79,6 +79,35 @@ release:  ## Build HuggingFace release artifacts (Full/Consensus/Hard JSONLs + m
 
 leaderboard:  ## Regenerate docs/LEADERBOARD.md from docs/MODEL_CARDS/*.md
 	$(PYTHON) scripts/regen_leaderboard.py
+
+agents-assemble-smoke:  ## Smoke + E2E tests for the Agents Assemble hackathon submissions
+	$(PYTEST) tests/test_agents_assemble/ -q
+
+agents-assemble-validate:  ## End-to-end validation harness with metrics summary
+	$(PYTHON) scripts/validate_agents_assemble.py
+
+agents-assemble-fuzz:  ## Randomized breadth report (30 rules x 200 trials each)
+	$(PYTHON) scripts/fuzz_agents_assemble.py
+
+agents-assemble-cds-hooks:  ## Run the live CDS Hooks /cds-services HTTP service on :8080
+	$(PYTHON) -m healthcraft.agents_assemble.cds_hooks_server --port 8080
+
+agents-assemble-smart-demo:  ## Pull a synthetic patient from r4.smarthealthit.org and route them through the agent
+	$(PYTHON) scripts/load_smart_sandbox.py
+
+agents-assemble-baseline:  ## Empirical comparison: LLM-alone vs LLM+Superpower
+	$(PYTHON) scripts/compare_baseline.py
+
+agents-assemble-demo:  ## Run the triage agent against each labeled demo bundle
+	@for sid in stemi pe_high pe_low sepsis; do \
+		echo "=== $$sid ==="; \
+		$(PYTHON) scripts/validate_agents_assemble.py --scenario $$sid; \
+	done
+
+agents-assemble-docker:  ## Build the ED Decision Rules Superpower image
+	docker build \
+		-f src/healthcraft/agents_assemble/docker/Dockerfile \
+		-t agents-assemble/ed-decision-rules .
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

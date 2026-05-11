@@ -1,0 +1,580 @@
+# Agents Assemble — clinical coverage matrix
+#
+# Maps the routine ED clinical contexts (chief complaint, organ system, age band)
+# to the validated decision rules from the bundled library that are most likely
+# to apply. Used by the Reasoner as its deterministic candidate set; the LLM
+# reasoner refines from this base.
+#
+# Invariants enforced by tests/test_agents_assemble/test_coverage_matrix.py:
+#   - Every rule named here MUST resolve to a bundled rule.
+#   - Lists are ranked by clinical priority (front of list = first reach).
+#   - "gaps" entries MUST NOT name any currently-bundled rule.
+#
+# Parallel execution: every rule listed for a context is INDEPENDENT — same
+# Bundle in, same score out, no shared state. A downstream A2A agent can
+# fan-out N rules to N parallel scorers and synthesize in O(1). The
+# in-process Reasoner already does this serially in <1 ms total because
+# rule scoring is pure arithmetic; the matrix exists to scale that pattern
+# to remote agent topologies.
+
+version: 1
+library_size: 100
+
+# -----------------------------------------------------------------------------
+# Chief complaints — keys are slug-form. ~25 most common ED presentations.
+# -----------------------------------------------------------------------------
+chief_complaints:
+
+  chest_pain:
+    description: "Substernal/retrosternal pain, pressure, or discomfort"
+    primary:
+      - HEART Score
+      - TIMI Risk Score for UA/NSTEMI
+      - MACS
+      - HEAR Score
+    secondary:
+      - Marburg Heart Score
+      - INTERCHEST
+      - GRACE Score
+      - CRUSADE Score
+    qualifiers:
+      pleuritic_or_dyspnea:
+        - Wells Criteria for PE
+        - PERC Rule
+        - Geneva Score (Revised)
+        - sPESI
+        - PESI
+        - Bova Score
+      lbbb_on_ecg:
+        - Sgarbossa Criteria
+        - Smith-Modified Sgarbossa
+      after_blunt_trauma:
+        - NEXUS Chest Decision Instrument
+        - Revised Trauma Score
+
+  shortness_of_breath:
+    description: "Dyspnea / SOB / increased work of breathing"
+    primary:
+      - Wells Criteria for PE
+      - PERC Rule
+      - CURB-65
+      - NEWS2
+      - qSOFA
+    secondary:
+      - Geneva Score (Revised)
+      - sPESI
+      - A-DROP
+      - PSI / PORT Score
+      - DECAF
+      - HACOR
+      - BAP-65
+      - GOLD COPD Class
+      - NYHA Class
+      - MEWS
+      - NEWS
+
+  pediatric_respiratory_distress:
+    description: "Wheezing, croup, asthma exacerbation, bronchiolitis (age <18)"
+    primary:
+      - PRAM
+      - Westley Croup Score
+      - Wood-Downes Score
+    secondary:
+      - PEWS
+      - Pediatric Glasgow Coma Scale
+      - mAPI
+
+  abdominal_pain:
+    description: "Generic abdominal pain — qualifiers narrow to specific rules"
+    primary:
+      - Alvarado Score
+    qualifiers:
+      pediatric:
+        - Pediatric Appendicitis Score (PAS)
+      gi_bleed:
+        - Glasgow-Blatchford Bleeding Score
+        - AIMS65
+        - Rockall Score
+      pancreatitis:
+        - BISAP
+        - Glasgow-Imrie
+        - Modified Marshall Score
+      cholangitis_jaundice:
+        - Tokyo Guidelines (Cholangitis Severity)
+
+  cirrhosis_decompensation:
+    description: "Known liver disease with hepatic decompensation"
+    primary:
+      - MELD-Na
+      - Glasgow-Blatchford Bleeding Score
+    secondary:
+      - AIMS65
+      - Rockall Score
+
+  syncope:
+    description: "Transient loss of consciousness with spontaneous recovery"
+    primary:
+      - San Francisco Syncope Rule
+      - ROSE Rule
+    secondary:
+      - EGSYS
+      - OESIL
+
+  altered_mental_status:
+    description: "Confusion, agitation, decreased LOC"
+    primary:
+      - Glasgow Coma Scale
+      - FOUR Score
+      - qSOFA
+      - NEWS2
+    qualifiers:
+      pediatric:
+        - Pediatric Glasgow Coma Scale
+      geriatric:
+        - MMSE
+        - GDS-15
+      withdrawal_suspected:
+        - CIWA-Ar
+        - CIWA-B
+
+  fever:
+    description: "Documented or reported fever; suspected infection"
+    primary:
+      - qSOFA
+      - SIRS Criteria
+      - NEWS2
+      - MEDS Score
+    secondary:
+      - SOFA
+    qualifiers:
+      pediatric:
+        - PEWS
+      neutropenic:
+        - MASCC
+      pharyngitis:
+        - Centor Score
+
+  trauma_polytrauma:
+    description: "Multi-system blunt or penetrating trauma"
+    primary:
+      - Glasgow Coma Scale
+      - Revised Trauma Score
+      - NACA Score
+    secondary:
+      - FOUR Score
+      - NEXUS C-Spine
+      - Canadian C-Spine Rule
+      - NEXUS Chest Decision Instrument
+    qualifiers:
+      pediatric_head_injury:
+        - PECARN Head CT
+        - Pediatric Glasgow Coma Scale
+      airway_assessment:
+        - Mallampati Score
+        - Cormack-Lehane Grade
+
+  ankle_or_knee_injury:
+    description: "Isolated lower-extremity orthopedic injury"
+    primary:
+      - Ottawa Ankle Rules
+      - Ottawa Knee Rules
+
+  neck_pain_after_trauma:
+    description: "Cervical-spine injury rule-out"
+    primary:
+      - Canadian C-Spine Rule
+      - NEXUS C-Spine
+
+  head_injury:
+    description: "Blunt head trauma"
+    primary:
+      - Glasgow Coma Scale
+      - FOUR Score
+    qualifiers:
+      pediatric:
+        - PECARN Head CT
+        - Pediatric Glasgow Coma Scale
+      established_hemorrhage:
+        - ICH Score
+
+  stroke_or_focal_deficit:
+    description: "Acute focal neurologic deficit"
+    primary:
+      - NIHSS
+    secondary:
+      - ABCD2 Score
+      - Glasgow Coma Scale
+      - ICH Score
+
+  thunderclap_headache:
+    description: "Sudden, worst-of-life headache"
+    primary:
+      - Ottawa SAH Rule
+
+  gi_bleed:
+    description: "Upper GI bleeding (hematemesis, melena, coffee-ground)"
+    primary:
+      - Glasgow-Blatchford Bleeding Score
+      - AIMS65
+      - Rockall Score
+
+  sore_throat:
+    description: "Acute pharyngitis / streptococcal screen"
+    primary:
+      - Centor Score
+
+  cough_pneumonia:
+    description: "Cough with suspected community-acquired pneumonia"
+    primary:
+      - CURB-65
+      - CRB-65
+      - PSI / PORT Score
+    secondary:
+      - A-DROP
+      - NEWS
+      - NEWS2
+
+  copd_exacerbation:
+    description: "Acute exacerbation of chronic obstructive pulmonary disease"
+    primary:
+      - DECAF
+      - BAP-65
+    secondary:
+      - GOLD COPD Class
+      - HACOR
+      - NEWS2
+
+  alcohol_intoxication_or_withdrawal:
+    description: "Acute alcohol presentation"
+    primary:
+      - CIWA-Ar
+      - CAGE
+      - AUDIT-C
+    qualifiers:
+      with_gi_bleed:
+        - Glasgow-Blatchford Bleeding Score
+        - MELD-Na
+
+  benzodiazepine_withdrawal:
+    description: "Suspected benzo withdrawal"
+    primary:
+      - CIWA-B
+
+  depression_or_self_harm:
+    description: "Mood / suicidality / behavioral health screen"
+    primary:
+      - PHQ-9
+    qualifiers:
+      geriatric:
+        - GDS-15
+      postpartum:
+        - EPDS
+
+  afib_with_bleeding_risk_question:
+    description: "AFib with anticoagulation decision"
+    primary:
+      - CHA2DS2-VASc
+      - HAS-BLED Score
+      - DOAC Score
+    secondary:
+      - CHADS2
+      - HEMORR2HAGES
+      - ATRIA Bleeding Risk
+
+  vte_prophylaxis_decision:
+    description: "Inpatient or surgical VTE-risk assessment"
+    primary:
+      - Padua Prediction Score
+      - Caprini Score
+    secondary:
+      - Khorana Score   # cancer-specific
+      - Wells Criteria for DVT
+
+  newborn_resuscitation:
+    description: "Delivery-room newborn assessment"
+    primary:
+      - APGAR
+
+  geriatric_fall_or_frailty:
+    description: "Fall, decline, or peri-procedural risk in older adult"
+    primary:
+      - mFI-5
+      - Glasgow Coma Scale
+      - NACA Score
+      - Revised Trauma Score
+    secondary:
+      - MMSE
+      - GDS-15
+      - LACE Score
+      - HOSPITAL Score
+
+  cardiac_arrest_risk_on_ward:
+    description: "Inpatient deterioration / pre-arrest screening"
+    primary:
+      - CART Score
+      - NEWS2
+      - NEWS
+      - MEWS
+
+  airway_management:
+    description: "Pre-intubation airway assessment"
+    primary:
+      - Mallampati Score
+      - Cormack-Lehane Grade
+
+  hit_suspected:
+    description: "Heparin-induced thrombocytopenia workup"
+    primary:
+      - 4Ts Score
+
+
+# -----------------------------------------------------------------------------
+# Organ systems — total of 100 rules organized by clinical service.
+# -----------------------------------------------------------------------------
+organ_systems:
+
+  cardiovascular:
+    description: "ACS, CHF, AFib, syncope, hemodynamic shock"
+    rules:
+      - HEART Score
+      - TIMI Risk Score for UA/NSTEMI
+      - MACS
+      - Marburg Heart Score
+      - INTERCHEST
+      - HEAR Score
+      - Sgarbossa Criteria
+      - Smith-Modified Sgarbossa
+      - GRACE Score
+      - CRUSADE Score
+      - Killip Class
+      - NYHA Class
+      - CCS Angina Class
+      - CHA2DS2-VASc
+      - CHADS2
+      - HAS-BLED Score
+      - HEMORR2HAGES
+      - ATRIA Bleeding Risk
+      - DOAC Score
+      - San Francisco Syncope Rule
+      - ROSE Rule
+      - EGSYS
+      - OESIL
+      - Vasoactive-Inotropic Score
+      - CART Score
+
+  pulmonary:
+    description: "PE, pneumonia, asthma, COPD, sleep apnea, NIV failure"
+    rules:
+      - Wells Criteria for PE
+      - PERC Rule
+      - Geneva Score (Revised)
+      - sPESI
+      - PESI
+      - Bova Score
+      - CURB-65
+      - CRB-65
+      - PSI / PORT Score
+      - A-DROP
+      - DECAF
+      - BAP-65
+      - GOLD COPD Class
+      - HACOR
+      - STOP-BANG
+      - NEWS2
+      - NEWS
+      - MEWS
+      - PRAM
+      - Westley Croup Score
+      - Wood-Downes Score
+      - mAPI
+
+  hematologic:
+    description: "VTE, anticoagulation bleeding risk, HIT"
+    rules:
+      - Wells Criteria for DVT
+      - Padua Prediction Score
+      - Caprini Score
+      - Khorana Score
+      - HAS-BLED Score
+      - HEMORR2HAGES
+      - ATRIA Bleeding Risk
+      - DOAC Score
+      - 4Ts Score
+
+  infectious_sepsis:
+    description: "Sepsis screening, severity, neutropenia, pharyngitis"
+    rules:
+      - qSOFA
+      - SIRS Criteria
+      - SOFA
+      - MEDS Score
+      - MASCC
+      - Centor Score
+
+  gastrointestinal_hepatic:
+    description: "Appendicitis, pancreatitis, GI bleed, cholangitis, cirrhosis"
+    rules:
+      - Alvarado Score
+      - Pediatric Appendicitis Score (PAS)
+      - Glasgow-Blatchford Bleeding Score
+      - AIMS65
+      - Rockall Score
+      - BISAP
+      - Glasgow-Imrie
+      - Modified Marshall Score
+      - MELD-Na
+      - Tokyo Guidelines (Cholangitis Severity)
+
+  neurologic:
+    description: "Stroke, ICH, syncope, headache, cognition"
+    rules:
+      - NIHSS
+      - Ottawa SAH Rule
+      - ABCD2 Score
+      - ICH Score
+      - MMSE
+      - Glasgow Coma Scale
+      - Pediatric Glasgow Coma Scale
+      - FOUR Score
+
+  trauma_orthopedic_airway:
+    description: "Triage trauma, blunt thoracic / cervical / head, fractures, airway"
+    rules:
+      - Ottawa Ankle Rules
+      - Ottawa Knee Rules
+      - Canadian C-Spine Rule
+      - NEXUS C-Spine
+      - NEXUS Chest Decision Instrument
+      - PECARN Head CT
+      - Revised Trauma Score
+      - NACA Score
+      - Mallampati Score
+      - Cormack-Lehane Grade
+
+  psychiatric_substance:
+    description: "Depression, suicidality, alcohol, benzodiazepine"
+    rules:
+      - PHQ-9
+      - GDS-15
+      - EPDS
+      - CAGE
+      - AUDIT-C
+      - CIWA-Ar
+      - CIWA-B
+
+  general_severity:
+    description: "All-comer ED severity, frailty, nutrition, readmission"
+    rules:
+      - REMS
+      - mFI-5
+      - MUST
+      - LACE Score
+      - HOSPITAL Score
+
+
+# -----------------------------------------------------------------------------
+# Age bands — pediatric / adult / elderly. Subset of the full library that
+# carries age-specific validation or is most clinically relevant by band.
+# -----------------------------------------------------------------------------
+age_bands:
+
+  pediatric:
+    description: "Validated explicitly in <18-year-old populations"
+    rules:
+      - APGAR
+      - Pediatric Glasgow Coma Scale
+      - PEWS
+      - PRAM
+      - Westley Croup Score
+      - Wood-Downes Score
+      - Pediatric Appendicitis Score (PAS)
+      - mAPI
+      - PECARN Head CT
+    notes: |
+      qSOFA, SIRS, NEWS2, MEWS were derived in adult cohorts and are commonly
+      adapted (with age-specific cutoffs) in pediatric ED. Prefer PEWS and
+      PRAM for primary pediatric early-warning when available.
+
+  adult_default:
+    description: "Validated in 18-64 cohorts; the default branch of every triage path"
+    rules: ALL_REMAINING
+
+  elderly:
+    description: "Most useful in patients >=65 (frailty, anticoag, cognition, readmission)"
+    rules:
+      - mFI-5
+      - GDS-15
+      - MMSE
+      - ABCD2 Score
+      - HAS-BLED Score
+      - HEMORR2HAGES
+      - ATRIA Bleeding Risk
+      - CHA2DS2-VASc
+      - CHADS2
+      - DOAC Score
+      - CRUSADE Score
+      - LACE Score
+      - HOSPITAL Score
+      - BAP-65
+      - DECAF
+      - PSI / PORT Score
+      - A-DROP
+      - HACOR
+      - SOFA
+      - MEDS Score
+
+
+# -----------------------------------------------------------------------------
+# Gaps — clinical contexts our 100-rule library does NOT yet cover. Each
+# entry MUST NOT name a currently-bundled rule (verified by tests). These
+# are the next-tier targets for a v2 expansion.
+# -----------------------------------------------------------------------------
+gaps:
+
+  - context: chief_complaint.back_pain
+    note: "no rule covers atraumatic back-pain red-flag stratification"
+    candidates_for_future:
+      - "STarT Back Tool (chronic low back pain)"
+      - "Cauda equina red-flag checklist (categorical)"
+
+  - context: chief_complaint.flank_pain
+    note: "no rule covers ureteric-colic vs surgical-abdomen stratification"
+    candidates_for_future:
+      - "STONE Score (ureterolithiasis prediction)"
+
+  - context: chief_complaint.dizziness_or_vertigo
+    note: "no rule covers central-vs-peripheral vertigo workup"
+    candidates_for_future:
+      - "HINTS exam (categorical)"
+
+  - context: age_band.pediatric.febrile_infant
+    note: "no Yale Observation Scale or Rochester / Step-by-Step criteria"
+    candidates_for_future:
+      - "Yale Observation Scale (YOS)"
+      - "Step-by-Step approach to febrile infant"
+      - "Rochester criteria"
+
+  - context: age_band.elderly.delirium
+    note: "no Confusion Assessment Method (CAM) for ED delirium screening"
+    candidates_for_future:
+      - "Confusion Assessment Method (CAM-ED)"
+      - "ISAR (Identification of Seniors at Risk)"
+      - "Edmonton Frail Scale"
+
+  - context: organ_systems.gu_renal
+    note: "library has no urology/renal-specific rules"
+    candidates_for_future:
+      - "STONE Score"
+      - "ARBC (acute kidney injury staging is captured indirectly via SOFA renal subscore)"
+
+  - context: organ_systems.toxicology
+    note: "library covers alcohol/benzo withdrawal but not acute toxic ingestions"
+    candidates_for_future:
+      - "Rumack-Matthew nomogram (acetaminophen — categorical/curve)"
+      - "QTc prolongation risk score"
+
+  - context: organ_systems.obgyn
+    note: "library has APGAR + EPDS but no antepartum risk rules"
+    candidates_for_future:
+      - "BISHOP score (cervical readiness)"
+      - "fullPIERS / miniPIERS (preeclampsia adverse outcome)"
