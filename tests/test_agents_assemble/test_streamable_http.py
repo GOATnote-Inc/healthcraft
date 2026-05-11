@@ -113,18 +113,26 @@ def test_initialize_advertises_sharp_fhir_context_capability(server_url: str) ->
     )
 
 
-def test_initialize_uses_current_mcp_protocol_version(server_url: str) -> None:
-    """MCP spec lists 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 as
-    supported. We advertise the latest so Streamable HTTP hosts that gate on
-    minimum version accept us."""
+def test_initialize_uses_widely_supported_mcp_protocol_version(server_url: str) -> None:
+    """Pin to ``2025-03-26`` — the version Prompt Opinion's and most other
+    production MCP host SDKs ship today. The MCP spec lets clients negotiate
+    down to an older version, but many host validators reject handshakes that
+    advertise a newer version than they recognize. Conservative wins."""
     body, _ = _post_jsonrpc(
         server_url,
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
     )
     version = body["result"]["protocolVersion"]
-    assert version in {"2025-11-25", "2025-06-18", "2025-03-26"}, version
-    # Pin the newest supported version so we don't silently regress.
-    assert version == "2025-11-25", f"expected latest MCP version, got {version}"
+    assert version == "2025-03-26", f"expected 2025-03-26, got {version}"
+
+
+def test_get_root_returns_healthz_not_405(server_url: str) -> None:
+    """A bare GET to ``/`` must return 200 with server info — many MCP host
+    validators ping the base URL before posting the initialize, and a 405
+    there gets misclassified as 'endpoint unreachable'."""
+    body, status = _get(server_url, "/")
+    assert status == 200
+    assert body.get("server") == SERVER_NAME, body
 
 
 def test_tools_list_includes_decision_rule_tools(server_url: str) -> None:

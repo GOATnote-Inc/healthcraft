@@ -49,7 +49,7 @@ from healthcraft.world.state import WorldState
 logger = logging.getLogger("agents_assemble.streamable_http")
 
 
-PROTOCOL_VERSION = "2025-11-25"
+PROTOCOL_VERSION = "2025-03-26"
 SERVER_NAME = "agents-assemble/ed-decision-rules"
 SERVER_VERSION = "0.1.0"
 

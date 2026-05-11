@@ -65,7 +65,12 @@ class handler(_Handler):  # noqa: N801 — Vercel naming convention
     coverage = _coverage
 
     def do_GET(self) -> None:  # noqa: N802
-        if self._is_health_path():
+        normalized = self._normalized_path()
+        # ``/``, ``/healthz``, and ``/health`` all return server-info JSON —
+        # MCP host validators often ping the bare URL before posting the
+        # initialize, and a 405 there gets misclassified as "endpoint
+        # unreachable".
+        if self._is_health_path() or normalized in ("/", ""):
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -78,7 +83,7 @@ class handler(_Handler):  # noqa: N801 — Vercel naming convention
                 },
             )
             return
-        if self._is_mcp_path():
+        if normalized in ("/mcp",):
             # MCP Streamable HTTP allows GET-as-SSE; we don't push events.
             self._send_json(
                 HTTPStatus.METHOD_NOT_ALLOWED,
