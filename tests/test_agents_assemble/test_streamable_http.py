@@ -89,6 +89,38 @@ def test_initialize_returns_protocol_version(server_url: str) -> None:
     assert "tools" in result["capabilities"]
 
 
+def test_initialize_advertises_promptopinion_fhir_extension(server_url: str) -> None:
+    """Prompt Opinion's documented MCP extension namespace for FHIR context
+    propagation is ``capabilities.extensions["ai.promptopinion/fhir-context"]``
+    (per their public docs). Hosts read this to decide whether to forward
+    SMART-on-FHIR headers (X-FHIR-Server-URL / X-FHIR-Access-Token /
+    X-Patient-ID) on tool calls. Without this exact key the host displays
+    'MCP server does not support PromptOpinion's FHIR extension' and the
+    agent never receives patient context."""
+    body, _ = _post_jsonrpc(
+        server_url,
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    )
+    caps = body["result"]["capabilities"]
+    extensions = caps.get("extensions") or {}
+    fhir_ext = extensions.get("ai.promptopinion/fhir-context")
+    assert isinstance(fhir_ext, dict), (
+        "ai.promptopinion/fhir-context extension is required for PO FHIR support"
+    )
+    scopes = fhir_ext.get("scopes")
+    assert isinstance(scopes, list) and scopes, "must request at least one SMART scope"
+    # SMART v2 scope syntax: patient/<Resource>.<perms>
+    for s in scopes:
+        assert isinstance(s, dict) and "name" in s, s
+        name = s["name"]
+        # Allowed: patient/<Resource>.<perm> or offline_access
+        assert name == "offline_access" or name.startswith("patient/"), name
+    # Minimum-necessary check: our decision rules need at least these four.
+    scope_names = {s["name"] for s in scopes}
+    assert "patient/Patient.rs" in scope_names
+    assert "patient/Observation.rs" in scope_names
+
+
 def test_initialize_advertises_sharp_fhir_context_capability(server_url: str) -> None:
     """Prompt Opinion / SHARP-aware hosts schema-validate the initialize result
     and require ``capabilities.experimental.fhir_context_required = true`` so
@@ -104,12 +136,12 @@ def test_initialize_advertises_sharp_fhir_context_capability(server_url: str) ->
     caps = body["result"]["capabilities"]
     assert "experimental" in caps, "SHARP capability flag is required"
     # Per MCP spec, each experimental capability is an OBJECT (not a primitive).
-    fhir_cap = caps["experimental"].get("fhir_context_required")
-    assert isinstance(fhir_cap, dict), (
+    sharp = caps["experimental"].get("sharp")
+    assert isinstance(sharp, dict), (
         "experimental capabilities must be objects (MCP spec / Inspector validation)"
     )
-    assert fhir_cap.get("required") is True, (
-        "Hosts use this flag to opt into forwarding SHARP FHIR-context headers"
+    assert sharp.get("fhir_context_required") is True, (
+        "Generic SHARP signal — non-PO MCP hosts read this to forward FHIR context"
     )
 
 

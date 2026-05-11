@@ -61,19 +61,27 @@ SERVER_VERSION = "0.1.0"
 # OAuth dance itself.
 SERVER_CAPABILITIES: dict[str, Any] = {
     "tools": {"listChanged": False},
-    # Per the MCP spec, ``experimental`` is ``Record<string, object>`` — each
-    # named experimental capability MUST be an object, not a primitive. So we
-    # publish the SHARP signal as a structured object the host can read while
-    # still validating against the canonical schema (MCP Inspector enforces).
-    "experimental": {
-        "fhir_context_required": {
-            "required": True,
-            "headers": [
-                "X-FHIR-Server-URL",
-                "X-FHIR-Access-Token",
-                "X-Patient-ID",
+    # Prompt Opinion's documented FHIR-context extension. The exact key
+    # ``ai.promptopinion/fhir-context`` is required for PO to forward
+    # SMART-on-FHIR headers (X-FHIR-Server-URL / X-FHIR-Access-Token /
+    # X-Patient-ID) on tool calls. Scope grammar follows SMART v2:
+    # ``patient/<Resource>.<perm>`` where perm is ``r``, ``s``, or ``rs``.
+    # All scopes are optional — the user can grant any subset; our tools
+    # accept variables directly when FHIR context is absent.
+    "extensions": {
+        "ai.promptopinion/fhir-context": {
+            "scopes": [
+                {"name": "patient/Patient.rs"},
+                {"name": "patient/Observation.rs"},
+                {"name": "patient/Condition.rs"},
+                {"name": "patient/Encounter.rs"},
+                {"name": "patient/MedicationRequest.rs"},
             ],
         },
+    },
+    # Generic SHARP signal (non-PO MCP hosts may read this; kept for
+    # interop with other hackathon platforms).
+    "experimental": {
         "sharp": {
             "version": "1.0",
             "fhir_context_required": True,
