@@ -1,10 +1,11 @@
 """Vercel Function entrypoint for the Streamable-HTTP MCP server.
 
-Vercel's Python runtime detects a top-level class derived from
-``BaseHTTPRequestHandler`` and routes the matching path to it. The function
-is mounted at ``/api/mcp`` (Vercel's file-based convention) and a
-``vercel.json`` rewrite advertises the cleaner ``/mcp`` / ``/healthz``
-public paths.
+Vercel's Python builder uses a single ``app.py`` at repo root and routes
+every request to it. We expose a class derived from
+``BaseHTTPRequestHandler`` named ``handler`` (the runtime's detection
+convention) and dispatch internally by inspecting ``self.path``, so the
+public surface — ``/mcp`` and ``/healthz`` — hits the same code paths as
+the standalone stdlib server.
 
 We:
 
@@ -27,7 +28,7 @@ from typing import Any
 # Ensure the in-repo ``src/`` is importable without an editable install. The
 # Vercel build bundles the whole repo by default; we keep the package layout
 # unchanged so tests and Docker keep working.
-_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
