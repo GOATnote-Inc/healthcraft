@@ -116,12 +116,51 @@ class SuperpowerServer:
         rule_variables = list(rule_dict.get("variables") or [])
 
         # Allow callers to pre-supply variables; extractor fills the gaps.
-        supplied = dict(params.get("variables") or {})
+        # Match supplied keys case- + space- + underscore-insensitively so
+        # an LLM agent that emits ``risk_factors`` matches the rule's
+        # canonical ``Risk factors``. Without this normalization, a high-risk
+        # patient (troponin elevation, positive history, age >= 65) would
+        # silently score 0 and recommend discharge — a clinically dangerous
+        # false-negative. See PR notes; spotted in demo dry-run with Tamera
+        # (46 F) on 2026-05-11.
+        import re
+
+        # Clinical synonyms — common interchangeable abbreviations in EM
+        # documentation. EKG (German Elektrokardiogramm) and ECG (English
+        # Electrocardiogram) name the same study; agents emit either.
+        _CLINICAL_ALIASES = {
+            "ekg": "ecg",
+            "electrocardiogram": "ecg",
+            "creat": "creatinine",
+            "scr": "creatinine",
+            "spo2": "saturation",
+            "sat": "saturation",
+            "bp": "bloodpressure",
+            "sbp": "systolicbloodpressure",
+            "dbp": "diastolicbloodpressure",
+            "hr": "heartrate",
+            "rr": "respiratoryrate",
+            "temp": "temperature",
+            "wbc": "whitebloodcells",
+            "plt": "platelets",
+            "hgb": "hemoglobin",
+            "hb": "hemoglobin",
+        }
+
+        def _norm_key(k: str) -> str:
+            stripped = re.sub(r"[\s_\-]+", "", str(k)).lower()
+            return _CLINICAL_ALIASES.get(stripped, stripped)
+
+        supplied_raw = dict(params.get("variables") or {})
+        supplied_lookup = {_norm_key(k): v for k, v in supplied_raw.items()}
         extraction = self._extractor.extract(rule_name, rule_variables, envelope.bundle)
         merged_variables: dict[str, float | int] = {}
         for name, value in extraction.variables.items():
-            if name in supplied:
-                merged_variables[name] = supplied[name]
+            norm = _norm_key(name)
+            if name in supplied_raw:
+                merged_variables[name] = supplied_raw[name]
+            elif norm in supplied_lookup:
+                merged_variables[name] = supplied_lookup[norm]
             elif value is not None:
                 merged_variables[name] = value
 
@@ -152,7 +191,7 @@ class SuperpowerServer:
                 "method": extraction.method,
                 "rationale": extraction.rationale,
                 "missing": extraction.missing,
-                "supplied": list(supplied.keys()),
+                "supplied": list(supplied_raw.keys()),
             },
         }
         if err:
