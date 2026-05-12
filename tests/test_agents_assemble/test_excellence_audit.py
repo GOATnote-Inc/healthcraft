@@ -370,6 +370,77 @@ def test_f8_get_rule_schema_returns_heart_encoding(server_url: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Security review v0.1.1 — pinned non-regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_security_no_phi_in_observability_log_line() -> None:
+    """The [MCP-IN] log line in app.py must not contain the raw request body.
+    A previous version logged the first 400 chars of body content to stderr,
+    which Vercel persists in function logs — that is a PHI leak vector when
+    callers POST FHIR Bundles containing patient names / DOB / MRN."""
+    import pathlib
+
+    app_py = (
+        pathlib.Path(__file__).resolve().parents[2] / "app.py"
+    ).read_text(encoding="utf-8")
+    # Find the MCP-IN log line. It must not include the variable ``preview``
+    # (which used to contain raw body content) — only ``method_preview`` (the
+    # JSON-RPC method name) is acceptable.
+    log_lines = [
+        line for line in app_py.splitlines() if "[MCP-IN]" in line and "f\"" in line
+    ]
+    assert log_lines, "expected an [MCP-IN] log statement in app.py"
+    for line in log_lines:
+        # Forbid the raw-body interpolation pattern that existed pre-v0.1.1.
+        assert "body={preview}" not in line, (
+            f"[MCP-IN] must NOT log raw body content (PHI leak). Found: {line!r}"
+        )
+
+
+def test_security_tools_call_exception_handler_returns_generic_message() -> None:
+    """Source-level invariant: the catch-all exception handler in
+    streamable_http_server.py's tools/call dispatch must NOT return
+    ``f"Tool error: {exc}"`` to the caller. ``{exc}`` interpolation can
+    leak internal file paths, library names, or framework details via
+    Python's repr() of the exception."""
+    import pathlib
+
+    server_py = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "src"
+        / "healthcraft"
+        / "agents_assemble"
+        / "streamable_http_server.py"
+    ).read_text(encoding="utf-8")
+    # The leaky pattern that existed pre-v0.1.1.
+    assert 'f"Tool error: {exc}"' not in server_py, (
+        "tools/call exception handler must not embed {exc} in the response — "
+        "it leaks internal paths and module names. Use a generic message and "
+        "log the full traceback server-side only."
+    )
+    # The generic-message pattern must be present.
+    assert "Internal error executing tool" in server_py, (
+        "tools/call exception handler must use the generic-message pattern"
+    )
+
+
+def test_security_vercelignore_excludes_env_files() -> None:
+    """Defense-in-depth: .vercelignore must explicitly exclude env files
+    even though .gitignore already does. A future .gitignore change must
+    not silently expose secrets to the function bundle."""
+    import pathlib
+
+    vercel_ignore = (
+        pathlib.Path(__file__).resolve().parents[2] / ".vercelignore"
+    ).read_text(encoding="utf-8")
+    assert ".env" in vercel_ignore, ".vercelignore must list .env"
+    assert "*.pem" in vercel_ignore or "*.key" in vercel_ignore, (
+        ".vercelignore should exclude private-key file patterns"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Cross-cutting: existing tests still pass (sanity)
 # ---------------------------------------------------------------------------
 

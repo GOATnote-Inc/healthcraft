@@ -400,9 +400,18 @@ def handle_jsonrpc(
                 coverage=coverage,
                 world=world,
             )
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive
+            # Don't return the exception string to the caller — internal
+            # paths, file locations, or framework details can leak via
+            # repr(exc). Log the full traceback server-side via .exception()
+            # for our own diagnostics, but tell the caller only the tool
+            # name and a generic message.
             logger.exception("tools/call %s failed", tool_name)
-            return _jsonrpc_error(request_id, -32603, f"Tool error: {exc}")
+            return _jsonrpc_error(
+                request_id,
+                -32603,
+                f"Internal error executing tool '{tool_name}'. See server logs.",
+            )
         text = json.dumps(payload, default=str)
         return _jsonrpc_result(
             request_id,

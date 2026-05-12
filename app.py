@@ -162,23 +162,27 @@ def mcp_get() -> Response:
 
 async def _dispatch_mcp_post(request: Request) -> Response:
     raw = await request.body()
-    # Observability — methods + bytes-in. JSON-RPC carries no secrets.
+    # Observability — log ONLY non-PHI metadata: method, byte count,
+    # User-Agent. Request bodies frequently carry FHIR Bundles with patient
+    # names, DOB, MRN, and other PHI; logging body content (even truncated)
+    # would persist those values in Vercel function logs, which is a
+    # privacy violation regardless of audit value. The rule version hash
+    # and bundle SHA-256 are surfaced in the response payload — that's the
+    # audit trail. The wire is not for raw payload logging.
     try:
         method_preview = "?"
-        preview = "<empty>"
         if raw:
-            preview = raw.decode("utf-8", errors="replace")[:400]
             try:
                 parsed_preview = json.loads(raw)
                 if isinstance(parsed_preview, dict):
-                    method_preview = str(parsed_preview.get("method", "?"))
+                    method_preview = str(parsed_preview.get("method", "?"))[:40]
                 elif isinstance(parsed_preview, list) and parsed_preview:
                     method_preview = f"batch[{len(parsed_preview)}]"
             except Exception:
-                pass
+                method_preview = "<unparseable>"
         ua = request.headers.get("user-agent", "?")[:80]
         print(
-            f"[MCP-IN] method={method_preview} bytes={len(raw)} ua={ua} body={preview}",
+            f"[MCP-IN] method={method_preview} bytes={len(raw)} ua={ua}",
             file=sys.stderr,
             flush=True,
         )
