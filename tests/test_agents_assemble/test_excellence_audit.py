@@ -425,6 +425,72 @@ def test_security_tools_call_exception_handler_returns_generic_message() -> None
     )
 
 
+def test_compliance_documents_present_and_link_to_each_other() -> None:
+    """Compliance posture is documented in three artifacts that must all be
+    present and cross-reference each other. Missing any of them means a
+    reviewer can't verify the claims this repo makes about HIPAA Security
+    Rule and SOC 2 Trust Service Criteria alignment."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    for name in (
+        "docs/COMPLIANCE.md",
+        "docs/PRE_DEPLOYMENT_CHECKLIST.md",
+        "docs/SECURITY_REVIEW_v0.1.1.md",
+        "SECURITY.md",
+    ):
+        assert (root / name).exists(), f"required compliance doc missing: {name}"
+
+    compliance = (root / "docs/COMPLIANCE.md").read_text(encoding="utf-8")
+    # COMPLIANCE.md must reference both HIPAA and SOC2 anchors so an auditor
+    # finds the relevant control mappings.
+    assert "45 CFR" in compliance, "COMPLIANCE.md must cite HIPAA Security Rule (45 CFR)"
+    assert "164.312" in compliance, "COMPLIANCE.md must cite §164.312 Technical Safeguards"
+    assert "Trust Service" in compliance, "COMPLIANCE.md must cover SOC 2 TSC"
+    assert "BAA" in compliance, "COMPLIANCE.md must address the BAA requirement"
+
+    checklist = (root / "docs/PRE_DEPLOYMENT_CHECKLIST.md").read_text(encoding="utf-8")
+    # The checklist must enumerate signing parties and BAA requirements.
+    assert "Security Officer" in checklist
+    assert "BAA" in checklist
+    assert "Risk Analysis" in checklist
+
+    security = (root / "SECURITY.md").read_text(encoding="utf-8")
+    # The security policy must reference the compliance + audit docs.
+    assert "docs/COMPLIANCE.md" in security
+    assert "docs/SECURITY_REVIEW_v0.1.1.md" in security
+
+
+def test_compliance_does_not_overclaim_certification() -> None:
+    """Hard invariant: this software is not HIPAA-certified or SOC 2-attested,
+    and the compliance docs must not say it is. A reviewer who sees a
+    'HIPAA compliant' claim with no BAA and no risk analysis will rightly
+    distrust the rest of the documentation. We claim controls, not
+    certifications."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    forbidden_patterns = [
+        r"\bHIPAA\s*-?\s*compliant\b",
+        r"\bSOC\s*2\s*-?\s*compliant\b",
+        r"\bSOC\s*2\s*certified\b",
+        r"\bHIPAA\s*certified\b",
+        r"\bfully\s*compliant\s*with\s*HIPAA\b",
+        r"\bcomplete[d]?\s*SOC\s*2\s*audit\b",
+    ]
+    for doc in ("docs/COMPLIANCE.md", "docs/PRE_DEPLOYMENT_CHECKLIST.md", "SECURITY.md", "README.md"):
+        p = root / doc
+        if not p.exists():
+            continue
+        text = p.read_text(encoding="utf-8")
+        for pattern in forbidden_patterns:
+            assert not re.search(pattern, text, flags=re.IGNORECASE), (
+                f"{doc} contains an overclaim matching /{pattern}/i — "
+                f"this software is not certified; revise the language."
+            )
+
+
 def test_security_vercelignore_excludes_env_files() -> None:
     """Defense-in-depth: .vercelignore must explicitly exclude env files
     even though .gitignore already does. A future .gitignore change must
