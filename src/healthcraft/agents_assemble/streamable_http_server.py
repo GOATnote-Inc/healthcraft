@@ -111,7 +111,14 @@ def _tool_catalog() -> list[dict[str, Any]]:
                 "extraction rationale, and a SHA-256 of the input bundle for "
                 "audit. Either supply ``bundle`` (a FHIR R4 Bundle) or "
                 "``variables`` (rule inputs as a dict) — or both; supplied "
-                "variables override anything the extractor finds."
+                "variables override anything the extractor finds.\n\n"
+                "VARIABLE ENCODING — pass integers OR natural-language phrases. "
+                "Example for HEART Score: {history: 2 OR 'highly suspicious', "
+                "ecg: 1 OR 'non-specific ST-T changes', age: 2 OR '>=65', "
+                "risk_factors: 2 OR 'coronary artery disease', "
+                "troponin: 1 OR '1-3x ULN'}. Each variable maps to 0/1/2 per "
+                "the rule's canonical encoding; the server coerces text to "
+                "integers via per-rule synonym tables."
             ),
             "inputSchema": {
                 "type": "object",

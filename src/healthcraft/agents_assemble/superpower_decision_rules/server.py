@@ -154,15 +154,99 @@ class SuperpowerServer:
         supplied_raw = dict(params.get("variables") or {})
         supplied_lookup = {_norm_key(k): v for k, v in supplied_raw.items()}
         extraction = self._extractor.extract(rule_name, rule_variables, envelope.bundle)
+
+        # Coerce natural-language variable values to integers. An LLM agent
+        # reading FHIR Conditions sees "coronary artery disease" not "2";
+        # without coercion, the additive scorer multiplies string by weight
+        # and raises. Per-rule semantic synonym tables map common natural-
+        # language descriptors to the canonical integer encoding.
+        def _coerce(rule: str, var: str, value: Any) -> Any:
+            if value is None:
+                return None
+            if isinstance(value, (int, float)):
+                return value
+            if isinstance(value, bool):
+                return int(value)
+            text = str(value).strip().lower()
+            # Try direct int parse first ("2", "0").
+            try:
+                return int(text)
+            except ValueError:
+                pass
+            try:
+                return float(text)
+            except ValueError:
+                pass
+            # Per-rule semantic mapping. Keys are the rule's canonical
+            # variable name lowercased; values map descriptor -> int.
+            heart_history = {
+                "highly suspicious": 2, "high": 2, "definite": 2, "classic": 2,
+                "typical": 2, "anginal": 2, "cardiac": 2,
+                "moderately suspicious": 1, "moderate": 1,
+                "atypical with concerning features": 1, "concerning": 1,
+                "atypical": 1, "intermediate": 1,
+                "slightly suspicious": 0, "low": 0, "non-suspicious": 0,
+                "non-cardiac": 0, "musculoskeletal": 0, "pleuritic": 0,
+                "reproducible": 0, "no": 0, "none": 0,
+            }
+            heart_ecg = {
+                "significant st depression": 2, "st elevation": 2,
+                "st-segment depression": 2, "st depression": 2,
+                "non-specific repolarization": 1, "non-specific st-t": 1,
+                "non-specific st-t wave changes": 1, "non-specific st changes": 1,
+                "non-specific repolarisation disturbance": 1,
+                "lbbb": 1, "lvh": 1, "abnormal": 1, "t-wave inversion": 1,
+                "normal": 0, "no changes": 0, "unremarkable": 0,
+            }
+            heart_age = {"<45": 0, "45-64": 1, ">=65": 2, "65+": 2, "elderly": 2}
+            heart_risk = {
+                "none": 0, "no risk factors": 0,
+                "1-2 risk factors": 1, "one risk factor": 1, "two risk factors": 1,
+                ">=3 risk factors": 2, "three or more": 2,
+                "history of atherosclerotic disease": 2,
+                "coronary artery disease": 2, "coronary disease": 2,
+                "cad": 2, "atherosclerosis": 2, "prior mi": 2, "prior stent": 2,
+                "prior cabg": 2,
+            }
+            heart_troponin = {
+                "normal": 0, "<= normal limit": 0,
+                "1-3x normal limit": 1, "1-3x uln": 1, "mildly elevated": 1,
+                ">3x normal limit": 2, ">3x uln": 2, "markedly elevated": 2,
+                "elevated": 1,  # default elevated->1 (conservative)
+            }
+            mappings = {
+                "HEART Score": {
+                    "history": heart_history,
+                    "ecg": heart_ecg,
+                    "age": heart_age,
+                    "risk factors": heart_risk,
+                    "troponin": heart_troponin,
+                },
+            }
+            rule_map = mappings.get(rule, {})
+            var_map = rule_map.get(var.lower(), {})
+            if text in var_map:
+                return var_map[text]
+            # Partial-match fallback — useful when LLM emits a phrase that
+            # contains the key word, e.g. "history of CAD on stent" -> "cad".
+            for k, v in var_map.items():
+                if k in text:
+                    return v
+            return value  # unmappable — pass through; scorer will error visibly
+
         merged_variables: dict[str, float | int] = {}
         for name, value in extraction.variables.items():
             norm = _norm_key(name)
+            raw_val = None
             if name in supplied_raw:
-                merged_variables[name] = supplied_raw[name]
+                raw_val = supplied_raw[name]
             elif norm in supplied_lookup:
-                merged_variables[name] = supplied_lookup[norm]
+                raw_val = supplied_lookup[norm]
             elif value is not None:
-                merged_variables[name] = value
+                raw_val = value
+            if raw_val is None:
+                continue
+            merged_variables[name] = _coerce(rule_name, name, raw_val)
 
         # Dispatch via the scoring-strategy registry. ``additive`` (default)
         # is bit-for-bit equivalent to ``run_decision_rule``; non-additive
