@@ -152,6 +152,26 @@ def _tool_catalog() -> list[dict[str, Any]]:
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         },
         {
+            "name": "getRuleSchema",
+            "description": (
+                "Return the canonical variable names, ranges, and score "
+                "thresholds for a specific bundled rule. Use this BEFORE "
+                "applyDecisionRule to learn the exact variable encoding the "
+                "rule expects so you can supply integers natively rather than "
+                "relying on the natural-language coercion fallback."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ruleName": {
+                        "type": "string",
+                        "description": "Canonical rule name (e.g. 'HEART Score').",
+                    },
+                },
+                "required": ["ruleName"],
+            },
+        },
+        {
             "name": "getCoverageForComplaint",
             "description": (
                 "Look up the ranked rule list for a chief complaint (e.g. "
@@ -259,10 +279,70 @@ def _dispatch_tool(
             "count": len(ranked),
         }
 
+    if tool_name == "getRuleSchema":
+        from healthcraft.agents_assemble.superpower_decision_rules.server import (
+            _lookup_rule,
+            list_rule_schemas,
+        )
+
+        target = str(arguments.get("ruleName") or arguments.get("rule_name") or "").strip()
+        if not target:
+            return {"status": "error", "code": "missing_param", "message": "ruleName is required"}
+        rule = _lookup_rule(world, target)
+        if rule is None:
+            return {
+                "status": "error",
+                "code": "rule_not_found",
+                "message": f"Decision rule '{target}' not found.",
+            }
+        all_schemas = list_rule_schemas(world)
+        # Find canonical name we resolved to.
+        canon = getattr(rule, "name", None) or (rule.get("name") if isinstance(rule, dict) else target)
+        schema = all_schemas.get(canon)
+        if schema is None:
+            return {
+                "status": "error",
+                "code": "schema_unavailable",
+                "message": f"No schema for rule '{canon}'.",
+            }
+        # Add inline natural-language synonym hints for the common rules so
+        # the LLM agent has everything it needs in one response.
+        synonyms = _RULE_NL_SYNONYMS.get(canon)
+        if synonyms:
+            for v in schema["variables"]:
+                vname = v.get("name", "")
+                if vname.lower() in synonyms:
+                    v["acceptedValues"] = synonyms[vname.lower()]
+        return {"ruleName": canon, **schema}
+
     if tool_name in {"applyDecisionRule", "getProtocolDetails", "getReferenceArticle"}:
         return superpower.call(tool_name, dict(arguments))
 
     return {"status": "error", "code": "unknown_tool", "message": f"Unknown tool: {tool_name}"}
+
+
+# Natural-language synonym tables exposed to MCP agents via getRuleSchema.
+# Mirrors the server-side coercion map so an agent that calls getRuleSchema
+# first can supply correctly-encoded values without server-side fallback.
+_RULE_NL_SYNONYMS: dict[str, dict[str, dict[str, int]]] = {
+    "HEART Score": {
+        "history": {
+            "highly suspicious": 2, "moderately suspicious": 1, "slightly suspicious": 0,
+        },
+        "ecg": {
+            "significant ST depression": 2, "non-specific ST-T changes": 1, "normal": 0,
+        },
+        "age": {">=65": 2, "45-64": 1, "<45": 0},
+        "risk factors": {
+            ">=3 risk factors or history of atherosclerotic disease": 2,
+            "1-2 risk factors": 1,
+            "no risk factors": 0,
+        },
+        "troponin": {
+            ">3x normal limit": 2, "1-3x normal limit": 1, "normal": 0,
+        },
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +446,18 @@ class _Handler(BaseHTTPRequestHandler):
     coverage: CoverageMatrix | None = None
     world: WorldState | None = None
 
+    # F4: Body size cap — refuse oversized payloads at the edge.
+    MAX_BODY_BYTES: int = 5 * 1024 * 1024
+
+    def _send_hardening(self) -> None:
+        """F7: OWASP-recommended hardening headers on every response."""
+        self.send_header("x-content-type-options", "nosniff")
+        self.send_header("x-frame-options", "DENY")
+        self.send_header("referrer-policy", "no-referrer")
+        self.send_header(
+            "content-security-policy", "default-src 'none'; frame-ancestors 'none'"
+        )
+
     def _send_json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(status)
@@ -377,6 +469,7 @@ class _Handler(BaseHTTPRequestHandler):
             "access-control-allow-headers",
             "content-type, mcp-session-id, mcp-protocol-version",
         )
+        self._send_hardening()
         self.end_headers()
         self.wfile.write(body)
 
@@ -388,6 +481,7 @@ class _Handler(BaseHTTPRequestHandler):
             "access-control-allow-headers",
             "content-type, mcp-session-id, mcp-protocol-version",
         )
+        self._send_hardening()
         self.send_header("content-length", "0")
         self.end_headers()
 
@@ -418,6 +512,35 @@ class _Handler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/.well-known/oauth-protected-resource":
+            # F6: RFC 9728 / MCP June 2025 discovery document. Even for the
+            # open-access v0.1 release, exposing this signals spec awareness
+            # and lets smart clients deterministically detect "no auth needed".
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "resource": "https://mcp.thegoatnote.com/mcp",
+                    "authorization_servers": [],
+                    "scopes_supported": [
+                        "patient/Patient.rs",
+                        "patient/Observation.rs",
+                        "patient/Condition.rs",
+                        "patient/Encounter.rs",
+                        "patient/MedicationRequest.rs",
+                    ],
+                    "bearer_methods_supported": [],
+                    "resource_documentation": (
+                        "https://github.com/GOATnote-Inc/healthcraft"
+                    ),
+                    "auth_required": False,
+                    "notes": (
+                        "Open access for v0.1 hackathon submission. OAuth 2.1 "
+                        "+ PKCE + RFC 8707 Resource Indicators targeted for "
+                        "v0.2 per MCP June 2025 spec."
+                    ),
+                },
+            )
+            return
         if path == "/mcp":
             # MCP Streamable HTTP allows a GET to open a server-initiated SSE
             # stream. We don't push server-to-client events, so return 405 as
@@ -433,6 +556,18 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0].rstrip("/")
         if path != "/mcp":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": self.path})
+            return
+
+        # F4: refuse oversized payloads at the edge.
+        try:
+            cl = int(self.headers.get("content-length") or 0)
+        except (ValueError, TypeError):
+            cl = 0
+        if cl > self.MAX_BODY_BYTES:
+            self._send_json(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                {"error": "payload_too_large", "limit_bytes": self.MAX_BODY_BYTES},
+            )
             return
 
         body = self._read_json_body()

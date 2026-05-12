@@ -74,6 +74,65 @@ app.add_middleware(
 )
 
 
+# F7: OWASP-recommended hardening headers on every response. HSTS is set
+# by Vercel at the edge; we add the rest at the application layer.
+@app.middleware("http")
+async def _hardening_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    return response
+
+
+# F4: Refuse bodies larger than 5 MB at the edge — pre-empts the function
+# memory budget. JSON-RPC MCP traffic is small; even a maximal FHIR Bundle
+# for ED scoring sits comfortably under 1 MB.
+MAX_BODY_BYTES = 5 * 1024 * 1024
+
+
+@app.middleware("http")
+async def _enforce_body_size_cap(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl:
+        try:
+            if int(cl) > MAX_BODY_BYTES:
+                return JSONResponse(
+                    {"error": "payload_too_large", "limit_bytes": MAX_BODY_BYTES},
+                    status_code=413,
+                )
+        except (ValueError, TypeError):
+            pass
+    return await call_next(request)
+
+
+# F6: ``.well-known/oauth-protected-resource`` per RFC 9728 / MCP June 2025
+# spec. Even open-access servers expose this discovery document so clients
+# can determine auth requirements deterministically.
+@app.get("/.well-known/oauth-protected-resource")
+def well_known_oauth_protected_resource() -> dict[str, Any]:
+    return {
+        "resource": "https://mcp.thegoatnote.com/mcp",
+        "authorization_servers": [],
+        "scopes_supported": [
+            "patient/Patient.rs",
+            "patient/Observation.rs",
+            "patient/Condition.rs",
+            "patient/Encounter.rs",
+            "patient/MedicationRequest.rs",
+        ],
+        "bearer_methods_supported": [],
+        "resource_documentation": "https://github.com/GOATnote-Inc/healthcraft",
+        "resource_policy_uri": "https://github.com/GOATnote-Inc/healthcraft/blob/main/SECURITY.md",
+        "auth_required": False,
+        "notes": (
+            "Open access for the v0.1 hackathon submission. OAuth 2.1 + PKCE + "
+            "RFC 8707 Resource Indicators targeted for v0.2 per MCP June 2025 spec."
+        ),
+    }
+
+
 def _healthz_payload() -> dict[str, Any]:
     return {
         "status": "ok",

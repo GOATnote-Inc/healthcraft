@@ -101,15 +101,35 @@ class SuperpowerServer:
 
         rule = _lookup_rule(self._world, rule_name)
         if rule is None:
+            # Compose 3 closest-match suggestions so the agent can self-correct.
+            all_names = []
+            for r in self._world.list_entities("decision_rule").values():
+                n = getattr(r, "name", None) or (r.get("name") if isinstance(r, dict) else "")
+                if n:
+                    all_names.append(n)
+            suggestions = _closest_rule_names(rule_name, all_names, n=3)
             return reply_envelope(
                 envelope,
                 {
                     "status": "error",
+                    # Legacy top-level keys preserved for backward compat.
                     "code": "rule_not_found",
-                    "message": f"Decision rule '{rule_name}' not loaded in world state",
+                    "message": (
+                        f"Decision rule '{rule_name}' not found. "
+                        f"Closest matches: {', '.join(suggestions) if suggestions else '(none)'}"
+                    ),
+                    # New structured error object carrying suggestions.
+                    "error": {
+                        "code": "rule_not_found",
+                        "message": (
+                            f"Decision rule '{rule_name}' not found. "
+                            f"Closest matches: {', '.join(suggestions) if suggestions else '(none)'}"
+                        ),
+                        "suggestions": suggestions,
+                    },
                 },
                 tool_name="applyDecisionRule",
-                trace_detail={"ruleName": rule_name},
+                trace_detail={"ruleName": rule_name, "suggestions": suggestions},
             )
 
         rule_dict = asdict(rule) if hasattr(rule, "__dataclass_fields__") else dict(rule)
@@ -242,11 +262,59 @@ class SuperpowerServer:
                 raw_val = supplied_raw[name]
             elif norm in supplied_lookup:
                 raw_val = supplied_lookup[norm]
-            elif value is not None:
-                raw_val = value
+            else:
+                # Substring fallback: an LLM agent that sees the canonical
+                # "Eye opening response" may pass just "eye"; match if the
+                # supplied normalized key is a substring of the canonical
+                # normalized name (or vice versa). Length floor of 2 chars
+                # prevents stray single-letter collisions.
+                substring_hit = None
+                for sk, sv in supplied_lookup.items():
+                    if len(sk) >= 2 and (sk in norm or norm in sk):
+                        substring_hit = sv
+                        break
+                if substring_hit is not None:
+                    raw_val = substring_hit
+                elif value is not None:
+                    raw_val = value
             if raw_val is None:
                 continue
             merged_variables[name] = _coerce(rule_name, name, raw_val)
+
+        # F1: Refuse to score a rule when zero variables resolved — silently
+        # producing 0/N is clinically dangerous (Glasgow Coma Scale's minimum
+        # is 3, not 0; HEART score 0 implies thorough negative workup, not
+        # missing data). Surface as missing_variables status with the list
+        # of expected variable names so the caller can supply them.
+        if not merged_variables and rule_variables:
+            expected_names = [
+                v.get("name") if isinstance(v, dict) else getattr(v, "name", str(v))
+                for v in rule_variables
+            ]
+            return reply_envelope(
+                envelope,
+                {
+                    "status": "error",
+                    "rule": rule_dict.get("name", rule_name),
+                    "ruleVersion": rule_version(rule),
+                    "error": {
+                        "code": "missing_variables",
+                        "message": (
+                            f"Cannot score '{rule_dict.get('name', rule_name)}' — "
+                            f"no variables supplied and FHIR extractor found none. "
+                            f"Required: {', '.join(filter(None, expected_names))}"
+                        ),
+                        "required": [n for n in expected_names if n],
+                    },
+                    "extraction": {
+                        "method": extraction.method,
+                        "missing": extraction.missing,
+                        "supplied": list(supplied_raw.keys()),
+                    },
+                },
+                tool_name="applyDecisionRule",
+                trace_detail={"ruleName": rule_name, "missingVariables": expected_names},
+            )
 
         # Dispatch via the scoring-strategy registry. ``additive`` (default)
         # is bit-for-bit equivalent to ``run_decision_rule``; non-additive
@@ -263,6 +331,15 @@ class SuperpowerServer:
         else:
             data = score_rule(merged_variables, rule_dict)
             err = None
+
+        # F3: Annotate the result with an evidence note when the score falls
+        # in a tier where current literature actively contests the original
+        # recommendation. Without this, agents cite our recommendation as
+        # authoritative when downstream clinicians know it's under revision.
+        evidence_note = _evidence_note_for(rule_dict.get("name", rule_name), data)
+        if evidence_note and isinstance(data, dict):
+            data = dict(data)
+            data["evidence_note"] = evidence_note
 
         payload = {
             "status": "error" if err else "ok",
@@ -298,12 +375,163 @@ class SuperpowerServer:
         )
 
 
+# Common aliases — short forms and punctuation drops that an LLM agent or
+# clinician would naturally type. Maps lowercased input -> canonical rule
+# name fragment that matches uniquely against the loaded rules.
+_RULE_ALIASES = {
+    "heart": "HEART Score",
+    "wells pe": "Wells Criteria for PE",
+    "wells dvt": "Wells Criteria for DVT",
+    "hasbled": "HAS-BLED Score",
+    "has bled": "HAS-BLED Score",
+    "has-bled": "HAS-BLED Score",
+    "curb65": "CURB-65",
+    "curb 65": "CURB-65",
+    "qsofa": "qSOFA",
+    "cha2ds2": "CHA2DS2-VASc",
+    "chads2": "CHADS2",
+    "glasgow coma": "Glasgow Coma Scale",
+    "gcs": "Glasgow Coma Scale",
+    "news 2": "NEWS2",
+    "perc": "PERC Rule",
+    "abcd2": "ABCD2 Score",
+    "alvarado": "Alvarado Score",
+    "meld na": "MELD-Na",
+    "meld": "MELD",
+    "san francisco syncope": "San Francisco Syncope Rule",
+    "sirs": "SIRS Criteria",
+}
+
+
+def _norm_name(text: str) -> str:
+    """Aggressive normalization for fuzzy rule-name matching."""
+    import re
+
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _closest_rule_names(rule_name: str, all_names: list[str], n: int = 3) -> list[str]:
+    """Return the ``n`` closest canonical names by difflib ratio."""
+    import difflib
+
+    return difflib.get_close_matches(rule_name, all_names, n=n, cutoff=0.0)
+
+
+def _evidence_note_for(rule_name: str, result_data: Any) -> str | None:
+    """Return a citation-grade note when current literature is in active
+    tension with the bundled recommendation. Returns ``None`` if the result
+    is within the rule's well-established consensus tier."""
+    if not isinstance(result_data, dict):
+        return None
+    score = result_data.get("score")
+    if rule_name == "HEART Score" and isinstance(score, (int, float)) and 1 <= score <= 3:
+        return (
+            "Recent evidence — 2025 single-center validation (Cureus, PMC12151265) "
+            "found 4.4% 30-day MACE at HEART<=3, exceeding the 2% ACEP "
+            "safe-discharge threshold. Some institutions are recalibrating "
+            "the low-risk cutoff to <=2. Consider serial troponin or shared "
+            "decision-making for HEART 2-3."
+        )
+    return None
+
+
+def list_rule_schemas(world: WorldState) -> dict[str, Any]:
+    """Return schemas for every loaded rule — used by the getRuleSchema tool."""
+    out: dict[str, Any] = {}
+    for r in world.list_entities("decision_rule").values():
+        rule_dict = asdict(r) if hasattr(r, "__dataclass_fields__") else dict(r)
+        name = rule_dict.get("name")
+        if not name:
+            continue
+        out[name] = {
+            "name": name,
+            "fullName": rule_dict.get("full_name", ""),
+            "category": rule_dict.get("category", ""),
+            "description": rule_dict.get("description", ""),
+            "scorer": rule_dict.get("scorer", "additive"),
+            "evidenceLevel": rule_dict.get("evidence_level", ""),
+            "url": rule_dict.get("url", ""),
+            "variables": [
+                {"name": v} if isinstance(v, str) else dict(v) if hasattr(v, "items") else {"name": str(v)}
+                for v in (rule_dict.get("variables") or [])
+            ],
+            "scoreRanges": list(rule_dict.get("score_ranges") or []),
+        }
+    return out
+
+
 def _lookup_rule(world: WorldState, rule_name: str) -> Any | None:
+    """Resolve a rule by exact, case-insensitive, alias, or fuzzy match.
+
+    Resolution order (each step short-circuits on hit):
+
+    1. Case-insensitive equality on canonical name.
+    2. Alias-table lookup (lowercased, normalized).
+    3. Normalized-string equality (drop all non-alphanumerics, case-fold).
+    4. Substring match (input is a substring of canonical, or vice versa).
+    5. difflib closest-match with cutoff 0.6.
+
+    Returns the matched rule entity, or ``None`` on miss.
+    """
     rules = world.list_entities("decision_rule")
+    by_name = {}
     for rule in rules.values():
         name = getattr(rule, "name", None) or (rule.get("name") if isinstance(rule, dict) else "")
-        if name and name.lower() == rule_name.lower():
+        if name:
+            by_name[name] = rule
+
+    if not rule_name:
+        return None
+
+    target = rule_name.strip()
+    target_lower = target.lower()
+    target_norm = _norm_name(target)
+
+    # Step 1: exact case-insensitive.
+    for name, rule in by_name.items():
+        if name.lower() == target_lower:
             return rule
+
+    # Step 2: alias table.
+    alias_lookup_keys = [target_lower, _norm_name(target)]
+    for k in alias_lookup_keys:
+        for alias_key, canonical in _RULE_ALIASES.items():
+            if k == _norm_name(alias_key):
+                # Resolve canonical fragment against loaded rules.
+                for name, rule in by_name.items():
+                    if canonical.lower() == name.lower():
+                        return rule
+                # Canonical fragment as substring match.
+                for name, rule in by_name.items():
+                    if canonical.lower() in name.lower():
+                        return rule
+
+    # Step 3: normalized-string equality.
+    for name, rule in by_name.items():
+        if _norm_name(name) == target_norm:
+            return rule
+
+    # Step 4: substring containment (both directions).
+    candidates = [
+        (name, rule)
+        for name, rule in by_name.items()
+        if target_norm in _norm_name(name) or _norm_name(name) in target_norm
+    ]
+    if len(candidates) == 1:
+        return candidates[0][1]
+    # If multiple substring hits, prefer the shortest canonical name —
+    # avoids "Wells" matching three different Wells rules.
+    if candidates:
+        candidates.sort(key=lambda kv: len(kv[0]))
+        return candidates[0][1]
+
+    # Step 5: difflib closest match with cutoff.
+    import difflib
+
+    matches = difflib.get_close_matches(target, list(by_name.keys()), n=1, cutoff=0.6)
+    if matches:
+        return by_name[matches[0]]
+
     return None
 
 
