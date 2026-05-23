@@ -17,7 +17,10 @@ from datetime import datetime, timezone
 import pytest
 
 from healthcraft.mcp.tools.mutate_tools import (
+    apply_protocol,
     create_clinical_order,
+    register_patient,
+    update_encounter,
     update_patient_record,
     update_task_status,
 )
@@ -116,7 +119,10 @@ class TestCreateOrderIdempotency:
         assert r_a["data"]["id"] != r_b["data"]["id"]
 
     def test_flag_off_creates_fresh_uuid(self, world: WorldState) -> None:
-        # Flag off = V8 behavior: fresh UUID even with same idempotency_key
+        # PR-B / WS-5: idempotent tools default to ON; this test documents the
+        # explicit opt-out via HC_IDEMPOTENT_TOOLS=0 (preserves V8 byte-identical
+        # replay).
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "0"
         params = {
             "encounter_id": "ENC-TEST",
             "order_type": "lab",
@@ -167,7 +173,9 @@ class TestUpdatePatientRecordDedup:
         assert "Metformin 500mg" in meds
 
     def test_flag_off_allows_duplicates(self, world: WorldState) -> None:
-        # V8 behavior: duplicates are appended
+        # PR-B / WS-5: idempotent tools default to ON; this test documents
+        # the explicit opt-out via HC_IDEMPOTENT_TOOLS=0 for V8 replay.
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "0"
         params = {"patient_id": "PAT-TEST", "allergies": ["Penicillin"]}
         r = update_patient_record(world, params)
         assert r["status"] == "ok"
@@ -223,7 +231,9 @@ class TestUpdateTaskStatusTerminalGuard:
         assert r.get("deduplicated") is True
 
     def test_flag_off_allows_status_change_from_terminal(self, world: WorldState) -> None:
-        # V8 behavior: no guard
+        # PR-B / WS-5: idempotent tools default to ON; this test documents
+        # the explicit opt-out via HC_IDEMPOTENT_TOOLS=0 for V8 replay.
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "0"
         self._create_task(world, status="completed")
         r = update_task_status(world, {"task_id": "TSK-TEST", "status": "in_progress"})
         assert r["status"] == "ok"
@@ -265,3 +275,149 @@ class TestAuditEntryBackwardCompat:
         assert entry.attempt_number == 2
         assert entry.error_code == "timeout"
         assert entry.deduplicated is True
+
+
+# ---------------------------------------------------------------------------
+# PR-B (WS-5): the 3 mutate tools that previously had no idempotency support.
+# Tests use the audit-log replay pattern (_is_idempotent_replay): a prior
+# committed ok-status entry with the same (tool_name, idempotency_key)
+# causes the second call to return deduplicated=True without re-applying.
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateEncounterIdempotency:
+    """update_encounter — audit-log dedup added in PR-B."""
+
+    def test_replay_returns_deduplicated(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        world.record_audit(
+            tool_name="updateEncounter",
+            params={"encounter_id": "ENC-TEST", "disposition": "admitted"},
+            result_summary="ok",
+            idempotency_key="enc-k1",
+        )
+        params = {
+            "encounter_id": "ENC-TEST",
+            "disposition": "admitted",
+            "idempotency_key": "enc-k1",
+        }
+        r = update_encounter(world, params)
+        assert r["status"] == "ok"
+        assert r.get("deduplicated") is True
+
+    def test_no_prior_audit_proceeds_normally(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        params = {
+            "encounter_id": "ENC-TEST",
+            "disposition": "admitted",
+            "idempotency_key": "enc-fresh",
+        }
+        r = update_encounter(world, params)
+        assert r["status"] == "ok"
+        assert r.get("deduplicated") is not True
+
+
+class TestRegisterPatientIdempotency:
+    """register_patient — deterministic-ID dedup added in PR-B."""
+
+    def test_same_key_returns_same_patient(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        params = {
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "idempotency_key": "reg-k1",
+        }
+        r1 = register_patient(world, params)
+        r2 = register_patient(world, params)
+        assert r1["status"] == "ok"
+        assert r2["status"] == "ok"
+        assert r1["data"]["id"] == r2["data"]["id"]
+        assert r2.get("deduplicated") is True
+
+    def test_different_keys_create_distinct_patients(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        r1 = register_patient(
+            world,
+            {"first_name": "A", "last_name": "Smith", "idempotency_key": "reg-1"},
+        )
+        r2 = register_patient(
+            world,
+            {"first_name": "A", "last_name": "Smith", "idempotency_key": "reg-2"},
+        )
+        assert r1["data"]["id"] != r2["data"]["id"]
+        assert r2.get("deduplicated") is not True
+
+
+class TestApplyProtocolIdempotency:
+    """apply_protocol — audit-log dedup added in PR-B."""
+
+    def test_replay_returns_deduplicated(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        world.record_audit(
+            tool_name="applyProtocol",
+            params={"encounter_id": "ENC-TEST", "protocol_name": "sepsis_bundle"},
+            result_summary="ok",
+            idempotency_key="proto-k1",
+        )
+        params = {
+            "encounter_id": "ENC-TEST",
+            "protocol_name": "sepsis_bundle",
+            "idempotency_key": "proto-k1",
+        }
+        r = apply_protocol(world, params)
+        assert r["status"] == "ok"
+        assert r.get("deduplicated") is True
+        # No new clinical_task entities created — the deduplicated branch
+        # returns an empty tasks_created list.
+        assert r["data"]["tasks_created"] == []
+
+
+class TestServerThreadsIdempotencyMetadata:
+    """server.call_tool extracts idempotency_key + attempt_number and threads
+    them to record_audit (PR-B / WS-5). Verified end-to-end via the server."""
+
+    def test_attempt_number_increments_across_retries(self, world: WorldState) -> None:
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        from healthcraft.mcp.server import create_server
+
+        server = create_server(world)
+        params = {
+            "encounter_id": "ENC-TEST",
+            "order_type": "lab",
+            "details": {"test": "CBC"},
+            "idempotency_key": "srv-k1",
+        }
+        server.call_tool("createClinicalOrder", params)
+        server.call_tool("createClinicalOrder", params)
+        server.call_tool("createClinicalOrder", params)
+        # Three audit entries with the same key, attempt_number 1/2/3.
+        entries = [e for e in world.audit_log if e.idempotency_key == "srv-k1"]
+        assert len(entries) == 3
+        assert [e.attempt_number for e in entries] == [1, 2, 3]
+        # Later attempts dedup'd.
+        assert entries[1].deduplicated is True
+        assert entries[2].deduplicated is True
+
+    def test_error_code_is_threaded_to_audit(self, world: WorldState) -> None:
+        """Previously latent: error responses had error_code on the dict but
+        record_audit was called without it. PR-B fixes this."""
+        os.environ["HC_IDEMPOTENT_TOOLS"] = "1"
+        from healthcraft.mcp.server import create_server
+
+        server = create_server(world)
+        # Trigger an error: encounter not found.
+        server.call_tool(
+            "createClinicalOrder",
+            {
+                "encounter_id": "ENC-DOES-NOT-EXIST",
+                "order_type": "lab",
+                "details": {"test": "CBC"},
+            },
+        )
+        entries = [
+            e
+            for e in world.audit_log
+            if e.tool_name == "createClinicalOrder" and e.result_summary == "error"
+        ]
+        assert len(entries) == 1
+        assert entries[0].error_code == "encounter_not_found"

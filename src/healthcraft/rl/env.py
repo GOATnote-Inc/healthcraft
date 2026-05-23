@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from healthcraft.llm.agent import ModelClient, run_agent_task
+from healthcraft.mcp.faults import FaultInjector, FaultProfile
 from healthcraft.mcp.server import HealthcraftServer, create_server
 from healthcraft.rl.loss_mask import role_loss_mask
 from healthcraft.rl.types import RolloutResult
@@ -58,6 +59,7 @@ class HealthCraftEnv:
         world_config_path: Path | None = None,
         dynamic_state_enabled: bool = False,
         fault_injection_enabled: bool = False,
+        fault_profile: FaultProfile | None = None,
     ) -> None:
         """Args:
         world_config_path: World-seeding config (YAML/JSON). When
@@ -67,16 +69,23 @@ class HealthCraftEnv:
             normally. This is the form the CPU dry-run uses.
         dynamic_state_enabled: Forwarded to :class:`WorldState`. PR-C
             lands the closed-loop physiology that consumes it.
-        fault_injection_enabled: Reserved for PR-B's
-            ``mcp.faults.FaultInjector``. Currently a no-op (logs a
-            warning when True).
+        fault_injection_enabled: Back-compat alias from PR-A. Now a
+            no-op when ``fault_profile`` is given. When True without a
+            profile, :meth:`reset` installs a zero-fault
+            :class:`FaultProfile` and logs a deprecation note.
+        fault_profile: PR-B / WS-5. Seeded latency + transient-failure
+            injection (see :class:`mcp.faults.FaultProfile`). When given,
+            :meth:`reset` wraps ``server.call_tool`` with a
+            :class:`FaultInjector` for the episode lifetime.
         """
         self._world_config_path = world_config_path
         self._dynamic_state_enabled = dynamic_state_enabled
         self._fault_injection_enabled = fault_injection_enabled
+        self._fault_profile = fault_profile
         self._task: Task | None = None
         self._world: WorldState | None = None
         self._server: HealthcraftServer | None = None
+        self._fault_injector: FaultInjector | None = None
         self._system_prompt: str = ""
         self._episode_seed: int | None = None
 
@@ -110,11 +119,25 @@ class HealthCraftEnv:
         self._world = world
         self._server = create_server(world)
 
-        if self._fault_injection_enabled:
+        # PR-B / WS-5: wrap the dispatcher with FaultInjector when a profile
+        # is provided. The wrapper installs at the instance level so existing
+        # `server.call_tool` callers (including `run_agent_task`) flow through
+        # it transparently. The profile's RNG is seeded; latency advances the
+        # sim clock (no wall-clock sleep).
+        profile = self._fault_profile
+        if profile is None and self._fault_injection_enabled:
             logger.warning(
-                "fault_injection_enabled=True but mcp.faults is not yet "
-                "implemented (PR-B / WS-5). Proceeding WITHOUT fault injection."
+                "fault_injection_enabled=True is now an alias for a zero-"
+                "fault FaultProfile() (no-op). Pass `fault_profile=` for "
+                "real injection."
             )
+            profile = FaultProfile()
+        if profile is not None:
+            injector = FaultInjector(profile, world)
+            self._server.call_tool = injector.wrap(self._server.call_tool)  # type: ignore[method-assign]
+            self._fault_injector = injector
+        else:
+            self._fault_injector = None
 
     def rollout(self, policy_client: ModelClient) -> RolloutResult:
         """Run one episode against ``policy_client``; return the result.
@@ -181,3 +204,8 @@ class HealthCraftEnv:
     def episode_seed(self) -> int | None:
         """The current episode seed, or None before the first reset."""
         return self._episode_seed
+
+    @property
+    def fault_injector(self) -> FaultInjector | None:
+        """The active FaultInjector for the current episode, or None."""
+        return self._fault_injector

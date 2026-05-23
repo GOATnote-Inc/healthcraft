@@ -172,6 +172,15 @@ class HealthcraftServer:
         """Dispatch a tool call with validation and audit logging.
 
         Accepts both camelCase (MCP standard) and snake_case tool names.
+
+        PR-B (WS-5): threads idempotency metadata through to ``record_audit``:
+        ``idempotency_key`` is extracted from ``params`` if present;
+        ``attempt_number`` is computed from prior audit entries with the same
+        key (1-indexed); ``deduplicated`` is honoured from the handler's
+        return value. Also threads ``error_code`` from error-status results
+        (a previously-latent bug — the dataclass field existed but the live
+        path never populated it, so live-eval ``contains attempt at`` checks
+        could never see simulator-side codes).
         """
         handler_key = self._resolve_tool_name(tool_name)
         if handler_key is None:
@@ -179,22 +188,65 @@ class HealthcraftServer:
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             return result
 
+        # Extract idempotency metadata and compute attempt_number.
+        idempotency_key = ""
+        if isinstance(params, dict):
+            raw_key = params.get("idempotency_key", "")
+            if isinstance(raw_key, str):
+                idempotency_key = raw_key
+        attempt_number = 1
+        if idempotency_key:
+            attempt_number = (
+                sum(
+                    1 for entry in self._world.audit_log if entry.idempotency_key == idempotency_key
+                )
+                + 1
+            )
+
         try:
             result = self._handlers[handler_key](self._world, params)
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+            deduplicated = False
+            error_code = ""
+            if isinstance(result, dict):
+                deduplicated = bool(result.get("deduplicated", False))
+                if result.get("status") == "error":
+                    raw_code = result.get("code", "")
+                    if isinstance(raw_code, str):
+                        error_code = raw_code
             self._world.record_audit(
                 tool_name=tool_name,
                 params=params,
                 result_summary=result.get("status", "unknown"),
+                error_code=error_code,
+                idempotency_key=idempotency_key,
+                attempt_number=attempt_number,
+                deduplicated=deduplicated,
             )
             return result
         except ValidationError as e:
             result = _make_error("validation_error", str(e))
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+            self._world.record_audit(
+                tool_name=tool_name,
+                params=params,
+                result_summary="error",
+                error_code="validation_error",
+                idempotency_key=idempotency_key,
+                attempt_number=attempt_number,
+            )
             return result
         except Exception as e:
             result = _make_error("internal_error", str(e))
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+            self._world.record_audit(
+                tool_name=tool_name,
+                params=params,
+                result_summary="error",
+                error_code="internal_error",
+                idempotency_key=idempotency_key,
+                attempt_number=attempt_number,
+            )
             return result
 
     @property
