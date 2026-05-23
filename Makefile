@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -114,6 +114,9 @@ rl-test:  ## RL coupling unit + contract tests (PR-A foundation)
 
 rl-dryrun:  ## RL coupling CPU end-to-end smoke (no GPU, no API)
 	$(PYTHON) scripts/rl_dryrun.py
+
+rl-train:  ## Launch the live multi-GPU RL training run (PR-D; requires H100s + slime)
+	scripts/rl_train.sh configs/rl/slime_grpo.yaml
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

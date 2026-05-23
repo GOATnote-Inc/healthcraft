@@ -1,0 +1,122 @@
+# HealthCraft RL training — slime + Megatron + SGLang + DAPO.
+#
+# Launch via: make rl-train  (or scripts/rl_train.sh)
+# See docs/RL_RUNBOOK.md for the pre-flight checklist + H100 provisioning.
+#
+# Algorithm: DAPO (not vanilla GRPO; HealthCraft's safety-gated reward
+# produces many zero-variance groups — DAPO dynamic sampling drops them).
+# Group size: 16 (Corecraft §5.2).
+# Weight sync: CUDA-IPC co-located (~7 s for 30B-A3B on 8×H100).
+#
+# Policy MUST be open-weights. Recommended:
+#   - nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 (hybrid Mamba-2 + MoE)
+#   - Qwen/Qwen3-30B (easiest path; well-supported by all RL frameworks)
+# Claude is closed-weight (judge / baseline only).
+#
+# This file is NOT a HealthCraft schema — it is read by slime. Field names
+# follow slime conventions. Update against `slime --print-defaults` when
+# upgrading slime versions.
+
+# --- Algorithm ---
+algorithm: dapo
+n_samples_per_prompt: 16
+dapo:
+  dynamic_sampling: true       # drop zero-variance groups (degenerate gradient)
+  clip_low: 0.20               # PPO-style lower clip
+  clip_high: 0.28              # clip-higher → exploration
+  token_level_loss: true       # normalise per token, not per sequence
+  overlong_reward_shaping: true
+  kl_term: false               # DAPO removes the KL penalty; rely on clipping
+
+# --- Custom adapters (HealthCraft side) ---
+# slime invokes these by import path; both modules are in this repo.
+custom_generate_function_path: healthcraft.rl.rollout.generate
+custom_rm_path: healthcraft.rl.reward.reward_func
+
+# --- Policy + tokenizer (set per run) ---
+model: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+# tokenizer args inherited from the model unless overridden
+
+# --- Megatron parallelism (for 30B-A3B on 8×H100) ---
+megatron:
+  tensor_parallel: 4
+  pipeline_parallel: 2
+  expert_parallel: 4
+  data_parallel: 1
+  context_parallel: 1
+  bf16: true
+
+# --- SGLang rollout server (co-located) ---
+sglang:
+  base_url: http://127.0.0.1:30000/v1
+  enable_memory_saver: true            # required for co-located weight sync
+  enable_deterministic_inference: true
+  max_running_requests: 64
+
+# --- Placement & weight sync ---
+colocate: true                          # train + rollout share GPUs
+weight_sync: cuda_ipc                   # zero-copy intra-node
+
+# --- Episode rollout knobs ---
+rollout:
+  max_turns: 25                         # matches healthcraft.llm.agent.MAX_TOOL_ROUNDS
+  temperature: 0.7                      # exploration during rollout
+  top_p: 0.95
+
+# --- Reward config (read by reward.reward_func via sample.metadata) ---
+reward_config: configs/rl/reward.yaml
+
+# --- Seed pool (PR-C / WS-4) ---
+seeds:
+  train: configs/rl/seeds_train.txt
+  eval: configs/rl/seeds_eval.txt
+
+# --- Fault injection curriculum (PR-B / WS-5) ---
+# Each stage activates when training reaches `epoch_until` (null = forever).
+fault_curriculum:
+  - stage: 0                            # warmup: clean env
+    epoch_until: 1
+    profile:
+      seed: 0
+      latency_mean_minutes: 0.0
+      transient_failure_rate: 0.00
+      retry_budget: 5
+  - stage: 1                            # transient failures
+    epoch_until: 3
+    profile:
+      seed: 0
+      latency_mean_minutes: 0.0
+      transient_failure_rate: 0.05
+      retry_budget: 5
+  - stage: 2                            # + latency
+    epoch_until: null
+    profile:
+      seed: 0
+      latency_mean_minutes: 1.0
+      latency_jitter_minutes: 0.5
+      transient_failure_rate: 0.05
+      retry_budget: 5
+
+# --- Anti-Goodhart instrumentation (PR-D / WS-6) ---
+# Hook periodicities; thresholds live in CanaryReport.any_red defaults.
+instrumentation:
+  enabled: true
+  log_group_variance: true
+  prevalence_drift_period: 200          # rollouts between drift checks
+  judge_kappa_canary_period: 500
+  kl_monitor_period: 100
+  # Held-out probe set for kappa + prevalence canaries (training NEVER
+  # rolls these out). Pinned in configs/rl/seeds_eval.txt.
+  probe_seeds_path: configs/rl/seeds_eval.txt
+
+# --- Eval (frozen seeds, zero-fault) ---
+eval:
+  enabled: true
+  every_n_steps: 500
+  seeds_path: configs/rl/seeds_eval.txt
+  fault_profile: null                   # eval is zero-fault by definition
+
+# --- Output ---
+output_dir: results/rl/run-${TIMESTAMP}
+checkpoint_every_n_steps: 1000
+artifact_metadata: true                 # write research_artifact.json per checkpoint
