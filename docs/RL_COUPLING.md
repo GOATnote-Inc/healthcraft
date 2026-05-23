@@ -230,8 +230,44 @@ ambiguous judge criteria abstain, and same-seed runs reproduce identically.
 |---|---|---|
 | **PR-A** (#3) | WS-1 + WS-2 — env contract + verifiable-anchored training reward | ✅ merged |
 | **PR-B** (#4) | WS-5 — idempotency completion + fault injection + process signals | ✅ merged |
-| **PR-C** (this PR) | WS-3 + WS-4 — closed-loop physiology + seeded episodes | in review |
-| PR-D | WS-6 — `slime` launch config + anti-Goodhart instrumentation (`rl/instrumentation.py` — DAPO zero-variance-group detection, prevalence drift, judge-κ canary, KL monitor); `configs/rl/slime_grpo.yaml`; `scripts/rl_train.sh`; trained-checkpoint metadata; runbook for launching the live H100 run | pending |
+| **PR-C** (#5) | WS-3 + WS-4 — closed-loop physiology + seeded episodes | ✅ merged |
+| **PR-D** (this PR) | WS-6 — `slime` launch config + anti-Goodhart instrumentation + research-artifact firewall + runbook | in review |
+
+### PR-D — slime launch config + anti-Goodhart instrumentation (WS-6)
+
+Closes the docs/RL_COUPLING.md roadmap. Five deliverables:
+
+1. **`rl/instrumentation.py`** — anti-Goodhart canaries the slime training
+   loop reads to halt before reward-hacking sets in:
+   `group_reward_variance` (DAPO dynamic-sampling), `prevalence_drift` +
+   `restraint_inflation_signal` (the whitepaper's 0.929-finding watchdog),
+   `cohens_kappa` + `judge_kappa_drift` (cross-judge agreement drop = the
+   policy is exploiting one judge's blind spots), `kl_overoptimisation_signal`
+   (Gao-2023 hump detection). `CanaryReport.any_red()` aggregates with
+   conservative default thresholds; the runbook explains tuning.
+
+2. **`rl/artifact.py`** — `ResearchArtifactMetadata` is enforced at the
+   API level: the dataclass refuses to construct with `deployment_status`
+   set to anything but `"research_artifact"`, and refuses to construct
+   with a tampered `score_disclaimer`. Every checkpoint travels with a
+   `research_artifact.json` written by `metadata.save()`; downstream
+   tooling calls `verify_research_artifact(path)` and refuses to score
+   the checkpoint on the benchmark it was trained against.
+
+3. **`configs/rl/slime_grpo.yaml`** — the slime launch config: DAPO with
+   clip-higher 0.20/0.28, G=16, token-level loss, co-located CUDA-IPC
+   weight sync, fault-injection curriculum (3 stages), instrumentation
+   periodicities, eval hooks. `make rl-train` invokes it.
+
+4. **`scripts/rl_train.sh`** — operator launch wrapper with pre-flight
+   checks (config exists, seed-pool disjoint invariant, SGLang reachable).
+   Fails loud before launching slime, so no half-started runs.
+
+5. **`docs/RL_RUNBOOK.md`** — operator runbook: H100 provisioning, SGLang
+   bring-up, pre-flight, launch, **canary interpretation** (when a canary
+   fires, the prescribed response is *halt training*, not "tune the LR"),
+   post-training validation requirements (held-out prospective physician
+   review is mandatory).
 
 ### PR-C — closed-loop physiology + seeded episodes (WS-3 + WS-4)
 
