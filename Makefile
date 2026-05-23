@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -108,6 +108,12 @@ agents-assemble-docker:  ## Build the ED Decision Rules Superpower image
 	docker build \
 		-f src/healthcraft/agents_assemble/docker/Dockerfile \
 		-t agents-assemble/ed-decision-rules .
+
+rl-test:  ## RL coupling unit + contract tests (PR-A foundation)
+	$(PYTEST) tests/test_rl/ -q
+
+rl-dryrun:  ## RL coupling CPU end-to-end smoke (no GPU, no API)
+	$(PYTHON) scripts/rl_dryrun.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true

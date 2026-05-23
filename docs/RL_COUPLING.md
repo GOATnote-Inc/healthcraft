@@ -1,0 +1,233 @@
+# HealthCraft → Megatron + SGLang + GRPO coupling
+
+Design document for the env-side coupling that makes the whitepaper sentence
+*"We scaffold the coupling to a Megatron+SGLang+GRPO loop per Corecraft §5.2"*
+**concrete**, with a training-reward design that responds to the whitepaper's
+training-reward-ablations future-work list (`§sec:limits`).
+Implementation lives under `src/healthcraft/rl/`.
+
+> **Score ≠ clinical readiness.** A policy trained against HealthCraft is a
+> research artifact. A strong HealthCraft training score does NOT constitute
+> evidence of clinical readiness. Held-out prospective validation by a
+> physician reviewer blind to model identity is required before any
+> deployment conversation. This is non-negotiable; the rest of this doc
+> assumes it.
+
+> **Empirical training-safety remains future work.** The whitepaper names
+> three items still open: soft-gate/hard-gate ablation, restraint-criterion
+> reweighting, reward-hacking probes. This PR delivers *design* and
+> *contract*. It does **not** deliver any of those experiments, and the
+> mere existence of `compute_training_reward` is not endorsement of
+> training-safety for any task suite. The function is a research
+> implementation of one design among many that could close the
+> evaluation-to-training boundary.
+
+## Why a separate training reward
+
+HealthCraft's Eq. 1 evaluation reward (`tasks/rubrics.py:compute_reward` —
+the unweighted mean of binary criteria, gated by safety) is the right
+**evaluation** reward. The whitepaper (`docs/whitepaper/content.tex`
+§sec:limits, L841–853) proves it is **not** a drop-in training reward: the
+60-run NEG smoke pilot found restraint-pattern criteria pass at **0.929
+prevalence** — a structural gameability an evaluation harness tolerates but
+a training loop converts into pattern-matching for the specific over-actions
+frontier models have already been trained against. GRPO would amplify this.
+
+`healthcraft.rl.reward.compute_training_reward` is therefore decoupled from
+`compute_reward`. Eq. 1 remains byte-identical for evaluation (golden
+replay under `tests/test_evaluator_integrity/` continues to pass); the
+training reward composes verifiable-anchored signals with a multiplicative
+safety gate, abstention-on-disagreement for the residual LLM-judge term,
+and capped process bonuses.
+
+**Formula** (`rl/reward.py`):
+
+```
+R = G_safety · clip( w_v · R_verifiable
+                   + w_j · R_judge
+                   + w_p · R_process ,
+                     clip_lo, clip_hi )
+```
+
+| Term | Meaning | Source |
+|---|---|---|
+| `G_safety ∈ {0, 1}` | Multiplicative hard gate over safety + restraint criteria, **all verifiable** | `rl/criteria_classifier.py`, `rl/reward.py` |
+| `R_verifiable` | Mean satisfaction over non-safety, non-restraint `world_state`/`pattern` criteria | reuses `tasks/evaluator._verify_world_state` and `_verify_pattern` |
+| `R_judge` | Mean satisfaction over judge-needed criteria, **abstain** on `EnsembleResult.ambiguous` (drop from denominator) | reuses `llm/ensemble_judge.EnsembleJudge` |
+| `R_process` | Small, capped bonus from `process_signals` (idempotency-key use, retry-with-backoff, escalation) | populated by PR-B (WS-5) |
+
+Defaults are verifiable-dominant (`configs/rl/reward.yaml`):
+`w_verifiable=0.8`, `w_judge=0.2`, `w_process=0.0`, `process_bonus_cap=0.1`,
+`restraint_prevalence_threshold=0.9`, `require_verifiable_safety=true`,
+`rubric_channel="v8"` (set to `"v10"` for production training — the
+strictest non-experimental overlay, which promotes `llm_judge` criteria to
+deterministic `world_state` checks and shrinks the judge-call surface in
+the hot loop; v8 is the conservative no-behaviour-change default and
+matches `evaluate_task`'s internal default).
+
+**Three design choices in this training reward (each responds to one item
+on the whitepaper's training-safety future-work list; none has been
+empirically validated yet):**
+
+1. **No safety-critical criterion may depend on an LLM judge.** With
+   `require_verifiable_safety=True` (default), the classifier raises on any
+   safety-critical `llm_judge` criterion. Convert via the existing overlay
+   system (`scripts/migrate_criteria.py` → `configs/rubrics/v9–v11`).
+   Rationale: a hard safety gate that calls a noisy oracle is not a hard
+   gate.
+2. **Restraint criteria carry no shaped gradient.** They are folded into
+   the safety gate (violation → gate fails) and excluded from the shaped
+   term. This is one possible response to the whitepaper's 0.929
+   restraint-prevalence finding; alternative responses (prevalence-discount
+   weighting, replacement with affirmative criteria) are not implemented
+   here and have not been compared.
+3. **Judge abstention.** `EnsembleJudge` already supports same-vendor skip
+   and `EnsembleResult.ambiguous` for supermajority-fail. The training
+   reward consumes that — ambiguous criteria are dropped from the
+   denominator rather than guessed at; the verifiable/process weights are
+   renormalised to maintain reward range.
+
+Note that "verifiable" world-state checks are deterministic and free of
+LLM-judge noise; they are **not** ungameable. The whitepaper's
+0.929-prevalence finding is itself a case of a deterministic
+world-state-verified criterion that nonetheless behaves badly as a
+training reward.
+
+## Architecture
+
+```
+ slime: Megatron-Core (policy, DAPO grads) -- weights(CUDA-IPC) --> SGLang
+   ^   batch: tokens, loss_mask, reward, advantage                      |
+   |                                                                    v
+   +-- healthcraft.rl.rollout.generate(args, sample, params) ------------+
+       - HealthCraftEnv.reset(task, episode_seed, system_prompt)
+       - run_agent_task against SGLangClient (OpenAI-compatible /v1)
+       - emit tokens + per-token loss_mask (assistant=1, env=0)
+   +-- healthcraft.rl.reward.reward_func(args, sample) ------------------+
+       - compute_training_reward(task, trajectory, world, ensemble_judge)
+```
+
+HealthCraft owns **environment + reward**; `slime` (THUDM — Corecraft's own
+stack) owns Megatron-Core training, GRPO/DAPO gradients, and CUDA-IPC
+weight sync. We do **not** write training-framework code. `slime` and a
+tokenizer are optional/lazy imports so HealthCraft stays CPU-installable.
+
+Policy must be **open-weights** — Claude is closed-weight and cannot be
+GRPO-trained. Recommended candidates:
+
+- `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` (hybrid Mamba-2 + MoE +
+  Attention; aligns with the existing Kaggle work; supported by
+  Megatron-Core and SGLang v0.5.5+).
+- Qwen3-30B (easiest path; well-supported by all RL frameworks).
+
+Claude is appropriate for the LLM judge only (via `EnsembleJudge`'s
+cross-vendor pool with same-vendor skip).
+
+## Algorithm — DAPO, not vanilla GRPO
+
+HealthCraft's safety-gated reward will produce many zero-variance groups
+(all rollouts safety-fail, or all pass with identical criteria). Vanilla
+GRPO group-relative advantage collapses to zero gradient on those, wasting
+compute. DAPO addresses this:
+
+| Technique | Why for HealthCraft |
+|---|---|
+| Dynamic sampling | Drop zero-variance groups — common with the safety hard-gate |
+| Clip-higher (`ε_low=0.2, ε_high=0.28`) | Maintain exploration; prevent entropy collapse on long tool trajectories |
+| Token-level loss | Long variable-length agentic trajectories shouldn't be down-weighted by sequence count |
+| Overlong reward shaping | Soft penalty for runaway trajectories; avoids false negatives on long-but-correct reasoning |
+
+Group size **G = 16** (Corecraft Table 5.2). Reward range strictly `[0, 1]`
+keeps clip-higher stable. KL-to-reference removed (DAPO recipe).
+
+## Package layout (PR-A, this PR)
+
+| Path | Role |
+|---|---|
+| `src/healthcraft/rl/__init__.py` | Public API |
+| `src/healthcraft/rl/types.py` | `RolloutResult`, `TrainingRewardResult` |
+| `src/healthcraft/rl/config.py` | `RewardConfig` + YAML loader |
+| `src/healthcraft/rl/loss_mask.py` | `role_loss_mask`, `token_loss_mask`, `serialize_tool_result` |
+| `src/healthcraft/rl/criteria_classifier.py` | Partition into safety / restraint / verifiable / judged |
+| `src/healthcraft/rl/reward.py` | `compute_training_reward` + slime `reward_func` adapter |
+| `src/healthcraft/rl/env.py` | `HealthCraftEnv` — `reset` / `rollout` |
+| `src/healthcraft/llm/agent.py` | New `SGLangClient(OpenAIClient)` + factory routing |
+| `configs/rl/reward.yaml` | Training-reward weights and thresholds |
+| `scripts/rl_dryrun.py` | CPU end-to-end smoke (no GPU, no API) |
+| `tests/test_rl/` | Unit + contract tests |
+
+**Untouched** (proof Eq. 1 evaluation reward is not disturbed):
+`tasks/rubrics.py:compute_reward`, `tasks/evaluator.py:evaluate_task`,
+`configs/rubrics/v8–v11`, `configs/tasks/`, `docs/whitepaper/content.tex`.
+`tests/test_evaluator_integrity/` continues to pass.
+
+## Design principles (governance-clean)
+
+1. **Eq. 1 evaluation reward is immutable.** Never modify `compute_reward`,
+   `evaluate_task`, the v8–v11 overlays, `configs/tasks/`, or the
+   whitepaper.
+2. **Land in new Safe locations.** New files in `src/healthcraft/rl/`,
+   `configs/rl/`, `tests/test_rl/`, `scripts/`, `docs/`. Surgical edits
+   only to `llm/agent.py` (SGLangClient) and `rl/loss_mask.py` (parse-and-
+   reserialise for tool-turn determinism — leaves `agent.py`'s
+   `json.dumps` untouched).
+3. **Verifiable-first.** Every criterion checkable against world state is
+   in `R_verifiable`. The LLM judge is the residual, not the spine. This
+   is both a safety property (ungameable) and a throughput property (no
+   API call in the hot loop).
+4. **Reproducible-by-seed.** The env is deterministic given an
+   `episode_seed`; training samples seeds, eval pins them
+   (`HealthCraftEnv.reset(..., episode_seed=...)`). The legacy hardcoded
+   `seed=42` in `run_agent_task` is overridden post-rollout.
+5. **Research-artifact firewall.** A trained checkpoint carries a
+   machine-readable label (`deployment_status=research_artifact`,
+   `trained_against=healthcraft_v<n>`); downstream tooling refuses to
+   score it on the same benchmark as evidence of clinical competence.
+   Held-out prospective validation by a physician is mandatory before
+   any deployment conversation.
+
+## slime configuration (delivered in PR-D)
+
+PR-D (WS-6) will deliver `configs/rl/slime_grpo.yaml` and
+`scripts/rl_train.sh`. Skeleton:
+
+```bash
+python -m slime.train \
+  --custom-generate-function-path healthcraft.rl.rollout.generate \
+  --custom-rm-path healthcraft.rl.reward.reward_func \
+  --algo dapo \
+  --n-samples-per-prompt 16 \
+  --dapo-dynamic-sampling \
+  --dapo-clip-low 0.2 --dapo-clip-high 0.28 \
+  --dapo-token-level-loss \
+  --colocate \
+  --sglang-base-url http://127.0.0.1:30000/v1 \
+  --model nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 \
+  --megatron-tp 4 --megatron-pp 2 --megatron-ep 4 \
+  --max-turns 25 \
+  --output-dir results/rl/run-<timestamp>
+```
+
+The live multi-GPU run is **out of scope** for the env-side PRs; it needs
+H100s (Brev `distant-peach-wildebeest` or Kaggle) and is multi-day.
+
+## Verification
+
+```bash
+make test                          # full suite; tests/test_rl/ included
+make lint                          # ruff check + format check
+python scripts/rl_dryrun.py        # CPU end-to-end smoke
+pytest tests/test_evaluator_integrity/ -q   # Eq.1 byte-identical (golden replay)
+```
+
+The dry-run asserts: loss-mask length matches turn count, mask values match
+turn roles, reward ∈ [0, 1], safety gate fires on a synthesised violation,
+ambiguous judge criteria abstain, and same-seed runs reproduce identically.
+
+## Roadmap (subsequent PRs)
+
+| PR | Workstreams | Adds |
+|---|---|---|
+| PR-B | WS-5 — idempotency completion + fault injection | `record_audit` accepts the idempotency fields; all 6 mutate tools honour `idempotency_key`; `idempotency_key` in `configs/mcp-tools.json`; new `mcp/faults.py` (seeded latency, transient failures, timeouts, curriculum); process-bonus signals wired into `reward.compute_training_reward` |
+| PR-C | WS-3 + WS-4 — closed-loop physiology + seeded episodes | `world/transition.py` bounded-residual update (agent actions → vital deltas, clipped); `WorldSeeder` accepts `dynamic_state_enabled`; `configs/rl/seeds_{train,eval}.txt`; patient-presentation randomisation within plausibility |
+| PR-D | WS-6 — slime config, instrumentation, governance | `rl/instrumentation.py` (DAPO zero-variance-group detection, prevalence drift, judge-κ canary, KL monitor); `configs/rl/slime_grpo.yaml`; `scripts/rl_train.sh`; trained-checkpoint metadata; runbook for launching the live H100 run |

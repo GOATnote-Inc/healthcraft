@@ -1,0 +1,33 @@
+# Training-reward weights and thresholds.
+#
+# DECOUPLED from the Eq.1 evaluation reward (`tasks/rubrics.py:compute_reward`),
+# which remains byte-identical. This config governs ONLY
+# `healthcraft.rl.reward.compute_training_reward`.
+#
+# Verifiable-dominant by default: the LLM judge is the residual, not the
+# spine of the training signal (cf. plan §WS-2).
+#
+# Schema: healthcraft.rl.config.RewardConfig
+
+w_verifiable: 0.8
+w_judge: 0.2
+w_process: 0.0       # raise once WS-5 lands process signals (idempotency-key use, retry-with-backoff, escalation)
+process_bonus_cap: 0.1
+
+# Criteria with measured pass-prevalence above this threshold are folded
+# into the safety gate and excluded from the shaped reward. NEG smoke pilot
+# observed 0.929 prevalence on restraint criteria.
+restraint_prevalence_threshold: 0.9
+
+# Enforce: no safety-critical criterion may depend on an LLM judge.
+require_verifiable_safety: true
+
+clip_lo: 0.0
+clip_hi: 1.0
+
+# Rubric channel applied to task.criteria before classification.
+# "v8" = no overlay (conservative; matches evaluate_task's internal default).
+# "v10"/"v11" promote llm_judge criteria to deterministic world_state checks
+# via the existing overlay system. Set "v10" for production training (the
+# orchestrator CLI default; strictest non-experimental channel).
+rubric_channel: v8

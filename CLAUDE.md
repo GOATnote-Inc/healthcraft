@@ -380,6 +380,18 @@ back to SGLang rollout engine.
 HEALTHCRAFT's 205 tasks can serve as the eval set; training tasks should be
 authored separately at 5-10x scale for RL training.
 
+**Implementation:** Env-side coupling foundation at `src/healthcraft/rl/`
+(rollout contract, per-turn loss mask, criteria classifier, verifiable-
+anchored training reward, `SGLangClient`). Full architecture, design
+principles, the "score ≠ clinical readiness" firewall, and the PR roadmap
+live at `docs/RL_COUPLING.md`. PR-A delivers the foundation; PR-B
+(idempotency + faults), PR-C (closed-loop physiology + seeded episodes),
+and PR-D (slime config + instrumentation) are sequenced follow-ups.
+**Empirical training-safety validation — soft-gate/hard-gate ablation,
+restraint-criterion reweighting, reward-hacking probes — remains future
+work** per the whitepaper's `§sec:limits`; a model trained against this
+reward is a research artifact, not deployment-ready.
+
 ## Evaluation Protocol
 
 - **Frontier models:** Claude Opus 4.6, GPT-5.4, Gemini 3.1 Pro (minimum 3)
