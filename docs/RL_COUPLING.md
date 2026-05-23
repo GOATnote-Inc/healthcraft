@@ -58,7 +58,12 @@ R = G_safety · clip( w_v · R_verifiable
 
 Defaults are verifiable-dominant (`configs/rl/reward.yaml`):
 `w_verifiable=0.8`, `w_judge=0.2`, `w_process=0.0`, `process_bonus_cap=0.1`,
-`restraint_prevalence_threshold=0.9`, `require_verifiable_safety=true`.
+`restraint_prevalence_threshold=0.9`, `require_verifiable_safety=true`,
+`rubric_channel="v8"` (set to `"v10"` for production training — the
+strictest non-experimental overlay, which promotes `llm_judge` criteria to
+deterministic `world_state` checks and shrinks the judge-call surface in
+the hot loop; v8 is the conservative no-behaviour-change default and
+matches `evaluate_task`'s internal default).
 
 **Three design choices in this training reward (each responds to one item
 on the whitepaper's training-safety future-work list; none has been

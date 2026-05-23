@@ -65,6 +65,7 @@ from healthcraft.rl.config import RewardConfig
 from healthcraft.rl.criteria_classifier import classify_criteria
 from healthcraft.rl.types import TrainingRewardResult
 from healthcraft.tasks.evaluator import (
+    _apply_overlay_to_task,
     _parse_criteria,
     _verify_pattern,
     _verify_world_state,
@@ -203,6 +204,14 @@ def compute_training_reward(
         decomposition the anti-Goodhart canaries read.
     """
     cfg = config or RewardConfig()
+    # Apply the requested rubric overlay before classification. "v8" leaves
+    # task.criteria untouched (byte-identical to evaluate_task's default);
+    # "v10"/"v11" promote llm_judge criteria to deterministic world_state
+    # checks, shrinking the judge-call surface in the hot loop. The overlay
+    # system itself is unchanged — this is the existing overlay path that
+    # ``replay_from_trajectory`` already uses for eval reproducibility.
+    if cfg.rubric_channel != "v8":
+        task = _apply_overlay_to_task(task, cfg.rubric_channel)
     criteria_objs = _parse_criteria(task.criteria)
     partition = classify_criteria(
         criteria_objs,

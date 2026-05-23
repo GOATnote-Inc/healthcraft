@@ -335,3 +335,54 @@ def test_reward_func_returns_zero_on_missing_metadata():
 
     reward = asyncio.run(reward_func(args=None, sample=_FakeSample({})))
     assert reward == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Rubric-channel knob — overlay system wiring
+# ---------------------------------------------------------------------------
+
+
+def test_rubric_channel_v10_does_not_crash_and_preserves_safety_pass():
+    """When rubric_channel='v10' the overlay is applied before classification.
+    With criteria the v10 overlay doesn't touch (synthesised IDs not in any
+    overlay file), behaviour matches the default — but the code path that
+    invokes ``_apply_overlay_to_task`` is exercised."""
+    task = _task(
+        [
+            {
+                "id": "RL-TEST-C1",  # not in any real overlay
+                "assertion": "Agent retrieved encounters",
+                "dimension": "clinical_completeness",
+                "verification": "world_state",
+                "check": "audit_log contains call to getEncounterDetails",
+            },
+        ]
+    )
+    world = _world([("getEncounterDetails", {}, "ok")])
+    traj = _trajectory(["getEncounterDetails"])
+
+    cfg = RewardConfig(rubric_channel="v10")
+    result = compute_training_reward(task, traj, world, config=cfg)
+    assert result.safety_gate_passed is True
+    assert result.reward == 1.0
+
+
+def test_rubric_channel_v8_default_skips_overlay_load():
+    """Default v8 means no overlay machinery is invoked — confirmed via an
+    unrelated success path (the overlay would otherwise have to exist)."""
+    task = _task(
+        [
+            {
+                "id": "RL-TEST-C2",
+                "assertion": "Agent retrieved encounters",
+                "dimension": "clinical_completeness",
+                "verification": "world_state",
+                "check": "audit_log contains call to getEncounterDetails",
+            },
+        ]
+    )
+    world = _world([("getEncounterDetails", {}, "ok")])
+    traj = _trajectory(["getEncounterDetails"])
+
+    result = compute_training_reward(task, traj, world)  # default config
+    assert result.safety_gate_passed is True

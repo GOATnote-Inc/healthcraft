@@ -42,6 +42,13 @@ class RewardConfig:
     require_verifiable_safety: bool = True
     clip_lo: float = 0.0
     clip_hi: float = 1.0
+    # Rubric channel applied to ``task.criteria`` before classification.
+    # "v8" = no overlay (matches ``evaluate_task``'s internal default; the
+    # conservative no-behaviour-change default). "v10"/"v11" promote
+    # ``llm_judge`` criteria to deterministic ``world_state`` checks via the
+    # existing overlay system, reducing the judge-call surface in the hot
+    # loop. Set "v10" for production training (the orchestrator CLI default).
+    rubric_channel: str = "v8"
 
     def __post_init__(self) -> None:
         for name in (
@@ -58,6 +65,10 @@ class RewardConfig:
                 raise ValueError(f"{name} must be in [0.0, 1.0]; got {value}")
         if self.clip_hi < self.clip_lo:
             raise ValueError(f"clip_hi ({self.clip_hi}) must be >= clip_lo ({self.clip_lo})")
+        if self.rubric_channel not in ("v8", "v9", "v10", "v11"):
+            raise ValueError(
+                f"rubric_channel must be one of v8/v9/v10/v11; got {self.rubric_channel!r}"
+            )
 
     @classmethod
     def load(cls, path: Path | None = None) -> RewardConfig:

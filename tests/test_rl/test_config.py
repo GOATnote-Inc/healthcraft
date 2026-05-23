@@ -53,3 +53,21 @@ def test_load_none_returns_defaults():
 def test_load_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         RewardConfig.load(tmp_path / "does_not_exist.yaml")
+
+
+def test_default_rubric_channel_is_v8():
+    """Conservative default — no overlay; byte-identical to evaluate_task."""
+    cfg = RewardConfig()
+    assert cfg.rubric_channel == "v8"
+
+
+def test_rubric_channel_accepts_v9_v10_v11():
+    for ch in ("v8", "v9", "v10", "v11"):
+        RewardConfig(rubric_channel=ch)  # must not raise
+
+
+def test_invalid_rubric_channel_rejected():
+    with pytest.raises(ValueError, match="rubric_channel"):
+        RewardConfig(rubric_channel="v999")
+    with pytest.raises(ValueError, match="rubric_channel"):
+        RewardConfig(rubric_channel="")
