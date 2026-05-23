@@ -226,12 +226,32 @@ ambiguous judge criteria abstain, and same-seed runs reproduce identically.
 
 ## Roadmap
 
+### Code (✅ closed)
+
 | PR | Workstreams | Status |
 |---|---|---|
 | **PR-A** (#3) | WS-1 + WS-2 — env contract + verifiable-anchored training reward | ✅ merged |
 | **PR-B** (#4) | WS-5 — idempotency completion + fault injection + process signals | ✅ merged |
 | **PR-C** (#5) | WS-3 + WS-4 — closed-loop physiology + seeded episodes | ✅ merged |
-| **PR-D** (this PR) | WS-6 — `slime` launch config + anti-Goodhart instrumentation + research-artifact firewall + runbook | in review |
+| **PR-D** (#6) | WS-6 — `slime` launch config + anti-Goodhart instrumentation + research-artifact firewall + runbook | ✅ merged |
+| **PR-E** (#7) | Full-stack integration test + `.gitignore` hygiene | ✅ merged |
+
+### Operator + research follow-ups (tracked as GitHub Issues)
+
+| Issue | What | Blocks | Pre-reqs |
+|---|---|---|---|
+| [#8](https://github.com/GOATnote-Inc/healthcraft/issues/8) | Live multi-GPU training run on H100s | #9 #10 #11 | — |
+| [#9](https://github.com/GOATnote-Inc/healthcraft/issues/9) | Training-reward ablations per whitepaper `\S sec:limits` (soft/hard gate · restraint reweighting · reward-hacking probes) | #11 | #8 |
+| [#10](https://github.com/GOATnote-Inc/healthcraft/issues/10) | Held-out prospective physician-blind validation (MANDATORY before any deployment talk) | #11 | #8 (ideally #9) |
+| [#11](https://github.com/GOATnote-Inc/healthcraft/issues/11) | Whitepaper `content.tex` update once ablations + validation land | — | #9 #10 |
+
+The code roadmap (PR-A → PR-E) is closed and on `main`. **What remains is
+operator + research work**, not code. Each follow-up issue carries its own
+acceptance criteria + canonical-numbers / firewall constraints; tackle them
+in the order above. **Until #11 closes, the whitepaper's "we scaffold the
+coupling ... and leave training-reward ablations as future work" sentence
+remains the honest position** — the scaffold IS built, but empirical
+training-safety is unproven.
 
 ### PR-D — slime launch config + anti-Goodhart instrumentation (WS-6)
 
