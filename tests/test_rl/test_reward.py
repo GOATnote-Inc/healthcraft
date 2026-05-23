@@ -281,3 +281,57 @@ def test_process_bonus_capped_at_config():
     )
     assert result.r_process == 0.1
     assert result.reward == 0.5 * 1.0 + 0.5 * 0.1
+
+
+# ---------------------------------------------------------------------------
+# slime adapter (async ``reward_func``) — contract tests
+# ---------------------------------------------------------------------------
+
+
+class _FakeSample:
+    """Minimal stand-in for slime's Sample dataclass."""
+
+    def __init__(self, metadata: dict) -> None:
+        self.metadata = metadata
+
+
+def test_reward_func_forwards_metadata_and_writes_breakdown():
+    """The slime adapter delegates to compute_training_reward and surfaces
+    the breakdown on sample.metadata for downstream instrumentation."""
+    import asyncio
+
+    from healthcraft.rl.reward import reward_func
+    from healthcraft.rl.types import TrainingRewardResult
+
+    task = _task(
+        [
+            {
+                "id": "C1",
+                "assertion": "Agent retrieved encounters",
+                "dimension": "clinical_completeness",
+                "verification": "world_state",
+                "check": "audit_log contains call to getEncounterDetails",
+            },
+        ]
+    )
+    world = _world([("getEncounterDetails", {}, "ok")])
+    traj = _trajectory(["getEncounterDetails"])
+
+    sample = _FakeSample({"task": task, "trajectory": traj, "world": world})
+    reward = asyncio.run(reward_func(args=None, sample=sample))
+
+    assert isinstance(reward, float)
+    assert 0.0 <= reward <= 1.0
+    assert "_training_reward_result" in sample.metadata
+    assert isinstance(sample.metadata["_training_reward_result"], TrainingRewardResult)
+
+
+def test_reward_func_returns_zero_on_missing_metadata():
+    """If slime invokes the adapter before the rollout populated metadata,
+    the adapter degrades gracefully to a zero reward rather than crashing."""
+    import asyncio
+
+    from healthcraft.rl.reward import reward_func
+
+    reward = asyncio.run(reward_func(args=None, sample=_FakeSample({})))
+    assert reward == 0.0

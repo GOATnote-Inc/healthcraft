@@ -71,6 +71,24 @@ Task Engine (rubrics)     Entity Generator (OpenEM-powered)
 - **MCP native** -- works with Claude Desktop, Claude Code, or custom harnesses
 - **Safety-gated rewards** -- lethal errors zero the score regardless of other dimensions
 
+## Reinforcement-learning coupling (research scaffold)
+
+The Corecraft Megatron+SGLang+GRPO loop is scaffolded under
+[`src/healthcraft/rl/`](src/healthcraft/rl/) with the full design at
+[`docs/RL_COUPLING.md`](docs/RL_COUPLING.md). HealthCraft owns the
+environment + reward; an external trainer (slime / verl) owns Megatron
+training and SGLang weight sync. The training-reward design responds to
+the whitepaper's NEG-smoke 0.929 restraint-prevalence finding (verifiable
+anchoring + restraint folding + judge abstention) and leaves Eq. 1
+evaluation reward byte-identical.
+
+> **Empirical training-safety validation — soft-gate/hard-gate ablation,
+> restraint-criterion reweighting study, reward-hacking probes — remains
+> future work** per the whitepaper's Limitations §. A model trained against
+> HealthCraft is a research artifact, not deployment-ready; held-out
+> prospective physician-blind validation is required before any deployment
+> conversation.
+
 ## Entity Types (14)
 
 | Entity | Count | Source |
