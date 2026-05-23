@@ -45,8 +45,14 @@ _TERMINAL_TASK_STATUSES = frozenset({"completed", "cancelled"})
 
 
 def _idempotent_tools_enabled() -> bool:
-    """Check if HC_IDEMPOTENT_TOOLS flag is on."""
-    return os.environ.get("HC_IDEMPOTENT_TOOLS", "0") == "1"
+    """Idempotent tools default to ON (PR-B / WS-5).
+
+    Opt-out for V8 byte-identical replay: ``HC_IDEMPOTENT_TOOLS=0``. The
+    flag itself is preserved so the integrity test suite that replays V8
+    trajectories without expecting Phase-4 dedup semantics can keep
+    passing.
+    """
+    return os.environ.get("HC_IDEMPOTENT_TOOLS", "1") != "0"
 
 
 def _deterministic_order_id(encounter_id: str, order_type: str, idem_key: str) -> str:
@@ -54,6 +60,36 @@ def _deterministic_order_id(encounter_id: str, order_type: str, idem_key: str) -
     combined = f"{encounter_id}:{order_type}:{idem_key}"
     h = hashlib.sha256(combined.encode()).hexdigest()[:8]
     return f"ORD-{h}"
+
+
+def _deterministic_patient_id(idem_key: str, first_name: str, last_name: str) -> str:
+    """Derive a deterministic patient ID from (idempotency_key, first_name, last_name)."""
+    combined = f"patient:{idem_key}:{first_name}:{last_name}"
+    h = hashlib.sha256(combined.encode()).hexdigest()[:8]
+    return f"PAT-{h.upper()}"
+
+
+def _is_idempotent_replay(world: WorldState, tool_name: str, idem_key: str) -> bool:
+    """Return True iff a prior committed (ok-status) call recorded the same
+    ``(tool_name, idempotency_key)``. The current call is NOT yet in the
+    audit log when handlers are invoked, so this scans only previously-
+    committed entries — first attempts execute normally; second-and-later
+    attempts dedup.
+
+    Tool name comparison is case-insensitive so the camelCase MCP name and
+    the snake_case handler name both match.
+    """
+    if not idem_key:
+        return False
+    tn_lower = tool_name.lower()
+    for entry in world.audit_log:
+        if (
+            entry.idempotency_key == idem_key
+            and entry.tool_name.lower() == tn_lower
+            and entry.result_summary == "ok"
+        ):
+            return True
+    return False
 
 
 # --- Helpers ---
@@ -254,6 +290,17 @@ def update_task_status(world: WorldState, params: dict) -> dict:
     if task is None:
         return _error("task_not_found", f"Clinical task not found: {task_id}")
 
+    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
+    idem_key = str(params.get("idempotency_key", "") or "")
+    if (
+        _idempotent_tools_enabled()
+        and idem_key
+        and _is_idempotent_replay(world, "updateTaskStatus", idem_key)
+    ):
+        result = _ok(_entity_to_dict(task) if hasattr(task, "__dataclass_fields__") else task)
+        result["deduplicated"] = True
+        return result
+
     # Terminal status guard (flag-gated)
     if _idempotent_tools_enabled():
         current_status = task.status if hasattr(task, "status") else task.get("status", "")
@@ -314,6 +361,19 @@ def update_encounter(world: WorldState, params: dict) -> dict:
     if encounter is None:
         return _error("encounter_not_found", f"Encounter not found: {encounter_id}")
 
+    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
+    idem_key = str(params.get("idempotency_key", "") or "")
+    if (
+        _idempotent_tools_enabled()
+        and idem_key
+        and _is_idempotent_replay(world, "updateEncounter", idem_key)
+    ):
+        result = _ok(
+            _entity_to_dict(encounter) if hasattr(encounter, "__dataclass_fields__") else encounter
+        )
+        result["deduplicated"] = True
+        return result
+
     # Collect only the fields that were explicitly provided
     updatable_fields = ("disposition", "bed_assignment", "attending_id")
     changes: dict[str, Any] = {}
@@ -362,6 +422,19 @@ def update_patient_record(world: WorldState, params: dict) -> dict:
     patient = world.get_entity("patient", patient_id)
     if patient is None:
         return _error("patient_not_found", f"Patient not found: {patient_id}")
+
+    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
+    idem_key = str(params.get("idempotency_key", "") or "")
+    if (
+        _idempotent_tools_enabled()
+        and idem_key
+        and _is_idempotent_replay(world, "updatePatientRecord", idem_key)
+    ):
+        result = _ok(
+            _entity_to_dict(patient) if hasattr(patient, "__dataclass_fields__") else patient
+        )
+        result["deduplicated"] = True
+        return result
 
     changes: dict[str, Any] = {}
 
@@ -430,6 +503,24 @@ def register_patient(world: WorldState, params: dict) -> dict:
     if missing is not None:
         return _error("missing_param", f"Required parameter missing: {missing}")
 
+    first_name = params["first_name"]
+    last_name = params["last_name"]
+    idem_key = str(params.get("idempotency_key", "") or "")
+
+    # Idempotency: derive a deterministic patient ID and dedup against an
+    # existing patient with that ID (PR-B / WS-5). For create-tools, the
+    # natural dedup signal is "entity already exists" — checking the audit
+    # log would also work but the entity-lookup is more direct.
+    if _idempotent_tools_enabled() and idem_key:
+        deterministic_id = _deterministic_patient_id(idem_key, first_name, last_name)
+        existing = world.get_entity("patient", deterministic_id)
+        if existing is not None:
+            result = _ok(
+                _entity_to_dict(existing) if hasattr(existing, "__dataclass_fields__") else existing
+            )
+            result["deduplicated"] = True
+            return result
+
     # Seed from current timestamp for deterministic-yet-unique generation
     seed_value = int(world.timestamp.timestamp() * 1_000_000)
     rng = random.Random(seed_value)
@@ -438,9 +529,13 @@ def register_patient(world: WorldState, params: dict) -> dict:
 
     # Override generated fields with provided params
     overrides: dict[str, Any] = {
-        "first_name": params["first_name"],
-        "last_name": params["last_name"],
+        "first_name": first_name,
+        "last_name": last_name,
     }
+    # When the caller provided an idempotency_key, replace the random id
+    # with the deterministic one so a future replay finds it directly.
+    if _idempotent_tools_enabled() and idem_key:
+        overrides["id"] = _deterministic_patient_id(idem_key, first_name, last_name)
 
     if "dob" in params:
         from datetime import date
@@ -496,6 +591,25 @@ def apply_protocol(world: WorldState, params: dict) -> dict:
     encounter = world.get_entity("encounter", encounter_id)
     if encounter is None:
         return _error("encounter_not_found", f"Encounter not found: {encounter_id}")
+
+    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
+    idem_key = str(params.get("idempotency_key", "") or "")
+    if (
+        _idempotent_tools_enabled()
+        and idem_key
+        and _is_idempotent_replay(world, "applyProtocol", idem_key)
+    ):
+        return {
+            "status": "ok",
+            "data": {
+                "protocol_applied": protocol_name,
+                "encounter_id": encounter_id,
+                "tasks_created": [],
+                "steps": [],
+                "note": "Protocol previously applied for this idempotency key.",
+            },
+            "deduplicated": True,
+        }
 
     # Find protocol by name (normalized comparison)
     protocols = world.list_entities("protocol")

@@ -243,6 +243,9 @@ class WorldState:
         result_summary: str,
         *,
         error_code: str = "",
+        idempotency_key: str = "",
+        attempt_number: int = 1,
+        deduplicated: bool = False,
     ) -> AuditEntry:
         """Append an audit entry for a tool call.
 
@@ -254,6 +257,13 @@ class WorldState:
                 from the tool response (e.g. ``"missing_param"``,
                 ``"unknown_task_type"``). Defaults to empty for backward
                 compatibility with V8 audit logs that didn't capture it.
+            idempotency_key: Caller-provided idempotency key (empty for V8
+                callers / non-idempotent operations). PR-B (WS-5).
+            attempt_number: 1-indexed retry count for this logical operation
+                under the given idempotency_key (1 = first attempt).
+            deduplicated: True when the handler detected this call as a
+                duplicate of a prior committed call with the same key
+                (no state change applied; cached result returned).
 
         Returns:
             The created AuditEntry.
@@ -264,6 +274,9 @@ class WorldState:
             params=dict(params),
             result_summary=result_summary,
             error_code=error_code,
+            idempotency_key=idempotency_key,
+            attempt_number=attempt_number,
+            deduplicated=deduplicated,
         )
         self._audit_log.append(entry)
         return entry
