@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Protocol
@@ -327,6 +328,47 @@ class GrokClient(OpenAIClient):
                 raise ImportError("openai package required: pip install openai")
 
 
+class SGLangClient(OpenAIClient):
+    """Client for SGLang-served open-weights policies (OpenAI-compatible).
+
+    SGLang serves any HuggingFace-compatible chat model behind an
+    OpenAI-compatible ``/v1/chat/completions`` endpoint. Tool calling works
+    out of the box for tool-capable base models.
+
+    Used by the RL coupling (``healthcraft.rl.env.HealthCraftEnv``): the
+    rollout drives multi-turn MCP tool use against a policy this client
+    wraps. The training framework (slime) owns weight updates server-side;
+    this client only does inference.
+
+    ``api_key`` is forwarded but most SGLang deployments don't enforce one
+    — an empty string becomes ``"EMPTY"`` to satisfy the OpenAI SDK.
+    ``base_url`` defaults to ``http://localhost:30000/v1`` and can be
+    overridden via the ``SGLANG_BASE_URL`` environment variable or the
+    constructor argument.
+    """
+
+    def __init__(
+        self,
+        api_key: str = "",
+        model: str = "default",
+        base_url: str | None = None,
+    ) -> None:
+        super().__init__(api_key=api_key or "EMPTY", model=model)
+        self._base_url = base_url or os.environ.get("SGLANG_BASE_URL", "http://localhost:30000/v1")
+
+    def _ensure_client(self) -> None:
+        if self._client is None:
+            try:
+                import openai
+
+                self._client = openai.OpenAI(
+                    api_key=self._api_key,
+                    base_url=self._base_url,
+                )
+            except ImportError:
+                raise ImportError("openai package required: pip install openai")
+
+
 class GeminiClient:
     """Client for Gemini models via the Google Generative AI API."""
 
@@ -486,6 +528,18 @@ def create_client(model: str, api_key: str) -> ModelClient:
         A ModelClient instance.
     """
     m = model.lower()
+    if m.startswith("sglang:") or m.startswith("http://") or m.startswith("https://"):
+        # Open-weights policy served by SGLang (used by the RL coupling).
+        # Two forms:
+        #   "sglang:<model-name>"  -> base_url from SGLANG_BASE_URL env
+        #   "http(s)://..."        -> the URL IS the base_url; model name
+        #                             from SGLANG_MODEL env (default "default")
+        # Checked BEFORE vendor-substring routing so an SGLang-served name
+        # that happens to contain "claude"/"gpt"/etc. is not misrouted.
+        if m.startswith("sglang:"):
+            return SGLangClient(api_key=api_key, model=model[len("sglang:") :])
+        model_name = os.environ.get("SGLANG_MODEL", "default")
+        return SGLangClient(api_key=api_key, model=model_name, base_url=model)
     if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return AnthropicClient(api_key=api_key, model=model)
     elif "gpt" in m or "o1" in m or "o3" in m:
