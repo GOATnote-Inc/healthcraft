@@ -17,11 +17,16 @@ class WorldSeeder:
 
     All randomness flows through a seeded ``random.Random`` instance,
     ensuring reproducible world generation.
+
+    PR-C (WS-3): ``dynamic_state_enabled`` is forwarded to the constructed
+    :class:`WorldState` so closed-loop physiology can be enabled at seed
+    time (replaces PR-A's private-attribute poke in ``rl/env.py``).
     """
 
-    def __init__(self, seed: int = 42) -> None:
+    def __init__(self, seed: int = 42, *, dynamic_state_enabled: bool = False) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
+        self._dynamic_state_enabled = dynamic_state_enabled
 
     def seed_world(self, config_path: Path) -> WorldState:
         """Generate a complete world state from a configuration file.
@@ -37,7 +42,10 @@ class WorldSeeder:
         """
         config = self._load_config(config_path)
         start_time = self._parse_start_time(config)
-        world = WorldState(start_time=start_time)
+        world = WorldState(
+            start_time=start_time,
+            dynamic_state_enabled=self._dynamic_state_enabled,
+        )
 
         # Generate entities in dependency order
         self._generate_staff(world, config)
