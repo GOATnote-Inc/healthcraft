@@ -380,17 +380,35 @@ back to SGLang rollout engine.
 HEALTHCRAFT's 205 tasks can serve as the eval set; training tasks should be
 authored separately at 5-10x scale for RL training.
 
-**Implementation:** Env-side coupling foundation at `src/healthcraft/rl/`
-(rollout contract, per-turn loss mask, criteria classifier, verifiable-
-anchored training reward, `SGLangClient`). Full architecture, design
-principles, the "score ≠ clinical readiness" firewall, and the PR roadmap
-live at `docs/RL_COUPLING.md`. PR-A delivers the foundation; PR-B
-(idempotency + faults), PR-C (closed-loop physiology + seeded episodes),
-and PR-D (slime config + instrumentation) are sequenced follow-ups.
-**Empirical training-safety validation — soft-gate/hard-gate ablation,
-restraint-criterion reweighting, reward-hacking probes — remains future
-work** per the whitepaper's `§sec:limits`; a model trained against this
-reward is a research artifact, not deployment-ready.
+**Implementation:** The env-side coupling is COMPLETE and on `main` as of
+2026-05-23. PR-A (#3) shipped the env contract + verifiable-anchored
+training reward; PR-B (#4) completed idempotency + fault injection +
+process signals; PR-C (#5) added closed-loop physiology + seeded
+episodes; PR-D (#6) added the slime launch config + anti-Goodhart
+instrumentation + research-artifact firewall + runbook; PR-E (#7)
+added the full-stack integration test. Full architecture, design
+principles, the "score ≠ clinical readiness" firewall, and the PR
+roadmap live at `docs/RL_COUPLING.md`; the operator runbook for the
+live training run lives at `docs/RL_RUNBOOK.md`.
+
+**What remains is operator + research work, not code.** Tracked as
+GitHub Issues:
+- [#8](https://github.com/GOATnote-Inc/healthcraft/issues/8) — live
+  multi-GPU training run on H100s (the first operational application).
+- [#9](https://github.com/GOATnote-Inc/healthcraft/issues/9) —
+  training-reward ablations per whitepaper `§sec:limits` (gated on #8).
+- [#10](https://github.com/GOATnote-Inc/healthcraft/issues/10) —
+  held-out prospective physician-blind validation (MANDATORY before
+  any deployment-readiness claim; gated on #8).
+- [#11](https://github.com/GOATnote-Inc/healthcraft/issues/11) —
+  whitepaper `content.tex` update once #9 + #10 land.
+
+**Empirical training-safety validation remains future work** per the
+whitepaper's `§sec:limits` — the scaffold is built but the ablations +
+prospective validation must run before the "future work" sentence can
+honestly be retracted. A model trained against this reward is a
+research artifact (`ResearchArtifactMetadata` firewall enforced at the
+API level by `src/healthcraft/rl/artifact.py`), not deployment-ready.
 
 ## Evaluation Protocol
 
