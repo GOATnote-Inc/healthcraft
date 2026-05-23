@@ -224,10 +224,46 @@ The dry-run asserts: loss-mask length matches turn count, mask values match
 turn roles, reward ∈ [0, 1], safety gate fires on a synthesised violation,
 ambiguous judge criteria abstain, and same-seed runs reproduce identically.
 
-## Roadmap (subsequent PRs)
+## Roadmap
 
-| PR | Workstreams | Adds |
+| PR | Workstreams | Status |
 |---|---|---|
-| PR-B | WS-5 — idempotency completion + fault injection | `record_audit` accepts the idempotency fields; all 6 mutate tools honour `idempotency_key`; `idempotency_key` in `configs/mcp-tools.json`; new `mcp/faults.py` (seeded latency, transient failures, timeouts, curriculum); process-bonus signals wired into `reward.compute_training_reward` |
-| PR-C | WS-3 + WS-4 — closed-loop physiology + seeded episodes | `world/transition.py` bounded-residual update (agent actions → vital deltas, clipped); `WorldSeeder` accepts `dynamic_state_enabled`; `configs/rl/seeds_{train,eval}.txt`; patient-presentation randomisation within plausibility |
-| PR-D | WS-6 — slime config, instrumentation, governance | `rl/instrumentation.py` (DAPO zero-variance-group detection, prevalence drift, judge-κ canary, KL monitor); `configs/rl/slime_grpo.yaml`; `scripts/rl_train.sh`; trained-checkpoint metadata; runbook for launching the live H100 run |
+| **PR-A** (#3) | WS-1 + WS-2 — env contract + verifiable-anchored training reward | ✅ merged |
+| **PR-B** (#4) | WS-5 — idempotency completion + fault injection + process signals | ✅ merged |
+| **PR-C** (this PR) | WS-3 + WS-4 — closed-loop physiology + seeded episodes | in review |
+| PR-D | WS-6 — `slime` launch config + anti-Goodhart instrumentation (`rl/instrumentation.py` — DAPO zero-variance-group detection, prevalence drift, judge-κ canary, KL monitor); `configs/rl/slime_grpo.yaml`; `scripts/rl_train.sh`; trained-checkpoint metadata; runbook for launching the live H100 run | pending |
+
+### PR-C — closed-loop physiology + seeded episodes (WS-3 + WS-4)
+
+**`world/transition.py`** (new) implements the bounded-residual update
+`s_t = clip(base_interp(t) + Σ effect(a, t - t_a), bounds)`. Each mutating
+action contributes a time-varying delta (linear ramp to peak over
+`onset_minutes`, linear decay over `duration_minutes`) that sums onto the
+open-loop trajectory and clips to physiologic bounds (`spo2 ≤ 100`,
+`systolic_bp ≥ 40`, etc.). `WorldState.get_current_vitals` consults
+`actions_for_patient(audit_log, patient_id, world, start_time)` to build
+the action list, then calls `apply_action_effects_to_vitals`. **No
+behaviour change when `dynamic_state_enabled=False`** (V8 / replay path).
+
+The action → effect mapping is a deliberately **simplified clinical
+model**, not a pharmacology simulator. Five effects ship: vasopressor
+(MAP↑), fluid (BP↑, HR↓), antibiotic (sepsis curve flattens), analgesic
+(HR↓, RR↓), oxygen (SpO2↑). Extending the model is straightforward — add
+a key to `ACTION_EFFECTS` and a pattern to `_classify_action`.
+
+**Seeded episodes (WS-4)**: `configs/rl/seeds_train.txt` (5000 seeds
+`43..5042`) and `configs/rl/seeds_eval.txt` (50 seeds — `42` plus
+`1000001..1000049`) are disjoint **by construction**.
+`SeedPool.__post_init__` asserts no overlap at load time so a
+misconfigured file fails loudly rather than leaking eval seeds into
+training. `WorldSeeder` now accepts `dynamic_state_enabled` directly,
+retiring PR-A's `# noqa: SLF001` private-attribute poke in `rl/env.py`.
+
+**Why a clinical model can be this simple and still help RL.** The
+whitepaper's restraint-prevalence finding (0.929 NEG-smoke) shows
+literal-game-prone deterministic criteria already exist; the closed-loop
+physiology doesn't have to be pharmacologically accurate to add a
+sequential signal — it just has to make agent actions *change the future
+state in clinically-directional ways*, so "do the right thing at the
+right time" carries non-zero reward variance. Anything more faithful is
+a separate research effort with its own validation burden.

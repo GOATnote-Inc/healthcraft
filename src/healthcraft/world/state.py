@@ -203,18 +203,17 @@ class WorldState:
         self._physiology[patient_id] = trajectory
 
     def get_current_vitals(self, patient_id: str) -> VitalsSnapshot | None:
-        """Get interpolated vitals for a patient at the current simulation time.
+        """Get vitals for a patient at the current simulation time.
 
-        When dynamic state is enabled and a physiology trajectory is attached,
-        returns interpolated vitals. Otherwise returns None (callers should
-        fall back to static encounter vitals -- V8 behavior).
+        Open-loop (PR-A): interpolates the base ``VitalsTrajectory``.
+        Closed-loop (PR-C / WS-3): overlays bounded-residual action
+        effects extracted from the audit log on top of the base. When
+        no recognised actions have occurred, behaviour matches the
+        open-loop path byte-for-byte.
 
-        Args:
-            patient_id: Patient ID.
-
-        Returns:
-            Interpolated VitalsSnapshot, or None if no trajectory attached
-            or dynamic state is off.
+        Returns ``None`` when ``dynamic_state_enabled`` is False or no
+        trajectory is attached (callers fall back to static encounter
+        vitals — V8 behavior).
         """
         if not self._dynamic_state_enabled:
             return None
@@ -222,7 +221,20 @@ class WorldState:
         if trajectory is None:
             return None
         elapsed = (self._current_time - self._start_time).total_seconds() / 60.0
-        return interpolate(trajectory, elapsed)
+        base = interpolate(trajectory, elapsed)
+
+        # Closed-loop residual. Imported lazily to break the
+        # state ↔ transition module cycle (transition imports AuditEntry
+        # + WorldState from this module).
+        from healthcraft.world.transition import (
+            actions_for_patient,
+            apply_action_effects_to_vitals,
+        )
+
+        actions = actions_for_patient(self._audit_log, patient_id, self, self._start_time)
+        if not actions:
+            return base
+        return apply_action_effects_to_vitals(base, actions, elapsed)
 
     @property
     def dynamic_state_enabled(self) -> bool:

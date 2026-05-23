@@ -103,13 +103,11 @@ class HealthCraftEnv:
         self._system_prompt = system_prompt
 
         if self._world_config_path is not None:
-            seeder = WorldSeeder(seed=self._episode_seed)
+            seeder = WorldSeeder(
+                seed=self._episode_seed,
+                dynamic_state_enabled=self._dynamic_state_enabled,
+            )
             world = seeder.seed_world(self._world_config_path)
-            # WorldSeeder.seed_world does not currently accept
-            # ``dynamic_state_enabled``; thread it onto the returned
-            # instance directly (regular instance attribute, not frozen).
-            # PR-C (WS-3) will properly parameterise WorldSeeder.
-            world._dynamic_state_enabled = self._dynamic_state_enabled  # noqa: SLF001
         else:
             world = WorldState(
                 start_time=start_time or datetime(2026, 1, 15, 7, 0, 0, tzinfo=timezone.utc),
