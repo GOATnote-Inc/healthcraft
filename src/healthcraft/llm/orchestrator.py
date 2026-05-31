@@ -261,8 +261,34 @@ def run_frontier_evaluation(
 
     judge = None
     if judge_key:
+        # Cross-vendor guard (never self-judge). select_judge_model only forces
+        # a cross-vendor judge when judge_model is None; an explicit --judge-model
+        # can self-judge. Refuse when judge and agent are the same vendor. Reuse
+        # ensemble_judge._vendor_of; on an unknown vendor we cannot prove
+        # same-vendor, so we do not block (fail-safe, no crash).
+        from healthcraft.llm.ensemble_judge import _vendor_of
+
+        try:
+            _agent_vendor = _vendor_of(agent_model)
+            _judge_vendor = _vendor_of(judge_model)
+        except ValueError:
+            _agent_vendor = _judge_vendor = None
+        if _agent_vendor is not None and _agent_vendor == _judge_vendor:
+            return {
+                "error": (
+                    f"Refusing to self-judge: judge model {judge_model!r} and agent "
+                    f"model {agent_model!r} are the same vendor ({_judge_vendor}). "
+                    "Cross-vendor judging is required (never self-judge). Pass a "
+                    "different --judge-model or omit it for auto-selection."
+                ),
+            }
         judge_client = create_client(judge_model, judge_key)
-        judge = LLMJudge(judge_client, judge_model=judge_model)
+        # Default the production judge to the tightened v2 prompt so the
+        # safety_critical low-confidence downgrade (judge.py:358-362) actually
+        # runs. v1 stays available for explicit V8 replay; replay_from_trajectory
+        # never re-calls the live judge, so v8/channel/gold-set locks are
+        # unaffected.
+        judge = LLMJudge(judge_client, judge_model=judge_model, prompt_version="v2")
 
     # Load tasks
     if task_filter == "all":
@@ -697,10 +723,13 @@ def main() -> None:
     parser.add_argument(
         "--rubric-channel",
         default="v8",
-        choices=["v8", "v9", "v10"],
+        choices=sorted(_VALID_RUBRIC_CHANNELS),
         help=(
-            "Rubric channel: v8 (default), v9 (deterministic overlay + temporal ops), "
-            "or v10 (v9 + negation-promotion overlay)"
+            "Rubric channel (one of "
+            + "/".join(sorted(_VALID_RUBRIC_CHANNELS))
+            + "): v8 (default, no overlay), v9 (deterministic overlay + "
+            "temporal ops), v10 (v9 + negation-promotion overlay), "
+            "v11 (v9 + v10 + consensus overlay)"
         ),
     )
     parser.add_argument(

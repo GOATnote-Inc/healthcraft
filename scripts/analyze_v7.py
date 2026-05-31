@@ -124,7 +124,7 @@ def analyze_model(trajectories: list[dict], model_name: str, k: int = 3) -> dict
         n = len(passes)
         pass_at_1 = sum(passes) / n if n else 0.0
         pass_at_k = 1.0 if any(passes[:k]) else 0.0
-        pass_k = 1.0 if all(passes[:k]) else 0.0
+        pass_k = 1.0 if len(passes) >= k > 0 and all(passes[:k]) else 0.0
 
         task_metrics[tid] = {
             "task_id": tid,

@@ -1,7 +1,7 @@
 """Analyze HEALTHCRAFT evaluation results and generate findings report.
 
 Reads experiment logs from results directories and computes:
-- Pass@1, Pass@3, Pass^5 metrics (τ²-Bench methodology)
+- Pass@1, Pass@3, Pass^3 metrics (τ²-Bench methodology)
 - Per-category and per-task breakdown
 - Safety gate failure analysis
 - Dimension score analysis
@@ -42,8 +42,8 @@ def compute_pass_at_k(task_trials: list[bool], k: int) -> float:
 
 def compute_pass_k(task_trials: list[bool], k: int) -> float:
     """Compute Pass^k: fraction of tasks where ALL k trials passed."""
-    if not task_trials or k < len(task_trials):
-        pass
+    if not task_trials or k <= 0 or len(task_trials) < k:
+        return 0.0
     return 1.0 if all(task_trials[:k]) else 0.0
 
 
@@ -77,7 +77,7 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
     rewards = [e.get("reward", 0.0) for e in entries]
     avg_reward = sum(rewards) / len(rewards) if rewards else 0.0
 
-    # Pass@1, Pass@3, Pass^5
+    # Pass@1, Pass@3, Pass^3
     task_pass_lists = {}
     for tid, trials in by_task.items():
         task_pass_lists[tid] = [t.get("passed", False) for t in trials]
@@ -90,8 +90,8 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
         pass_at_1_values.append(sum(passes) / len(passes) if passes else 0)
         # Pass@3: passed on at least 1 of first 3
         pass_at_3_values.append(compute_pass_at_k(passes, 3))
-        # Pass^5: passed on ALL 5
-        pass_5_values.append(compute_pass_k(passes, 5))
+        # Pass^3: passed on ALL 3 (matches the 3-trial pilot trial count)
+        pass_5_values.append(compute_pass_k(passes, 3))
 
     pass_at_1 = sum(pass_at_1_values) / len(pass_at_1_values) if pass_at_1_values else 0
     pass_at_3 = sum(pass_at_3_values) / len(pass_at_3_values) if pass_at_3_values else 0
@@ -190,7 +190,7 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
         ("Pass Rate", "pass_rate"),
         ("Pass@1", "pass_at_1"),
         ("Pass@3", "pass_at_3"),
-        ("Pass^5", "pass_5"),
+        ("Pass^3", "pass_5"),
         ("Avg Reward", "avg_reward"),
         ("Safety Failures", "safety_failure_rate"),
     ]

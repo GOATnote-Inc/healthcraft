@@ -216,6 +216,13 @@ class EnsembleJudge:
                 continue
 
             result = judge.evaluate_criterion(criterion, trajectory_turns)
+            # A transient judge ERROR (LLMJudge returns satisfied=False with
+            # evidence "Judge error: ..." on exception) is NOT a real vote.
+            # Do not count it and do not cache it: this judge abstains, so the
+            # error is retried on the next run instead of poisoning the cache
+            # as a permanent False vote (nondeterministic false-FAIL).
+            if result.evidence.startswith("Judge error:"):
+                continue
             per_judge[judge_model] = bool(result.satisfied)
             per_judge_evidence[judge_model] = result.evidence
             self._write_cache(
@@ -292,6 +299,11 @@ class EnsembleJudge:
         if data.get("prompt_version") != self._prompt_version:
             return None
         if "satisfied" not in data:
+            return None
+        # Treat any previously-cached transient judge error as a cache MISS so
+        # an already-poisoned cache (written before the write-side guard) is
+        # never resurrected as a genuine False vote.
+        if str(data.get("evidence", "")).startswith("Judge error:"):
             return None
         return data
 
