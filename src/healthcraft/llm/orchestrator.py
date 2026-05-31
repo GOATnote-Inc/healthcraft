@@ -158,6 +158,50 @@ def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]
     return criteria
 
 
+def _merge_judge_verdicts(eval_task, base_result, judge, turns):
+    """Merge live llm_judge verdicts into the deterministic base result.
+
+    CRITICAL: the judge is run over ``eval_task.criteria`` — the criteria AFTER
+    the overlay rewrite — NOT the original pre-overlay ``task.criteria``. An
+    overlay promotes an llm_judge criterion to a deterministic world_state check;
+    running the judge over the original criteria would re-grade the promoted
+    criterion with the noisy judge and let a hallucinated PASS OVERRIDE the
+    deterministic verdict (the HC-002 overlay-defeat: a judge PASS clearing a
+    safety gate the overlay was built to hold, and live diverging from replay).
+    Because ``judge.evaluate_criteria`` only evaluates criteria whose
+    verification is still ``llm_judge``, parsing the post-overlay criteria makes
+    it skip every promoted criterion, so the deterministic verdict survives.
+
+    Returns ``(merged_results, reward, passed, safety_gate, dimension_scores)``.
+    """
+    from healthcraft.tasks.rubrics import (
+        check_safety_gate,
+        compute_dimension_scores,
+        compute_reward,
+    )
+
+    if judge is None:
+        return (
+            list(base_result.criteria_results),
+            base_result.reward,
+            base_result.passed,
+            base_result.safety_gate_passed,
+            base_result.dimension_scores,
+        )
+
+    criteria = _parse_criteria(eval_task.criteria)  # POST-overlay (see docstring)
+    llm_results = judge.evaluate_criteria(criteria, turns)
+    llm_map = {r.criterion_id: r for r in llm_results}
+    merged = [llm_map.get(cr.criterion_id, cr) for cr in base_result.criteria_results]
+    return (
+        merged,
+        compute_reward(merged, criteria),
+        all(r.satisfied for r in merged),
+        check_safety_gate(merged, criteria),
+        compute_dimension_scores(merged, criteria),
+    )
+
+
 def run_frontier_evaluation(
     agent_model: str,
     agent_key: str,
@@ -427,38 +471,19 @@ def run_frontier_evaluation(
                     rubric_channel=rubric_channel,
                 )
 
-                # Evaluate llm_judge criteria
-                if judge:
-                    criteria = _parse_criteria(task.criteria)
-                    llm_results = judge.evaluate_criteria(
-                        criteria,
-                        [t.__dict__ for t in traj.turns],
-                    )
-                    # Merge llm_judge results with world_state/pattern results
-                    llm_results_map = {r.criterion_id: r for r in llm_results}
-                    merged_results = []
-                    for cr in result.criteria_results:
-                        if cr.criterion_id in llm_results_map:
-                            merged_results.append(llm_results_map[cr.criterion_id])
-                        else:
-                            merged_results.append(cr)
-                    # Recompute reward with merged results
-                    from healthcraft.tasks.rubrics import (
-                        check_safety_gate,
-                        compute_dimension_scores,
-                        compute_reward,
-                    )
-
-                    merged_reward = compute_reward(list(merged_results), criteria)
-                    merged_passed = all(r.satisfied for r in merged_results)
-                    merged_safety = check_safety_gate(list(merged_results), criteria)
-                    merged_dims = compute_dimension_scores(list(merged_results), criteria)
-                else:
-                    merged_results = list(result.criteria_results)
-                    merged_reward = result.reward
-                    merged_passed = result.passed
-                    merged_safety = result.safety_gate_passed
-                    merged_dims = result.dimension_scores
+                # Merge live llm_judge verdicts over the deterministic base
+                # result. The judge runs over the POST-overlay criteria so an
+                # overlay-promoted (now world_state) criterion keeps its
+                # deterministic verdict (fixes HC-002 overlay-defeat).
+                (
+                    merged_results,
+                    merged_reward,
+                    merged_passed,
+                    merged_safety,
+                    merged_dims,
+                ) = _merge_judge_verdicts(
+                    eval_task, result, judge, [t.__dict__ for t in traj.turns]
+                )
 
                 # Set results on trajectory
                 traj.set_results(
