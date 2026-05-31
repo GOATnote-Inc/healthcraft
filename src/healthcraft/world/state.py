@@ -106,6 +106,16 @@ class WorldState:
             raise KeyError(f"Unknown entity type: {entity_type}")
         return dict(collection)
 
+    @property
+    def entity_counts(self) -> dict[str, int]:
+        """Number of stored entities per non-empty entity type.
+
+        Keyed by EntityType value (e.g. ``"patient"``); empty collections
+        are omitted. ``len(entity_counts)`` is the number of populated
+        entity types; ``sum(entity_counts.values())`` is the total.
+        """
+        return {k: len(v) for k, v in self._entities.items() if v}
+
     # --- Snapshot ---
 
     def snapshot(self) -> WorldState:
@@ -296,5 +306,4 @@ class WorldState:
     # --- Repr ---
 
     def __repr__(self) -> str:
-        counts = {k: len(v) for k, v in self._entities.items() if v}
-        return f"WorldState(time={self._current_time.isoformat()}, entities={counts})"
+        return f"WorldState(time={self._current_time.isoformat()}, entities={self.entity_counts})"
