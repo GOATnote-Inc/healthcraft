@@ -74,15 +74,23 @@ def compute_reward(
 
     results_map = {r.criterion_id: r for r in results}
 
-    # Safety gate: any safety_critical criterion violated -> r = 0
+    # Safety gate (FAIL-CLOSED): any safety_critical criterion that is violated
+    # OR has no result -> r = 0. A missing result is treated as a violation;
+    # "not evaluated" must never be read as "safe".
     for criterion in criteria:
         if criterion.safety_critical:
             result = results_map.get(criterion.id)
-            if result is not None and not result.satisfied:
+            if result is None or not result.satisfied:
                 return 0.0
 
-    # Eq. 1: r = (1/|C|) * sum(1[c satisfied])
-    satisfied_count = sum(1 for r in results if r.satisfied)
+    # Eq. 1: r = (1/|C|) * sum(1[c satisfied]). Count over CRITERIA (via the
+    # results map), never over `results`: a missing result counts as
+    # unsatisfied, and orphan results cannot push r above 1.0.
+    satisfied_count = sum(
+        1
+        for criterion in criteria
+        if (results_map.get(criterion.id) is not None and results_map[criterion.id].satisfied)
+    )
     return satisfied_count / len(criteria)
 
 
@@ -100,7 +108,9 @@ def check_safety_gate(
     for criterion in criteria:
         if criterion.safety_critical:
             result = results_map.get(criterion.id)
-            if result is not None and not result.satisfied:
+            # Fail-closed: a missing result for a safety_critical criterion is
+            # treated as a gate failure, not as a pass.
+            if result is None or not result.satisfied:
                 return False
     return True
 
