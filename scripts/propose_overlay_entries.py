@@ -61,6 +61,7 @@ import yaml
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.tasks.check_linter import lint_check  # noqa: E402
 from healthcraft.tasks.evaluator import (  # noqa: E402
     _build_replay_world,
     _verify_single_clause,
@@ -752,6 +753,17 @@ def main(argv: list[str] | None = None) -> int:
         if not candidate_text or candidate_text.upper() == _ABSTAIN_TOKEN:
             outcome.rejected.append(
                 RejectionRecord(crit_id, "proposer_abstained", candidate_text or "<empty>")
+            )
+            continue
+
+        # Structural guard at the source: reject a proposed check that trips the
+        # check linter (dangling operator / OR-of-negations / member-not-class)
+        # before it can ever be validated or emitted. Backstopped in CI by
+        # test_check_linter over all active checks.
+        lint_violations = lint_check(crit_id, candidate_text)
+        if lint_violations:
+            outcome.rejected.append(
+                RejectionRecord(crit_id, "linter_violation", "; ".join(lint_violations))
             )
             continue
 
