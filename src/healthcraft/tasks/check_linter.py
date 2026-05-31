@@ -36,7 +36,6 @@ from healthcraft.tasks import em_vocab
 # ONLY that one drug is the clinical intent. Each is a reviewed exception; adding
 # one is a deliberate act that must carry a clinical justification.
 SINGLE_DRUG_ALLOWLIST: dict[str, str] = {
-    "heparin": "CR-001-C09: did NOT administer heparin (single-agent intent)",
     "ketorolac": "CC-012-C04: ketorolac contraindicated per documented allergy",
     "metoprolol": "TR-011-C03: metoprolol-specific (IV amiodarone + residual diltiazem effect)",
     "ciprofloxacin": "CR-002-C10: documented ciprofloxacin allergy",

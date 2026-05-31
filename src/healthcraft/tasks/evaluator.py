@@ -461,6 +461,23 @@ def _split_compound(check: str, operator: str) -> list[str]:
     if len(parts) <= 1:
         return parts
 
+    # A bare AND tail with no directive of its own names additional REQUIRED
+    # terms of the preceding directive (e.g. "...for X and Y" = two separate
+    # orders). Re-attach the directive prefix so each term gets its own valid
+    # clause and is verified independently (each required, with the existing
+    # em_vocab class expansion at the matching layer). Disabled when the check
+    # contains a known atomic qualifier phrase holding the operator word
+    # (e.g. "type and screen" is ONE blood-bank order, not two). OR is left
+    # untouched, so OR-of-alternatives behavior is unchanged.
+    directive_prefix = re.compile(
+        r"^(.*?\b(?:contains|does\s+not\s+contain)\s+(?:call\s+to\s+)?\w+\s+"
+        r"(?:for|with|to|referencing|regarding)\s+)",
+        re.IGNORECASE,
+    )
+    op_word = f" {operator.lower()} "
+    has_atomic = any(op_word in q and q in check.lower() for q in _QUALIFIER_PARAM_MAP)
+    expand_and_tail = operator.upper() == "AND" and not has_atomic
+
     # Validate: each part should look like a check directive
     valid_parts = []
     for part in parts:
@@ -468,8 +485,14 @@ def _split_compound(check: str, operator: str) -> list[str]:
         if "contains" in part_lower or "call to" in part_lower or "audit_log" in part_lower:
             valid_parts.append(part)
         else:
-            # This split was wrong — rejoin with previous part
-            if valid_parts:
+            prefix_match = (
+                directive_prefix.match(valid_parts[-1]) if valid_parts and expand_and_tail else None
+            )
+            if prefix_match:
+                # Atomic AND-term: give it its own directive instead of rejoining.
+                valid_parts.append(f"{prefix_match.group(1)}{part.strip()}")
+            elif valid_parts:
+                # This split was wrong — rejoin with previous part
                 valid_parts[-1] = f"{valid_parts[-1]} {operator} {part}"
             else:
                 valid_parts.append(part)
