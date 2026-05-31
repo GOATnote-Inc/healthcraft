@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -17,6 +17,9 @@ format:
 
 smoke:
 	$(PYTHON) scripts/smoke_test.py
+
+grader-goldset:  ## Measure grader precision (FP/FN + Wilson CI) on the EM-labeled gold-set
+	$(PYTHON) -m healthcraft.evals.grader_goldset
 
 docker-up:
 	docker compose -f docker/docker-compose.yaml up -d --build

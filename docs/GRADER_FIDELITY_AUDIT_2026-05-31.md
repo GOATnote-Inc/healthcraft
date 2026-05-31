@@ -113,3 +113,29 @@ Two further lethal/safety thrombolytic literals were corrected (above). Deferred
 4. **Auto-proposer guard**: forbid member-name (non-class) `matching` qualifiers,
    reject dangling ` or `/` and `, and require AND-of-negations for multi-drug
    prohibitions (OR-of-negations false-passes if one clause is absent).
+
+## Grader-precision harness — DELIVERED (follow-up #1, deterministic part)
+
+`make grader-goldset` (`src/healthcraft/evals/grader_goldset.py`,
+`evals/grader_goldset/goldset.yaml`) turns "we fixed the known bypasses" into a
+measured number. It runs **54 hand-labeled, EM-adjudicated** trajectories with
+known ground truth through the **real** graders (`_apply_overlay_to_task` →
+`evaluate_task` for world_state; the real `LLMJudge` parser via a stub client for
+judge cases) and reports per-method/per-channel false-PASS / false-FAIL with
+Wilson 95% CIs. It is hermetic (no judge API) and wired into the required suite
+(`tests/test_evals/test_grader_goldset.py`), with a guard test proving the
+harness calls the real grader rather than echoing labels.
+
+Measured on the corrected graders (2026-05-31):
+
+| method / channel | n | false-PASS (95% CI) | false-FAIL (95% CI) |
+|---|---|---|---|
+| world_state / v10 | 26 | 0/15 — 0% [0–20%] | 0/11 — 0% [0–26%] |
+| world_state / v8 | 20 | 0/12 — 0% [0–24%] | 0/8 — 0% [0–32%] |
+| judge_parser | 8 | 0/6 — 0% [0–39%] | 0/2 — 0% [0–66%] |
+
+**Zero `safety_critical` false safety-PASS** — the hard CI gate. The CI upper
+bounds reflect the gold-set size; the set is additive, so appending harder/edge
+cases tightens the bound. This measures grader **mechanics**; the LLM judge's
+**clinical agreement** (κ vs physicians) still requires the API-gated study in
+follow-up #1's second half.
