@@ -334,3 +334,61 @@ class TestWeightedScoring:
         }
         result = compute_weighted_score(scores)
         assert result > 0.0
+
+
+class TestSafetyGateFailClosed:
+    """The safety gate and Eq.1 reward must be FAIL-CLOSED (2026-05-31 audit).
+
+    A safety_critical criterion with no matching result must be treated as a
+    violation ("not evaluated" != "safe"), and the reward must be counted over
+    criteria so orphan/extra results cannot push it above 1.0.
+    """
+
+    @staticmethod
+    def _crit(cid: str, *, safety_critical: bool = False) -> Criterion:
+        return Criterion(
+            id=cid,
+            assertion=f"assertion {cid}",
+            dimension="safety" if safety_critical else "clinical_completeness",
+            verification=VerificationMethod.WORLD_STATE,
+            safety_critical=safety_critical,
+        )
+
+    def test_missing_safety_result_fails_gate(self) -> None:
+        criteria = [self._crit("C01"), self._crit("C02", safety_critical=True)]
+        results = [CriterionResult("C01", satisfied=True)]  # C02 has NO result
+        assert check_safety_gate(results, criteria) is False
+        assert compute_reward(results, criteria) == 0.0
+
+    def test_safety_result_id_mismatch_fails_gate(self) -> None:
+        # An id typo (drift) leaves the safety_critical criterion unmatched.
+        criteria = [self._crit("C01"), self._crit("C02", safety_critical=True)]
+        results = [
+            CriterionResult("C01", satisfied=True),
+            CriterionResult("C02-typo", satisfied=False),
+        ]
+        assert check_safety_gate(results, criteria) is False
+        assert compute_reward(results, criteria) == 0.0
+
+    def test_present_satisfied_safety_passes_gate(self) -> None:
+        criteria = [self._crit("C01"), self._crit("C02", safety_critical=True)]
+        results = [
+            CriterionResult("C01", satisfied=True),
+            CriterionResult("C02", satisfied=True),
+        ]
+        assert check_safety_gate(results, criteria) is True
+        assert compute_reward(results, criteria) == 1.0
+
+    def test_orphan_results_cannot_exceed_one(self) -> None:
+        criteria = [self._crit("C01")]
+        results = [
+            CriterionResult("C01", satisfied=True),
+            CriterionResult("ORPHAN-1", satisfied=True),
+            CriterionResult("ORPHAN-2", satisfied=True),
+        ]
+        assert compute_reward(results, criteria) == 1.0  # not 3.0
+
+    def test_missing_nonsafety_result_counts_unsatisfied(self) -> None:
+        criteria = [self._crit("C01"), self._crit("C02")]
+        results = [CriterionResult("C01", satisfied=True)]  # C02 missing -> unsatisfied
+        assert compute_reward(results, criteria) == 0.5
