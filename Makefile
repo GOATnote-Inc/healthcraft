@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset
+.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels
 
 PYTHON := .venv/bin/python3
 PYTEST := .venv/bin/pytest
@@ -44,6 +44,12 @@ integrity:  ## Evaluator-integrity test suite (Phase 1)
 
 v8-replay:  ## Golden-trajectory replay (V8 reproduction)
 	$(PYTEST) tests/test_evaluator_integrity/test_golden_trajectory_replay.py -q
+
+channel-replay:  ## v9/v10/v11 overlay-channel verdict-lock (reproducibility)
+	$(PYTEST) tests/test_evaluator_integrity/test_golden_trajectory_replay_channels.py -q
+
+freeze-channels:  ## Re-freeze the v9/v10/v11 channel verdict-lock (review the diff!)
+	$(PYTHON) scripts/freeze_goldens_channels.py
 
 judge-tests:  ## Judge validation test suite (Phase 2)
 	$(PYTEST) tests/test_judge/ -q

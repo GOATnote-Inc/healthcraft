@@ -139,3 +139,34 @@ bounds reflect the gold-set size; the set is additive, so appending harder/edge
 cases tightens the bound. This measures grader **mechanics**; the LLM judge's
 **clinical agreement** (κ vs physicians) still requires the API-gated study in
 follow-up #1's second half.
+
+## Overlay-channel verdict-lock — DELIVERED (follow-up #2)
+
+`make channel-replay` (`tests/test_evaluator_integrity/test_golden_trajectory_replay_channels.py`,
+manifest `tests/fixtures/golden_trajectories/index_channels.json`, frozen by
+`scripts/freeze_goldens_channels.py` / `make freeze-channels`) closes the
+reproducibility gap the audit flagged: only V8 was verdict-locked, so an
+overlay / `em_vocab` / qualifier-map / matcher change could silently shift the
+paper-channel (v10) numbers (the unguarded MW-003 flip).
+
+It **replays-and-freezes** 91 trajectories — the 30 stratified V8 goldens UNION
+one pilot trajectory per overlay-promoted task (**67/67 covered**) — at
+v9/v10/v11 and pins `(reward, passed, safety_gate, criteria-hash)`. **12/91** v10
+verdicts genuinely differ from V8, so the lock pins behaviour the V8 lock cannot
+see. The companion test re-replays and asserts byte-identical; any drift turns
+CI red, forcing a reviewed re-freeze whose manifest diff **is** the re-grade
+record. A staleness guard recomputes the live overlay set, so adding an overlay
+entry without re-freezing is also caught.
+
+Adversarially verified: deterministic re-freeze; drift caught three ways (incl. a
+`thrombolytic` matcher break that flips reward + passed + safety_gate); hash
+byte-identical to the V8 lock; reward tolerance (1e-9) far below the smallest
+Eq.1 gap; no vacuous pass. Two honest caveats:
+- **v11 == v10 today** — the v11 consensus overlay is empty by design, so the
+  v11 column is presently redundant; it catches drift the instant v11 is populated.
+- This lock guards **reproducibility** of real-trajectory verdicts. **Class-matcher
+  correctness** (e.g. "does the anticoagulant class still catch enoxaparin?") is
+  guarded by the gold-set harness (follow-up #1), whose synthetic cases order the
+  drug explicitly — the pilot trajectories record orders with null params, so a
+  class-matcher break alone need not flip a locked verdict. The two locks are
+  complementary: gold-set = correctness, verdict-lock = reproducibility.
