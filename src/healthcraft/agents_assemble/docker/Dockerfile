@@ -25,6 +25,10 @@ WORKDIR /app
 # transitive set so we never drift from the in-tree source.
 COPY pyproject.toml requirements-lock.txt ./
 COPY src ./src
+# The Superpower seeds a world from configs/world/ at startup (default
+# --world-config is relative), so the configs must live in the image — there
+# is no bind-mount when this image is run standalone via `docker run -i --rm`.
+COPY configs ./configs
 
 RUN pip install --upgrade pip && \
     pip install -e .

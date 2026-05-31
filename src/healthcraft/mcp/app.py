@@ -45,7 +45,12 @@ def _create_app() -> HealthcraftServer:
 
     logger.info("Seeding world state (seed=%d, config=%s)", _SEED, config_path)
     world_state = WorldSeeder(seed=_SEED).seed_world(config_path)
-    logger.info("World state seeded with %d entity types", len(world_state._stores))
+    counts = world_state.entity_counts
+    logger.info(
+        "World state seeded: %d populated entity types, %d entities",
+        len(counts),
+        sum(counts.values()),
+    )
 
     server = create_server(world_state)
     logger.info("MCP server created with %d tools", len(server.available_tools))

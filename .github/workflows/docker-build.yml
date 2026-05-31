@@ -21,3 +21,25 @@ jobs:
 
       - name: Verify compose config
         run: docker compose -f docker/docker-compose.yaml config --quiet
+
+      - name: Start MCP service and verify /health
+        run: |
+          docker compose -f docker/docker-compose.yaml up -d world-state mcp-server
+          ok=""
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then ok=1; echo; break; fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::mcp-server did not pass /health within timeout (startup crash?)"
+            docker compose -f docker/docker-compose.yaml logs mcp-server
+            exit 1
+          fi
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.yaml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker/docker-compose.yaml down -v

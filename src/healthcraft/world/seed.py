@@ -69,6 +69,11 @@ class WorldSeeder:
 
     def _load_config(self, config_path: Path) -> dict[str, Any]:
         """Load configuration from JSON or YAML file."""
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"World seed config not found: {config_path}. Set HEALTHCRAFT_SEED_CONFIG "
+                "(mcp.app) or --world-config (CLI entrypoints) to a valid path."
+            )
         suffix = config_path.suffix.lower()
         text = config_path.read_text(encoding="utf-8")
 
