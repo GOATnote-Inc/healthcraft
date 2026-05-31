@@ -149,10 +149,11 @@ reproducibility gap the audit flagged: only V8 was verdict-locked, so an
 overlay / `em_vocab` / qualifier-map / matcher change could silently shift the
 paper-channel (v10) numbers (the unguarded MW-003 flip).
 
-It **replays-and-freezes** 91 trajectories — the 30 stratified V8 goldens UNION
-one pilot trajectory per overlay-promoted task (**67/67 covered**) — at
-v9/v10/v11 and pins `(reward, passed, safety_gate, criteria-hash)`. **12/91** v10
-verdicts genuinely differ from V8, so the lock pins behaviour the V8 lock cannot
+It **replays-and-freezes** the 30 stratified V8 goldens UNION one pilot
+trajectory per overlay-promoted task (after the 2026-05-31 re-freeze batch:
+**88 trajectories, 64/64 overlay tasks covered**) at v9/v10/v11 and pins
+`(reward, passed, safety_gate, criteria-hash)`. **12/88** v10 verdicts genuinely
+differ from V8, so the lock pins behaviour the V8 lock cannot
 see. The companion test re-replays and asserts byte-identical; any drift turns
 CI red, forcing a reviewed re-freeze whose manifest diff **is** the re-grade
 record. A staleness guard recomputes the live overlay set, so adding an overlay
@@ -170,3 +171,56 @@ Eq.1 gap; no vacuous pass. Two honest caveats:
   drug explicitly — the pilot trajectories record orders with null params, so a
   class-matcher break alone need not flip a locked verdict. The two locks are
   complementary: gold-set = correctness, verdict-lock = reproducibility.
+
+## Re-freeze batch — DELIVERED (2026-05-31)
+
+Three correctness defects on the LIVE grading path, each fixed minimally,
+behaviorally proven, and regression-locked in
+`tests/test_tasks/test_batch2_refreeze_correctness.py` (39 cases). None of the
+fixes changes any task-level reward/pass/safety verdict on the locked set; two
+correct **false-negatives** and one lethal **false-pass shape** are removed.
+
+**A — Compound `X and Y` required-order checks now require BOTH terms.**
+`_split_compound` split a bare-AND tail back into the preceding directive's
+qualifier so each term gets its own clause; `_verify_world_state` AND-joins them
+with `all(...)`. Previously the whole tail was matched as one literal qualifier
+blob, so a trajectory that genuinely ordered both X and Y false-FAILED (no single
+order carries the exact string "x and y"). Proven on MW-026-C09
+(`central_line and arterial_line`): the agent placed both a Right-IJ central line
+and a Right-radial arterial line — the verdict corrects **False→True**. Atomic
+qualifiers ("type and screen") and OR-of-alternatives are deliberately left
+intact.
+
+**B — Six temporal safety criteria reverted from flattened existence checks to
+`llm_judge`.** MW-002-C03, MW-006-C13, MW-017-C08, MW-024-C05, MW-028-C01,
+MW-032-C03 had been promoted in the v9 overlay into existence checks ("did X
+happen") that are blind to ORDER ("did X happen BEFORE Y") — a lethal
+false-PASS shape on time-critical pathways. The overlay entries were deleted, so
+the base `llm_judge` criterion (the judge sees the turn sequence) stands at
+v9/v10/v11 until a real BEFORE/AFTER check is authored. Three of the six tasks
+(MW-017/024/032) had no other overlay entry and correctly drop out of the
+overlay-task set (67→64); the channel lock's live staleness guard confirms this.
+
+**C — CR-001-C09 (acute aortic dissection) gates the anticoagulant CLASS.** The
+v10 promotion checked only the literal token "heparin", so a sibling
+anticoagulant (enoxaparin, apixaban, warfarin, …) slipped the safety gate — yet
+the 2022 ACC/AHA Aortic Disease Guideline contraindicates ALL anticoagulation
+(citation added to the criterion's `evidence:` field). The check now reads
+`… medication matching anticoagulant` (em_vocab class). All seven listed
+anticoagulants (incl. brand/abbrev forms) trip the gate; the correct anti-impulse
+beta-blockers (metoprolol, esmolol, labetalol), antiplatelet aspirin, and
+unrelated agents do not.
+
+**Lock impact (reviewed, not rubber-stamped):** v8 golden lock unaffected
+(5/5 — the base CR-001-C09 stays `llm_judge` at v8). Channel lock re-frozen
+(`make freeze-channels`); the manifest diff is the re-grade record — exactly two
+hash flips (MW-002-C03 B-revert, MW-026-C09 A-fix), both with **NO**
+reward/passed/safety change, plus the three coverage-trajectory removals above.
+Gold-set: 55 cases, 0 false-PASS / 0 false-FAIL / 0 safety-critical false-PASS.
+
+**Residual (out of scope, logged):** MW-026-C12 (`critical_care_consult` token)
+is a *pre-existing* matcher false-negative — the agent placed a combined
+"Critical Care / ICU" consult but the underscore-token does not match it. The
+verdict is unchanged by this batch (False before and after) and the task outcome
+is invariant; tracked alongside the ~60 OR-disjunct "for A or B" false-negatives
+for a future matcher pass.
