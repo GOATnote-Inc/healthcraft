@@ -248,6 +248,22 @@ def _extract_tool_and_params(check: str, keyword: str) -> tuple[str, dict[str, s
     return tool_name, params
 
 
+def _token_present(needle: str, haystack: str) -> bool:
+    """Whole-token containment: ``needle`` occurs in ``haystack`` not flanked by
+    alphanumerics.
+
+    Prevents short drug/qualifier surface forms from matching INSIDE unrelated
+    words — e.g. the morphine synonym "ms" inside "symptoms", or a "ct"
+    qualifier inside "instructions"/"activity" — a substring false-positive that
+    flips a correct restraint trajectory into a (safety_critical) violation.
+    Both arguments are expected pre-lowercased; multi-word forms (e.g. "packed
+    red blood cells") are matched verbatim with the same boundary guard.
+    """
+    if not needle:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack) is not None
+
+
 def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, str]) -> bool:
     """Check if an audit log entry's params satisfy required parameter qualifiers.
 
@@ -274,13 +290,18 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
         if key.startswith("_"):
             value_lc = value.lower().strip()
             value_normalized = value_lc.replace("_", " ")
-            if value_lc in entry_str or value_normalized in entry_str_normalized:
+            if _token_present(value_lc, entry_str) or _token_present(
+                value_normalized, entry_str_normalized
+            ):
                 continue
             # EM-vocab class expansion: if the qualifier names a known class,
-            # match on any of its surface forms.
+            # match on any of its surface forms (whole-token, never substring).
             if em_vocab.is_known_class(value_lc):
                 surface_forms = em_vocab.expand_class(value_lc)
-                if any(form in entry_str or form in entry_str_normalized for form in surface_forms):
+                if any(
+                    _token_present(form, entry_str) or _token_present(form, entry_str_normalized)
+                    for form in surface_forms
+                ):
                     continue
             return False
         else:
