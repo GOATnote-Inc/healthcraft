@@ -81,6 +81,21 @@ def _validate_task_dict(data: dict[str, Any], source: str = "") -> list[str]:
                         f"world_state/llm_judge/pattern, got: {criterion['verification']}"
                     )
 
+            # Duplicate criterion ids within a task silently alias verdicts:
+            # reward/safety-gate index by id via a last-write-wins dict
+            # (rubrics.results_map / orchestrator.llm_map), so a second
+            # criterion sharing an id can MASK a safety_critical FAIL. Reject.
+            seen_ids: set = set()
+            for i, criterion in enumerate(criteria):
+                if not isinstance(criterion, dict):
+                    continue
+                cid = criterion.get("id")
+                if cid is None:
+                    continue
+                if cid in seen_ids:
+                    errors.append(f"{prefix}criteria[{i}] duplicate id: {cid}")
+                seen_ids.add(cid)
+
     return errors
 
 

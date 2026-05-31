@@ -143,3 +143,17 @@ class TestExistingClassesUnregressed:
     def test_thrombolytic_still_matches(self) -> None:
         assert _matches({"medication": "alteplase"}, "thrombolytic") is True
         assert _matches({"medication": "tpa"}, "thrombolytic") is True
+
+
+class TestCtHeadImagingClass:
+    """The 'ct head' imaging class closes the surface-form evasion of NEG-002-C01
+    (safety_critical 'did NOT order CT head'): the flat literal caught only the
+    exact 'ct head' string; 'head CT' / 'CT brain' / 'CTH' slipped through."""
+
+    def test_surface_forms_now_caught(self) -> None:
+        for form in ("head CT", "CT brain", "CTH", "noncontrast head ct", "cranial ct"):
+            assert _matches({"imaging": form}, "ct head") is True, form
+
+    def test_bare_ct_not_a_member(self) -> None:
+        # bare 'ct' is deliberately excluded so it can't over-match 'CT abdomen' elsewhere.
+        assert _matches({"imaging": "CT abdomen"}, "ct head") is False
