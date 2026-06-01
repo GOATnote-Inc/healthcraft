@@ -59,6 +59,10 @@ class Trajectory:
     passed: bool = False
     safety_gate_passed: bool = True
     dimension_scores: dict[str, float] = field(default_factory=dict)
+    # Grading provenance — which rubric channel produced reward/passed/safety.
+    # Without it a trajectory file alone cannot prove it was graded at v10 vs v8
+    # (v11 audit finding D4-F4). Default "" keeps older trajectory files loadable.
+    rubric_channel: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
     duration_seconds: float = 0.0

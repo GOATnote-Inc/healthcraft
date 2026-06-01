@@ -224,3 +224,55 @@ is a *pre-existing* matcher false-negative — the agent placed a combined
 verdict is unchanged by this batch (False before and after) and the task outcome
 is invariant; tracked alongside the ~60 OR-disjunct "for A or B" false-negatives
 for a future matcher pass.
+
+## v11 consensus-overlay audit + frontier-run readiness (2026-05-31)
+
+Driven by the goal of an accurate, reproducible, traceable, verifiable accounting
+of **gpt-5.5** and **claude-opus-4-8**. 43-agent workflow (`waz7dce3y`): 5 audit
+dimensions (v11 file/channel, proposer, ensemble consensus, model-readiness,
+tests/locks) → adversarial verify per finding → synthesis. 37 findings, 23
+confirmed, 14 partial, 0 refuted.
+
+**Channel decision: run the accounting at `--rubric-channel v10`.** Behaviorally
+proven: v11 is empty (`overlays: []`), `_load_overlay('v11') == _load_overlay('v10')`,
+and all 88 channel-locked trajectories replay byte-identical at v10 vs v11. v10 is
+the strictest channel that is both **populated** and **regression-locked**. v11 is
+**PARKED** (tripwire `tests/.../test_v11_parked.py`).
+
+**FIXED (run-path, this batch):**
+- **D4-F1 (run-blocking, fixed):** the Anthropic temperature guard was a literal
+  `"4-7" not in model` substring, so `claude-opus-4-8`/`4-9` SENT `temperature=0`
+  → API 400 → the orchestrator caught it and cached a `reward=0` error trajectory
+  for **every** task, silently grading the headline model as all-zeros (resume
+  re-caches, no retry). Replaced with a version-family check `_claude_omits_temperature`
+  (Opus ≥ 4.7 omits; ≤ 4.6 and non-Opus keep — omitting speculatively would break
+  temp=0 determinism). `agent.py`; 17-case regression lock.
+- **D4-F4 (traceability):** `rubric_channel` is now a first-class `Trajectory`
+  field (+ `judge_model`/`judge_prompt_version` in metadata), set by the
+  orchestrator on both success and error paths — the graded channel is now provable
+  from a trajectory file alone. Backward-compatible (old files default to "").
+- **D4-F6 (silent-corruption guard):** `_api_preflight` now hard-fails (exit 2),
+  distinctly from auth/404, on a 400 / invalid-parameter / temperature rejection —
+  so a reasoning model (e.g. gpt-5.5) that rejects `temperature=0` aborts the run
+  loudly *before* the multi-hour loop instead of filling the cache with reward=0.
+
+**Confirmed-good (no action):** routing accepts both new IDs with no whitelist
+(D4-F2); self-judge guard refuses same-vendor and allows cross-vendor for both
+(D4-F3); EnsembleJudge same-vendor filter correct for both targets, ≥2 cross-vendor
+judges remain (D3-F6, D4-F10); error-abstention writes no poisoned cache (D3-F6);
+key NAMES present for both vendors + gemini (D4-F9).
+
+**PARKED — hard gates before v11 may EVER be populated/presented (LATENT today;
+do NOT block the v10 run):** the proposer (`scripts/propose_overlay_entries.py`)
+accepts a deterministic check on ≥0.95 oracle agreement ALONE — no
+clinical-correctness gate, no hard `safety_critical` refusal (only a soft prompt
+hint), defaulting to the contaminated `saved_judge` oracle — so a hallucinated
+safety PASS could be **laundered** into a permanent v11 check (D2-F1, D2-F2,
+D5-F1); `--oracle ensemble` re-implements aggregation without the same-vendor
+skip / prompt-version / Judge-error skip of the audited `EnsembleJudge` (D3-F3);
+the channel-lock cannot catch a v11 override that weakens a v10 check while
+preserving the 88 locked verdicts (D5-F2); zero proposer test coverage (D2-F8).
+When v11 work resumes: physician-adjudicated safety gate (default-deny,
+`require_verifiable_safety`), reuse `EnsembleJudge` as the oracle, require
+discriminative signal, add an additive-only / non-weakening v11 test + proposer
+test suite, and a `_load_overlay` add-only guard (D1-F5). All physician-gated.

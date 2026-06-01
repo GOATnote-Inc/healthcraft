@@ -14,6 +14,7 @@ import base64
 import json
 import logging
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Protocol
@@ -29,6 +30,26 @@ MAX_TOOL_ROUNDS = 25
 
 # Maximum tokens for agent response
 MAX_RESPONSE_TOKENS = 4096
+
+
+def _claude_omits_temperature(model: str) -> bool:
+    """Anthropic Opus 4.7+ deprecated the ``temperature`` parameter — the API
+    returns 400 if it is sent.
+
+    Return True when ``model`` is an Opus at version >= 4.7 (so the caller must
+    OMIT temperature): 4-7, 4-8, 4-9, 4-10+, and any later major (5-x). Older
+    Opus (<= 4-6) and non-Opus Claude models (sonnet/haiku) still accept
+    temperature and MUST keep sending it — omitting it there would silently fall
+    back to the API-default temperature and break deterministic (temp=0) replay.
+
+    The previous guard was a literal ``"4-7" not in model`` substring test, which
+    wrongly sent temperature for claude-opus-4-8/4-9 → 400 → every task became a
+    cached reward=0 error trajectory (2026-05-31 v11 audit, finding D4-F1).
+    """
+    m = re.search(r"opus-(\d+)-(\d+)", model.lower())
+    if not m:
+        return False
+    return (int(m.group(1)), int(m.group(2))) >= (4, 7)
 
 
 class ModelClient(Protocol):
@@ -150,9 +171,10 @@ class AnthropicClient:
             "messages": converted_messages,
             "max_tokens": max_tokens,
         }
-        # Claude Opus 4.7+ deprecated `temperature` (API returns 400).
-        # Older Claude models still accept it.
-        if "4-7" not in self._model:
+        # Anthropic Opus 4.7+ deprecated `temperature` (API returns 400); older
+        # Opus and non-Opus Claude models still accept it. Version-family check —
+        # NOT a literal "4-7" substring (which mis-sent it for 4-8/4-9; D4-F1).
+        if not _claude_omits_temperature(self._model):
             kwargs["temperature"] = temperature
 
         if system_msg:
