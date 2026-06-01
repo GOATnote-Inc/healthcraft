@@ -52,6 +52,17 @@ def _claude_omits_temperature(model: str) -> bool:
     return (int(m.group(1)), int(m.group(2))) >= (4, 7)
 
 
+def _is_unsupported_temperature_error(exc: Exception) -> bool:
+    """True if an OpenAI-style error is the 'this model only supports the default
+    temperature' 400 — emitted by reasoning models (e.g. gpt-5.5, o-series) that
+    reject an explicit temperature=0. Detected by message (no SDK-class import),
+    mirroring the preflight string match (v11 audit D4-F6)."""
+    s = str(exc).lower()
+    return "temperature" in s and (
+        "does not support" in s or "unsupported_value" in s or "only the default" in s
+    )
+
+
 class ModelClient(Protocol):
     """Protocol for model API clients."""
 
@@ -216,6 +227,13 @@ class AnthropicClient:
 class OpenAIClient:
     """Client for GPT models via the OpenAI API."""
 
+    # Models discovered AT RUNTIME to reject an explicit temperature (reasoning
+    # models support only the default temperature=1). Process-shared so the first
+    # 400 — typically during preflight — flags the model and every later call
+    # omits temperature. Self-healing beats a brittle hardcoded allowlist
+    # (gpt-5.4 accepts temperature=0; gpt-5.5 does not). See v11 audit D4-F6.
+    _models_reject_temperature: set[str] = set()
+
     def __init__(self, api_key: str, model: str = "gpt-5.4") -> None:
         self._api_key = api_key
         self._model = model
@@ -292,9 +310,14 @@ class OpenAIClient:
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": converted_messages,
-            "temperature": temperature,
             "max_completion_tokens": max_tokens,
         }
+        # Reasoning models (gpt-5.5, o-series) reject an explicit temperature and
+        # only support the default (1). Omit it for any model already known to
+        # reject it; otherwise send temperature=0 and self-heal on the 400 below.
+        send_temperature = self._model not in OpenAIClient._models_reject_temperature
+        if send_temperature:
+            kwargs["temperature"] = temperature
 
         if tools:
             kwargs["tools"] = [
@@ -309,7 +332,26 @@ class OpenAIClient:
                 for t in tools
             ]
 
-        response = self._client.chat.completions.create(**kwargs)
+        try:
+            response = self._client.chat.completions.create(**kwargs)
+        except Exception as e:
+            # Self-heal a reasoning model that rejects temperature=0: drop the
+            # param, remember the model, and retry once. The model then samples
+            # at its default temperature (1) — non-deterministic, so reproducibility
+            # for it rests on the seed + multi-trial aggregation, not temp=0.
+            if send_temperature and _is_unsupported_temperature_error(e):
+                logger.warning(
+                    "%s rejects temperature=%s (reasoning model); retrying without it. "
+                    "This model samples at the default temperature — per-trial variance "
+                    "is expected; reproducibility relies on seed + trials, not temp=0.",
+                    self._model,
+                    temperature,
+                )
+                OpenAIClient._models_reject_temperature.add(self._model)
+                kwargs.pop("temperature", None)
+                response = self._client.chat.completions.create(**kwargs)
+            else:
+                raise
         choice = response.choices[0]
         message = choice.message
 

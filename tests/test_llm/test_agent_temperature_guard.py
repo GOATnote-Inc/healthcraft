@@ -91,3 +91,83 @@ class TestSendPath:
         assert _sends_temperature(model) is True, (
             f"{model} must keep sending temperature for temp=0 replay"
         )
+
+
+# --- OpenAI reasoning-model temperature self-heal (D4-F6) ---------------------
+from healthcraft.llm.agent import OpenAIClient, _is_unsupported_temperature_error  # noqa: E402
+
+_OPENAI_TEMP_400 = (
+    "Error code: 400 - {'error': {'message': \"Unsupported value: 'temperature' does not "
+    'support 0 with this model. Only the default (1) value is supported.", '
+    "'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}"
+)
+
+
+class _FakeCompletions:
+    """Emulates openai chat.completions.create: raises the temperature-400 when
+    a temperature kwarg is present, succeeds otherwise. Records each call."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        if "temperature" in kwargs:
+            raise RuntimeError(_OPENAI_TEMP_400)
+
+        class _Msg:
+            content = "OK"
+            tool_calls = None
+
+        class _Choice:
+            message = _Msg()
+            finish_reason = "stop"
+
+        class _Resp:
+            choices = [_Choice()]
+
+        return _Resp()
+
+
+class _FakeOpenAI:
+    def __init__(self) -> None:
+        self.chat = type("C", (), {"completions": _FakeCompletions()})()
+
+
+class TestOpenAIReasoningTemperatureSelfHeal:
+    def test_detector_matches_the_real_400(self) -> None:
+        assert _is_unsupported_temperature_error(RuntimeError(_OPENAI_TEMP_400)) is True
+        assert _is_unsupported_temperature_error(RuntimeError("503 service unavailable")) is False
+
+    def test_retries_without_temperature_and_remembers(self) -> None:
+        OpenAIClient._models_reject_temperature.discard("gpt-5.5-test")
+        c = OpenAIClient(api_key="x", model="gpt-5.5-test")
+        fake = _FakeOpenAI()
+        c._client = fake  # type: ignore[attr-defined]
+
+        out = c.chat(messages=[{"role": "user", "content": "hi"}], temperature=0.0)
+        assert out["content"] == "OK"
+        # First call sent temperature (400), retry omitted it -> 2 calls.
+        calls = fake.chat.completions.calls
+        assert len(calls) == 2
+        assert "temperature" in calls[0] and "temperature" not in calls[1]
+        # Model remembered: a NEW client/instance omits temperature on the FIRST try.
+        assert "gpt-5.5-test" in OpenAIClient._models_reject_temperature
+        c2 = OpenAIClient(api_key="x", model="gpt-5.5-test")
+        fake2 = _FakeOpenAI()
+        c2._client = fake2  # type: ignore[attr-defined]
+        c2.chat(messages=[{"role": "user", "content": "hi"}], temperature=0.0)
+        assert len(fake2.chat.completions.calls) == 1
+        assert "temperature" not in fake2.chat.completions.calls[0]
+        OpenAIClient._models_reject_temperature.discard("gpt-5.5-test")
+
+    def test_non_temperature_error_is_not_swallowed(self) -> None:
+        c = OpenAIClient(api_key="x", model="gpt-5.4-test")
+
+        class _Boom:
+            def create(self, **_kwargs: Any) -> Any:
+                raise RuntimeError("500 internal error")
+
+        c._client = type("O", (), {"chat": type("C", (), {"completions": _Boom()})()})()  # type: ignore[attr-defined]
+        with pytest.raises(RuntimeError, match="500"):
+            c.chat(messages=[{"role": "user", "content": "hi"}], temperature=0.0)
