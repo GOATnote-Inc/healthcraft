@@ -50,7 +50,10 @@ logger = logging.getLogger("healthcraft.llm.ensemble_judge")
 _DEFAULT_JUDGE_POOL: tuple[str, ...] = (
     "gpt-5.4",
     "claude-opus-4-7",
-    "gemini-3.1-pro",
+    # Correct Gemini 3.1 Pro API id is "...-preview"; the bare "gemini-3.1-pro"
+    # 404s on generativelanguage.googleapis.com (2026-06-01 preflight). NOTE: a
+    # billing/quota-enabled GOOGLE_API_KEY is still required — the dev key 429s.
+    "gemini-3.1-pro-preview",
 )
 
 # Lowercase prefix -> vendor. Checked in order: the first matching prefix wins.

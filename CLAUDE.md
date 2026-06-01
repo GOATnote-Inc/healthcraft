@@ -497,7 +497,7 @@ supermajority (2-of-3) voting, agreement-based ambiguity dropout.
 
 | Layer | Script | Artifact |
 |-------|--------|----------|
-| Ensemble judge | `src/healthcraft/llm/ensemble_judge.py` | `EnsembleJudge(agent_model, judge_pool=[gpt-5.4, claude-opus-4-7, gemini-3.1-pro], min_agreement=2)` |
+| Ensemble judge | `src/healthcraft/llm/ensemble_judge.py` | `EnsembleJudge(agent_model, judge_pool=[gpt-5.4, claude-opus-4-7, gemini-3.1-pro-preview], min_agreement=2)` |
 | Consensus subset | `scripts/build_consensus.py` | `data/consensus/healthcraft_consensus_v1.jsonl` + `consensus_criteria.yaml` |
 | Hard subset | `scripts/build_hard.py` | `data/hard/healthcraft_hard_v1.jsonl` + `hard_tasks.yaml` |
 | v11 proposer (RLVR) | `scripts/propose_overlay_entries.py` | `configs/rubrics/v11_consensus_overlay.yaml` |

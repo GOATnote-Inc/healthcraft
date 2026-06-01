@@ -174,7 +174,7 @@ class _StubEnsembleJudge:
     """
 
     script: dict[tuple[str, str], dict[str, bool]] = {}
-    judge_pool_default = ("gpt-5.4", "claude-opus-4-7", "gemini-3.1-pro")
+    judge_pool_default = ("gpt-5.4", "claude-opus-4-7", "gemini-3.1-pro-preview")
 
     def __init__(
         self,
@@ -303,22 +303,22 @@ class TestConsensusContractArtifacts:
             traj_id = bc._stable_trajectory_id(tp)
             script[("FX-001-C01", traj_id)] = {
                 "claude-opus-4-7": True,
-                "gemini-3.1-pro": True,
+                "gemini-3.1-pro-preview": True,
             }
         # C02: two trajectories with 1-1 split (ambiguous, agreement 0.5),
         # one with unanimous -- mean agreement still < 0.85.
         amb_ids = [bc._stable_trajectory_id(tp) for tp in traj_paths]
         script[("FX-001-C02", amb_ids[0])] = {
             "claude-opus-4-7": True,
-            "gemini-3.1-pro": False,
+            "gemini-3.1-pro-preview": False,
         }
         script[("FX-001-C02", amb_ids[1])] = {
             "claude-opus-4-7": False,
-            "gemini-3.1-pro": True,
+            "gemini-3.1-pro-preview": True,
         }
         script[("FX-001-C02", amb_ids[2])] = {
             "claude-opus-4-7": True,
-            "gemini-3.1-pro": False,
+            "gemini-3.1-pro-preview": False,
         }
         _StubEnsembleJudge.script = script
         monkeypatch.setattr(bc, "EnsembleJudge", _StubEnsembleJudge)
