@@ -436,7 +436,7 @@ class SGLangClient(OpenAIClient):
 class GeminiClient:
     """Client for Gemini models via the Google Generative AI API."""
 
-    def __init__(self, api_key: str, model: str = "gemini-3.1-pro") -> None:
+    def __init__(self, api_key: str, model: str = "gemini-3.1-pro-preview") -> None:
         self._api_key = api_key
         self._model = model
         self._client: Any = None
@@ -585,7 +585,7 @@ def create_client(model: str, api_key: str) -> ModelClient:
 
     Args:
         model: Model identifier (e.g., "claude-opus-4-6", "gpt-5.4",
-               "gemini-3.1-pro", "grok-4").
+               "gemini-3.1-pro-preview", "grok-4").
         api_key: API key for the model provider.
 
     Returns:

@@ -32,6 +32,15 @@ See [Evaluation Findings](docs/EVALUATION_FINDINGS.md) for per-category
 breakdown and [Evaluation Integrity](docs/EVALUATION_INTEGRITY.md) for
 version history, known limitations, and audit trail.
 
+> **Frontier accounting in progress (2026-06):** a separate evaluation of
+> `claude-opus-4-8` and `gpt-5.5` on the v10 channel (common neutral grok-4 judge,
+> seed 42) is running. It does **not** supersede the V8 result above. A
+> single-category pilot is complete; see
+> [Frontier Accounting](docs/FRONTIER_ACCOUNTING_OPUS48_GPT55.md) for methodology,
+> caveats, and the reproduce/trace/verify status. Note: neither of these two
+> models supports `temperature=0` (Opus 4.7+ deprecated it; gpt-5.5 mandates the
+> default), so their reproducibility rests on seed + multi-trial aggregation.
+
 ### Per-Category Pass@1
 
 | Category | Tasks | Claude | GPT |
@@ -187,6 +196,12 @@ bug discovery, and correction. See
 - 57% of criteria use LLM judge (non-deterministic). Judge context overload
   on long trajectories is a known failure mode.
 - 3 trials per model. Confidence intervals are wide.
+- Cross-vendor judging is necessarily asymmetric (each model judged by a
+  different vendor). The 2026-06 frontier accounting addresses this with a
+  common neutral third-vendor judge (grok-4); see its card.
+- Frontier reasoning models are dropping `temperature=0` support (Opus 4.7+
+  deprecated the param; gpt-5.5 mandates the default). For those models,
+  determinism comes from seed + multi-trial aggregation, not temp=0.
 - See [Evaluation Integrity](docs/EVALUATION_INTEGRITY.md) for the full
   audit trail and known limitations.
 

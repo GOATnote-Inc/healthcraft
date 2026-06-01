@@ -347,7 +347,7 @@ def _write_manifest(
         "grader": {
             "module": "evals/healthcraft_simple_eval.py",
             "mode": "ensemble",
-            "judges": ["gpt-5.4", "claude-opus-4-7", "gemini-3.1-pro"],
+            "judges": ["gpt-5.4", "claude-opus-4-7", "gemini-3.1-pro-preview"],
             "min_agreement": 2,
         },
         "license": "MIT",
@@ -457,7 +457,7 @@ def _write_readme(
         "The reference grader lives at `evals/healthcraft_simple_eval.py` in the",
         "`healthcraft` repository. It is compatible with the OpenAI `simple-evals`",
         "harness surface. Default judge mode is **ensemble**: three cross-vendor",
-        "frontier judges (gpt-5.4, claude-opus-4-7, gemini-3.1-pro) vote",
+        "frontier judges (gpt-5.4, claude-opus-4-7, gemini-3.1-pro-preview) vote",
         "independently, and a supermajority (2-of-3) decides each `llm_judge`",
         "criterion verdict. Same-vendor judges are filtered out automatically so",
         "the agent is never its own judge.",

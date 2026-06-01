@@ -124,7 +124,7 @@ def test_skips_same_vendor_judge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     _set_all_keys(monkeypatch)
     fakes = _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "gemini-3.1-pro": True},
+        {"gpt-5.4": True, "gemini-3.1-pro-preview": True},
     )
 
     ensemble = EnsembleJudge(
@@ -132,13 +132,13 @@ def test_skips_same_vendor_judge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         cache_dir=tmp_path,
     )
 
-    assert ensemble.judge_models == ["gpt-5.4", "gemini-3.1-pro"]
+    assert ensemble.judge_models == ["gpt-5.4", "gemini-3.1-pro-preview"]
     # claude-opus-4-7 must NOT have been instantiated (pre-check)
     assert "claude-opus-4-7" not in fakes
 
     result = ensemble.evaluate_criterion(_criterion(), _trajectory(), trajectory_id="traj-001")
     assert result.n_judges_used == 2
-    assert set(result.per_judge) == {"gpt-5.4", "gemini-3.1-pro"}
+    assert set(result.per_judge) == {"gpt-5.4", "gemini-3.1-pro-preview"}
 
 
 def test_supermajority_true_2_of_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,7 +146,7 @@ def test_supermajority_true_2_of_3(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     _set_all_keys(monkeypatch)
     _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro": False},
+        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro-preview": False},
     )
 
     ensemble = EnsembleJudge(agent_model="grok-4", cache_dir=tmp_path)
@@ -163,7 +163,7 @@ def test_supermajority_false_2_of_3(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     _set_all_keys(monkeypatch)
     _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": False, "claude-opus-4-7": False, "gemini-3.1-pro": True},
+        {"gpt-5.4": False, "claude-opus-4-7": False, "gemini-3.1-pro-preview": True},
     )
 
     ensemble = EnsembleJudge(agent_model="grok-4", cache_dir=tmp_path)
@@ -179,7 +179,7 @@ def test_unanimous_true(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     _set_all_keys(monkeypatch)
     _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro": True},
+        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro-preview": True},
     )
 
     ensemble = EnsembleJudge(agent_model="grok-4", cache_dir=tmp_path)
@@ -195,7 +195,7 @@ def test_ambiguous_with_2_judges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     _set_all_keys(monkeypatch)
     _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "gemini-3.1-pro": False},
+        {"gpt-5.4": True, "gemini-3.1-pro-preview": False},
     )
 
     ensemble = EnsembleJudge(
@@ -230,7 +230,7 @@ def test_cache_hit_skips_api_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     _set_all_keys(monkeypatch)
     fakes = _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro": False},
+        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro-preview": False},
     )
 
     ensemble = EnsembleJudge(agent_model="grok-4", cache_dir=tmp_path)
@@ -269,7 +269,7 @@ def test_missing_api_key_raises_runtime_error(
     # fail loudly instead of making real API calls.
     _install_fake_clients(
         monkeypatch,
-        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro": True},
+        {"gpt-5.4": True, "claude-opus-4-7": True, "gemini-3.1-pro-preview": True},
     )
 
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
