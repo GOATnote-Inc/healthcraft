@@ -251,10 +251,23 @@ the strictest channel that is both **populated** and **regression-locked**. v11 
   field (+ `judge_model`/`judge_prompt_version` in metadata), set by the
   orchestrator on both success and error paths — the graded channel is now provable
   from a trajectory file alone. Backward-compatible (old files default to "").
-- **D4-F6 (silent-corruption guard):** `_api_preflight` now hard-fails (exit 2),
-  distinctly from auth/404, on a 400 / invalid-parameter / temperature rejection —
-  so a reasoning model (e.g. gpt-5.5) that rejects `temperature=0` aborts the run
-  loudly *before* the multi-hour loop instead of filling the cache with reward=0.
+- **D4-F6 (silent-corruption guard + LIVE-CONFIRMED):** preflight against the real
+  API confirmed **gpt-5.5 rejects `temperature=0`** — *"Only the default (1) value
+  is supported"* (the OpenAI analog of the Opus 4.7+ deprecation). `OpenAIClient`
+  now self-heals: on that specific 400 it drops `temperature`, remembers the model
+  (`_models_reject_temperature`, process-shared so the first preflight 400 flags it
+  for the whole run), and retries — beating a brittle allowlist (gpt-5.4 *accepts*
+  temperature=0; gpt-5.5 does not). `_api_preflight` also hard-fails (exit 2),
+  distinctly from auth/404, on any residual 400/invalid-parameter. Both targets now
+  preflight green.
+- **Determinism caveat (must be stated in any published accounting):** *neither*
+  frontier model runs at `temperature=0` — Opus 4.7+ deprecated the param and
+  gpt-5.5 mandates the default (1). HealthCraft's `temperature=0` reproducibility
+  assumption (CLAUDE.md) does **not** hold for these two models; reproducibility
+  rests on `seed=42` + multi-trial Pass@k aggregation with CIs, and gpt-5.5 in
+  particular samples non-deterministically (per-trial variance expected).
+- **Key source:** the per-repo `healthcraft/.env` keys are STALE (401); the
+  canonical live keys are `/Users/kiteboard/lostbench/.env` (preflight caught this).
 
 **Confirmed-good (no action):** routing accepts both new IDs with no whitelist
 (D4-F2); self-judge guard refuses same-vendor and allows cross-vendor for both
