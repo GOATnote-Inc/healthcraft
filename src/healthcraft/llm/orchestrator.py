@@ -527,6 +527,12 @@ def run_frontier_evaluation(
                     dimension_scores=merged_dims,
                 )
 
+                # Record grading provenance so the verdict is traceable from
+                # the trajectory file alone (v11 audit D4-F4).
+                traj.rubric_channel = rubric_channel
+                traj.metadata["judge_model"] = judge_model
+                traj.metadata["judge_prompt_version"] = "v2"
+
                 # Save trajectory
                 traj.save(traj_path)
 
@@ -557,6 +563,7 @@ def run_frontier_evaluation(
                     model=agent_model,
                     seed=trial_seed,
                     system_prompt="",
+                    rubric_channel=rubric_channel,
                     error=str(e),
                 )
                 error_traj.save(traj_path)
@@ -677,6 +684,28 @@ def _api_preflight(
                     "PREFLIGHT FAIL (%s=%s): model id not found.",
                     label,
                     model,
+                )
+                sys.exit(2)
+            # A 400 / invalid-parameter (e.g. a reasoning model that rejects
+            # temperature, or any unsupported request param) would otherwise
+            # 400 on EVERY call and silently fill the cache with reward=0 error
+            # trajectories. Fail loud and distinct here (v11 audit D4-F1/D4-F6).
+            if (
+                "400" in msg
+                or "temperature" in msg.lower()
+                or "INVALID_ARGUMENT" in up
+                or "unsupported" in msg.lower()
+                or "not supported" in msg.lower()
+            ):
+                logger.error(
+                    "PREFLIGHT FAIL (%s=%s): request rejected (HTTP 400 / invalid "
+                    "parameter). A reasoning model may reject temperature, or a "
+                    "request param is unsupported for this model id. This would "
+                    "400 on every call and silently produce reward=0 trajectories. "
+                    "Raw error: %s",
+                    label,
+                    model,
+                    msg,
                 )
                 sys.exit(2)
             logger.warning(
