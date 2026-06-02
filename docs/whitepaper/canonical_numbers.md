@@ -40,7 +40,14 @@ a CI failure.
 | `CN:n_decision_rules` | Decision rules used | 45 | n/a | `configs/tasks/` |
 | `CN:n_eval_properties` | Evaluation properties used | 44 | n/a | `configs/tasks/` |
 
-### V8 Main Results
+### V8 Main Results (PRE-AUDIT grader — superseded, not re-measured)
+
+> Produced under the grader superseded by the 2026-05-31 grader-fidelity audit
+> (judge fail-OPEN on safety_critical criteria; member-not-class drug gates;
+> bare-order collapse; temporal-gate flattening). A fail-OPEN on a negated safety
+> gate **deflates** measured safety-failure, so the `*_safety_fail` rates below are
+> biased LOW. Per operator decision these are relabeled, not re-derived. See
+> `docs/GRADER_FIDELITY_AUDIT_2026-05-31.md` and §sec:grader-superseded.
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
@@ -147,10 +154,10 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
 | `CN:neg_tasks` | Negative-class tasks in corpus | 10 | n/a | `configs/tasks/*/task_neg_*.yaml` |
-| `CN:neg_criteria` | Criteria across NEG tasks | 82 | n/a | `configs/tasks/*/task_neg_*.yaml` |
+| `CN:neg_criteria` | Criteria across NEG tasks | 68 | n/a | `configs/tasks/*/task_neg_*.yaml` (live aggregate 2026-06-02) |
 | `CN:neg_safety_critical` | Safety-critical criteria in NEG tasks | 14 | n/a | `configs/tasks/*/task_neg_*.yaml` |
 | `CN:post_neg_tasks` | Total tasks post-NEG | 205 | n/a | `configs/tasks/` aggregate |
-| `CN:post_neg_criteria` | Total criteria post-NEG (2,255 V8 + 82 NEG) | 2,337 | n/a | `configs/tasks/` aggregate |
+| `CN:post_neg_criteria` | Total criteria post-NEG (2,255 V8 + 68 NEG) | 2,323 | n/a | `configs/tasks/` aggregate (live 2026-06-02) |
 | `CN:post_neg_safety_critical` | Total safety-critical criteria post-NEG (515 V8 + 14 NEG) | 529 | n/a | `configs/tasks/` aggregate |
 | `CN:post_neg_projected_prev` | Projected post-NEG audit-subset prevalence (FALSIFIED by smoke pilot) | ~0.70 | n/a | projected (pre-smoke pilot) |
 | `CN:neg_target_band` | Target-band prevalence (kappa-recovery, task-level Pass@1) | 0.55-0.75 | n/a | overlay audit design spec |
@@ -175,3 +182,32 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 |---|---|---|---|---|
 | `CN:v2_idem_claude_pass1` | Claude Pass@1 (idempotent tools) | TBD | TBD | `results/pilot-idempotent-tools/summary.json` |
 | `CN:v2_idem_gpt_pass1` | GPT Pass@1 (idempotent tools) | TBD | TBD | `results/pilot-idempotent-tools/summary.json` |
+
+### Post-audit grader fidelity (corrected grader; gold set measures MECHANICS, not clinical agreement)
+
+| Tag | Claim | Value | 95% CI | Source |
+|---|---|---|---|---|
+| `CN:goldset_n` | EM-adjudicated gold-set trajectories | 55 | n/a | `evals/grader_goldset/goldset.yaml` |
+| `CN:goldset_safety_false_pass` | Gold-set safety-critical false-PASS | 0 | [0, ~20%] | `src/healthcraft/evals/grader_goldset.py` |
+| `CN:goldset_false_pass` | Gold-set false-PASS (all) | 0 | n/a | `grader_goldset.py` |
+| `CN:goldset_false_fail` | Gold-set false-FAIL (all) | 0 | n/a | `grader_goldset.py` |
+| `CN:channel_lock_trajectories` | Channel verdict-lock trajectories | 88 | n/a | `tests/fixtures/golden_trajectories/index_channels.json` |
+| `CN:channel_lock_v10_diffs` | v10 verdicts differing from V8 (lock) | 12 | n/a | channel verdict-lock manifest |
+
+### Frontier accounting — opus-4.8 vs gpt-5.5 (v10 channel, neutral grok-4 judge, 205×3, seed=42)
+
+> Common neutral third-vendor judge (cross-vendor to both). NOT comparable to the
+> V8 table (different judge, channel, and corpus). grok-4 judge reliability is
+> unmeasured (no kappa). gpt-5.5 ran at temperature=1 (non-reproducible). See
+> `docs/FRONTIER_ACCOUNTING_OPUS48_GPT55.md` and `docs/RED_TEAM_2026-06.md`.
+
+| Tag | Claim | Value | 95% CI | Source |
+|---|---|---|---|---|
+| `CN:v2_opus48_pass1` | claude-opus-4-8 Pass@1 | 23.7% | [20.5, 27.3] | `results/acct-full-opus48-grok-v10/summary.json` |
+| `CN:v2_opus48_passk3` | claude-opus-4-8 Pass^3 | 13.7% | n/a | `results/acct-full-opus48-grok-v10` |
+| `CN:v2_opus48_reward` | claude-opus-4-8 avg reward | 0.618 | n/a | `results/acct-full-opus48-grok-v10/summary.json` |
+| `CN:v2_opus48_safety_fail` | claude-opus-4-8 safety failures | 28.9% | n/a | `results/acct-full-opus48-grok-v10/summary.json` |
+| `CN:v2_gpt55_pass1` | gpt-5.5 Pass@1 | 13.7% | [11.2, 16.6] | `results/acct-full-gpt55-grok-v10/summary.json` |
+| `CN:v2_gpt55_passk3` | gpt-5.5 Pass^3 | 7.3% | n/a | `results/acct-full-gpt55-grok-v10` |
+| `CN:v2_gpt55_reward` | gpt-5.5 avg reward | 0.570 | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
+| `CN:v2_gpt55_safety_fail` | gpt-5.5 safety failures | 32.0% | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
