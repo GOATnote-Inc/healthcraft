@@ -97,6 +97,48 @@ python -m healthcraft.llm.orchestrator \
 Re-running the same command **resumes** (completed trajectories are cached and
 skipped). Analyze with `python scripts/analyze_results.py <results-dir>`.
 
+## Full run results — 205 tasks × 3 trials @ v10 (grok-4 neutral judge, seed 42)
+
+Both runs complete, **0 error trajectories** each. Common neutral judge (grok-4),
+so this IS an apples-to-apples cross-model comparison (unlike V8's asymmetric
+cross-vendor judging) — subject to the red-team caveats below.
+
+| Metric | claude-opus-4-8 | gpt-5.5 |
+|---|---|---|
+| Pass@1 | **23.7%** [20.5, 27.3] | **13.7%** [11.2, 16.6] |
+| Pass@3 | 36.1% | 22.0% |
+| Pass^3 | 13.7% | 7.3% |
+| Avg reward | 0.618 | 0.570 |
+| Safety-fail (per trial) | 28.9% | 32.0% |
+
+opus-4.8 leads by **+10.1 pp Pass@1 (p < 0.001)**. Per-category pass (safety-fails):
+
+| Category | opus-4.8 | gpt-5.5 |
+|---|---|---|
+| clinical_reasoning (51) | 41.8% (10) | 17.6% (20) |
+| clinical_communication (30) | 26.7% (14) | 17.8% (18) |
+| information_retrieval (30) | 24.4% (7) | 17.8% (10) |
+| safety_critical_judgment (31) | 21.5% (47) | 16.1% (47) |
+| temporal_reasoning (28) | 16.7% (21) | 10.7% (23) |
+| multi_step_workflows (35) | 1.9% (79) | 1.0% (79) |
+
+**Findings.** (1) Both new models land within CI of their V8 predecessors —
+opus-4.8 23.7% ≈ V8 Claude-4.6 24.8%; gpt-5.5 13.7% ≈ V8 GPT-5.4 12.6% — i.e. **no
+detectable generational shift** on HEALTHCRAFT EM tasks, and the Claude > GPT
+ordering is preserved under a *neutral* judge. (2) The full cross-category result
+**reverses the single-category CC pilot** (where gpt looked better, 43% vs 23%) —
+confirming the pilot was category-skewed; do not cite pilot rates. (3) The
+multi_step_workflows collapse persists for both (1–2% pass), and that one category
+produces **79 of each model's safety failures** (44–40% of the total) — the gates
+fire structurally regardless of model.
+
+**Red-team caveats (see `RED_TEAM_2026-06.md`).** grok-4 as a clinical judge is
+**unvalidated** (no κ); the comparison to V8 crosses judge + channel + corpus
+(not controlled); fail-closed grading + an unmeasured grok-4 error rate perturbs
+these numbers (Pass@1 biased low, safety-fail high); and gpt-5.5 ran at temp=1
+with no provider seed, so its trajectories are not reproducible run-to-run
+(Pass^3 mixes capability with sampling luck).
+
 ## Reproduce / trace / verify — status
 
 - **Reproduce:** seed=42, deterministic per-(task, model, seed, trial) cache keys

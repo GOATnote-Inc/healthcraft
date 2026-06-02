@@ -331,16 +331,23 @@ chain all the way to FHIR resources the agent can retrieve.
 
 \subsection{Determinism}
 \label{sec:determinism}
-Every randomness source is seeded. Entity generation, noise injection,
-and task-engine scheduling share a single seed (seed=42)  % CN:seed
-set in \texttt{src/healthcraft/world/seed.py}. Model sampling is
-temperature=0  % CN:temperature
-as enforced by the orchestrator
-(\texttt{src/healthcraft/llm/orchestrator.py}). Two independent runs
-of the same command therefore produce the same trajectories up to
-provider-side nondeterminism in the model itself; this is the source
-of the $\text{Pass@3} > \text{Pass@1}$ gap we report in
-\S\ref{sec:results}.
+The environment is deterministic; the model is stochastic. Entity
+generation, noise injection, and task-engine scheduling share a single
+seed (seed=42)  % CN:seed
+set in \texttt{src/healthcraft/world/seed.py}, so the world a model
+faces is byte-reproducible. Model \emph{sampling} is a separate matter:
+the V8 models (Claude Opus 4.6, GPT-5.4) ran at temperature=0,  % CN:temperature
+but neither current frontier model supports it---Opus 4.7+ deprecated
+the parameter (the API returns 400) and gpt-5.5-class reasoning models
+reject \texttt{temperature=0} ("only the default value is supported").
+The orchestrator self-heals (it omits the parameter for those models),
+which means their sampling falls back to the provider default and is
+\emph{not} reproducible run-to-run. We also send no provider-side
+sampling seed. Reproducibility for such models therefore rests on the
+fixed environment plus multi-trial Pass@$k$ with confidence intervals,
+not on bit-identical trajectories; the $\text{Pass@3} > \text{Pass@1}$
+gap in \S\ref{sec:results} is genuine sampling variance, not residual
+provider noise.
 
 % ============================================================
 \section{Reward Function}
@@ -652,6 +659,33 @@ with safety-gate fraction below $\sim 0.5$ is the
 \label{fig:gate}
 \end{figure}
 
+\subsection{Frontier accounting: claude-opus-4-8 and gpt-5.5}
+\label{sec:frontier}
+After the grader audit (\S\ref{sec:grader-superseded}) we ran two newer
+models on the full 205-task corpus (three trials, seed=42) at the
+regression-locked \texttt{v10} channel, graded by a single \emph{neutral}
+third-vendor judge (grok-4) cross-vendor to both agents.
+claude-opus-4-8 reaches Pass@1 23.7\%  % CN:v2_opus48_pass1
+([20.5, 27.3]) with Pass\textsuperscript{3} 13.7\%  % CN:v2_opus48_passk3
+, reward 0.618,  % CN:v2_opus48_reward
+and safety-failure 28.9\%;  % CN:v2_opus48_safety_fail
+gpt-5.5 reaches Pass@1 13.7\%  % CN:v2_gpt55_pass1
+([11.2, 16.6]) with Pass\textsuperscript{3} 7.3\%,  % CN:v2_gpt55_passk3
+reward 0.570,  % CN:v2_gpt55_reward
+and safety-failure 32.0\%.  % CN:v2_gpt55_safety_fail
+Both land within the confidence interval of their V8 predecessors (Claude
+Opus 4.6 at 24.8\%, GPT-5.4 at 12.6\%): no detectable generational shift on
+this benchmark, and the Claude $>$ GPT ordering is preserved under a
+\emph{neutral} judge---which is notable because the single-category pilot
+that preceded this run had the ordering reversed, an artefact of category
+skew. The \texttt{multi\_step\_workflows} collapse persists for both. These
+numbers are \emph{not} comparable to the V8 table (different judge, channel,
+and corpus), the grok-4 judge's clinical agreement is unmeasured, and gpt-5.5
+ran at the provider-default temperature (it rejects \texttt{temperature=0}),
+so its trajectories are not reproducible run-to-run. We report them as a
+durability check under a stricter, neutral apparatus, not as a controlled
+successor to V8.
+
 \subsection{Methodological transparency: superseded V7}
 \label{sec:v7-superseded}
 
@@ -683,8 +717,12 @@ Offline re-scoring of V7 trajectories under the V8 evaluator produced
 611 criterion-level verdict flips overall (602 satisfied-to-unsatisfied
 from the qualifier-enforcement fix; 9 unsatisfied-to-satisfied from
 the compound-clause fix) with zero additional flips under the V8
-evaluator applied to V8 trajectories, which we take as a lower bound
-on evaluator stability. The three tool-side bugs
+evaluator applied to V8 trajectories, which we took as a lower bound
+on evaluator stability. We now retract that reading
+(\S\ref{sec:grader-superseded}): ``zero additional flips'' was an
+artefact of testing the V8 evaluator against its own prior verdicts;
+re-applying the \emph{corrected} grader flips 12 of 88 channel-locked
+verdicts. The three tool-side bugs
 (\texttt{processTransfer} $\times 2$ plus the missing
 entity-ID injection) primarily deflated GPT-5.4 because GPT follows
 schema parameter names literally while Claude adapts to error
@@ -710,14 +748,83 @@ an artefact of harness bugs. The broader lesson is that for tool-use
 benchmarks, infrastructure fidelity is not a separate axis from model
 evaluation; it is part of what is being measured.
 
+\subsection{Methodological transparency: superseded grader}
+\label{sec:grader-superseded}
+
+The V7 correction above fixed the harness. After it, we turned the same
+adversarial scrutiny on the \emph{grader} and found that infrastructure
+fidelity extends to the scoring path itself. A multi-agent grader-fidelity
+audit (documented in \texttt{docs/GRADER\_FIDELITY\_AUDIT\_2026-05-31.md},
+PR chain \#14--\#24) found defects on the live grading path that produced
+the V8/V9 numbers:
+(i)~the LLM judge's keyword fallback failed \emph{open}---on unparseable or
+truncated JSON it returned \texttt{satisfied=True}, including on
+safety-critical criteria, with one contaminated verdict found live in a V9
+trajectory; \texttt{compute\_reward} and the safety gate likewise treated a
+missing safety result as ``safe'';
+(ii)~drug gates matched a single literal token rather than the contraindicated
+\emph{class}, so a sibling agent (e.g.\ a non-heparin anticoagulant) slipped a
+``did not administer'' gate;
+(iii)~a bare tool-name check with empty parameters collapsed many
+``ordered $X$'' safety criteria onto \emph{any} single order;
+(iv)~six time-critical safety gates had been flattened into existence checks
+blind to ordering (a lethal false-\textsc{pass} shape), now reverted to
+judge grading; and
+(v)~substring over-match and compound-clause handling produced false
+\textsc{fail}s on correct trajectories.
+We fixed each (judge now fails \emph{closed}, built at a negation-first prompt
+version; drug \emph{classes}; both terms required for compound criteria;
+temporal gates restored), and a structural check-linter blocks the
+recurrence of the malformed-check patterns.
+
+The direction matters for a safety benchmark: a judge that fails open on a
+\emph{negated} safety gate \emph{deflates} the measured safety-failure rate,
+so the V8/V9 safety-failure numbers are biased \emph{low}---the defect made
+models look safer than they were. Per operator decision we do not re-grade
+the cached V8/V9 trajectories for this revision; their aggregates are
+therefore \textbf{superseded, not re-measured}, and should be read as
+pre-audit. As evidence that the \emph{corrected} grader is sound we report a
+hand-labeled, EM-adjudicated gold set of 55 trajectories run through the real
+graders: \textbf{zero} false-\textsc{pass}, \textbf{zero} false-\textsc{fail},
+and \textbf{zero} safety-critical false-\textsc{pass}, with Wilson intervals
+that---given $n=55$---bound the safety false-\textsc{pass} rate below roughly
+20\%, not to zero. This measures grader \emph{mechanics}, not the judge's
+clinical agreement with physicians, which remains future work
+(\S\ref{sec:limits}). As with V7, we did not ablate each grader fix in
+isolation. We highlight this because a safety benchmark whose grader silently
+certified unsafe behavior as safe must say so plainly rather than reprint the
+affected numbers as clean.
+
+\subsection{Reproducibility infrastructure}
+\label{sec:repro-infra}
+
+The audit's durable output is tamper-evidence the v1 release lacked. Three
+regression locks now pin grading behavior: a golden-trajectory replay lock
+(30 stratified V8 trajectories, byte-identical reward/pass/safety-gate);
+a channel verdict-lock over 88 trajectories (64 of 64 overlay-promoted tasks
+covered) that pins the criteria-level verdict hash at each rubric channel, so
+any silent shift in an overlay, the vocabulary, or the matcher turns CI red
+(12 of 88 v10 verdicts already differ from V8, behavior the V8 lock could not
+see); and the structural check-linter. These guard \emph{reproducibility and
+non-drift}, which is complementary to---not a substitute for---correctness: a
+locked verdict that is wrong stays wrong until the gold set or physician
+review catches it. We report all metrics at the \texttt{v10} channel (the
+strictest populated, regression-locked channel); a \texttt{v11} consensus
+channel exists but is empty by design and its proposer is unaudited, so we do
+not rely on it.
+
 % ============================================================
 \section{Limitations and Future Work}
 \label{sec:limits}
 % ============================================================
 
-We describe the real limits of this release directly. None of them
-invalidates the results reported above; all of them constrain what
-those results can be used to claim.
+We describe the real limits of this release directly. One of them---the
+grader-fidelity defects in \S\ref{sec:grader-superseded}, including an
+LLM-judge that failed \emph{open} on safety-critical criteria---does bear
+on the trustworthiness of the V8/V9 numbers reported above, which we
+therefore present as produced under a now-superseded grader (not yet
+re-measured). The remainder constrain what the results can be used to
+claim.
 
 \paragraph{Scope and non-claims.}
 HealthCraft measures \emph{execution correctness} under a fixed
