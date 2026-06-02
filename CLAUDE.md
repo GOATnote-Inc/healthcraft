@@ -469,6 +469,33 @@ python -m healthcraft.llm.orchestrator \
 Resume is idempotent: running the same command twice produces identical results.
 Cached tasks show `CACHED` in the log and are not re-logged to experiments.jsonl.
 
+## Post-audit operational notes (2026-06 — READ before any eval run)
+
+These supersede older assumptions after the 2026-05-31 grader-fidelity audit +
+the frontier-model run. Detail: `docs/GRADER_FIDELITY_AUDIT_2026-05-31.md`,
+`docs/FRONTIER_ACCOUNTING_OPUS48_GPT55.md`, `docs/RED_TEAM_2026-06.md`.
+
+- **Canonical grading channel = `v10`** (strictest populated + regression-locked).
+  V8/V9 numbers are **pre-audit / superseded** (the v1 judge failed OPEN on
+  safety_critical criteria, which *deflated* safety-failure rates). `v11` is empty
+  by design and its proposer is **unaudited (PARKED)** — do not grade on v11.
+- **Frontier models reject `temperature=0`.** Opus 4.7+ deprecated the parameter
+  (API 400); gpt-5.5-class reasoning models reject it ("only default 1"). The
+  clients **self-heal** (`agent.py`: `_claude_omits_temperature`,
+  `OpenAIClient._models_reject_temperature`). So the "temperature=0" convention
+  below holds only for V8-era models (Opus 4.6 / GPT-5.4). For current models,
+  reproducibility = **seed=42 (environment only) + multi-trial Pass@k**, NOT
+  bit-exact trajectories (no provider sampling seed is sent).
+- **API keys: source `/Users/kiteboard/lostbench/.env`** — the repo-local `.env`
+  is stale (401). Never read/print key values; `set -a && source … && set +a`.
+- **Gemini judge id = `gemini-3.1-pro-preview`** (bare `gemini-3.1-pro` 404s); the
+  dev GOOGLE key is quota-blocked (429). Neutral cross-vendor judge in use: `grok-4`.
+- **Reproducibility ≠ correctness.** The three verdict-locks (v8 golden, v9/v10/v11
+  channel) + the gold-set FP/FN harness (`make grader-goldset`, 0/0/0) + the
+  check-linter (`make check-lint`) pin behavior and catch regressions; they do
+  **not** prove clinical correctness. Re-freeze with `make freeze-channels` when a
+  deliberate verdict change lands (the manifest diff is the re-grade record).
+
 ## Rubric Channels
 
 Rubric channels are additive overlays that rewrite specific `llm_judge`
