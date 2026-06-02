@@ -23,11 +23,14 @@ is violated. We release a benchmark of 195 tasks across six categories,
 graded against 2{,}255 binary criteria of which 515 are safety-critical;
 a post-hoc 10-task negative-class slate extends this to
 $205$ tasks % CN:post_neg_tasks
-and $2{,}337$ criteria % CN:post_neg_criteria
+and $2{,}323$ criteria % CN:post_neg_criteria
 (\S\ref{sec:limits}, Appendix~F.5).
 V8 results on two frontier models show Claude Opus~4.6 achieves Pass@1
 of 24.8\% [21.5--28.4] and GPT-5.4 achieves 12.6\% [10.2--15.6], with
-safety-failure rates of 27.5\% and 34.0\% respectively. On multi-step
+safety-failure rates of 27.5\% and 34.0\% respectively---numbers produced
+under a grader since found to fail \emph{open} on safety-critical criteria
+(\S\ref{sec:grader-superseded}), hence presented as pre-audit and biased
+toward \emph{under}-reporting safety failures. On multi-step
 workflows---the closest proxy to real emergency care---performance
 collapses to near zero (Claude 1.0\%, GPT-5.4 0.0\%) despite partial
 competence on individual steps. We further document six infrastructure
@@ -35,8 +38,11 @@ bugs whose fix between pilots v2 and v8 coincided with a qualitative
 re-ordering of which model ``looks stronger,'' an outcome we present
 as evidence that infrastructure fidelity must be treated as part of
 the measurement, not a separate axis. HealthCraft is released as an evaluation benchmark. A deterministic
-LLM-judge audit overlay (Appendix~\ref{app:v9-overlay}) quantifies
-evaluator-noise bounds under high-prevalence rubrics, and a
+LLM-judge audit overlay (Appendix~\ref{app:v9-overlay}) surfaced a judge
+fail-\emph{open} tendency that a subsequent grader-fidelity audit
+(\S\ref{sec:grader-superseded}) confirmed on the published grading path and
+fixed (the judge now fails closed; a 55-case EM-adjudicated gold set finds
+zero safety-critical false-\textsc{pass}), and a
 negative-class task slate with 60-run smoke pilot
 (\S\ref{sec:limits}) provides direct empirical evidence that the
 same reward signal is \emph{not} drop-in training-safe:
@@ -107,7 +113,12 @@ audit (Appendix~\ref{app:v9-overlay}) of the LLM judge over
 which classifies each disagreement under a six-label taxonomy and
 finds that
 73\% of disagreements  % CN:v9_judge_halluc_pct
-are judge hallucinations rather than overlay faults. We release the
+are judge hallucinations rather than overlay faults---a fail-\emph{open}
+tendency that a subsequent grader-fidelity audit
+(\S\ref{sec:grader-superseded}) confirmed was live on the published grading
+path and remediated (fail-closed judge, drug-\emph{class} gates, restored
+temporal gates), now guarded by three verdict-locks and a gold-set FP/FN
+harness (\S\ref{sec:repro-infra}). We release the
 environment, tasks, rubric, harness, and audit artefacts under
 Apache~2.0.
 
@@ -533,12 +544,16 @@ Appendix~\ref{app:wilson}.
 \paragraph{Cross-vendor judging.}
 Judge selection forbids self-judging: Claude is judged by GPT,
 GPT is judged by Claude, and Gemini is judged by Claude
-(pinned in \texttt{judge.py}). Temperature is held at $0$
-for both agent and judge; the judge sees the full trajectory and
+(pinned in \texttt{judge.py}). Temperature was held at $0$ for both agent
+and judge in the V8 run; current frontier models no longer support that
+setting (\S\ref{sec:determinism}). The judge sees the full trajectory and
 returns a JSON-structured verdict per criterion. Judge agreement was
 quantified on a 100-trajectory dual-graded sample:
 Cohen's $\kappa=0.553$,  % CN:judge_kappa
-moderate agreement by Landis--Koch. As a partial mitigation we
+moderate agreement by Landis--Koch---measured, however, under the v1 judge
+since found to fail \emph{open} (\S\ref{sec:grader-superseded}); a
+re-measurement against the corrected fail-closed (v2) judge is owed. As a
+partial mitigation we
 maintain an oracle validation on task CC-001, where all five oracle
 verdicts agree with the \texttt{world\_state} verification method
 (5/5);  % CN:judge_cc001_oracle
@@ -554,14 +569,21 @@ overall $\kappa$ is 0.402,  % CN:v9_kappa_overall
 73\% of disagreements  % CN:v9_judge_halluc_pct
 are judge hallucinations (false-positive PASSes that cite tool calls
 absent from the audit log), and only $\sim 8\%$ are overlay faults;
-this fixes a pointwise upper bound on judge reliability at the
-\texttt{llm\_judge}-graded subset.
+this gave a pointwise estimate of judge reliability on the
+\texttt{llm\_judge}-graded subset. These overlay figures are themselves
+\emph{pre-audit}: the oracle was the v8 judge later found contaminated, so
+the $76.1\%/0.402/73\%$ values are superseded pending re-derivation against
+the corrected judge (\S\ref{sec:grader-superseded}).
 
 \paragraph{Models.}
 Main results in \S\ref{sec:results} are reported for Claude Opus 4.6
-and GPT-5.4. Gemini 3.1 Pro is in flight for the V9 release and
-will be appended in a follow-up; the infrastructure supports it
-unchanged (cross-vendor judge rules extend naturally).
+and GPT-5.4. The promised Gemini 3.1 Pro V9 run did not materialize: the
+correct API id is \texttt{gemini-3.1-pro-preview} (the bare id 404s) and the
+available key is quota-blocked. We instead report a post-audit frontier run
+(\S\ref{sec:frontier}) of claude-opus-4-8 and gpt-5.5 at the \texttt{v10}
+channel under a common \emph{neutral} third-vendor judge (grok-4),
+cross-vendor to both agents---a stricter design than V8's asymmetric
+Claude$\leftrightarrow$GPT judging.
 
 % ============================================================
 \section{Results}
@@ -832,10 +854,14 @@ rubric in a deterministic FHIR tool-use environment; it does not
 measure clinical reasoning under uncertainty, calibrated risk
 judgement, or deployment-time behaviour. Safety is operationalized as
 binary criterion satisfaction with a hard gate, not as dynamic risk
-tradeoff management. Determinism---fixed seed, temperature zero,
-static patient state---is a methodological requirement for
-reproducible evaluation, distinct from the stochastic variability
-that deployment confronts. FHIR~R4 grounding is a claim about
+tradeoff management. Determinism here is \emph{environmental}---a fixed seed
+(seed=42) over entities, noise, and scheduling, plus static patient
+state---a methodological requirement for reproducible evaluation, distinct
+from the stochastic variability that deployment confronts. Model
+\emph{sampling} is not deterministic for current frontier models: Opus 4.7+
+and gpt-5.5 no longer support \texttt{temperature=0}
+(\S\ref{sec:determinism}), so their runs reproduce only up to the fixed
+environment plus multi-trial Pass@$k$, not bit-identical trajectories. FHIR~R4 grounding is a claim about
 interoperability surfaces, not about team communication,
 interruptions, or the social dynamics of an emergency department. A
 strong result on HealthCraft is necessary but not sufficient evidence
@@ -866,7 +892,9 @@ Wave~3 tools do not accept an idempotency key, so a retried
 \texttt{createClinicalOrder} can silently create a duplicate order.
 Our tasks are structured so this is not exercised, but an RL loop
 that encourages retries would need this before being safe to train
-against.
+against. (The RL-coupling scaffold added in 2026-05 supplies idempotency
+keys, fault injection, and process signals on the training path; the V8
+evaluation tool surface described here predates it.)
 
 \paragraph{LLM-judge reliability.}
 Cohen's $\kappa = 0.553$ is moderate, not substantial, and our
@@ -896,6 +924,33 @@ is to prefer \texttt{world\_state} at authoring time and to apply
 Tier~1 overlays where available; the full mitigation is
 physician-in-the-loop adjudication, which is underway on a related
 corpus and will be ported to HealthCraft criteria in a follow-up.
+Most consequentially, the 2026-05-31 grader-fidelity audit
+(\S\ref{sec:grader-superseded}) found the production-default judge failed
+\emph{open}---on unparseable or truncated output it returned
+\texttt{satisfied=True}, including on safety-critical criteria. The
+five-of-six safety inversions above are a symptom of this, not residual
+variance. The judge is now built at a negation-first prompt version that
+fails \emph{closed}; \texttt{judge\_model} and \texttt{judge\_prompt\_version}
+are persisted per trajectory; and a 55-case EM-adjudicated gold set finds
+zero safety-critical false-\textsc{pass} (Wilson-bounded below $\sim 20\%$ at
+$n=55$, not zero). This measures grader \emph{mechanics}; clinical agreement
+with physicians remains the open item.
+
+\paragraph{Residual grader gaps and the deployment gate.}
+Three residuals we state plainly. (i)~The corrected drug gates match curated
+\texttt{em\_vocab} \emph{classes}, but those classes are hand-maintained
+allowlists with known omissions (\texttt{thrombolytic} lacks
+reteplase/streptokinase; \texttt{anticoagulant} lacks dalteparin/tinzaparin),
+so the member-not-class failure mode is \emph{narrowed, not eliminated}---an
+external drug ontology (RxNorm/ATC) is the durable fix. (ii)~The neutral judge
+used for the frontier run (grok-4) has \emph{unmeasured} clinical agreement
+(no $\kappa$); fail-closed grading makes its error direction conservative
+(Pass@1 biased low, safety-failure high) but the magnitude is unknown.
+(iii)~No deployment-readiness claim follows from any HealthCraft result: a
+held-out, prospective, physician-blind validation is a hard prerequisite
+(tracked as issue~\#10), and a model trained against this reward is a research
+artifact behind a \texttt{ResearchArtifactMetadata} firewall, not a deployable
+system.
 
 \paragraph{Infrastructure-bug isolation.}
 The V7-to-V8 delta (\S\ref{sec:v7-superseded}) is reported as a bundle
@@ -905,11 +960,17 @@ qualitative re-ordering of Claude and GPT-5.4 is therefore a
 Per-bug direction of impact is recorded in
 \texttt{docs/EVALUATION\_INTEGRITY.md}. Independent replication of v7
 under the v8 evaluator would be the natural next step for
-external validation of the fixed numbers.
+external validation of the fixed numbers. A \emph{second} wave of
+defects---in the grader rather than the harness---was found after V8
+(\S\ref{sec:grader-superseded}), so the six-fix narrative is not terminal:
+infrastructure fidelity extends to the scoring path itself.
 
 \paragraph{Task coverage.}
 The 195 tasks sample from OpenEM's 370 conditions at an average of
-under one task per condition. There are known coverage gaps
+under one task per condition (the live corpus is 205 tasks / 2{,}323
+criteria / 529 safety-critical after the negative-class slate; the
+195/2{,}255/515 figures are the frozen V8 evaluation subset). There are
+known coverage gaps
 (paediatric subspecialties, some toxicology presentations, most
 obstetric emergencies); the coverage-cycle methodology makes them
 visible but does not close them in this release.
