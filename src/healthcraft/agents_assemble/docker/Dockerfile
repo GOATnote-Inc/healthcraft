@@ -37,5 +37,11 @@ RUN pip install --upgrade pip && \
 RUN useradd --create-home --uid 10001 superpower
 USER superpower
 
-# Default command: stdio MCP server. Prompt Opinion attaches over stdin.
+# Two entrypoints share this image:
+# - stdio MCP transport (default; Prompt Opinion attaches over stdin):
+#     docker run -i agents-assemble/ed-decision-rules
+# - Streamable-HTTP MCP transport on $PORT (Vercel / Cloud Run / Docker host):
+#     docker run -e PORT=8080 -p 8080:8080 agents-assemble/ed-decision-rules \
+#         python -m healthcraft.agents_assemble.streamable_http_server --port 8080
+EXPOSE 8080
 CMD ["python", "-m", "healthcraft.agents_assemble.superpower_decision_rules"]

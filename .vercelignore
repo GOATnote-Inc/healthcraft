@@ -1,0 +1,48 @@
+# Keep the Vercel function bundle small: only ship what the MCP server
+# actually loads at runtime (src/healthcraft + configs/agents_assemble +
+# the minimal world/protocol configs the world seeder reads).
+
+# Defense-in-depth: explicitly exclude any env / credentials files even
+# though .gitignore already does (Vercel uploads ignore both, but belt-
+# and-braces). Never let .env land in the function bundle.
+.env
+.env.*
+.env.local
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Hide pyproject.toml so Vercel's uv-based Python builder doesn't try to
+# install the local ``healthcraft`` package (its ``[all]`` extra depends on
+# the private ``openem`` package). We rely on requirements.txt + a sys.path
+# shim in app.py to expose src/healthcraft at runtime.
+pyproject.toml
+uv.lock
+poetry.lock
+requirements-lock.txt
+
+.venv/
+.git/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+results/
+evals/
+data/
+docs/
+scripts/
+scripts-output/
+system-prompts/
+tests/
+docker/
+
+# Drop heavy task / rubric YAML the streamable MCP server doesn't read.
+configs/tasks/
+configs/rubrics/
+configs/schemas/
+
+# Drop the agent-triage / cds-hooks paths that the streamable MCP entrypoint
+# doesn't import; keep superpower_decision_rules + coverage + sharp.
+src/healthcraft/agents_assemble/demo/
