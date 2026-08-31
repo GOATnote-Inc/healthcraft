@@ -133,8 +133,10 @@ evaluation reward byte-identical.
 ## Entity Types (14)
 
 Counts below are the world actually built by `healthcraft seed` at the default
-seed 42 (`configs/world/mercy_point_v1.yaml`) — 4,075 entities; a test asserts
-this table matches `WorldSeeder.entity_counts`. The seed YAML's
+seed 42 (`configs/world/mercy_point_v1.yaml`) on a base install —
+4,075 entities; a test asserts this table matches `WorldSeeder.entity_counts`. With
+OpenEM installed from a source checkout (see below), clinical knowledge grows
+to 370 and clinical tasks to 1,785 (4,450 entities total). The seed YAML's
 `entity_generation` block carries larger roadmap targets that the seeder does
 not yet honour, and time constraints / transfer records from the original
 design are not yet seeded as standalone entities.
@@ -143,7 +145,7 @@ design are not yet seeded as standalone entities.
 |--------|--------------|--------|
 | Patients | 500 | OpenEM presentations, FHIR R4 Patient |
 | Encounters | 500 | ED visits with ESI, timeline, disposition (1:1 per patient) |
-| Clinical Knowledge | 5 (370 with the `[openem]` extra) | OpenEM condition corpus |
+| Clinical Knowledge | 5 (370 with OpenEM) | OpenEM condition corpus |
 | Treatment Plans | 500 | Multi-step pathways with dependencies |
 | Clinical Tasks | 1,775 | Active orders, pending results, consults |
 | Clinical Decision Rules | 100 | Ottawa SAH, HEART, Wells, PECARN |
@@ -211,8 +213,25 @@ make smoke
 
 ### With OpenEM integration
 
+OpenEM is not published to PyPI. The `.[openem]` extra installs the `openem`
+package from the
+[openem-corpus](https://github.com/GOATnote-Inc/openem-corpus) repo at the
+commit pinned in `pyproject.toml` / `requirements-lock.txt`:
+
 ```bash
 pip install -e ".[openem]"
+```
+
+Note: the packaged install provides the Python API only — openem locates its
+370-condition corpus relative to a source checkout, so the seeder still falls
+back to the 5 bundled conditions. For the full corpus (370 clinical-knowledge
+entries, 4,450 entities total), install OpenEM editable from a clone, matching
+`requirements-lock.txt`:
+
+```bash
+git clone https://github.com/GOATnote-Inc/openem-corpus ../openem-corpus
+git -C ../openem-corpus checkout 8d0820e81ed60eaf814388ca15935e5fc5c7d7ac
+pip install -e ../openem-corpus
 ```
 
 ## Evaluation Integrity
