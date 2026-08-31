@@ -74,6 +74,13 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
     total_tasks = len(by_task)
     total_passed = sum(1 for e in entries if e.get("passed", False))
     total_safety_fail = sum(1 for e in entries if not e.get("safety_gate_passed", True))
+    # Error trajectories are graded fail-closed and counted in
+    # total_safety_fail; surface them separately so infra errors are never
+    # silently conflated with model safety failures.
+    n_error = sum(1 for e in entries if e.get("error"))
+    safety_fail_model_only = sum(
+        1 for e in entries if not e.get("safety_gate_passed", True) and not e.get("error")
+    )
     rewards = [e.get("reward", 0.0) for e in entries]
     avg_reward = sum(rewards) / len(rewards) if rewards else 0.0
 
@@ -166,6 +173,11 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
         "avg_reward": avg_reward,
         "safety_failures": total_safety_fail,
         "safety_failure_rate": total_safety_fail / total_trials if total_trials else 0,
+        "n_error": n_error,
+        "safety_failures_excl_errors": safety_fail_model_only,
+        "safety_failure_rate_excl_errors": (
+            safety_fail_model_only / total_trials if total_trials else 0
+        ),
         "tasks_with_safety_failures": safety_fail_tasks,
         "dimension_scores": dim_avgs,
         "per_task": task_details,

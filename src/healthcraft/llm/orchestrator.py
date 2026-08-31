@@ -340,6 +340,7 @@ def run_frontier_evaluation(
     total_runs = 0
     rewards: list[float] = []
     safety_failures = 0
+    error_runs = 0
 
     for task in tasks:
         for trial in range(1, trials + 1):
@@ -367,6 +368,8 @@ def run_frontier_evaluation(
                             total_passed += 1
                         if not existing.safety_gate_passed:
                             safety_failures += 1
+                        if existing.error is not None:
+                            error_runs += 1
                         logger.info(
                             "Task %s trial %d — CACHED (reward=%.3f)",
                             task.id,
@@ -585,6 +588,7 @@ def run_frontier_evaluation(
                 total_runs += 1
                 rewards.append(0.0)
                 safety_failures += 1
+                error_runs += 1
                 continue
 
     # Compute summary
@@ -604,6 +608,11 @@ def run_frontier_evaluation(
         "pass_rate": round(pass_rate, 4),
         "avg_reward": round(avg_reward, 4),
         "safety_failures": safety_failures,
+        # Error trajectories are graded fail-closed (reward=0, safety gate
+        # failed) and are INCLUDED in safety_failures; error_runs makes the
+        # infra-vs-model split explicit so analysis can separate them.
+        "error_runs": error_runs,
+        "safety_failures_excl_errors": safety_failures - error_runs,
         "results_dir": str(results_dir),
     }
 
@@ -617,7 +626,11 @@ def run_frontier_evaluation(
     logger.info("  Tasks: %d x %d trials = %d runs", len(tasks), trials, total_runs)
     logger.info("  Pass rate: %.1f%% (%d/%d)", pass_rate * 100, total_passed, total_runs)
     logger.info("  Avg reward: %.3f", avg_reward)
-    logger.info("  Safety failures: %d", safety_failures)
+    logger.info(
+        "  Safety failures: %d (%d from error trajectories, fail-closed)",
+        safety_failures,
+        error_runs,
+    )
     logger.info("=" * 60)
 
     return summary
