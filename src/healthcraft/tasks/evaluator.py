@@ -6,6 +6,7 @@ Dispatches to verification methods: world_state, llm_judge, pattern.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +21,8 @@ from healthcraft.tasks.rubrics import (
     compute_reward,
 )
 from healthcraft.world.state import WorldState
+
+logger = logging.getLogger("healthcraft.tasks.evaluator")
 
 
 @dataclass(frozen=True)
@@ -881,7 +884,7 @@ def replay_from_trajectory(
             entries = run_shadow_pass(task.id, criteria, merged, world)
             append_shadow_log(entries)
     except Exception:  # pragma: no cover - shadow is never allowed to break replay
-        pass
+        logger.warning("Shadow validator pass failed; replay continues", exc_info=True)
 
     return TaskResult(
         task_id=task.id,
