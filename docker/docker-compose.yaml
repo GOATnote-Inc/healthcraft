@@ -5,7 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: healthcraft-world-state
     ports:
-      - "5432:5432"
+      # Loopback-only publish: reachable from the docker host, not the LAN.
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: ${HEALTHCRAFT_DB_NAME:-healthcraft}
       POSTGRES_USER: ${HEALTHCRAFT_DB_USER:-healthcraft}
@@ -25,7 +26,8 @@ services:
       dockerfile: docker/mcp-server/Dockerfile
     container_name: healthcraft-mcp-server
     ports:
-      - "8000:8000"
+      # Loopback-only publish: reachable from the docker host, not the LAN.
+      - "127.0.0.1:8000:8000"
     environment:
       HEALTHCRAFT_DB_HOST: world-state
       HEALTHCRAFT_DB_PORT: "5432"
@@ -35,6 +37,11 @@ services:
       HEALTHCRAFT_SEED: "42"
       HEALTHCRAFT_SEED_CONFIG: /app/configs/world/mercy_point_v1.yaml
       HEALTHCRAFT_LOG_LEVEL: INFO
+      # Optional bearer auth for /tool, /tools and /audit; unset = auth off
+      # (and /audit disabled). See src/healthcraft/mcp/app.py. Note: the
+      # task-engine service does not send a token, so leave this unset when
+      # running evals through compose.
+      HEALTHCRAFT_API_TOKEN: ${HEALTHCRAFT_API_TOKEN:-}
     depends_on:
       world-state:
         condition: service_healthy
