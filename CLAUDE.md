@@ -486,8 +486,9 @@ the frontier-model run. Detail: `docs/GRADER_FIDELITY_AUDIT_2026-05-31.md`,
   below holds only for V8-era models (Opus 4.6 / GPT-5.4). For current models,
   reproducibility = **seed=42 (environment only) + multi-trial Pass@k**, NOT
   bit-exact trajectories (no provider sampling seed is sent).
-- **API keys: source `/Users/kiteboard/lostbench/.env`** — the repo-local `.env`
-  is stale (401). Never read/print key values; `set -a && source … && set +a`.
+- **API keys: source your canonical key file from outside the repo** — the
+  repo-local `.env` has gone stale (401) before; the orchestrator pre-flight
+  hard-exits on bad keys. Never read/print key values; `set -a && source … && set +a`.
 - **Gemini judge id = `gemini-3.1-pro-preview`** (bare `gemini-3.1-pro` 404s); the
   dev GOOGLE key is quota-blocked (429). Neutral cross-vendor judge in use: `grok-4`.
 - **Reproducibility ≠ correctness.** The three verdict-locks (v8 golden, v9/v10/v11

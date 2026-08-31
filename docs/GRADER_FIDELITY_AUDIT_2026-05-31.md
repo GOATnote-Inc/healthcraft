@@ -266,8 +266,8 @@ the strictest channel that is both **populated** and **regression-locked**. v11 
   assumption (CLAUDE.md) does **not** hold for these two models; reproducibility
   rests on `seed=42` + multi-trial Pass@k aggregation with CIs, and gpt-5.5 in
   particular samples non-deterministically (per-trial variance expected).
-- **Key source:** the per-repo `healthcraft/.env` keys are STALE (401); the
-  canonical live keys are `/Users/kiteboard/lostbench/.env` (preflight caught this).
+- **Key source:** the per-repo `healthcraft/.env` keys were STALE (401); the
+  canonical live keys live outside this repo (preflight caught this).
 
 **Confirmed-good (no action):** routing accepts both new IDs with no whitelist
 (D4-F2); self-judge guard refuses same-vendor and allows cross-vendor for both

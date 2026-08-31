@@ -81,7 +81,7 @@ neutral grok-4 judge**, seed 42. Two concurrent jobs (per-results-dir
 (~2.2 min/trial; gpt-5.5 reasoning is slow). Idempotent resume on interruption.
 
 ```bash
-set -a && source /Users/kiteboard/lostbench/.env && set +a   # canonical keys (repo .env is stale/401)
+set -a && source .env && set +a   # keys are pre-flighted; the orchestrator hard-exits on 401
 
 python -m healthcraft.llm.orchestrator \
   --agent-model claude-opus-4-8 --judge-model grok-4 \
