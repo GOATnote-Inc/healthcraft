@@ -23,7 +23,7 @@ a CI failure.
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
 | `CN:entity_types` | FHIR entity types in world state | 14 | n/a | `docs/ENTITY_MAPPING.md` |
-| `CN:entities_seeded` | Entities at seed=42 | 3,987 | n/a | `src/healthcraft/world/seed.py` |
+| `CN:entities_seeded` | Entities at seed=42 | 4,075 | n/a | `src/healthcraft/world/seed.py` (measured 2026-08-31: `WorldSeeder(seed=42).seed_world(configs/world/mercy_point_v1.yaml)`; guarded by `tests/test_release/test_readme_counts.py`) |
 | `CN:n_tools` | MCP tools exposed | 24 | n/a | `configs/mcp-tools.json` |
 | `CN:tool_waves` | Tool waves (read/compute/mutate/workflow) | 4 | n/a | `docs/TOOL_MAPPING.md` |
 | `CN:openem_conditions` | OpenEM conditions covered | 370 | n/a | OpenEM v0.5.1 `openem-corpus` |
@@ -211,3 +211,38 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 | `CN:v2_gpt55_passk3` | gpt-5.5 Pass^3 | 7.3% | n/a | `results/acct-full-gpt55-grok-v10` |
 | `CN:v2_gpt55_reward` | gpt-5.5 avg reward | 0.570 | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
 | `CN:v2_gpt55_safety_fail` | gpt-5.5 safety failures | 32.0% | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
+
+
+## Deferred artifacts
+
+Result aggregates cited as Sources above that are not yet committed (the
+results tree is gitignored; these files exist only on the eval
+machine). `scripts/verify_canonical_numbers.py` treats a missing Source
+path as a hard failure UNLESS it is listed here; missing-but-listed is a
+warning. When an artifact below is committed, remove its row so the
+existence check hardens for it.
+
+To publish, run on the machine that holds the run directories (the files
+are small JSON/JSONL aggregates; trajectories stay uncommitted):
+
+```bash
+git add -f results/<run-dir>/summary.json results/<run-dir>/experiments.jsonl
+```
+
+| Path | What it backs |
+|---|---|
+| `results/pilot-v8-claude-opus/summary.json` | V8 Claude headline (`CN:v8_claude_*`, `CN:v8_total_tasks`) |
+| `results/pilot-v8-claude-opus/experiments.jsonl` | V8 Claude per-trial log |
+| `results/pilot-v8-gpt54/summary.json` | V8 GPT headline (`CN:v8_gpt_*`) |
+| `results/pilot-v8-gpt54/experiments.jsonl` | V8 GPT per-trial log |
+| `results/acct-full-opus48-grok-v10/summary.json` | Canonical v10 opus-4.8 result (`CN:v2_opus48_*`) |
+| `results/acct-full-opus48-grok-v10/experiments.jsonl` | v10 opus-4.8 per-trial log |
+| `results/acct-full-gpt55-grok-v10/summary.json` | Canonical v10 gpt-5.5 result (`CN:v2_gpt55_*`) |
+| `results/acct-full-gpt55-grok-v10/experiments.jsonl` | v10 gpt-5.5 per-trial log |
+| `results/pilot-v7-claude-opus/summary.json` | V7-to-V8 delta (`CN:v7_to_v8_claude_delta`) |
+| `results/pilot-v7-gpt54/summary.json` | V7-to-V8 delta (`CN:v7_to_v8_gpt_delta`) |
+| `results/pilot-v9-deterministic/summary.json` | v9 overlay pilot (`CN:v2_v9_*`) |
+| `results/pilot-neg-smoke-claude/summary.json` | NEG smoke pilot (`CN:neg_smoke_claude_pass1`) |
+| `results/pilot-neg-smoke-gpt/summary.json` | NEG smoke pilot (`CN:neg_smoke_gpt_pass1`) |
+| `results/pilot-dynamic-state/summary.json` | Dynamic-state pilot (`CN:v2_dyn_*`) |
+| `results/pilot-idempotent-tools/summary.json` | Idempotent-tools pilot (`CN:v2_idem_*`) |

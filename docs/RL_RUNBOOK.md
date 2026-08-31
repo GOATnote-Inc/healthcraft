@@ -15,7 +15,7 @@ GRPO/DAPO training run.
 
 | Option | Spec | Notes |
 |---|---|---|
-| Brev `distant-peach-wildebeest` | 1× H100 (96 GB), MassedCompute, ~$3.58/hr | Direct SSH (no proxy PTY echo issue); use for small / Qwen3 runs |
+| Cloud H100 pod | 1× H100 (96 GB) | Direct SSH; use for small / Qwen3 runs |
 | Kaggle | 1× RTX Pro 6000 96 GB | Free; max 12 h wall-clock per session |
 | Self-hosted 8× H100 | Required for full Nemotron-3-Nano-30B-A3B run | Provision via your cloud's H100 SKU |
 

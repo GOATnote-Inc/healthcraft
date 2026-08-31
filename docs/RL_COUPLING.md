@@ -209,7 +209,7 @@ python -m slime.train \
 ```
 
 The live multi-GPU run is **out of scope** for the env-side PRs; it needs
-H100s (Brev `distant-peach-wildebeest` or Kaggle) and is multi-day.
+H100s (a cloud H100 pod or Kaggle) and is multi-day.
 
 ## Verification
 
