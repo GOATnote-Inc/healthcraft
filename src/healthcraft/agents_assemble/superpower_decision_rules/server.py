@@ -123,7 +123,8 @@ class SuperpowerServer:
                         "code": "rule_not_found",
                         "message": (
                             f"Decision rule '{rule_name}' not found. "
-                            f"Closest matches: {', '.join(suggestions) if suggestions else '(none)'}"
+                            f"Closest matches: "
+                            f"{', '.join(suggestions) if suggestions else '(none)'}"
                         ),
                         "suggestions": suggestions,
                     },
@@ -200,38 +201,74 @@ class SuperpowerServer:
             # Per-rule semantic mapping. Keys are the rule's canonical
             # variable name lowercased; values map descriptor -> int.
             heart_history = {
-                "highly suspicious": 2, "high": 2, "definite": 2, "classic": 2,
-                "typical": 2, "anginal": 2, "cardiac": 2,
-                "moderately suspicious": 1, "moderate": 1,
-                "atypical with concerning features": 1, "concerning": 1,
-                "atypical": 1, "intermediate": 1,
-                "slightly suspicious": 0, "low": 0, "non-suspicious": 0,
-                "non-cardiac": 0, "musculoskeletal": 0, "pleuritic": 0,
-                "reproducible": 0, "no": 0, "none": 0,
+                "highly suspicious": 2,
+                "high": 2,
+                "definite": 2,
+                "classic": 2,
+                "typical": 2,
+                "anginal": 2,
+                "cardiac": 2,
+                "moderately suspicious": 1,
+                "moderate": 1,
+                "atypical with concerning features": 1,
+                "concerning": 1,
+                "atypical": 1,
+                "intermediate": 1,
+                "slightly suspicious": 0,
+                "low": 0,
+                "non-suspicious": 0,
+                "non-cardiac": 0,
+                "musculoskeletal": 0,
+                "pleuritic": 0,
+                "reproducible": 0,
+                "no": 0,
+                "none": 0,
             }
             heart_ecg = {
-                "significant st depression": 2, "st elevation": 2,
-                "st-segment depression": 2, "st depression": 2,
-                "non-specific repolarization": 1, "non-specific st-t": 1,
-                "non-specific st-t wave changes": 1, "non-specific st changes": 1,
+                "significant st depression": 2,
+                "st elevation": 2,
+                "st-segment depression": 2,
+                "st depression": 2,
+                "non-specific repolarization": 1,
+                "non-specific st-t": 1,
+                "non-specific st-t wave changes": 1,
+                "non-specific st changes": 1,
                 "non-specific repolarisation disturbance": 1,
-                "lbbb": 1, "lvh": 1, "abnormal": 1, "t-wave inversion": 1,
-                "normal": 0, "no changes": 0, "unremarkable": 0,
+                "lbbb": 1,
+                "lvh": 1,
+                "abnormal": 1,
+                "t-wave inversion": 1,
+                "normal": 0,
+                "no changes": 0,
+                "unremarkable": 0,
             }
             heart_age = {"<45": 0, "45-64": 1, ">=65": 2, "65+": 2, "elderly": 2}
             heart_risk = {
-                "none": 0, "no risk factors": 0,
-                "1-2 risk factors": 1, "one risk factor": 1, "two risk factors": 1,
-                ">=3 risk factors": 2, "three or more": 2,
+                "none": 0,
+                "no risk factors": 0,
+                "1-2 risk factors": 1,
+                "one risk factor": 1,
+                "two risk factors": 1,
+                ">=3 risk factors": 2,
+                "three or more": 2,
                 "history of atherosclerotic disease": 2,
-                "coronary artery disease": 2, "coronary disease": 2,
-                "cad": 2, "atherosclerosis": 2, "prior mi": 2, "prior stent": 2,
+                "coronary artery disease": 2,
+                "coronary disease": 2,
+                "cad": 2,
+                "atherosclerosis": 2,
+                "prior mi": 2,
+                "prior stent": 2,
                 "prior cabg": 2,
             }
             heart_troponin = {
-                "normal": 0, "<= normal limit": 0,
-                "1-3x normal limit": 1, "1-3x uln": 1, "mildly elevated": 1,
-                ">3x normal limit": 2, ">3x uln": 2, "markedly elevated": 2,
+                "normal": 0,
+                "<= normal limit": 0,
+                "1-3x normal limit": 1,
+                "1-3x uln": 1,
+                "mildly elevated": 1,
+                ">3x normal limit": 2,
+                ">3x uln": 2,
+                "markedly elevated": 2,
                 "elevated": 1,  # default elevated->1 (conservative)
             }
             mappings = {
@@ -452,7 +489,11 @@ def list_rule_schemas(world: WorldState) -> dict[str, Any]:
             "evidenceLevel": rule_dict.get("evidence_level", ""),
             "url": rule_dict.get("url", ""),
             "variables": [
-                {"name": v} if isinstance(v, str) else dict(v) if hasattr(v, "items") else {"name": str(v)}
+                {"name": v}
+                if isinstance(v, str)
+                else dict(v)
+                if hasattr(v, "items")
+                else {"name": str(v)}
                 for v in (rule_dict.get("variables") or [])
             ],
             "scoreRanges": list(rule_dict.get("score_ranges") or []),

@@ -46,9 +46,7 @@ from healthcraft.agents_assemble.superpower_decision_rules.server import (  # no
 # Module-level singletons — survive across requests in the same warm container.
 _world = _build_world()
 _superpower = create_superpower(_world)
-_coverage = CoverageMatrix.load(
-    _REPO_ROOT / "configs" / "agents_assemble" / "coverage_matrix.yaml"
-)
+_coverage = CoverageMatrix.load(_REPO_ROOT / "configs" / "agents_assemble" / "coverage_matrix.yaml")
 
 app = FastAPI(
     title="Agents Assemble — ED Decision Rules MCP",

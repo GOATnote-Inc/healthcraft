@@ -21,8 +21,6 @@ from typing import Any
 import pytest
 
 from healthcraft.agents_assemble.streamable_http_server import (
-    PROTOCOL_VERSION,
-    SERVER_NAME,
     serve,
 )
 
@@ -218,7 +216,13 @@ def test_f3_heart_borderline_includes_evidence_note(server_url: str) -> None:
                 "name": "applyDecisionRule",
                 "arguments": {
                     "ruleName": "HEART Score",
-                    "variables": {"history": 1, "ecg": 1, "age": 1, "risk_factors": 0, "troponin": 0},
+                    "variables": {
+                        "history": 1,
+                        "ecg": 1,
+                        "age": 1,
+                        "risk_factors": 0,
+                        "troponin": 0,
+                    },
                 },
             },
         },
@@ -342,9 +346,7 @@ def test_f8_get_rule_schema_tool_exposed(server_url: str) -> None:
     )
     tools = body["result"]["tools"]
     names = {t["name"] for t in tools}
-    assert "getRuleSchema" in names, (
-        f"expected getRuleSchema tool exposed, got: {sorted(names)}"
-    )
+    assert "getRuleSchema" in names, f"expected getRuleSchema tool exposed, got: {sorted(names)}"
 
 
 def test_f8_get_rule_schema_returns_heart_encoding(server_url: str) -> None:
@@ -381,15 +383,11 @@ def test_security_no_phi_in_observability_log_line() -> None:
     callers POST FHIR Bundles containing patient names / DOB / MRN."""
     import pathlib
 
-    app_py = (
-        pathlib.Path(__file__).resolve().parents[2] / "app.py"
-    ).read_text(encoding="utf-8")
+    app_py = (pathlib.Path(__file__).resolve().parents[2] / "app.py").read_text(encoding="utf-8")
     # Find the MCP-IN log line. It must not include the variable ``preview``
     # (which used to contain raw body content) — only ``method_preview`` (the
     # JSON-RPC method name) is acceptable.
-    log_lines = [
-        line for line in app_py.splitlines() if "[MCP-IN]" in line and "f\"" in line
-    ]
+    log_lines = [line for line in app_py.splitlines() if "[MCP-IN]" in line and 'f"' in line]
     assert log_lines, "expected an [MCP-IN] log statement in app.py"
     for line in log_lines:
         # Forbid the raw-body interpolation pattern that existed pre-v0.1.1.
@@ -479,7 +477,12 @@ def test_compliance_does_not_overclaim_certification() -> None:
         r"\bfully\s*compliant\s*with\s*HIPAA\b",
         r"\bcomplete[d]?\s*SOC\s*2\s*audit\b",
     ]
-    for doc in ("docs/COMPLIANCE.md", "docs/PRE_DEPLOYMENT_CHECKLIST.md", "SECURITY.md", "README.md"):
+    for doc in (
+        "docs/COMPLIANCE.md",
+        "docs/PRE_DEPLOYMENT_CHECKLIST.md",
+        "SECURITY.md",
+        "README.md",
+    ):
         p = root / doc
         if not p.exists():
             continue
@@ -497,9 +500,9 @@ def test_security_vercelignore_excludes_env_files() -> None:
     not silently expose secrets to the function bundle."""
     import pathlib
 
-    vercel_ignore = (
-        pathlib.Path(__file__).resolve().parents[2] / ".vercelignore"
-    ).read_text(encoding="utf-8")
+    vercel_ignore = (pathlib.Path(__file__).resolve().parents[2] / ".vercelignore").read_text(
+        encoding="utf-8"
+    )
     assert ".env" in vercel_ignore, ".vercelignore must list .env"
     assert "*.pem" in vercel_ignore or "*.key" in vercel_ignore, (
         ".vercelignore should exclude private-key file patterns"

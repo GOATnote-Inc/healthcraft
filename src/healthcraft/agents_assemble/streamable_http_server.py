@@ -297,7 +297,9 @@ def _dispatch_tool(
             }
         all_schemas = list_rule_schemas(world)
         # Find canonical name we resolved to.
-        canon = getattr(rule, "name", None) or (rule.get("name") if isinstance(rule, dict) else target)
+        canon = getattr(rule, "name", None) or (
+            rule.get("name") if isinstance(rule, dict) else target
+        )
         schema = all_schemas.get(canon)
         if schema is None:
             return {
@@ -327,10 +329,14 @@ def _dispatch_tool(
 _RULE_NL_SYNONYMS: dict[str, dict[str, dict[str, int]]] = {
     "HEART Score": {
         "history": {
-            "highly suspicious": 2, "moderately suspicious": 1, "slightly suspicious": 0,
+            "highly suspicious": 2,
+            "moderately suspicious": 1,
+            "slightly suspicious": 0,
         },
         "ecg": {
-            "significant ST depression": 2, "non-specific ST-T changes": 1, "normal": 0,
+            "significant ST depression": 2,
+            "non-specific ST-T changes": 1,
+            "normal": 0,
         },
         "age": {">=65": 2, "45-64": 1, "<45": 0},
         "risk factors": {
@@ -339,7 +345,9 @@ _RULE_NL_SYNONYMS: dict[str, dict[str, dict[str, int]]] = {
             "no risk factors": 0,
         },
         "troponin": {
-            ">3x normal limit": 2, "1-3x normal limit": 1, "normal": 0,
+            ">3x normal limit": 2,
+            "1-3x normal limit": 1,
+            "normal": 0,
         },
     },
 }
@@ -463,9 +471,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("x-content-type-options", "nosniff")
         self.send_header("x-frame-options", "DENY")
         self.send_header("referrer-policy", "no-referrer")
-        self.send_header(
-            "content-security-policy", "default-src 'none'; frame-ancestors 'none'"
-        )
+        self.send_header("content-security-policy", "default-src 'none'; frame-ancestors 'none'")
 
     def _send_json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
@@ -538,9 +544,7 @@ class _Handler(BaseHTTPRequestHandler):
                         "patient/MedicationRequest.rs",
                     ],
                     "bearer_methods_supported": [],
-                    "resource_documentation": (
-                        "https://github.com/GOATnote-Inc/healthcraft"
-                    ),
+                    "resource_documentation": ("https://github.com/GOATnote-Inc/healthcraft"),
                     "auth_required": False,
                     "notes": (
                         "Open access for v0.1 hackathon submission. OAuth 2.1 "
