@@ -5,6 +5,9 @@
 
 **Emergency Medicine RL Training Environment**
 
+
+> **Maintenance status (2026-09):** passive. This repository is kept available as a reference implementation; CI runs on pushes and pull requests only, Dependabot security alerts remain enabled, and no scheduled jobs or hosted services consume ongoing resources. No active development is planned.
+
 > **Research artifact — synthetic data only.** HEALTHCRAFT is a research
 > benchmark and RL environment, not a medical device, and must not be used
 > for clinical decision-making. Physician-blind validation
