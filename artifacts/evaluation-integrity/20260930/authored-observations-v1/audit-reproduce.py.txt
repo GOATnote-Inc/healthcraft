@@ -1,0 +1,76 @@
+import json,sys
+from collections import Counter
+from copy import deepcopy
+from datetime import date,datetime,timezone
+from enum import Enum
+from pathlib import Path
+import yaml
+OUT=Path(__file__).resolve().parent
+SNAP=OUT/'snapshot'
+sys.path.insert(0,str(SNAP/'src'))
+from healthcraft.tasks.loader import load_task
+from healthcraft.tasks.inject import inject_task_patient
+from healthcraft.mcp.server import create_server
+from healthcraft.world.state import WorldState
+
+
+def norm(value):
+    def default(v):
+        if isinstance(v,(datetime,date)):return v.isoformat()
+        if isinstance(v,Enum):return v.value
+        raise TypeError(type(v).__name__)
+    return json.loads(json.dumps(value,default=default))
+
+
+def walk(value,path=''):
+    if isinstance(value,dict):
+        for k,v in value.items():
+            key=path+'.'+str(k) if path else str(k)
+            yield key,k,v
+            yield from walk(v,key)
+    elif isinstance(value,list):
+        for i,v in enumerate(value):yield from walk(v,f'{path}[{i}]')
+
+
+labkeys={'labs','labs_post_rosc','labs_available','labs_at_discharge','initial_labs'}
+report={'tasks':0,'patient_tasks':0,'arrival_records':[],'lab_types':Counter(),'lab_examples':{},'structured_labs':[],'temporal_fields':[],'selected_replays':{},'errors':[]}
+for path in sorted((SNAP/'configs/tasks').rglob('*.yaml')):
+    task=load_task(path); raw=yaml.safe_load(path.read_text()); report['tasks']+=1
+    pat=task.patient or {}
+    if pat:report['patient_tasks']+=1
+    for itempath,key,value in walk(raw):
+        if key in ('arrival_time','time_of_vitals','time','timestamp','collected_at','resulted_at') and not itempath.startswith(('criteria','expected_sequence','metadata')):
+            report['temporal_fields'].append({'task':task.id,'path':itempath,'type':type(value).__name__,'value':norm(value)})
+    for key in labkeys:
+        labs=pat.get(key)
+        if isinstance(labs,dict):
+            for name,val in labs.items():
+                typename=type(val).__name__;report['lab_types'][typename]+=1
+                report['lab_examples'].setdefault(typename,[])
+                if len(report['lab_examples'][typename])<8:report['lab_examples'][typename].append({'task':task.id,'path':f'patient.{key}.{name}','value':norm(val)})
+                if isinstance(val,(dict,list)):
+                    report['structured_labs'].append({'task':task.id,'path':f'patient.{key}.{name}','value':norm(val)})
+    if not pat:continue
+    world=WorldState(start_time=datetime(2026,1,15,7,tzinfo=timezone.utc))
+    try:
+        ids=inject_task_patient(world,task.id,deepcopy(pat),deepcopy(task.initial_state)); server=create_server(world)
+        response=server.call_tool('getEncounterDetails',{'encounter_id':ids['encounter_id']})
+        detail=response['data']
+        if 'arrival_time' in pat:
+            query={'patient_id':ids['patient_id'],'date_from':pat['arrival_time'],'date_to':pat['arrival_time']}
+            bounded=server.call_tool('searchEncounters',query)
+            report['arrival_records'].append({'task':task.id,'source':pat['arrival_time'],'setting':task.initial_state.get('time'),'actual':norm(detail['arrival_time']),'notes':[norm(n) for n in detail['clinical_notes'] if n[0]=='Arrival Time'],'exact_authored_time_search_count':len(bounded.get('data',[])),'search_status':bounded['status']})
+        if task.id in ('TR-024','TR-012','IR-030','TR-009','TR-007','CR-001'):
+            report['selected_replays'][task.id]={'path':str(path.relative_to(SNAP)),'source_patient':pat,'source_setting':task.initial_state,'details_response':norm(response)}
+    except Exception as e:report['errors'].append({'task':task.id,'error':str(e)})
+# Controlled transport cases identify future input-contract boundaries, not task facts.
+report['synthetic_shape_probes']=[]
+shapes=[('structured_aware',{'time':'2026-01-15T10:50:00Z','value':18,'unit':'ng/L','reference':'<14','interpretation':'Above URL'}),('structured_naive',{'time':'2026-01-15T10:50:00','value':18,'unit':'ng/L'}),('structured_unknown',{'time':None,'value':None,'unit':None}),('structured_nested',{'time':'10:50','value':{'qualifier':'<','number':4},'unit':'ng/L','specimen':{'collected_at':'2026-01-15T10:45:00Z'}}),('numeric',18),('null',None),('series',[{'time':'10:50','value':18},{'time':'13:50','value':22}])]
+for name,lab in shapes:
+    world=WorldState(); patient={'age':40,'sex':'M','arrival_time':'2026-01-15T10:45:00Z','labs':{'probe':lab}}
+    ids=inject_task_patient(world,'SHAPE-'+name,patient,{'time':'2026-01-15T13:15:00Z'})
+    result=create_server(world).call_tool('getEncounterDetails',{'encounter_id':ids['encounter_id']})
+    report['synthetic_shape_probes'].append({'kind':name,'source':lab,'actual':norm(result['data']['labs'])})
+report=norm(report)
+(OUT/'reproduction.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps({k:report[k] for k in ('tasks','patient_tasks','lab_types','structured_labs','arrival_records','errors')},indent=2))

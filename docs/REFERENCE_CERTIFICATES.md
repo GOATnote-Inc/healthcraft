@@ -2,8 +2,10 @@
 
 The experimental `linked-history/v1` profile gives IR-002 four linked
 historical encounter records and executes a mechanical reference witness
-against the real in-process MCP handlers. It is opt-in: the default injector,
-published task, rubric channels, rewards, and historical results are unchanged.
+against the real in-process MCP handlers. The linked-history profile remains
+opt-in. Published task definitions, rubric channels, and historical results
+remain unchanged. Later [default-injector repairs](AUTHORED_OBSERVATIONS.md)
+preserve authored observations and unknown times in new executions.
 
 This closes one prerequisite for a future task revision: proving that the
 required source facts can be retrieved and persisted. It does not establish

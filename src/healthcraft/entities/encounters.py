@@ -36,17 +36,21 @@ class Disposition(Enum):
 
 @dataclass(frozen=True)
 class VitalSigns:
-    """A single set of vital signs recorded at a point in time."""
+    """A vital-sign set, retaining unknown timing and authored source qualifiers."""
 
-    timestamp: datetime
-    heart_rate: int | None = None  # bpm
-    systolic_bp: int | None = None  # mmHg
-    diastolic_bp: int | None = None  # mmHg
-    respiratory_rate: int | None = None  # breaths/min
-    spo2: int | None = None  # percent
+    timestamp: datetime | str | None
+    heart_rate: int | float | None = None  # bpm
+    systolic_bp: int | float | None = None  # mmHg
+    diastolic_bp: int | float | None = None  # mmHg
+    respiratory_rate: int | float | None = None  # breaths/min
+    spo2: int | float | None = None  # percent
     temperature: float | None = None  # Celsius
-    gcs: int | None = None  # Glasgow Coma Scale 3-15
-    pain_scale: int | None = None  # 0-10
+    gcs: int | float | None = None  # Glasgow Coma Scale 3-15
+    pain_scale: int | float | None = None  # 0-10
+    source_path: str = ""
+    source_data: Any = None
+    timing_status: str = ""
+    source_time_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,11 +58,15 @@ class LabResult:
     """A laboratory result."""
 
     test_name: str
-    value: str
-    unit: str
-    reference_range: str
-    timestamp: datetime
-    abnormal: bool = False
+    value: str | int | float | None
+    unit: str | None
+    reference_range: str | None
+    timestamp: datetime | str | None
+    abnormal: bool | None = False
+    source_path: str = ""
+    source_data: Any = None
+    timing_status: str = ""
+    source_time_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -94,8 +102,8 @@ class Encounter(Entity):
     chief_complaint: str = ""
     esi_level: ESILevel | None = ESILevel.URGENT  # None until a registered patient is triaged
     bed_assignment: str = ""
-    arrival_time: datetime | None = None
-    triage_time: datetime | None = None
+    arrival_time: datetime | str | None = None
+    triage_time: datetime | str | None = None
     disposition: Disposition | None = None
     attending_id: str = ""
     vitals: tuple[VitalSigns, ...] = ()

@@ -12,7 +12,9 @@ state, making tool-dependent criteria unsolvable.
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime, timedelta, timezone
+import math
+from copy import deepcopy
+from datetime import date, datetime
 from typing import Any
 
 from healthcraft.entities.base import EntityType
@@ -20,11 +22,13 @@ from healthcraft.entities.encounters import (
     Encounter,
     ESILevel,
     ImagingStudy,
-    LabResult,
     MedicationAdministration,
     VitalSigns,
 )
 from healthcraft.entities.patients import Patient
+from healthcraft.tasks.lab_projection import project_labs
+from healthcraft.tasks.source_values import require_finite_source
+from healthcraft.temporal import instant_key, resolve_source_time
 from healthcraft.world.state import WorldState
 
 
@@ -124,64 +128,67 @@ def _parse_bp(bp_str: str | None) -> tuple[int | None, int | None]:
     return None, None
 
 
-def _parse_vitals(vitals_data: dict[str, Any], timestamp: datetime) -> VitalSigns:
-    """Convert task YAML vitals dict to a VitalSigns dataclass."""
+def _parse_vitals(vitals_data: dict[str, Any], source_path: str) -> VitalSigns:
+    """Project explicit measurements and preserve all authored qualifiers."""
     sbp, dbp = _parse_bp(vitals_data.get("blood_pressure"))
-
-    # Fall back to right arm BP if standard BP not present (bilateral readings)
     if sbp is None:
         sbp, dbp = _parse_bp(vitals_data.get("blood_pressure_right"))
+    timestamp, status, keys = resolve_source_time(
+        vitals_data, ("time", "timestamp", "time_of_vitals")
+    )
 
-    hr = vitals_data.get("heart_rate")
-    if isinstance(hr, str):
-        hr = None  # e.g., "undetectable"
-
-    spo2 = vitals_data.get("spo2")
-    if isinstance(spo2, str):
-        spo2 = None
+    def numeric(key):
+        value = vitals_data.get(key)
+        if type(value) is int or (type(value) is float and math.isfinite(value)):
+            return value
+        return None
 
     return VitalSigns(
         timestamp=timestamp,
-        heart_rate=hr,
+        heart_rate=numeric("heart_rate"),
         systolic_bp=sbp,
         diastolic_bp=dbp,
-        respiratory_rate=vitals_data.get("respiratory_rate"),
-        spo2=spo2,
-        temperature=vitals_data.get("temperature"),
-        gcs=vitals_data.get("gcs"),
-        pain_scale=vitals_data.get("pain_scale"),
+        respiratory_rate=numeric("respiratory_rate"),
+        spo2=numeric("spo2"),
+        temperature=numeric("temperature"),
+        gcs=numeric("gcs"),
+        pain_scale=numeric("pain_scale"),
+        source_path=source_path,
+        source_data=deepcopy(vitals_data),
+        timing_status=status,
+        source_time_keys=keys,
     )
 
 
-def _parse_labs(labs_data: dict[str, Any], timestamp: datetime) -> tuple[LabResult, ...]:
-    """Convert task YAML labs dict to LabResult tuples.
-
-    Task YAML format: ``troponin_i: "0.02 ng/mL (normal <0.04)"``
-    """
-    if not labs_data or not isinstance(labs_data, dict):
-        return ()
-
-    results = []
-    for test_name, value_str in labs_data.items():
-        if not isinstance(value_str, str):
-            value_str = str(value_str)
-
-        abnormal = any(
-            marker in value_str.lower()
-            for marker in ("elevated", "low", "high", "abnormal", "positive", "critical")
-        )
-
-        results.append(
-            LabResult(
-                test_name=test_name.replace("_", " ").title(),
-                value=value_str,
-                unit="",
-                reference_range="",
-                timestamp=timestamp,
-                abnormal=abnormal,
-            )
-        )
-    return tuple(results)
+# Direct index-patient observations only. Nested prior visits/other patients
+# retain their own narrative context and must not be attributed to this patient.
+_VITAL_KEYS = (
+    "vitals_on_arrival",
+    "vitals_at_arrival",
+    "vitals",
+    "vitals_current",
+    "vitals_at_discharge",
+    "vitals_at_presentation",
+    "vitals_initial",
+    "vitals_post_diltiazem",
+    "vitals_post_treatment",
+    "vitals_repeat",
+    "vitals_30_minutes_later",
+    "vitals_2_hours_later",
+    "vitals_post_naloxone",
+    "vitals_pre_sedation",
+    "vitals_during_reaction",
+    "vitals_5min_post_error",
+    "vitals_intermediate",
+    "vitals_at_tpa_bolus",
+    "vitals_at_admission",
+    "vitals_pre_reaction",
+    "vitals_pre_error",
+    "vitals_orthostatic",
+    "pre_arrest_vitals",
+    "field_vitals",
+)
+_VITAL_SERIES_KEYS = ("vitals_series", "serial_vitals")
 
 
 def _parse_imaging(imaging_data: dict[str, Any], timestamp: datetime) -> tuple[ImagingStudy, ...]:
@@ -327,17 +334,15 @@ def inject_task_patient(
     if not patient_data:
         return {}
 
-    now = datetime.now(timezone.utc)
+    require_finite_source(patient_data)
+    require_finite_source(setting_data)
+    now = world.timestamp
     setting = setting_data or {}
-
-    # Parse setting time for encounter timestamps
-    setting_time_str = setting.get("time")
-    if setting_time_str:
-        try:
-            encounter_time = datetime.fromisoformat(setting_time_str)
-        except (ValueError, TypeError):
-            encounter_time = now
-    else:
+    # A deterministic scaffold anchor for generated DOB and legacy imaging/med
+    # projections. It is never a substitute for authored observation/arrival time.
+    try:
+        encounter_time = instant_key(setting.get("time"))[0]
+    except (ValueError, OverflowError):
         encounter_time = now
 
     # --- Create Patient entity ---
@@ -421,70 +426,23 @@ def inject_task_patient(
         prior_visit_ids=(),
     )
 
-    world.put_entity(EntityType.PATIENT.value, patient_id, patient)
-
     # --- Create Encounter entity ---
     encounter_id = _deterministic_id("ENC", task_id)
 
-    # Parse vitals — support multiple naming conventions across tasks
+    # Source labels and list position identify observations, not chronology.
     vitals_list: list[VitalSigns] = []
-    vitals_data = (
-        patient_data.get("vitals")
-        or patient_data.get("vitals_current")
-        or patient_data.get("vitals_at_discharge")
-        or patient_data.get("vitals_at_presentation")
-        or patient_data.get("vitals_initial")
-    )
-    if vitals_data and isinstance(vitals_data, dict):
-        vitals_list.append(_parse_vitals(vitals_data, encounter_time))
+    for key in _VITAL_KEYS:
+        source = patient_data.get(key)
+        if isinstance(source, dict):
+            vitals_list.append(_parse_vitals(source, f"/patient/{key}"))
+    for key in _VITAL_SERIES_KEYS:
+        source = patient_data.get(key)
+        if isinstance(source, list):
+            for index, entry in enumerate(source):
+                if isinstance(entry, dict):
+                    vitals_list.append(_parse_vitals(entry, f"/patient/{key}/{index}"))
 
-    # Also parse arrival vitals if present (multiple naming conventions)
-    vitals_arrival = patient_data.get("vitals_on_arrival") or patient_data.get("vitals_at_arrival")
-    if vitals_arrival and isinstance(vitals_arrival, dict):
-        arrival_time = encounter_time - timedelta(hours=2)
-        vitals_list.insert(0, _parse_vitals(vitals_arrival, arrival_time))
-
-    # Also parse post-treatment / follow-up vitals if present
-    _POST_VITALS_KEYS = (
-        "vitals_post_diltiazem",
-        "vitals_post_treatment",
-        "vitals_repeat",
-        "vitals_30_minutes_later",
-        "vitals_2_hours_later",
-        "vitals_post_naloxone",
-        "vitals_pre_sedation",
-        "vitals_during_reaction",
-        "vitals_5min_post_error",
-        "vitals_intermediate",
-        "vitals_at_tpa_bolus",
-        "vitals_at_admission",
-        "vitals_pre_reaction",
-        "vitals_pre_error",
-    )
-    for idx, key in enumerate(_POST_VITALS_KEYS):
-        post_vitals = patient_data.get(key)
-        if post_vitals and isinstance(post_vitals, dict):
-            post_time = encounter_time + timedelta(minutes=30 * (idx + 1))
-            vitals_list.append(_parse_vitals(post_vitals, post_time))
-
-    # Parse vitals_series (list of timestamped vitals dicts)
-    vitals_series = patient_data.get("vitals_series")
-    if vitals_series and isinstance(vitals_series, list):
-        for entry in vitals_series:
-            if not isinstance(entry, dict):
-                continue
-            ts_str = entry.get("time")
-            if ts_str:
-                try:
-                    ts = datetime.fromisoformat(ts_str)
-                except (ValueError, TypeError):
-                    ts = encounter_time
-            else:
-                ts = encounter_time
-            vitals_list.append(_parse_vitals(entry, ts))
-
-    # Parse labs
-    labs = _parse_labs(patient_data.get("labs"), encounter_time)
+    labs = project_labs(patient_data.get("labs"), "/patient/labs")
 
     # Parse imaging
     imaging = _parse_imaging(patient_data.get("imaging"), encounter_time)
@@ -514,7 +472,15 @@ def inject_task_patient(
         )
 
     # Surface bilateral BP readings as an exam finding when present
-    vitals_source = vitals_data or {}
+    vitals_source = next(
+        (
+            patient_data[key]
+            for key in _VITAL_KEYS
+            if isinstance(patient_data.get(key), dict)
+            and "blood_pressure_right" in patient_data[key]
+        ),
+        {},
+    )
     bp_right = vitals_source.get("blood_pressure_right")
     bp_left = vitals_source.get("blood_pressure_left")
     if bp_right and bp_left:
@@ -532,7 +498,7 @@ def inject_task_patient(
     for lab_key in ("labs_post_rosc", "labs_available", "labs_at_discharge", "initial_labs"):
         extra_labs = patient_data.get(lab_key)
         if extra_labs and isinstance(extra_labs, dict):
-            labs = labs + _parse_labs(extra_labs, encounter_time)
+            labs = labs + project_labs(extra_labs, f"/patient/{lab_key}")
 
     # Collect unhandled patient data as clinical notes (catch-all)
     _HANDLED_KEYS = {
@@ -599,8 +565,8 @@ def inject_task_patient(
         chief_complaint=patient_data.get("chief_complaint", ""),
         esi_level=esi_level,
         bed_assignment=bed,
-        arrival_time=encounter_time,
-        triage_time=encounter_time,
+        arrival_time=resolve_source_time(patient_data, ("arrival_time",))[0],
+        triage_time=resolve_source_time(patient_data, ("triage_time",))[0],
         disposition=None,
         attending_id=setting.get("attending_on_duty", ""),
         vitals=tuple(vitals_list),
@@ -611,6 +577,8 @@ def inject_task_patient(
         clinical_notes=clinical_notes,
     )
 
+    # Projection/validation must finish before either entity becomes visible.
+    world.put_entity(EntityType.PATIENT.value, patient_id, patient)
     world.put_entity(EntityType.ENCOUNTER.value, encounter_id, encounter)
 
     # Move task entities to front of their collections so they appear in the

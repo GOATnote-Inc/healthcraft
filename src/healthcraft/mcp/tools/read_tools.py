@@ -9,17 +9,13 @@ Corecraft noise: search tools return MAX 10 results with no hasMore signal.
 
 from __future__ import annotations
 
-import re
 from copy import deepcopy
 from dataclasses import asdict
-from datetime import datetime, timezone
 from typing import Any
 
+from healthcraft.temporal import instant_key as _arrival_instant
+
 _MAX_RESULTS = 10  # Pagination limit (Corecraft noise: no hasMore signal)
-_RFC3339_DATETIME = re.compile(
-    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-5][0-9]:[0-5][0-9]"
-    r"(?:\.([0-9]+))?(?:[Zz]|[+-][0-9]{2}:[0-5][0-9])"
-)
 
 
 def _serialize(entity: Any) -> dict:
@@ -53,32 +49,6 @@ def _matches_substring(value, query):
     if value is None or query is None:
         return False
     return query.lower() in str(value).lower()
-
-
-def _arrival_instant(value: Any) -> tuple[datetime, str]:
-    """Return a UTC sort key without inventing time/zone or losing precision."""
-    fraction = None
-    if isinstance(value, str):
-        match = _RFC3339_DATETIME.fullmatch(value)
-        if match is None:
-            raise ValueError("Expected RFC3339 date-time with an explicit timezone")
-        fraction = (match.group(1) or "").rstrip("0")
-        # Parse whole seconds only: Python 3.10 accepts just 3/6 fractional
-        # digits, while the exact fraction is preserved separately above.
-        if match.group(1) is not None:
-            value = value[: match.start(1) - 1] + value[match.end(1) :]
-        # Python 3.10 does not accept trailing Z in datetime.fromisoformat.
-        if value.endswith(("Z", "z")):
-            value = value[:-1] + "+00:00"
-        value = datetime.fromisoformat(value)
-    if not isinstance(value, datetime) or value.utcoffset() is None:
-        raise ValueError("Expected a timezone-aware arrival timestamp")
-    value = value.astimezone(timezone.utc)
-    if fraction is None:
-        fraction = f"{value.microsecond:06d}".rstrip("0")
-    # Digit strings sort as decimal fractions once trailing zeros are removed.
-    # Keep all RFC3339 digits instead of fromisoformat's microsecond truncation.
-    return value.replace(microsecond=0), fraction
 
 
 # ---------------------------------------------------------------------------

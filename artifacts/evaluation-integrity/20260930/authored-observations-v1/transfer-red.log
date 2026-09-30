@@ -1,0 +1,857 @@
+.F.FFFFFFFFFFFFFF..FFFFFFFFFFFFFF....FFFF.FFFF......                     [100%]
+=================================== FAILURES ===================================
+_ test_transfer_uses_actual_latest_observation_in_either_storage_order[False-True] _
+
+reverse = True, latest_stable = False
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("latest_stable", [False, True])
+    def test_transfer_uses_actual_latest_observation_in_either_storage_order(reverse, latest_stable):
+        now = datetime(2026, 1, 15, 10, tzinfo=timezone.utc)
+        world = WorldState(start_time=now)
+        observations = [
+            VitalSigns(
+                timestamp=datetime(2026, 1, 15, 8, tzinfo=timezone.utc),
+                heart_rate=80, systolic_bp=70 if latest_stable else 120, spo2=98, gcs=15,
+            ),
+            VitalSigns(
+                timestamp=datetime(2026, 1, 15, 9, tzinfo=timezone.utc),
+                heart_rate=80, systolic_bp=120 if latest_stable else 70, spo2=98, gcs=15,
+            ),
+        ]
+        if reverse:
+            observations.reverse()
+        encounter = Encounter(
+            id="ENC-12345678", entity_type=EntityType.ENCOUNTER,
+            created_at=now, updated_at=now, patient_id="PAT-12345678",
+            vitals=tuple(observations),
+        )
+        world.put_entity("encounter", encounter.id, encounter)
+        response = create_server(world).call_tool(
+            "processTransfer",
+            {"encounter_id": encounter.id, "destination_facility": "University Medical Center",
+             "reason": "Synthetic offline contract test", "clinical_summary": "Synthetic record"},
+        )
+        assert response["status"] == "ok", response
+>       assert response["data"]["emtala_compliant"] is latest_stable
+E       assert True is False
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:64: AssertionError
+_ test_transfer_uses_actual_latest_observation_in_either_storage_order[True-True] _
+
+reverse = True, latest_stable = True
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("latest_stable", [False, True])
+    def test_transfer_uses_actual_latest_observation_in_either_storage_order(reverse, latest_stable):
+        now = datetime(2026, 1, 15, 10, tzinfo=timezone.utc)
+        world = WorldState(start_time=now)
+        observations = [
+            VitalSigns(
+                timestamp=datetime(2026, 1, 15, 8, tzinfo=timezone.utc),
+                heart_rate=80, systolic_bp=70 if latest_stable else 120, spo2=98, gcs=15,
+            ),
+            VitalSigns(
+                timestamp=datetime(2026, 1, 15, 9, tzinfo=timezone.utc),
+                heart_rate=80, systolic_bp=120 if latest_stable else 70, spo2=98, gcs=15,
+            ),
+        ]
+        if reverse:
+            observations.reverse()
+        encounter = Encounter(
+            id="ENC-12345678", entity_type=EntityType.ENCOUNTER,
+            created_at=now, updated_at=now, patient_id="PAT-12345678",
+            vitals=tuple(observations),
+        )
+        world.put_entity("encounter", encounter.id, encounter)
+        response = create_server(world).call_tool(
+            "processTransfer",
+            {"encounter_id": encounter.id, "destination_facility": "University Medical Center",
+             "reason": "Synthetic offline contract test", "clinical_summary": "Synthetic record"},
+        )
+        assert response["status"] == "ok", response
+>       assert response["data"]["emtala_compliant"] is latest_stable
+E       assert False is True
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:64: AssertionError
+_____ test_any_unresolved_observation_time_prevents_claiming_latest[None] ______
+
+timestamp = None
+
+    @pytest.mark.parametrize("timestamp", [None, "unknown", "2026-01-15", "08:00", "2026-01-15T08:00:00"])
+    def test_any_unresolved_observation_time_prevents_claiming_latest(timestamp):
+>       assert assessed(reading(timestamp), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp=None, heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp=None, heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading(None)
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:72: AssertionError
+____ test_any_unresolved_observation_time_prevents_claiming_latest[unknown] ____
+
+timestamp = 'unknown'
+
+    @pytest.mark.parametrize("timestamp", [None, "unknown", "2026-01-15", "08:00", "2026-01-15T08:00:00"])
+    def test_any_unresolved_observation_time_prevents_claiming_latest(timestamp):
+>       assert assessed(reading(timestamp), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='unknown', heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='unknown', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('unknown')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:72: AssertionError
+__ test_any_unresolved_observation_time_prevents_claiming_latest[2026-01-15] ___
+
+timestamp = '2026-01-15'
+
+    @pytest.mark.parametrize("timestamp", [None, "unknown", "2026-01-15", "08:00", "2026-01-15T08:00:00"])
+    def test_any_unresolved_observation_time_prevents_claiming_latest(timestamp):
+>       assert assessed(reading(timestamp), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15', heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:72: AssertionError
+_____ test_any_unresolved_observation_time_prevents_claiming_latest[08:00] _____
+
+timestamp = '08:00'
+
+    @pytest.mark.parametrize("timestamp", [None, "unknown", "2026-01-15", "08:00", "2026-01-15T08:00:00"])
+    def test_any_unresolved_observation_time_prevents_claiming_latest(timestamp):
+>       assert assessed(reading(timestamp), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='08:00', heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='08:00', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('08:00')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:72: AssertionError
+_ test_any_unresolved_observation_time_prevents_claiming_latest[2026-01-15T08:00:00] _
+
+timestamp = '2026-01-15T08:00:00'
+
+    @pytest.mark.parametrize("timestamp", [None, "unknown", "2026-01-15", "08:00", "2026-01-15T08:00:00"])
+    def test_any_unresolved_observation_time_prevents_claiming_latest(timestamp):
+>       assert assessed(reading(timestamp), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00', heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T08:00:00')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:72: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[missing] __
+
+status = 'missing'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='missing'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='missing') = reading('2026-01-15T08:00:00Z', timing_status='missing')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[date_only] _
+
+status = 'date_only'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='date_only'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='date_only') = reading('2026-01-15T08:00:00Z', timing_status='date_only')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[time_only] _
+
+status = 'time_only'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='time_only'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='time_only') = reading('2026-01-15T08:00:00Z', timing_status='time_only')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+__ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[naive] ___
+
+status = 'naive'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='naive'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='naive') = reading('2026-01-15T08:00:00Z', timing_status='naive')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[unresolved] _
+
+status = 'unresolved'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='unresolved'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='unresolved') = reading('2026-01-15T08:00:00Z', timing_status='unresolved')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[invalid] __
+
+status = 'invalid'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='invalid'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='invalid') = reading('2026-01-15T08:00:00Z', timing_status='invalid')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[unsupported] _
+
+status = 'unsupported'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='unsupported'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='unsupported') = reading('2026-01-15T08:00:00Z', timing_status='unsupported')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[conflicting] _
+
+status = 'conflicting'
+
+    @pytest.mark.parametrize("status", ["missing", "date_only", "time_only", "naive", "unresolved", "invalid", "unsupported", "conflicting"])
+    def test_timing_provenance_cannot_be_overridden_by_parseable_timestamp(status):
+>       assert assessed(reading(EARLIER, timing_status=status), reading(LATER)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='conflicting'), namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T08:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15, timing_status='conflicting') = reading('2026-01-15T08:00:00Z', timing_status='conflicting')
+E        +    and   namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:77: AssertionError
+_ test_equal_instants_allow_duplicate_agreement_but_not_conflicting_latest_values _
+
+    def test_equal_instants_allow_duplicate_agreement_but_not_conflicting_latest_values():
+        same_in_offset = "2026-01-15T06:00:00-03:00"
+        assert assessed(reading(LATER), reading(same_in_offset)) is True
+>       assert assessed(reading(LATER), reading(same_in_offset, heart_rate=90)) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15), namespace(timestamp='2026-01-15T06:00:00-03:00', heart_rate=90, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00Z')
+E        +    and   namespace(timestamp='2026-01-15T06:00:00-03:00', heart_rate=90, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T06:00:00-03:00', heart_rate=90)
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:88: AssertionError
+___ test_fractional_precision_determines_latest_without_microsecond_rounding ___
+
+    def test_fractional_precision_determines_latest_without_microsecond_rounding():
+>       assert assessed(
+            reading("2026-01-15T09:00:00.0000001Z", systolic_bp=70),
+            reading("2026-01-15T09:00:00.0000000Z"),
+        ) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00.0000001Z', heart_rate=80, systolic_bp=70, spo2=98, gcs=15), namespace(timestamp='2026-01-15T09:00:00.0000000Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00.0000001Z', heart_rate=80, systolic_bp=70, spo2=98, gcs=15) = reading('2026-01-15T09:00:00.0000001Z', systolic_bp=70)
+E        +    and   namespace(timestamp='2026-01-15T09:00:00.0000000Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=15) = reading('2026-01-15T09:00:00.0000000Z')
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:92: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-heart_rate] _
+
+field = 'heart_rate', value = None
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=None, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=None, systolic_bp=120, spo2=98, gcs=15) = reading(**{'heart_rate': None})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-systolic_bp] _
+
+field = 'systolic_bp', value = None
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=None, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=None, spo2=98, gcs=15) = reading(**{'systolic_bp': None})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-spo2] _
+
+field = 'spo2', value = None
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=None, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=None, gcs=15) = reading(**{'spo2': None})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-gcs] _
+
+field = 'gcs', value = None
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=None))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=None) = reading(**{'gcs': None})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-heart_rate] _
+
+field = 'heart_rate', value = '80'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate='80', systolic_bp=120, spo2=98, gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+>       if hr is not None and (hr < 50 or hr > 140):
+                               ^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:512: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-systolic_bp] _
+
+field = 'systolic_bp', value = '80'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp='80', spo2=98, gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+>       if sbp is not None and sbp < 80:
+                               ^^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:514: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-spo2] _
+
+field = 'spo2', value = '80'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2='80', gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+        if sbp is not None and sbp < 80:
+            return False
+>       if spo2 is not None and spo2 < 88:
+                                ^^^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:516: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-gcs] _
+
+field = 'gcs', value = '80'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs='80'),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+        if sbp is not None and sbp < 80:
+            return False
+        if spo2 is not None and spo2 < 88:
+            return False
+>       if gcs is not None and gcs < 9:
+                               ^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:518: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-heart_rate] _
+
+field = 'heart_rate', value = '3T'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate='3T', systolic_bp=120, spo2=98, gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+>       if hr is not None and (hr < 50 or hr > 140):
+                               ^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:512: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-systolic_bp] _
+
+field = 'systolic_bp', value = '3T'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp='3T', spo2=98, gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+>       if sbp is not None and sbp < 80:
+                               ^^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:514: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-spo2] _
+
+field = 'spo2', value = '3T'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2='3T', gcs=15),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+        if sbp is not None and sbp < 80:
+            return False
+>       if spo2 is not None and spo2 < 88:
+                                ^^^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:516: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-gcs] _
+
+field = 'gcs', value = '3T'
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_mcp_tools/test_transfer_vital_chronology.py:32: in assessed
+    return _assess_stabilization(SimpleNamespace(vitals=observations))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+encounter = namespace(vitals=(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs='3T'),))
+
+    def _assess_stabilization(encounter: Any) -> bool:
+        """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    
+        A patient is considered stabilized if their most recent vital signs are
+        within broad acceptable ranges.  If no vitals are available, we
+        conservatively assume **not** stabilized.
+    
+        Returns:
+            True if the patient appears hemodynamically stable.
+        """
+        vitals = getattr(encounter, "vitals", ())
+        if not vitals:
+            return False
+    
+        latest = vitals[-1]
+    
+        # Check for gross instability indicators
+        hr = getattr(latest, "heart_rate", None)
+        sbp = getattr(latest, "systolic_bp", None)
+        spo2 = getattr(latest, "spo2", None)
+        gcs = getattr(latest, "gcs", None)
+    
+        if hr is not None and (hr < 50 or hr > 140):
+            return False
+        if sbp is not None and sbp < 80:
+            return False
+        if spo2 is not None and spo2 < 88:
+            return False
+>       if gcs is not None and gcs < 9:
+                               ^^^^^^^
+E       TypeError: '<' not supported between instances of 'str' and 'int'
+
+src/healthcraft/mcp/tools/workflow_tools.py:518: TypeError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-heart_rate] _
+
+field = 'heart_rate', value = nan
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=nan, systolic_bp=120, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=nan, systolic_bp=120, spo2=98, gcs=15) = reading(**{'heart_rate': nan})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-systolic_bp] _
+
+field = 'systolic_bp', value = nan
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=nan, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=nan, spo2=98, gcs=15) = reading(**{'systolic_bp': nan})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-spo2] _
+
+field = 'spo2', value = nan
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=nan, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=nan, gcs=15) = reading(**{'spo2': nan})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-gcs] _
+
+field = 'gcs', value = nan
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=nan))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=nan) = reading(**{'gcs': nan})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-systolic_bp] _
+
+field = 'systolic_bp', value = inf
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=inf, spo2=98, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=inf, spo2=98, gcs=15) = reading(**{'systolic_bp': inf})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-spo2] _
+
+field = 'spo2', value = inf
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=inf, gcs=15))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=inf, gcs=15) = reading(**{'spo2': inf})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+_ test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-gcs] _
+
+field = 'gcs', value = inf
+
+    @pytest.mark.parametrize("field", ["heart_rate", "systolic_bp", "spo2", "gcs"])
+    @pytest.mark.parametrize("value", [None, "80", "3T", True, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability(field, value):
+>       assert assessed(reading(**{field: value})) is False
+E       AssertionError: assert True is False
+E        +  where True = assessed(namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=inf))
+E        +    where namespace(timestamp='2026-01-15T09:00:00Z', heart_rate=80, systolic_bp=120, spo2=98, gcs=inf) = reading(**{'gcs': inf})
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:101: AssertionError
+______ test_absent_observations_and_fully_unknown_reading_are_not_stable _______
+
+    def test_absent_observations_and_fully_unknown_reading_are_not_stable():
+        assert assessed() is False
+>       assert assessed(VitalSigns(timestamp=datetime.now(timezone.utc))) is False
+E       assert True is False
+E        +  where True = assessed(VitalSigns(timestamp=datetime.datetime(2026, 9, 30, 9, 3, 53, 228822, tzinfo=datetime.timezone.utc), heart_rate=None, systolic_bp=None, diastolic_bp=None, respiratory_rate=None, spo2=None, temperature=None, gcs=None, pain_scale=None))
+E        +    where VitalSigns(timestamp=datetime.datetime(2026, 9, 30, 9, 3, 53, 228822, tzinfo=datetime.timezone.utc), heart_rate=None, systolic_bp=None, diastolic_bp=None, respiratory_rate=None, spo2=None, temperature=None, gcs=None, pain_scale=None) = VitalSigns(timestamp=datetime.datetime(2026, 9, 30, 9, 3, 53, 228822, tzinfo=datetime.timezone.utc))
+E        +      where datetime.datetime(2026, 9, 30, 9, 3, 53, 228822, tzinfo=datetime.timezone.utc) = <built-in method now of type object at 0x10373fa88>(datetime.timezone.utc)
+E        +        where <built-in method now of type object at 0x10373fa88> = datetime.now
+E        +        and   datetime.timezone.utc = timezone.utc
+
+tests/test_mcp_tools/test_transfer_vital_chronology.py:106: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_transfer_uses_actual_latest_observation_in_either_storage_order[False-True]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_transfer_uses_actual_latest_observation_in_either_storage_order[True-True]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_any_unresolved_observation_time_prevents_claiming_latest[None]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_any_unresolved_observation_time_prevents_claiming_latest[unknown]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_any_unresolved_observation_time_prevents_claiming_latest[2026-01-15]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_any_unresolved_observation_time_prevents_claiming_latest[08:00]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_any_unresolved_observation_time_prevents_claiming_latest[2026-01-15T08:00:00]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[missing]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[date_only]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[time_only]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[naive]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[unresolved]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[invalid]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[unsupported]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_timing_provenance_cannot_be_overridden_by_parseable_timestamp[conflicting]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_equal_instants_allow_duplicate_agreement_but_not_conflicting_latest_values
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_fractional_precision_determines_latest_without_microsecond_rounding
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-heart_rate]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-systolic_bp]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-spo2]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[None-gcs]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-heart_rate]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-systolic_bp]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-spo2]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[80-gcs]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-heart_rate]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-systolic_bp]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-spo2]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[3T-gcs]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-heart_rate]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-systolic_bp]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-spo2]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[nan-gcs]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-systolic_bp]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-spo2]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_missing_or_nonfinite_nonnumeric_measurements_cannot_certify_stability[inf-gcs]
+FAILED tests/test_mcp_tools/test_transfer_vital_chronology.py::test_absent_observations_and_fully_unknown_reading_are_not_stable
+37 failed, 15 passed in 0.10s

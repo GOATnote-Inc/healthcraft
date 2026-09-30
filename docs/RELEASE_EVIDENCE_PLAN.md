@@ -146,8 +146,9 @@ prevent an operator from bypassing the required publication procedure.
   remain unperformed.
 - [Action/grader repairs and open task-validity findings](TASK_VALIDITY_FINDINGS.md)
   distinguish corrected execution/alias defects from unresolved rubric meaning
-  and temporal-source problems. Passing regression fixtures does not establish
-  independent clinical adjudication.
+  and observation-availability problems. The [authored observation repair](AUTHORED_OBSERVATIONS.md)
+  conserves direct vital/lab source facts and unknown times. Passing these
+  regression fixtures does not establish independent clinical adjudication.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

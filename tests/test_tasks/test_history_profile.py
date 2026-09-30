@@ -271,25 +271,15 @@ def test_raw_strings_are_preserved_without_whitespace_or_disposition_rewriting(w
         assert record[field] == rows[3][field]
 
 
-def test_legacy_injector_receives_normalized_zone_for_all_clinical_timestamps(
-    world, task, monkeypatch
-):
-    from healthcraft.tasks import inject
-
-    class Python310Datetime(datetime):
-        @classmethod
-        def fromisoformat(cls, value):
-            if value.endswith(("Z", "z")):
-                raise ValueError("Python 3.10 cannot parse trailing Z")
-            return super().fromisoformat(value)
-
-    monkeypatch.setattr(inject, "datetime", Python310Datetime)
+def test_profile_arrival_anchor_does_not_invent_triage_or_vital_measurement_times(world, task):
     context = build_ir002_profile(world, task)
     current = world.get_entity("encounter", context["current_encounter_id"])
     expected = datetime(2026, 1, 15, 8, 45, tzinfo=timezone.utc)
-    assert current.arrival_time == current.triage_time == expected
+    assert current.arrival_time == expected
+    assert current.triage_time is None
     assert current.vitals
-    assert all(vitals.timestamp == expected for vitals in current.vitals)
+    assert all(vitals.timestamp is None for vitals in current.vitals)
+    assert all(vitals.timing_status == "missing" for vitals in current.vitals)
 
 
 def test_profile_rejects_naive_world_clock_without_mutation(task):

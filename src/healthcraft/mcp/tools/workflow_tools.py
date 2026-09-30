@@ -10,11 +10,13 @@ Each handler takes (world: WorldState, params: dict) -> dict.
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from copy import deepcopy
 from dataclasses import asdict, replace
 from typing import Any
 
+from healthcraft.temporal import instant_key
 from healthcraft.world.state import WorldState
 
 # --- Known transfer facilities (hardcoded registry) ---
@@ -488,34 +490,54 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
 
 
 def _assess_stabilization(encounter: Any) -> bool:
-    """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    """Apply existing thresholds only to an unambiguous, complete latest reading.
 
-    A patient is considered stabilized if their most recent vital signs are
-    within broad acceptable ranges.  If no vitals are available, we
-    conservatively assume **not** stabilized.
-
-    Returns:
-        True if the patient appears hemodynamically stable.
+    Storage order does not establish chronology. Unknown observation times,
+    conflicting latest readings, and unknown relevant values cannot support
+    the heuristic's positive result. This does not establish clinical stability.
     """
     vitals = getattr(encounter, "vitals", ())
     if not vitals:
         return False
 
-    latest = vitals[-1]
+    timed = []
+    for observation in vitals:
+        if getattr(observation, "timing_status", "") not in ("", "explicit"):
+            return False
+        try:
+            timestamp = instant_key(getattr(observation, "timestamp", None))
+        except (TypeError, ValueError, OverflowError):
+            return False
+        timed.append((timestamp, observation))
+
+    latest_time = max(timestamp for timestamp, _ in timed)
+    latest_values = []
+    for timestamp, observation in timed:
+        if timestamp != latest_time:
+            continue
+        values = tuple(
+            getattr(observation, field, None)
+            for field in ("heart_rate", "systolic_bp", "spo2", "gcs")
+        )
+        if any(
+            type(value) not in (int, float) or (type(value) is float and not math.isfinite(value))
+            for value in values
+        ):
+            return False
+        latest_values.append(values)
+    if any(values != latest_values[0] for values in latest_values[1:]):
+        return False
 
     # Check for gross instability indicators
-    hr = getattr(latest, "heart_rate", None)
-    sbp = getattr(latest, "systolic_bp", None)
-    spo2 = getattr(latest, "spo2", None)
-    gcs = getattr(latest, "gcs", None)
+    hr, sbp, spo2, gcs = latest_values[0]
 
-    if hr is not None and (hr < 50 or hr > 140):
+    if hr < 50 or hr > 140:
         return False
-    if sbp is not None and sbp < 80:
+    if sbp < 80:
         return False
-    if spo2 is not None and spo2 < 88:
+    if spo2 < 88:
         return False
-    if gcs is not None and gcs < 9:
+    if gcs < 9:
         return False
 
     return True

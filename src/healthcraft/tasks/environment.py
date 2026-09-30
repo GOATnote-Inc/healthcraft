@@ -12,7 +12,7 @@ from healthcraft.world.state import WorldState
 def prepare_task_environment(
     world: WorldState, task: Task, *, profile: str | None = None
 ) -> tuple[Task, dict]:
-    """Keep published injection by default; opt-in profiles have separate identities."""
+    """Use current source-preserving injection; opt-in profiles have separate identities."""
     if profile is not None:
         from healthcraft.tasks.roster_profile import PROFILE_VERSION, build_roster_profile
 

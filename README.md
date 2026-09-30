@@ -235,6 +235,9 @@ new execution-time captures. It retains every supplied attempt and pending or
 unassessed response. Imported submissions are not authenticated expert labels,
 clinical calibration, or a release approval.
 
+The [authored observation contract](docs/AUTHORED_OBSERVATIONS.md) explains
+source-linked vitals/labs, explicit timing, and unknown values in new runs.
+
 ## Quick Start
 
 ```bash

@@ -37,12 +37,11 @@ The following issues remain open and block stronger validity claims:
   acetaminophen, for an assertion requiring broad-spectrum antibiotics
   within an hour. Fixing tool spelling does not repair that semantic and
   temporal mismatch. It requires a separately reviewed rubric revision.
-- TR-015 drops the separately authored `vitals_at_presentation` observation.
-  TR-018 replaces explicitly supplied 06:38 bolus vitals with a generated
-  13:15 timestamp, after the 07:45 scenario time. TR-024 similarly replaces
-  supplied arrival/vitals times and flattens a structured troponin entry
-  into a string. These are source-fidelity findings, not new clinical labels
-  or a determination that every affected task is unsolvable.
+- Temporal source replacement was subsequently repaired in local development;
+  see [authored observation fidelity](AUTHORED_OBSERVATIONS.md). The earlier
+  capture remains unchanged. The repair preserves direct vitals/labs and
+  explicit arrival/triage facts, but does not validate authored clinical
+  content, historical/multi-patient timing, or observation availability.
 
 The [original captures and hashes](../artifacts/evaluation-integrity/20260930/action-grading-review-v1/README.md)
 retain the defects before repair. Regression coverage lives in

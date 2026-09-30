@@ -11,10 +11,10 @@ from pathlib import Path
 import jsonschema
 import pytest
 
+from healthcraft import temporal
 from healthcraft.entities.base import EntityType
 from healthcraft.entities.encounters import Encounter, ESILevel
 from healthcraft.mcp.server import create_server
-from healthcraft.mcp.tools import read_tools
 from healthcraft.world.state import WorldState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -251,7 +251,7 @@ def test_fractional_windows_work_with_python310_parser_constraints(monkeypatch, 
                 raise ValueError("Invalid isoformat string")
             return super().fromisoformat(value)
 
-    monkeypatch.setattr(read_tools, "datetime", Python310Datetime)
+    monkeypatch.setattr(temporal, "datetime", Python310Datetime)
     world = WorldState()
     world.put_entity(
         "encounter",
