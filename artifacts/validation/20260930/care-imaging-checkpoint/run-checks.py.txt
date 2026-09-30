@@ -1,0 +1,61 @@
+from pathlib import Path
+import datetime, hashlib, json, os, subprocess, sys, time
+
+candidate = Path(sys.argv[1]).resolve()
+out = Path(sys.argv[2]).resolve()
+job = sys.argv[3]
+repo_python = '/Users/kiteboard/healthcraft/.venv/bin/python'
+repo_pytest = '/Users/kiteboard/healthcraft/.venv/bin/pytest'
+focus = [
+ 'tests/test_tasks/test_care_source_fidelity.py',
+ 'tests/test_tasks/test_imaging_projection.py',
+ 'tests/test_tasks/test_imaging_source_fidelity.py',
+ 'tests/test_tasks/test_inject.py',
+ 'tests/test_scripts/test_care_imaging_certificate.py',
+ 'tests/test_scripts/test_observation_certificate.py',
+ 'tests/test_scripts/test_local_care_probe.py',
+ 'tests/test_llm/test_local_models.py',
+ 'tests/test_llm/test_local_order_probe.py',
+ 'tests/test_mcp_tools/test_treatment_plan_contract.py',
+ 'tests/test_mcp_tools/test_server.py',
+ 'tests/test_entities/test_encounters.py',
+ 'tests/test_mcp_tools/test_discharge_contract.py',
+ 'tests/test_integrations/test_nemo_native.py',
+]
+commands = {
+ 'full-tests': ['make','test','PYTEST='+repo_pytest],
+ 'lint': ['make','lint','PYTHON='+repo_python],
+ 'smoke': ['make','smoke','PYTHON='+repo_python],
+ 'preflight': ['make','preflight','PYTHON='+repo_python],
+ 'grader-goldset': ['make','grader-goldset','PYTHON='+repo_python],
+ 'python310': ['/private/tmp/healthcraft-check-py310/bin/python','-m','pytest',*focus,'-q'],
+ 'python312': ['/private/tmp/healthcraft-check-py312/bin/python','-m','pytest',*focus,'-q'],
+ 'care-certificate': [repo_python,'scripts/certify_care_imaging.py','--output',str(out/'care-imaging-certificate.json')],
+ 'observation-certificate': [repo_python,'scripts/certify_observation_fidelity.py','--output',str(out/'observation-certificate.json')],
+ 'nemo-sdk': ['/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/bin/python','-c',
+   "import sys; sys.path.append('/Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages'); import pytest; raise SystemExit(pytest.main(['tests/test_integrations/test_nemo_native.py','tests/test_integrations/test_nemo_roster_resources.py','-q']))"],
+}
+command = commands[job]
+# Exact candidate imports and a clean environment; no API keys or model service
+# access is needed by these offline jobs. SDK imports stay in its pinned runtime.
+env = {'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','PYTHONPATH':str(candidate/'src')+os.pathsep+str(candidate), 'PYTHONUNBUFFERED':'1'}
+if job == 'nemo-sdk':
+ env['PYTHONPATH'] += os.pathsep+'/private/tmp/healthcraft-nemo-gym-probe/upstream'
+receipt = {'job':job,'command':command,'cwd':str(candidate),'environment':env,'status':'started','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+out.mkdir(parents=True,exist_ok=True)
+receipt_path=out/(job+'.process.json')
+with receipt_path.open('x') as f:
+ json.dump(receipt,f,indent=2)
+started=time.monotonic()
+try:
+ with (out/(job+'.log')).open('xb') as log:
+  proc=subprocess.run(command,cwd=candidate,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=600)
+ receipt.update(status='finished',exit_code=proc.returncode)
+except Exception as exc:
+ receipt.update(status='runner_error',error=f'{type(exc).__name__}: {exc}',exit_code=None)
+receipt.update(duration_seconds=round(time.monotonic()-started,3),ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps(receipt))
+if (out/(job+'.log')).exists():
+ print((out/(job+'.log')).read_text(errors='replace')[-2400:])
+sys.exit(receipt['exit_code'] if receipt['exit_code'] is not None else 2)

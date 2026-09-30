@@ -1,0 +1,120 @@
+FFFFFFF                                                                  [100%]
+=================================== FAILURES ===================================
+___ test_real_mixed_care_is_preserved_without_inventing_medication_events[2] ___
+
+number = 2
+
+    @pytest.mark.parametrize("number", [2, 3, 6, 7])
+    def test_real_mixed_care_is_preserved_without_inventing_medication_events(number):
+        task = load_task(next((ROOT / "configs/tasks/clinical_communication").glob(f"task_{number:03d}_*.yaml")))
+        original = deepcopy(task.patient)
+        _, _, _, encounter = inject(task.patient, task.id, task.initial_state)
+>       assert encounter["meds_administered"] == ()
+E       AssertionError: assert ({'administer...': 'PO', ...}) == ()
+E         
+E         Left contains 4 more items, first extra item: {'administered_by': '', 'dose': '', 'medication_name': 'Diltiazem 10mg/hr IV drip (rate controlled to HR 98)', 'route': 'IV', ...}
+E         Use -v to get more diff
+
+tests/test_tasks/test_care_source_fidelity.py:30: AssertionError
+___ test_real_mixed_care_is_preserved_without_inventing_medication_events[3] ___
+
+number = 3
+
+    @pytest.mark.parametrize("number", [2, 3, 6, 7])
+    def test_real_mixed_care_is_preserved_without_inventing_medication_events(number):
+        task = load_task(next((ROOT / "configs/tasks/clinical_communication").glob(f"task_{number:03d}_*.yaml")))
+        original = deepcopy(task.patient)
+        _, _, _, encounter = inject(task.patient, task.id, task.initial_state)
+>       assert encounter["meds_administered"] == ()
+E       AssertionError: assert ({'administer...V', ...}, ...) == ()
+E         
+E         Left contains 8 more items, first extra item: {'administered_by': '', 'dose': '', 'medication_name': 'BiPAP (IPAP 14, EPAP 6, FiO2 0.40)', 'route': 'PO', ...}
+E         Use -v to get more diff
+
+tests/test_tasks/test_care_source_fidelity.py:30: AssertionError
+___ test_real_mixed_care_is_preserved_without_inventing_medication_events[6] ___
+
+number = 6
+
+    @pytest.mark.parametrize("number", [2, 3, 6, 7])
+    def test_real_mixed_care_is_preserved_without_inventing_medication_events(number):
+        task = load_task(next((ROOT / "configs/tasks/clinical_communication").glob(f"task_{number:03d}_*.yaml")))
+        original = deepcopy(task.patient)
+        _, _, _, encounter = inject(task.patient, task.id, task.initial_state)
+>       assert encounter["meds_administered"] == ()
+E       AssertionError: assert ({'administer...O', ...}, ...) == ()
+E         
+E         Left contains 9 more items, first extra item: {'administered_by': '', 'dose': '', 'medication_name': 'Morphine 4mg IV (given in field by EMS)', 'route': 'IV', ...}
+E         Use -v to get more diff
+
+tests/test_tasks/test_care_source_fidelity.py:30: AssertionError
+___ test_real_mixed_care_is_preserved_without_inventing_medication_events[7] ___
+
+number = 7
+
+    @pytest.mark.parametrize("number", [2, 3, 6, 7])
+    def test_real_mixed_care_is_preserved_without_inventing_medication_events(number):
+        task = load_task(next((ROOT / "configs/tasks/clinical_communication").glob(f"task_{number:03d}_*.yaml")))
+        original = deepcopy(task.patient)
+        _, _, _, encounter = inject(task.patient, task.id, task.initial_state)
+>       assert encounter["meds_administered"] == ()
+E       AssertionError: assert ({'administer...O', ...}, ...) == ()
+E         
+E         Left contains 9 more items, first extra item: {'administered_by': '', 'dose': '', 'medication_name': '100% NRB oxygen', 'route': 'PO', ...}
+E         Use -v to get more diff
+
+tests/test_tasks/test_care_source_fidelity.py:30: AssertionError
+_ test_coexisting_care_fields_preserve_structure_and_negation_without_parser_guessing _
+
+    def test_coexisting_care_fields_preserve_structure_and_negation_without_parser_guessing():
+        patient = {"age": 50, "sex": "F", "active_orders": ["Hold warfarin", "NPO"],
+                   "current_management": [{"drug": "Example", "status": "not-done", "reason": "refused"}]}
+        _, server, ids, encounter = inject(patient)
+>       assert encounter["meds_administered"] == ()
+E       AssertionError: assert ({'administer...': 'PO', ...}) == ()
+E         
+E         Left contains 2 more items, first extra item: {'administered_by': '', 'dose': '', 'medication_name': 'Hold warfarin', 'route': 'PO', ...}
+E         Use -v to get more diff
+
+tests/test_tasks/test_care_source_fidelity.py:43: AssertionError
+_______ test_discharge_does_not_report_plans_as_given_or_unknown_as_none _______
+
+    def test_discharge_does_not_report_plans_as_given_or_unknown_as_none():
+        _, server, ids, _ = inject({"age": 50, "sex": "F", "active_orders": ["NPO", "Hold warfarin"]})
+        response = server.call_tool("processDischarge", {"encounter_id": ids["encounter_id"], "diagnosis": "Synthetic"})
+        assert response["status"] == "ok"
+        text = response["data"]["discharge_summary"]
+>       assert "NPO  PO" not in text
+E       AssertionError: assert 'NPO  PO' not in 'Discharge S...: Discharged'
+E         
+E         'NPO  PO' is contained here:
+E           ng Visit: NPO  PO; Hold warfarin  PO
+E         ?           +++++++
+E           Discharge Instructions: No discharge instructions supplied
+E           Disposition: Discharged
+
+tests/test_tasks/test_care_source_fidelity.py:60: AssertionError
+__ test_discharge_without_medication_evidence_does_not_assert_no_doses_given ___
+
+    def test_discharge_without_medication_evidence_does_not_assert_no_doses_given():
+        _, server, ids, _ = inject({"age": 50, "sex": "F"})
+        response = server.call_tool("processDischarge", {"encounter_id": ids["encounter_id"], "diagnosis": "Synthetic"})
+        assert response["status"] == "ok"
+>       assert "No medications administered during visit" not in response["data"]["discharge_summary"]
+E       AssertionError: assert 'No medicati...during visit' not in 'Discharge S...: Discharged'
+E         
+E         'No medications administered during visit' is contained here:
+E           ng Visit: No medications administered during visit
+E           Discharge Instructions: No discharge instructions supplied
+E           Disposition: Discharged
+
+tests/test_tasks/test_care_source_fidelity.py:71: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_real_mixed_care_is_preserved_without_inventing_medication_events[2]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_real_mixed_care_is_preserved_without_inventing_medication_events[3]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_real_mixed_care_is_preserved_without_inventing_medication_events[6]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_real_mixed_care_is_preserved_without_inventing_medication_events[7]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_coexisting_care_fields_preserve_structure_and_negation_without_parser_guessing
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_discharge_does_not_report_plans_as_given_or_unknown_as_none
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_discharge_without_medication_evidence_does_not_assert_no_doses_given
+7 failed in 0.06s

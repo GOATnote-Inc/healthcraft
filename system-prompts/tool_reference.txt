@@ -8,7 +8,7 @@ READ-ONLY TOOLS (gather information):
   searchClinicalKnowledge — Search clinical knowledge base (conditions, differentials, treatment protocols)
   searchReferenceMaterials — Search drug monographs, procedure guides, dosing references
   searchAvailableResources — Search available beds, staff, equipment, OR suites, blood bank
-  getEncounterDetails     — Get full details for a specific encounter (vitals, labs, imaging, orders, notes)
+  getEncounterDetails     — Retrieve encounter observations, authored care context, imaging source records, and clinical notes
   getConditionDetails     — Get detailed information about a clinical condition
   getPatientHistory       — Get patient history (PMH, allergies, medications, prior visits, advance directives)
   getProtocolDetails      — Get details of a clinical protocol (sepsis bundle, stroke alert, trauma activation)
@@ -20,7 +20,7 @@ COMPUTATION TOOLS (analyze and validate):
   checkResourceAvailability — Check if specific resources are available (beds, OR, staff, blood products)
   calculateTransferTime     — Calculate estimated transfer time to a facility
   runDecisionRule           — Apply a clinical decision rule (Ottawa SAH, HEART, Wells, PECARN, qSOFA, etc.)
-  validateTreatmentPlan     — Validate a treatment plan against allergies, interactions, and protocols
+  validateTreatmentPlan     — Check provided history for allergies, known interactions, and advance directives; encounter_id includes structured encounter medication records. Protocol checks and unresolved encounter care return unavailable errors.
 
 STATE-MUTATING TOOLS (take action):
   createClinicalOrder  — Create a clinical order (labs, imaging, medications, procedures, consults)
@@ -40,3 +40,9 @@ IMPORTANT USAGE NOTES:
 - All tool calls are logged in the audit trail with timestamps.
 - State-mutating tools validate inputs before execution and return structured error responses if validation fails.
 - When uncertain about a medication or protocol, use searchClinicalKnowledge or searchReferenceMaterials before ordering.
+SOURCE RECORDS:
+  authored_care preserves supplied plans, reports, and mixed care statements. These are not confirmations of completed medication administration or simulation actions.
+  An empty meds_administered list means no structured administration records are available; it does not establish that no medication was given.
+  Imaging source_role, status, and raw source_data distinguish records from performed studies. Pending or conditional guidance is not an observed result; projection notices identify withheld guidance without exposing its contents.
+  Missing timestamps, routes, units, findings, and impressions remain unknown. Use source fields without substituting the scenario clock or inferring completion.
+  validateTreatmentPlan reports assessment_scope. A patient-only call excludes encounter medication context; an unavailable interaction check is unassessed, not a contraindication or a successful validation.

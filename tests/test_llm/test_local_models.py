@@ -31,7 +31,11 @@ def _client(monkeypatch, *, capabilities=None, family="nemotron_h_moe", response
                 else ["completion", "tools"],
                 "details": {"family": family, "quantization_level": "Q5_K_M"},
             }
-        return response or {"message": {"content": "OK"}, "done": True, "done_reason": "stop"}
+        return response or {
+            "message": {"role": "assistant", "content": "OK"},
+            "done": True,
+            "done_reason": "stop",
+        }
 
     monkeypatch.setattr(client, "_request", request)
     return client, calls
@@ -124,6 +128,7 @@ def test_native_tools_and_results_roundtrip_without_losing_names(monkeypatch):
         monkeypatch,
         response={
             "message": {
+                "role": "assistant",
                 "content": "",
                 "tool_calls": [
                     {
@@ -178,6 +183,7 @@ def test_truncated_native_tool_call_is_not_executed(monkeypatch, reason):
         monkeypatch,
         response={
             "message": {
+                "role": "assistant",
                 "content": "partial",
                 "tool_calls": [
                     {"function": {"name": "searchPatients", "arguments": {}}},
@@ -215,7 +221,7 @@ def test_unknown_native_termination_cannot_complete_or_dispatch(
 
     from healthcraft.llm.agent import run_agent_task
 
-    message = {"content": "A response is not proof of completed generation."}
+    message = {"role": "assistant", "content": "A response is not proof of completed generation."}
     if with_tools:
         message["tool_calls"] = [
             {"function": {"name": "searchPatients", "arguments": {}}},
@@ -252,6 +258,7 @@ def test_malformed_tool_arguments_fail_before_execution(monkeypatch, arguments):
         monkeypatch,
         response={
             "message": {
+                "role": "assistant",
                 "content": "",
                 "tool_calls": [
                     {"function": {"name": "getEncounterDetails", "arguments": arguments}},
@@ -431,3 +438,28 @@ def test_cloud_agent_cannot_self_judge_through_local_vendor_alias(monkeypatch, t
         results_dir=tmp_path / "out",
     )
     assert "self-judge" in result["error"]
+
+
+@pytest.mark.parametrize("role", ["user", "tool", "system", None, "missing"])
+@pytest.mark.parametrize("with_tools", [False, True])
+def test_native_response_requires_explicit_assistant_role_before_exposing_output(
+    monkeypatch, role, with_tools
+):
+    message = {"content": "Never expose this as an assistant completion."}
+    if role != "missing":
+        message["role"] = role
+    if with_tools:
+        message["tool_calls"] = [
+            {"function": {"name": "getEncounterDetails", "arguments": {"encounter_id": "ENC-001"}}}
+        ]
+    client, requests = _client(
+        monkeypatch,
+        response={"done": True, "done_reason": "stop", "message": message},
+    )
+    with pytest.raises(LocalModelError, match="role"):
+        client.chat(
+            [{"role": "user", "content": "Read"}],
+            tools=[{"name": "getEncounterDetails"}] if with_tools else None,
+        )
+    assert client._call_sequence == 0
+    assert sum(path == "/api/chat" for path, _ in requests) == 1

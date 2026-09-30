@@ -1,0 +1,79 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+___ test_actual_tool_preserves_explicit_results_and_strings_without_defaults ___
+
+    def test_actual_tool_preserves_explicit_results_and_strings_without_defaults():
+        source = {
+            "cardiac_mri": {"modality": "MR", "body_part": "heart", "findings": " exact finding ",
+                            "result": " separate result ", "time": "2026-01-15T10:00:00.123456789+01:00"},
+            "ct_head": "Not indicated — no head injury",
+        }
+        _, data = read({"age": 50, "sex": "F", "imaging": source})
+        records = {row["source_label"]: row for row in data["imaging"]}
+>       assert set(records) == set(source)
+E       AssertionError: assert {''} == {'cardiac_mri', 'ct_head'}
+E         
+E         Extra items in the left set:
+E         ''
+E         Extra items in the right set:
+E         'ct_head'
+E         'cardiac_mri'
+E         Use -v to get more diff
+
+tests/test_tasks/test_imaging_source_fidelity.py:32: AssertionError
+______ test_actual_tools_do_not_expose_known_conditional_guidance[MW-006] ______
+
+task_id = 'MW-006'
+
+    @pytest.mark.parametrize("task_id", ["MW-006", "MW-009", "SCJ-017"])
+    def test_actual_tools_do_not_expose_known_conditional_guidance(task_id):
+        task = next(load_task(p) for p in sorted((ROOT / "configs/tasks").rglob("*.yaml")) if load_task(p).id == task_id)
+        original = deepcopy(task.patient)
+        _, data = read(task.patient, task.id)
+>       assert data["imaging_projection_notices"]
+E       assert ()
+
+tests/test_tasks/test_imaging_source_fidelity.py:49: AssertionError
+______ test_actual_tools_do_not_expose_known_conditional_guidance[MW-009] ______
+
+task_id = 'MW-009'
+
+    @pytest.mark.parametrize("task_id", ["MW-006", "MW-009", "SCJ-017"])
+    def test_actual_tools_do_not_expose_known_conditional_guidance(task_id):
+        task = next(load_task(p) for p in sorted((ROOT / "configs/tasks").rglob("*.yaml")) if load_task(p).id == task_id)
+        original = deepcopy(task.patient)
+        _, data = read(task.patient, task.id)
+>       assert data["imaging_projection_notices"]
+E       assert ()
+
+tests/test_tasks/test_imaging_source_fidelity.py:49: AssertionError
+_____ test_actual_tools_do_not_expose_known_conditional_guidance[SCJ-017] ______
+
+task_id = 'SCJ-017'
+
+    @pytest.mark.parametrize("task_id", ["MW-006", "MW-009", "SCJ-017"])
+    def test_actual_tools_do_not_expose_known_conditional_guidance(task_id):
+        task = next(load_task(p) for p in sorted((ROOT / "configs/tasks").rglob("*.yaml")) if load_task(p).id == task_id)
+        original = deepcopy(task.patient)
+        _, data = read(task.patient, task.id)
+>       assert data["imaging_projection_notices"]
+E       assert ()
+
+tests/test_tasks/test_imaging_source_fidelity.py:49: AssertionError
+_____________ test_unreviewed_guidance_fails_before_world_mutation _____________
+
+    def test_unreviewed_guidance_fails_before_world_mutation():
+        world = WorldState()
+        before = deepcopy(world._entities)
+>       with pytest.raises(ValueError, match="Unreviewed conditional"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_tasks/test_imaging_source_fidelity.py:64: Failed
+=========================== short test summary info ============================
+FAILED tests/test_tasks/test_imaging_source_fidelity.py::test_actual_tool_preserves_explicit_results_and_strings_without_defaults
+FAILED tests/test_tasks/test_imaging_source_fidelity.py::test_actual_tools_do_not_expose_known_conditional_guidance[MW-006]
+FAILED tests/test_tasks/test_imaging_source_fidelity.py::test_actual_tools_do_not_expose_known_conditional_guidance[MW-009]
+FAILED tests/test_tasks/test_imaging_source_fidelity.py::test_actual_tools_do_not_expose_known_conditional_guidance[SCJ-017]
+FAILED tests/test_tasks/test_imaging_source_fidelity.py::test_unreviewed_guidance_fails_before_world_mutation
+5 failed in 1.69s

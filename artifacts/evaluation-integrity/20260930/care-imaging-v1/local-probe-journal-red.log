@@ -1,0 +1,114 @@
+{"command": [".venv/bin/python", "-m", "pytest", "tests/test_scripts/test_local_care_probe.py", "-q"], "started_at": "2026-09-30T09:57:14.730324+00:00", "source_hashes": {"scripts/local_care_probe.py": "d5b25cacfa7e686f1a309a1c8c9863df5b153a8b3e04bb78b4b096204f946d22", "tests/test_scripts/test_local_care_probe.py": "055fff46ae80eb877ca0435f1cfbdd4e5c0b9f5f2cd6b9ab49bb250cf04f89d0"}}
+...................................................FFF                   [100%]
+=================================== FAILURES ===================================
+_______ test_dependency_constraint_manifest_is_bound_to_source_identity ________
+
+    def test_dependency_constraint_manifest_is_bound_to_source_identity():
+        import hashlib
+        constraint = ROOT / "constraints-security.txt"
+        assert constraint.is_file()
+>       assert probe.source_hashes()[constraint.name] == hashlib.sha256(constraint.read_bytes()).hexdigest()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'constraints-security.txt'
+
+tests/test_scripts/test_local_care_probe.py:448: KeyError
+________ test_dispatch_and_raw_response_are_journaled_before_postflight ________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-257/test_dispatch_and_raw_response0')
+native = ([{'model': 'counsel-nano-q5:latest', 'path': '/api/tags', 'payload': None}, {'model': 'counsel-nano-q5:latest', 'path...nsel-medgemma-27b-text-q5:latest'}}, ...], [], {'counsel-medgemma-27b-text-q5:latest': 2, 'counsel-nano-q5:latest': 1})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10772cad0>
+
+    def test_dispatch_and_raw_response_are_journaled_before_postflight(tmp_path, native, monkeypatch):
+        path = tmp_path / "durable.json"
+        _, replies, _ = native
+        response = envelope(correct_answer())
+        def check_dispatch(client, payload):
+            journal = json.loads(path.read_text())
+            attempt = journal["attempts"][0]
+            assert attempt["model_call_count"] == 1
+            assert journal["execution_counts"]["inference_attempted"] == 1
+            assert attempt["request_state"] == "dispatch_started"
+            assert attempt["raw_exchanges"][0]["request"] == payload
+            assert attempt["raw_exchanges"][0]["response"] is None
+            return response
+        replies.extend([check_dispatch, envelope(correct_answer())])
+        original = probe.OllamaClient._request
+        reads = 0
+        def check_response(client, endpoint, payload=None):
+            nonlocal reads
+            if client._model == probe.MODELS[0].removeprefix("ollama:") and endpoint == "/api/tags":
+                reads += 1
+                if reads == 2:
+                    attempt = json.loads(path.read_text())["attempts"][0]
+                    assert attempt["raw_exchanges"][0]["response"] == response
+                    assert attempt["request_state"] == "response_received"
+            return original(client, endpoint, payload)
+        monkeypatch.setattr(probe.OllamaClient, "_request", check_response)
+>       assert probe.main(["--output", str(path)]) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = <function main at 0x10743d010>(['--output', '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-257/test_dispatch_and_raw_response0/durable.json'])
+E        +    where <function main at 0x10743d010> = probe.main
+
+tests/test_scripts/test_local_care_probe.py:477: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"output": "/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-257/test_dispatch_and_raw_response0/durable.json", "diagnostic_status": "invalid_provenance", "scheduled_attempts": 2}
+____ test_interrupted_journal_update_preserves_previous_scheduled_evidence _____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-257/test_interrupted_journal_updat0')
+native = ([], [], {})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10772c590>
+
+    def test_interrupted_journal_update_preserves_previous_scheduled_evidence(tmp_path, native, monkeypatch):
+        path = tmp_path / "journal.json"
+        original_dump = probe.json.dump
+        interrupted = False
+        def interrupted_dump(value, stream, **kwargs):
+            nonlocal interrupted
+            if "evidence" in value and not interrupted:
+                interrupted = True
+                stream.write('{"partial":')
+                raise OSError("Synthetic interrupted journal write")
+            return original_dump(value, stream, **kwargs)
+        monkeypatch.setattr(probe.json, "dump", interrupted_dump)
+>       assert probe.main(["--output", str(path)]) == 1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_scripts/test_local_care_probe.py:494: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/local_care_probe.py:479: in main
+    report = json.loads(args.output.read_text())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x10565ecf0>, s = '{"partial":'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 12 (char 11)
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:363: JSONDecodeError
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_local_care_probe.py::test_dependency_constraint_manifest_is_bound_to_source_identity
+FAILED tests/test_scripts/test_local_care_probe.py::test_dispatch_and_raw_response_are_journaled_before_postflight
+FAILED tests/test_scripts/test_local_care_probe.py::test_interrupted_journal_update_preserves_previous_scheduled_evidence
+3 failed, 51 passed in 0.77s
+
+EXIT_CODE=1

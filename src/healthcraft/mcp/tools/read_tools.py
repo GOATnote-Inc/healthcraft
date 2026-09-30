@@ -310,10 +310,9 @@ def search_available_resources(world, params):
 def get_encounter_details(world, params):
     """Return full encounter details including vitals, labs, imaging, meds.
 
-    When dynamic state is enabled and a physiology trajectory is attached
-    for the encounter's patient, the most recent vitals set is replaced
-    with interpolated vitals at the current simulation time. All other
-    encounter data is returned unchanged (V8-compatible).
+    Authored care and imaging source roles remain distinct from completed
+    actions. When physiology is enabled, interpolated vitals are returned
+    separately as current_vitals; authored observations are not replaced.
 
     Params:
         encounter_id (required)

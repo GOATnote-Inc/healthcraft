@@ -26,6 +26,36 @@ using a new output path, at most four native requests and explicit request
 deadlines. The adapter preserves missing completion reasons as unknown rather
 than inventing a normal stop. New orchestrator runs also preserve missing-judge
 coverage and [review context](CLINICAL_REVIEW.md) in their trajectories.
+Native chat envelopes must identify an assistant message before their content
+or tool calls can reach the runner; missing or other roles are protocol errors.
+
+## Care source-reading probe
+
+`scripts/local_care_probe.py` supplies the same actual synthetic tool outputs
+as text to the installed Nemotron and MedGemma models. A fresh world executes
+`getEncounterDetails`, `validateTreatmentPlan` and `processDischarge`; the
+fixture checks source groups, unknown administration status and persisted
+documentation before any inference. Each model gets one request to copy four
+literal fields. MedGemma's lack of native tool capability is therefore not
+treated as a failed tool-use attempt.
+
+```sh
+env -i PATH=/usr/bin:/bin .venv/bin/python scripts/local_care_probe.py \
+  --output /tmp/new-local-care-probe.json --timeout 45 --max-output-tokens 768
+```
+
+The probe uses loopback Ollama, no downloads or paid fallback, a fixed seed,
+temperature zero and an 8192-token context. It unloads each model after its
+request. Scheduled attempts, raw native envelopes, incomplete/failed outputs,
+mechanical field comparisons and before/after provenance remain in the new
+output file. Source-reading agreement is not clinical correctness; the
+report has no clinical, safety, benchmark or superiority score. This deliberately
+small fixed-text test is not a native tool-use assessment or model ranking.
+
+In the [recorded two-attempt diagnostic](../artifacts/local-care-probe/20260930/source-reading-v1/README.md),
+both models completed. Nemotron copied all four requested fields exactly;
+MedGemma wrapped its output in a Markdown fence and failed the predeclared
+strict JSON check. Both original outputs remain, with no retry or output repair.
 
 ## Choose roles from runtime capabilities
 

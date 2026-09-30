@@ -113,7 +113,7 @@
     },
     {
       "name": "getEncounterDetails",
-      "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+      "description": "Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.",
       "category": "read",
       "parameters": {
         "type": "object",
@@ -125,12 +125,15 @@
       "returns": {
         "type": "object",
         "properties": {
-          "encounter": {"type": "object"},
+          "id": {"type": "string"},
+          "patient_id": {"type": "string"},
           "vitals": {"type": "array"},
           "labs": {"type": "array"},
-          "imaging": {"type": "array"},
-          "orders": {"type": "array"},
-          "notes": {"type": "array"}
+          "imaging": {"type": "array", "description": "Imaging source records; roles/status do not establish that a study was performed"},
+          "imaging_projection_notices": {"type": "array", "items": {"type": "object"}},
+          "authored_care": {"type": "array", "description": "Grouped authored care assertions, distinct from administration events", "items": {"type": "object"}},
+          "meds_administered": {"type": "array", "description": "Structured administration records, when available; an empty list does not establish that no medications were given"},
+          "clinical_notes": {"type": "array"}
         }
       }
     },
@@ -331,12 +334,13 @@
     },
     {
       "name": "validateTreatmentPlan",
-      "description": "Validate a treatment plan against patient allergies, drug interactions, and protocol compliance",
+      "description": "Check provided patient history for allergies, known drug interactions, and advance directives. Supply encounter_id to include its structured medication records. Unresolved authored encounter care and protocol-specific validation return explicit unavailable errors; patient-only checks exclude encounter medication context.",
       "category": "compute",
       "parameters": {
         "type": "object",
         "properties": {
           "patient_id": {"type": "string"},
+          "encounter_id": {"type": "string", "description": "Optional matching encounter; required to include encounter medication context"},
           "medications": {"type": "array", "items": {"type": "object"}},
           "procedures": {"type": "array", "items": {"type": "string"}},
           "protocol_id": {"type": "string"}
@@ -346,7 +350,9 @@
       "returns": {
         "type": "object",
         "properties": {
-          "valid": {"type": "boolean"},
+          "valid": {"type": "boolean", "description": "Outcome of the limited implemented checks within assessment_scope, not clinical clearance"},
+          "assessment_scope": {"type": "string", "enum": ["provided_patient_history_only", "provided_patient_history_and_structured_encounter_records"]},
+          "encounter_medications_assessed": {"type": "boolean"},
           "warnings": {"type": "array"},
           "contraindications": {"type": "array"},
           "interactions": {"type": "array"}

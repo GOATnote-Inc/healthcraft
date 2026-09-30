@@ -166,14 +166,27 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
     now = world.timestamp
 
     # --- (d) Generate discharge documentation ---
-    # Build treatments summary from meds administered during encounter
+    # Keep normalized administration records distinct from authored care context.
     treatments: list[str] = []
     for med_admin in encounter.meds_administered:
         treatments.append(f"{med_admin.medication_name} {med_admin.dose} {med_admin.route}")
 
     treatments_text = (
-        "; ".join(treatments) if treatments else "No medications administered during visit"
+        "; ".join(treatments)
+        if treatments
+        else "Medication administration not established by available records"
     )
+    authored_care = getattr(encounter, "authored_care", ())
+    care_text = "\n".join(
+        f"{record.source_collection} ({record.source_path}): "
+        + json.dumps(record.source_data, ensure_ascii=False, default=str)
+        for record in authored_care
+    )
+    if care_text:
+        care_text = (
+            "\nAuthored care context (source assertions; not confirmation of administration):\n"
+            + care_text
+        )
 
     patient_name = f"{patient.first_name} {patient.last_name}"
     discharge_summary = (
@@ -181,7 +194,7 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
         f"Encounter: {encounter_id}\n"
         f"Chief Complaint: {encounter.chief_complaint}\n"
         f"Diagnosis: {diagnosis}\n"
-        f"Treatments During Visit: {treatments_text}\n"
+        f"Treatments During Visit: {treatments_text}{care_text}\n"
         f"Discharge Instructions: {discharge_instructions or 'No discharge instructions supplied'}\n"
         f"Disposition: Discharged"
     )

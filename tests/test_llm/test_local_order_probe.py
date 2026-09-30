@@ -242,7 +242,7 @@ def test_linked_task_corruption_is_detected_independently(field, value):
 def test_native_ollama_missing_stop_provenance_never_becomes_complete(monkeypatch, final_reason):
     from healthcraft.llm.local_models import OllamaClient
 
-    terminal = {"done": True, "message": {"content": "Done."}}
+    terminal = {"done": True, "message": {"role": "assistant", "content": "Done."}}
     if final_reason != "missing":
         terminal["done_reason"] = final_reason
     envelopes = iter(
@@ -251,6 +251,7 @@ def test_native_ollama_missing_stop_provenance_never_becomes_complete(monkeypatc
                 "done": True,
                 "done_reason": "stop",
                 "message": {
+                    "role": "assistant",
                     "content": "",
                     "tool_calls": [
                         {

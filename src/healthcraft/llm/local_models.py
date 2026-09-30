@@ -239,6 +239,8 @@ class OllamaClient:
         message = response.get("message")
         if not isinstance(message, dict) or response.get("done") is not True:
             raise LocalModelError("Ollama returned an incomplete chat response")
+        if message.get("role") != "assistant":
+            raise LocalModelError("Ollama response message role must be assistant")
         self._call_sequence += 1
         calls = []
         for index, call in enumerate(message.get("tool_calls") or []):

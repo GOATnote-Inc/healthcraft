@@ -237,6 +237,9 @@ clinical calibration, or a release approval.
 
 The [authored observation contract](docs/AUTHORED_OBSERVATIONS.md) explains
 source-linked vitals/labs, explicit timing, and unknown values in new runs.
+The [care and imaging contract](docs/CARE_IMAGING_FIDELITY.md) keeps authored
+plans and reports distinct from performed treatments, preserves imaging
+source fields, and makes unresolved encounter medication checks explicit.
 
 ## Quick Start
 

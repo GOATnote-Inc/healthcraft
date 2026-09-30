@@ -632,11 +632,44 @@ def validate_treatment_plan(world: WorldState, params: dict[str, Any]) -> dict[s
                         f"procedure '{proc}' may conflict with advance directive"
                     )
 
+    # Preserve independent findings even when the encounter exposure check
+    # cannot be completed from authored plans/reports/mixed care prose.
+    if proposed_medications and encounter is not None:
+        care = _get_field(encounter, "authored_care", ())
+        if care:
+            result = _error(
+                "unresolved_medication_context",
+                "Encounter contains authored care context that has not been resolved into "
+                "medication exposure records. Complete encounter drug-interaction validation "
+                "is unavailable; inspect the source records and known findings. The unresolved "
+                "check is unassessed, not itself a contraindication.",
+            )
+            result["details"] = {
+                "unassessed": ["encounter_drug_interactions"],
+                "source_paths": [_get_field(record, "source_path", "unknown") for record in care]
+                if isinstance(care, (list, tuple))
+                else ["unknown"],
+                "known_allergy_conflicts": allergy_conflicts,
+                "known_findings": {
+                    "allergy_conflicts": allergy_conflicts,
+                    "contraindications": contraindications,
+                    "interactions": interaction_warnings,
+                    "warnings": warnings,
+                },
+            }
+            return result
+
     valid = len(contraindications) == 0
 
     return _ok(
         {
             "valid": valid,
+            "assessment_scope": (
+                "provided_patient_history_and_structured_encounter_records"
+                if encounter is not None
+                else "provided_patient_history_only"
+            ),
+            "encounter_medications_assessed": bool(proposed_medications and encounter is not None),
             "warnings": warnings,
             "contraindications": contraindications,
             "allergy_conflicts": allergy_conflicts,

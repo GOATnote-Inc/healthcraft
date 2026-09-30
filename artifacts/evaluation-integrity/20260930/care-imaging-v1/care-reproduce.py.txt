@@ -1,0 +1,82 @@
+"""Read-only repository audit; synthetic in-memory calls only, no clinical inference."""
+from pathlib import Path
+from collections import Counter,defaultdict
+from copy import deepcopy
+from dataclasses import asdict,replace
+from datetime import datetime,date,timezone
+from enum import Enum
+import hashlib,json,re,subprocess,platform
+import yaml
+from jsonschema import validate
+from healthcraft.tasks.loader import load_task
+from healthcraft.tasks.inject import inject_task_patient
+from healthcraft.entities.encounters import MedicationAdministration
+from healthcraft.mcp.server import create_server
+from healthcraft.world.state import WorldState
+ROOT=Path('/Users/kiteboard/healthcraft'); OUT=Path('/private/tmp/healthcraft-medication-provenance-aa21717.json')
+if OUT.exists():raise SystemExit('Output exists')
+KEY=re.compile(r'(?:^|_)(?:medications?|meds|treatments?|therapies|therapy|management|orders?|administrations?|interventions?|procedures?)(?:_|$)')
+EXACT=('active_orders','current_management','meds_administered','medications_administered','treatments','medication_history','medications','treatments_given')
+def norm(x):
+ if isinstance(x,Enum):return x.value
+ if isinstance(x,(datetime,date)):return x.isoformat()
+ if isinstance(x,dict):return {k:norm(v) for k,v in x.items()}
+ if isinstance(x,(list,tuple)):return [norm(v) for v in x]
+ return x
+
+def walk(x,path=()):
+ if isinstance(x,dict):
+  for k,v in x.items():
+   yield path+(k,),v
+   yield from walk(v,path+(k,))
+ elif isinstance(x,list):
+  for i,v in enumerate(x):yield from walk(v,path+(i,))
+files=sorted((ROOT/'configs/tasks').rglob('*.yaml'))
+tracked=files+sorted((ROOT/'src/healthcraft').rglob('*.py'))+[ROOT/'configs/mcp-tools.json']
+def hashes():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
+before=hashes();counts=Counter();direct_counts=Counter();direct_tasks=defaultdict(list);shapes=defaultdict(Counter);rows=[];probes=[];issues=[];routes=Counter();timekeys=Counter();key_values=defaultdict(list)
+schemas={t['name']:t['parameters'] for t in json.load(open(ROOT/'configs/mcp-tools.json'))['tools']}
+def actual_call(server,name,params):
+ validate(params,schemas[name]);return {'name':name,'params':deepcopy(params),'response':norm(server.call_tool(name,params))}
+for f in files:
+ raw=yaml.safe_load(f.read_text());task=load_task(f);counts['tasks']+=1
+ named=[{'path':list(path),'key':path[-1],'source_type':type(value).__name__,'source':norm(value)} for path,value in walk(raw) if isinstance(path[-1],str) and KEY.search(path[-1])]
+ patient=deepcopy(task.patient)
+ direct={k:deepcopy(v) for k,v in (patient or {}).items() if KEY.search(k)}
+ for k,v in direct.items():
+  direct_counts[k]+=1;direct_tasks[k].append(task.id);shapes[k][type(v).__name__]+=1
+  if isinstance(v,list):
+   for item in v:shapes[k]['item:'+type(item).__name__]+=1
+  for p,value in walk(v):
+   if any(token in str(p[-1]).lower() for token in ('time','date','status','route','dose','frequency','held','discontinu')):
+    timekeys[str(p[-1])]+=1;key_values[str(p[-1])].append({'task_id':task.id,'path':[k,*p],'value':norm(value)})
+ row={'task_id':task.id,'task_path':str(f.relative_to(ROOT)),'named_fields':named,'direct_patient_fields':norm(direct)}
+ if not patient:counts['without_patient']+=1;rows.append(row);continue
+ counts['with_patient']+=1
+ try:
+  world=WorldState();ids=inject_task_patient(world,task.id,patient,deepcopy(task.initial_state));server=create_server(world)
+  details=actual_call(server,'getEncounterDetails',{'encounter_id':ids['encounter_id']})
+  history=actual_call(server,'getPatientHistory',{'patient_id':ids['patient_id']})
+  administration=details['response']['data']['meds_administered'];counts['administration_rows']+=len(administration)
+  if administration:counts['tasks_with_administration_rows']+=1
+  for m in administration:routes[m['route']]+=1
+  row['observation']={'ids':ids,'getEncounterDetails':details,'getPatientHistory':history,'administration_count':len(administration)}
+  if task.id in {'CC-002','CC-003','CC-006','CC-007','CC-016','MW-008','TR-024','IR-013','SCJ-027','SCJ-014','TR-014'}:
+   probe={'task_id':task.id,'direct_source':norm(direct),'before_meds_administered':administration,'calls':[]}
+   if task.id=='TR-024':
+    params={'patient_id':ids['patient_id'],'encounter_id':ids['encounter_id'],'medications':[{'name':'alteplase'}]}
+    probe['calls'].append(actual_call(server,'validateTreatmentPlan',params))
+    # Explicit treatments_given source has a Heparin record. Positive control
+    # changes only representation, not clinical source or interaction rules.
+    control=world.snapshot();enc=control.get_entity('encounter',ids['encounter_id']);source=task.patient['treatments_given'][2]
+    control.put_entity('encounter',enc.id,replace(enc,meds_administered=(MedicationAdministration(medication_name=source['drug'],dose='',route='',timestamp=source['time']),)))
+    probe['positive_control']={'scope':'authored treatments_given[2].drug/time transported into existing MedicationAdministration; dose/route remain unknown; no recommendation','source':deepcopy(source),'call':actual_call(create_server(control),'validateTreatmentPlan',params)}
+   probe['calls'].append(actual_call(server,'processDischarge',{'encounter_id':ids['encounter_id'],'diagnosis':'Synthetic offline documentation transport probe'}))
+   probes.append(probe)
+ except Exception as exc:
+  issues.append({'task_id':task.id,'type':type(exc).__name__,'error':str(exc)})
+ rows.append(row)
+after=hashes();summary={'counts':dict(counts),'direct_field_counts':dict(direct_counts),'direct_field_task_ids':dict(direct_tasks),'direct_field_shapes':{k:dict(v) for k,v in shapes.items()},'canonical_requested_field_absence':[k for k in EXACT if not direct_counts[k]],'administration_route_counts':dict(routes),'structured_time_status_route_dose_key_counts':dict(timekeys),'active_and_management_coexistence':[r['task_id'] for r in rows if 'active_orders' in r['direct_patient_fields'] and 'current_management' in r['direct_patient_fields']],'errors':issues}
+report={'scope':'offline source transport and existing-consumer behavior; not medical advice, benchmark score, full-task solvability, formal redteam, or clinical validation','revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'python':platform.python_version(),'created_at':datetime.now(timezone.utc).isoformat(),'tracked_dirty_status':subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).splitlines(),'hashes_before':before,'hashes_after':after,'source_unchanged':before==after,'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'summary':summary,'structured_qualifiers':dict(key_values),'tasks':rows,'consumer_probes':probes}
+with OUT.open('x') as h:json.dump(report,h,indent=2,sort_keys=True,allow_nan=False);h.write('\n')
+print(json.dumps({'output':str(OUT),'summary':summary,'source_unchanged':report['source_unchanged']},indent=2))

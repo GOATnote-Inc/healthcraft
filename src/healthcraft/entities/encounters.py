@@ -71,13 +71,23 @@ class LabResult:
 
 @dataclass(frozen=True)
 class ImagingStudy:
-    """An imaging study result."""
+    """Imaging context; source_role/status do not imply a performed study."""
 
-    modality: str  # XR, CT, MRI, US
-    body_part: str
-    findings: str
-    impression: str
-    timestamp: datetime
+    modality: str | None
+    body_part: str | None
+    findings: str | None
+    impression: str | None
+    timestamp: datetime | str | None
+    result: str | None = None
+    report_text: str | None = None
+    status: str | None = None
+    source_path: str = ""
+    source_collection: str = ""
+    source_label: str = ""
+    source_role: str = ""
+    source_data: Any = None
+    timing_status: str = ""
+    source_time_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +99,15 @@ class MedicationAdministration:
     route: str  # IV, PO, IM, SQ, IN, PR, SL, INH
     timestamp: datetime
     administered_by: str = ""
+
+
+@dataclass(frozen=True)
+class AuthoredCareRecord:
+    """A supplied care-context field, not proof of a completed clinical action."""
+
+    source_collection: str
+    source_path: str
+    source_data: Any
 
 
 @dataclass(frozen=True)
@@ -113,6 +132,8 @@ class Encounter(Entity):
     exam_findings: tuple[tuple[str, str], ...] = ()
     clinical_notes: tuple[tuple[str, str], ...] = ()
     arrival_mode: str = ""  # Empty until supplied; registration does not infer it.
+    authored_care: tuple[AuthoredCareRecord, ...] = ()
+    imaging_projection_notices: tuple[dict[str, Any], ...] = ()
 
 
 # --- Chief complaints by ESI level ---

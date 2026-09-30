@@ -94,9 +94,10 @@ safety, model-performance, or superiority score.
 
 The scope is direct index-patient vital collections, the five recognized lab
 groups, and explicit direct arrival/triage fields. Broader historical and
-multi-patient events require their own reviewed profiles. Imaging and
-medication projections still have legacy inference/default behavior; their
-fidelity is not certified here. Task time and world time are distinct, and
+multi-patient events require their own reviewed profiles. The subsequent
+[care and imaging repair](CARE_IMAGING_FIDELITY.md) removes the legacy
+administration and imaging defaults under its own source contract; those
+fields are not certified by this observation witness. Task time and world time are distinct, and
 this repair does not establish a future-observation availability policy.
 Authored clinical assertions, SCJ-012's antibiotic rubric mismatch, and other
 content findings remain open. See [task validity findings](TASK_VALIDITY_FINDINGS.md)

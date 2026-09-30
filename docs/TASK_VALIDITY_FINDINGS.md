@@ -49,6 +49,26 @@ retain the defects before repair. Regression coverage lives in
 [tool alias tests](../tests/test_evaluator_integrity/test_tool_aliases.py), and
 [grader contract tests](../tests/test_evals/test_grader_goldset_contract.py).
 
+## Authored care and imaging: subsequent local repair
+
+The `aa21717` source audit reproduced 37 fabricated administration rows from
+active orders or management in five tasks, including 20 default oral routes.
+Actual discharge output repeated these inventions. Other tasks retained
+reported treatment only in narrative and could receive a false “No medications
+administered” summary. Encounter interaction validation could silently miss
+those reports. The [care contract](CARE_IMAGING_FIDELITY.md) now preserves 22
+reviewed fields as source assertions, keeps unknown administration explicit,
+and returns unavailable encounter validation while retaining known findings.
+
+The imaging audit found discarded scalar reports, ignored `result` fields,
+unknown study labels defaulting to X-ray, and scenario time replacing authored
+time. The new projection preserves six reviewed imaging groups, typed fields
+only when explicit, and raw observations with provenance. Eight reviewed
+conditional guidance fields stay withheld. Source roles and pending status
+do not establish performed studies. These changes repair future executions;
+they neither regrade the unchanged historical results nor adjudicate the
+clinical content. Independent review and comparative-value gates remain open.
+
 ## IR-002: prior encounter retrieval
 
 The audit at commit `31511e8` seeded the actual world, injected IR-002,

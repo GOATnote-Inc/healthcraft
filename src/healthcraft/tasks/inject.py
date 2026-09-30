@@ -14,18 +14,18 @@ from __future__ import annotations
 import hashlib
 import math
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from healthcraft.entities.base import EntityType
 from healthcraft.entities.encounters import (
     Encounter,
     ESILevel,
-    ImagingStudy,
-    MedicationAdministration,
     VitalSigns,
 )
 from healthcraft.entities.patients import Patient
+from healthcraft.tasks.care_projection import project_authored_care
+from healthcraft.tasks.imaging_projection import project_imaging
 from healthcraft.tasks.lab_projection import project_labs
 from healthcraft.tasks.source_values import require_finite_source
 from healthcraft.temporal import instant_key, resolve_source_time
@@ -191,99 +191,6 @@ _VITAL_KEYS = (
 _VITAL_SERIES_KEYS = ("vitals_series", "serial_vitals")
 
 
-def _parse_imaging(imaging_data: dict[str, Any], timestamp: datetime) -> tuple[ImagingStudy, ...]:
-    """Convert task YAML imaging dict to ImagingStudy tuples.
-
-    Supports formats like:
-        imaging:
-          chest_xray:
-            findings: "..."
-            impression: "..."   (optional)
-          ct_abdomen:
-            findings: "..."
-            impression: "..."
-    """
-    if not imaging_data or not isinstance(imaging_data, dict):
-        return ()
-
-    modality_map = {
-        "xray": "XR",
-        "x_ray": "XR",
-        "chest_xray": "XR",
-        "ct": "CT",
-        "ct_abdomen": "CT",
-        "ct_head": "CT",
-        "ct_chest": "CT",
-        "ct_angiography": "CT",
-        "mri": "MRI",
-        "mri_brain": "MRI",
-        "us": "US",
-        "ultrasound": "US",
-        "echo": "US",
-    }
-
-    body_part_map = {
-        "chest_xray": "chest",
-        "ct_abdomen": "abdomen/pelvis",
-        "ct_head": "head",
-        "ct_chest": "chest",
-        "ct_angiography": "chest",
-        "mri_brain": "brain",
-    }
-
-    results = []
-    for study_key, study_data in imaging_data.items():
-        if not isinstance(study_data, dict):
-            continue
-
-        modality = modality_map.get(study_key, "XR")
-        body_part = body_part_map.get(study_key, study_key.replace("_", " "))
-        findings = study_data.get("findings", "")
-        impression = study_data.get("impression", findings[:200] if findings else "")
-
-        results.append(
-            ImagingStudy(
-                modality=modality,
-                body_part=body_part,
-                findings=findings.strip() if isinstance(findings, str) else str(findings),
-                impression=impression.strip() if isinstance(impression, str) else str(impression),
-                timestamp=timestamp,
-            )
-        )
-    return tuple(results)
-
-
-def _parse_meds_administered(
-    meds_data: list[str] | None, timestamp: datetime
-) -> tuple[MedicationAdministration, ...]:
-    """Convert active_orders or current_management to MedicationAdministration."""
-    if not meds_data or not isinstance(meds_data, list):
-        return ()
-
-    results = []
-    for med_str in meds_data:
-        if not isinstance(med_str, str):
-            continue
-        # Extract route hints from the string
-        route = "PO"
-        if " IV " in med_str or med_str.endswith(" IV"):
-            route = "IV"
-        elif " IM " in med_str:
-            route = "IM"
-        elif " INH" in med_str or "inhale" in med_str.lower() or "nebulizer" in med_str.lower():
-            route = "INH"
-
-        results.append(
-            MedicationAdministration(
-                medication_name=med_str,
-                dose="",
-                route=route,
-                timestamp=timestamp,
-            )
-        )
-    return tuple(results)
-
-
 def _format_note_value(value: Any) -> str:
     """Format an arbitrary YAML value into a readable clinical note string."""
     if isinstance(value, str):
@@ -338,8 +245,8 @@ def inject_task_patient(
     require_finite_source(setting_data)
     now = world.timestamp
     setting = setting_data or {}
-    # A deterministic scaffold anchor for generated DOB and legacy imaging/med
-    # projections. It is never a substitute for authored observation/arrival time.
+    # A deterministic scaffold anchor for generated DOB only. It is never a
+    # substitute for authored observation, care, imaging, or arrival time.
     try:
         encounter_time = instant_key(setting.get("time"))[0]
     except (ValueError, OverflowError):
@@ -444,14 +351,11 @@ def inject_task_patient(
 
     labs = project_labs(patient_data.get("labs"), "/patient/labs")
 
-    # Parse imaging
-    imaging = _parse_imaging(patient_data.get("imaging"), encounter_time)
+    # Preserve source reports and pending context; conditional guidance is withheld.
+    imaging_projection = project_imaging(patient_data, task_id=task_id)
 
-    # Parse administered medications from active_orders or current_management
-    meds_admin = _parse_meds_administered(
-        patient_data.get("active_orders") or patient_data.get("current_management"),
-        encounter_time,
-    )
+    # A request or mixed management statement is not an administration event.
+    authored_care = project_authored_care(patient_data)
 
     # ESI level
     esi_raw = patient_data.get("esi_level", 3)
@@ -538,6 +442,11 @@ def inject_task_patient(
         "vitals_series",
         "labs",
         "imaging",
+        "imaging_results",
+        "imaging_pending",
+        "imaging_available",
+        "bedside_echo",
+        "fast_exam",
         "active_orders",
         "current_management",
         "exam_findings",
@@ -571,8 +480,10 @@ def inject_task_patient(
         attending_id=setting.get("attending_on_duty", ""),
         vitals=tuple(vitals_list),
         labs=labs,
-        imaging=imaging,
-        meds_administered=meds_admin,
+        imaging=imaging_projection.records,
+        imaging_projection_notices=imaging_projection.notices,
+        meds_administered=(),
+        authored_care=authored_care,
         exam_findings=exam_findings,
         clinical_notes=clinical_notes,
     )

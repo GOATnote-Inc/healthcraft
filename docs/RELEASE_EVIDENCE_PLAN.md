@@ -149,6 +149,10 @@ prevent an operator from bypassing the required publication procedure.
   and observation-availability problems. The [authored observation repair](AUTHORED_OBSERVATIONS.md)
   conserves direct vital/lab source facts and unknown times. Passing these
   regression fixtures does not establish independent clinical adjudication.
+- The [care and imaging repair](CARE_IMAGING_FIDELITY.md) keeps authored care
+  distinct from completed administrations and preserves direct imaging facts
+  without default modality, impression or time. Its mechanical witness and
+  local source-reading probe do not adjudicate treatment or comparative value.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

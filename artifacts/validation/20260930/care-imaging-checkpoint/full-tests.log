@@ -1,0 +1,114 @@
+/Users/kiteboard/healthcraft/.venv/bin/pytest tests/ -q
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+.................F...................................................... [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+..........s............................................................. [ 39%]
+..........s.ss.......ss................................................. [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 47%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+...............................................s........................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 76%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+.................................................................        [100%]
+=================================== FAILURES ===================================
+____________________ test_composed_prompt_matches_snapshot _____________________
+
+    def test_composed_prompt_matches_snapshot() -> None:
+        """The composed default prompt is byte-identical to the V8 snapshot.
+    
+        To regenerate after an intentional edit, run:
+    
+            from healthcraft.llm.orchestrator import _load_system_prompt
+            from healthcraft.tasks.loader import Task
+            # build a placeholder Task as in this module
+            Path('tests/fixtures/prompt_snapshots/base_composed.txt') \\
+                .write_text(_load_system_prompt(t))
+    
+        AND update the whitepaper appendix so the published prompt matches.
+        """
+        composed = _load_system_prompt(_placeholder_task())
+        expected = SNAPSHOT.read_text(encoding="utf-8")
+    
+        if composed != expected:
+            # Show a compact diff hint instead of the full 10KB blob.
+            from difflib import unified_diff
+    
+            diff = "\n".join(
+                unified_diff(
+                    expected.splitlines(),
+                    composed.splitlines(),
+                    fromfile="snapshot",
+                    tofile="composed",
+                    lineterm="",
+                    n=2,
+                )
+            )
+            # Truncate diff to keep the test report readable.
+            max_chars = 4000
+            if len(diff) > max_chars:
+                diff = diff[:max_chars] + "\n... [truncated]"
+>           pytest.fail(
+                "Composed system prompt differs from the V8 snapshot. "
+                "Either revert the system-prompts/*.txt edit or regenerate "
+                "the snapshot AND update the whitepaper appendix.\n\n" + diff
+            )
+E           Failed: Composed system prompt differs from the V8 snapshot. Either revert the system-prompts/*.txt edit or regenerate the snapshot AND update the whitepaper appendix.
+E           
+E           --- snapshot
+E           +++ composed
+E           @@ -173,5 +173,5 @@
+E              searchReferenceMaterials — Search drug monographs, procedure guides, dosing references
+E              searchAvailableResources — Search available beds, staff, equipment, OR suites, blood bank
+E           -  getEncounterDetails     — Get full details for a specific encounter (vitals, labs, imaging, orders, notes)
+E           +  getEncounterDetails     — Retrieve encounter observations, authored care context, imaging source records, and clinical notes
+E              getConditionDetails     — Get detailed information about a clinical condition
+E              getPatientHistory       — Get patient history (PMH, allergies, medications, prior visits, advance directives)
+E           @@ -185,5 +185,5 @@
+E              calculateTransferTime     — Calculate estimated transfer time to a facility
+E              runDecisionRule           — Apply a clinical decision rule (Ottawa SAH, HEART, Wells, PECARN, qSOFA, etc.)
+E           -  validateTreatmentPlan     — Validate a treatment plan against allergies, interactions, and protocols
+E           +  validateTreatmentPlan     — Check provided history for allergies, known interactions, and advance directives; encounter_id includes structured encounter medication records. Protocol checks and unresolved encounter care return unavailable errors.
+E            
+E            STATE-MUTATING TOOLS (take action):
+E           @@ -205,2 +205,8 @@
+E            - State-mutating tools validate inputs before execution and return structured error responses if validation fails.
+E            - When uncertain about a medication or protocol, use searchClinicalKnowledge or searchReferenceMaterials before ordering.
+E           +SOURCE RECORDS:
+E           +  authored_care preserves supplied plans, reports, and mixed care statements. These are not confirmations of completed medication administration or simulation actions.
+E           +  An empty meds_administered list means no structured administration records are available; it does not establish that no medication was given.
+E           +  Imaging source_role, status, and raw source_data distinguish records from performed studies. Pending or conditional guidance is not an observed result; projection notices identify withheld guidance without exposing its contents.
+E           +  Missing timestamps, routes, units, findings, and impressions remain unknown. Use source fields without substituting the scenario clock or inferring completion.
+E           +  validateTreatmentPlan reports assessment_scope. A patient-only call excludes encounter medication context; an unavailable interaction check is unassessed, not a contraindication or a successful validation.
+
+tests/test_evaluator_integrity/test_prompt_composition.py:88: Failed
+=========================== short test summary info ============================
+FAILED tests/test_evaluator_integrity/test_prompt_composition.py::test_composed_prompt_matches_snapshot
+1 failed, 2721 passed, 7 skipped in 260.96s (0:04:20)
+make: *** [test] Error 1
