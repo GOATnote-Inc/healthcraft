@@ -21,6 +21,7 @@ retry readers, and local tool interaction rather than checking source text.
 | Exhausted tool budgets and token truncation looked like finished trajectories. | Record incomplete termination explicitly and retain the trace. | `test_agent_completion.py` |
 | Retries overwrote prior evidence, and retry artifacts could be counted as extra trials. | Create numbered attempts and summaries exclusively. Shared readers select one latest attempt per trial. Resume can repair a missing log entry from its saved trajectory. | `test_checkpoint_provenance.py`, `test_retry_readers.py` |
 | A log-write failure could overwrite a successfully saved trajectory with an error shell. | Preserve the saved evidence and surface the persistence error. | `test_checkpoint_provenance.py` |
+| `validateTreatmentPlan` rejected its advertised patient/object inputs, crashed on structured allergies, and silently ignored a requested protocol. | Support canonical and legacy inputs, normalize names without changing records, enforce patient/encounter ownership, and explicitly reject unsupported protocol validation. Return the advertised `interactions` field. | `test_treatment_plan_contract.py` |
 
 ## Local integration
 
@@ -47,6 +48,13 @@ passed. `make lint` passed against an export of the staged repository
 source (251 Python files). The development checkout additionally contains
 untracked research archives and presentation scripts with 115 unrelated
 lint errors; those files were excluded from the commit and clean export.
+
+The subsequent treatment-plan fix has **39 dedicated regressions** (36
+failed before the fix), with **116 passing** across the MCP tool and grader
+gold-set checks. Independent review exercised canonical medication objects
+against all 196 task-injected patients without a normalization/internal
+error. The existing drug/allergy rules remain limited simulation rules;
+this contract repair does not validate their clinical coverage.
 
 Historical V8 and channel replay locks remain unchanged. Old trajectories
 are still replayable; they cannot prove compatibility for live checkpoint

@@ -471,69 +471,138 @@ def _check_allergy_conflicts(
     return conflicts
 
 
+def _treatment_names(
+    records: Any,
+    field: str,
+    name_fields: tuple[str, ...] = (),
+) -> list[str]:
+    """Read names without dropping malformed records or mutating clinical data."""
+    if not isinstance(records, (list, tuple)):
+        raise ValueError(f"{field} must be an array")
+    names: list[str] = []
+    for index, record in enumerate(records):
+        name = record
+        if not isinstance(record, str):
+            name = None
+            for name_field in name_fields:
+                candidate = _get_field(record, name_field)
+                if candidate is not None:
+                    name = candidate
+                    break
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"{field}[{index}] must contain a nonempty name")
+        names.append(name.strip())
+    return names
+
+
 def validate_treatment_plan(world: WorldState, params: dict[str, Any]) -> dict[str, Any]:
     """Validate a proposed treatment plan against patient data.
 
     Checks proposed medications and procedures against patient allergies,
-    known drug interactions with current medications, and basic protocol
-    compliance.
+    known drug interactions with current medications, and advance directives.
+    Protocol-specific compliance is not implemented and returns an explicit
+    error when requested.
 
     Params
     ------
-    encounter_id : str (required)
-        The encounter to validate against.
-    medications : list[str] (optional)
-        List of proposed medication names.
+    patient_id : str
+        Patient to validate against, as advertised by the MCP schema.
+    encounter_id : str (optional)
+        Include this patient's encounter medications. Legacy encounter-only
+        calls resolve the patient from the encounter.
+    medications : list[dict | str] (optional)
+        Proposed medication objects with ``name`` or ``medication_name``.
+        Legacy medication-name strings remain supported.
     procedures : list[str] (optional)
         List of proposed procedure names.
-    patient_id : str (optional)
-        Explicit patient ID.  If omitted, resolved from the encounter.
+    protocol_id : str (optional)
+        Requested protocol; explicit error until compliance can be verified.
 
     Returns
     -------
     dict
         ``{"valid": bool, "warnings": [...], "contraindications": [...],
-        "allergy_conflicts": [...]}``
+        "allergy_conflicts": [...], "interactions": [...]}``
     """
+    for field in ("patient_id", "encounter_id", "protocol_id"):
+        if field in params and (not isinstance(params[field], str) or not params[field].strip()):
+            return _error("invalid_param", f"{field} must be a nonempty string")
     encounter_id = params.get("encounter_id")
-    if not encounter_id:
-        return _error("missing_param", "encounter_id is required")
+    patient_id = params.get("patient_id")
+    if patient_id is None and encounter_id is None:
+        return _error("missing_param", "patient_id or encounter_id is required")
 
-    proposed_medications: list[str] = list(params.get("medications") or [])
-    proposed_procedures: list[str] = list(params.get("procedures") or [])
+    # Never choose an arbitrary encounter for a patient-only request.
+    encounter = None
+    if encounter_id is not None:
+        encounter = world.get_entity("encounter", encounter_id)
+        if encounter is None:
+            return _error("encounter_not_found", f"Encounter '{encounter_id}' not found")
+    if patient_id is None:
+        patient_id = _get_field(encounter, "patient_id")
+    if not isinstance(patient_id, str) or not patient_id:
+        return _error("patient_not_found", "Encounter has no valid patient_id")
+    patient = world.get_entity("patient", patient_id)
+    if patient is None:
+        return _error("patient_not_found", f"Patient '{patient_id}' not found")
+    if encounter is not None and _get_field(encounter, "patient_id") != patient_id:
+        return _error(
+            "patient_encounter_mismatch",
+            f"Encounter '{encounter_id}' does not belong to patient '{patient_id}'",
+        )
 
-    # Resolve encounter.
-    encounter = world.get_entity("encounter", encounter_id)
-    if encounter is None:
-        return _error("encounter_not_found", f"Encounter '{encounter_id}' not found")
+    protocol_id = params.get("protocol_id")
+    if protocol_id is not None:
+        if world.get_entity("protocol", protocol_id) is None:
+            return _error("protocol_not_found", f"Protocol '{protocol_id}' not found")
+        return _error(
+            "protocol_validation_unavailable",
+            "Protocol-specific compliance cannot be verified by validateTreatmentPlan",
+        )
 
-    # Resolve patient.
-    patient_id = params.get("patient_id") or _get_field(encounter, "patient_id", "")
-    patient = world.get_entity("patient", patient_id) if patient_id else None
+    try:
+        proposed_medications = _treatment_names(
+            params.get("medications", []), "medications", ("name", "medication_name")
+        )
+        proposed_procedures = _treatment_names(params.get("procedures", []), "procedures")
+    except ValueError as exc:
+        return _error("invalid_param", str(exc))
 
     warnings: list[str] = []
     contraindications: list[str] = []
     allergy_conflicts: list[str] = []
+    interaction_warnings: list[str] = []
 
     # --- Allergy checks ---
-    if patient is not None and proposed_medications:
-        patient_allergies = list(_get_field(patient, "allergies", ()))
+    if proposed_medications:
+        try:
+            patient_allergies = _treatment_names(
+                _get_field(patient, "allergies", ()), "patient.allergies", ("name",)
+            )
+            current_medications = _treatment_names(
+                _get_field(patient, "medications", ()),
+                "patient.medications",
+                ("name", "medication_name"),
+            )
+        except ValueError as exc:
+            return _error("invalid_patient_data", str(exc))
         allergy_conflicts = _check_allergy_conflicts(proposed_medications, patient_allergies)
         # Allergy conflicts are also contraindications.
         contraindications.extend(allergy_conflicts)
 
     # --- Drug interaction checks ---
     if proposed_medications:
-        current_medications: list[str] = []
-        if patient is not None:
-            current_medications = list(_get_field(patient, "medications", ()))
-
         # Also include medications already administered during this encounter.
-        meds_administered = _get_field(encounter, "meds_administered", ())
-        for med_admin in meds_administered:
-            med_name = _get_field(med_admin, "medication_name", "")
-            if med_name:
-                current_medications.append(med_name)
+        try:
+            current_medications.extend(
+                _treatment_names(
+                    _get_field(encounter, "meds_administered", ()),
+                    "encounter.meds_administered",
+                    ("medication_name", "name"),
+                )
+            )
+        except ValueError as exc:
+            return _error("invalid_encounter_data", str(exc))
 
         interaction_warnings = _check_drug_interactions(
             proposed_medications,
@@ -541,7 +610,7 @@ def validate_treatment_plan(world: WorldState, params: dict[str, Any]) -> dict[s
         )
         warnings.extend(interaction_warnings)
 
-    # --- Basic protocol compliance checks ---
+    # --- Plan contents and advance-directive checks ---
     if not proposed_medications and not proposed_procedures:
         warnings.append("Treatment plan contains no medications or procedures")
 
@@ -571,5 +640,6 @@ def validate_treatment_plan(world: WorldState, params: dict[str, Any]) -> dict[s
             "warnings": warnings,
             "contraindications": contraindications,
             "allergy_conflicts": allergy_conflicts,
+            "interactions": interaction_warnings,
         }
     )
