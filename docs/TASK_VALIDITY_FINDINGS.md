@@ -123,6 +123,12 @@ through the available knowledge/reference searches. A source-backed
 knowledge repair requires separate review; a resource lookup is not
 substitute evidence.
 
+The [2026-09-30 primary-source review](IR001_REFERENCE_REVIEW.md) identifies
+public references and a concrete retrieval/documentation revision for clinical
+review. Their label, population and side-chain scopes differ; they do not
+justify the task's blanket estimate or an automatic patient-specific verdict.
+Source selection and a new clinical scoring contract remain unapproved.
+
 ## Required versioned repair and certificate
 
 An opt-in `linked-history/v1` profile and actual-execution mechanical witness
