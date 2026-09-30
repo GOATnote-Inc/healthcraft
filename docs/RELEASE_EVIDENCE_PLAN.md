@@ -57,7 +57,7 @@ existing [research-artifact boundary](RL_COUPLING.md) continues to apply.
 | Alternative | Proposed comparison | Current status |
 |---|---|---|
 | [MedAgentBench](https://github.com/stanfordmlgroup/MedAgentBench) | EHR retrieval/action workflows through a reviewed common synthetic adapter. | Pinned public loop acknowledges POSTs without executing writes; reference grader is separately distributed and uninspected. End-to-end feasibility remains unestablished. Published patient-derived scores are not a baseline for new synthetic cases. |
-| [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Pinned CSV verifier interface inspected; proposed synthetic Harbor adaptation remains unimplemented. Its data-quality score cannot establish persisted clinical-action correctness. |
+| [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Pinned CSV verifier and an original synthetic Harbor lifecycle exercised. Four scripted transport controls match independent mechanical outcomes; no model/operator comparison is established. The CSV and connectivity rewards cannot establish persisted clinical-action correctness. |
 | [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | A pinned counter probe remained incomplete. A later adapted four-record retrieval attempt completed once in each framework under shared native settings. This establishes local interoperability, not a clinical workflow or comparative performance margin. |
 | Corecraft, Archangel Health, Baseten | Equivalent executable workflows and review procedures where accessible. | Numerical superiority is not demonstrated. Product descriptions and unrelated published scores cannot fill missing comparisons. |
 
@@ -165,8 +165,14 @@ prevent an operator from bypassing the required publication procedure.
   uses actual handlers, a pinned independent source/persistence oracle and nine
   scripted controls over eight records. The optional unchanged Microsoft CSV
   verifier assesses a separate retrieval contract. Its [evidence bundle](../artifacts/reconciliation/20260930/native-verifier-v1/README.md)
-  does not establish a Harbor lifecycle, matched-model comparison, operator
+  is complemented by a [real Harbor scripted lifecycle](../artifacts/reconciliation/20260930/harbor-transport-v4/README.md), but does not establish operator
   benefit or clinical validity; all clinical criteria remain unassessed.
+- The [first reconciliation model pilot](../artifacts/reconciliation/20260930/local-model-pilot-v1/README.md)
+  records one Nano and one MedGemma attempt through each transport, with identical
+  initial messages and native request settings within each model. All four
+  failed the frozen command format after one response, before tool use. No
+  attempt was retried or repaired. These outcomes diagnose an interface
+  limitation; they do not measure clinical performance or comparative value.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

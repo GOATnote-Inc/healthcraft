@@ -1,0 +1,122 @@
+.....................................................................FFF [ 98%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_http_protocol_failure_is_controlled_unknown_outcome[bad_status] _____
+
+terminal = <module 'healthcraft.reconciliation.terminal' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/terminal.py'>
+configured = None
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107243460>
+capsys = <_pytest.capture.CaptureFixture object at 0x1071a9fd0>
+kind = 'bad_status'
+
+    @pytest.mark.parametrize("kind", ["bad_status", "incomplete_body"])
+    def test_http_protocol_failure_is_controlled_unknown_outcome(terminal, configured, monkeypatch, capsys, kind):
+        from http.client import BadStatusLine, IncompleteRead
+    
+        error = BadStatusLine("trial-token-do-not-echo") if kind == "bad_status" else IncompleteRead(b"trial-token-do-not-echo", 50)
+        calls, _ = wire(terminal, monkeypatch, error=error)
+>       assert terminal.main(["call", "updateEncounter", "--params-json", "{}"]) == 2
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_terminal.py:355: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/reconciliation/terminal.py:253: in main
+    response = request_json(
+src/healthcraft/reconciliation/terminal.py:190: in request_json
+    with opener.open(request, timeout=timeout) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_terminal.wire.<locals>.Opener object at 0x107147620>
+request = <urllib.request.Request object at 0x1079390d0>, timeout = 30
+
+    def open(self, request, timeout):
+        calls.append((request, timeout))
+        if error:
+>           raise error
+E           http.client.BadStatusLine: trial-token-do-not-echo
+
+tests/test_reconciliation/test_terminal.py:42: BadStatusLine
+__ test_http_protocol_failure_is_controlled_unknown_outcome[incomplete_body] ___
+
+terminal = <module 'healthcraft.reconciliation.terminal' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/terminal.py'>
+configured = None
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107243700>
+capsys = <_pytest.capture.CaptureFixture object at 0x1071ab250>
+kind = 'incomplete_body'
+
+    @pytest.mark.parametrize("kind", ["bad_status", "incomplete_body"])
+    def test_http_protocol_failure_is_controlled_unknown_outcome(terminal, configured, monkeypatch, capsys, kind):
+        from http.client import BadStatusLine, IncompleteRead
+    
+        error = BadStatusLine("trial-token-do-not-echo") if kind == "bad_status" else IncompleteRead(b"trial-token-do-not-echo", 50)
+        calls, _ = wire(terminal, monkeypatch, error=error)
+>       assert terminal.main(["call", "updateEncounter", "--params-json", "{}"]) == 2
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_terminal.py:355: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/reconciliation/terminal.py:253: in main
+    response = request_json(
+src/healthcraft/reconciliation/terminal.py:190: in request_json
+    with opener.open(request, timeout=timeout) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_terminal.wire.<locals>.Opener object at 0x107147770>
+request = <urllib.request.Request object at 0x10793a390>, timeout = 30
+
+    def open(self, request, timeout):
+        calls.append((request, timeout))
+        if error:
+>           raise error
+E           http.client.IncompleteRead: IncompleteRead(23 bytes read, 50 more expected)
+
+tests/test_reconciliation/test_terminal.py:42: IncompleteRead
+__________ test_extreme_integer_timeout_is_rejected_without_overflow ___________
+
+terminal = <module 'healthcraft.reconciliation.terminal' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/terminal.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107241d30>
+
+    def test_extreme_integer_timeout_is_rejected_without_overflow(terminal, monkeypatch):
+        calls, _ = wire(terminal, monkeypatch)
+        with pytest.raises(terminal.TerminalError) as error:
+>           terminal.request_json("GET", "/tools", url="http://localhost:80", token="nonce", timeout=10**1000)
+
+tests/test_reconciliation/test_terminal.py:363: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+method = 'GET', path = '/tools', payload = None
+
+    def request_json(
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        url: str,
+        token: str,
+        timeout: float = MAX_TIMEOUT_SECONDS,
+    ) -> dict[str, Any]:
+        """Issue one bounded request without retries; preserve response JSON exactly.
+    
+        ``timeout`` bounds socket waits, not the entire caller's execution. A write
+        whose request or response fails after dispatch has an unknown outcome.
+        """
+        origin = _service_origin(url)
+        if (
+            not isinstance(token, str)
+            or not token
+            or any(not 33 <= ord(char) <= 126 for char in token)
+            or type(timeout) not in {int, float}
+>           or not math.isfinite(timeout)
+                   ^^^^^^^^^^^^^^^^^^^^^^
+            or not 0 < timeout <= MAX_TIMEOUT_SECONDS
+        ):
+E       OverflowError: int too large to convert to float
+
+src/healthcraft/reconciliation/terminal.py:155: OverflowError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_terminal.py::test_http_protocol_failure_is_controlled_unknown_outcome[bad_status]
+FAILED tests/test_reconciliation/test_terminal.py::test_http_protocol_failure_is_controlled_unknown_outcome[incomplete_body]
+FAILED tests/test_reconciliation/test_terminal.py::test_extreme_integer_timeout_is_rejected_without_overflow
+3 failed, 70 passed in 0.15s

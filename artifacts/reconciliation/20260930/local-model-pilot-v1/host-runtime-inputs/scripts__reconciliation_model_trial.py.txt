@@ -1,0 +1,376 @@
+#!/usr/bin/env python3
+"""One direct HTTP reconciliation pilot through a coordinator-owned backend.
+
+The parent supervises the hard process deadline and finalizes backend evidence.
+This runner does not invoke a verifier, diagnose clinical facts or retry a model.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import os
+import platform
+import re
+import subprocess
+import sys
+from dataclasses import asdict, fields
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from healthcraft.reconciliation.controller import (  # noqa: E402
+    CommandController,
+    PilotSettings,
+    RecordingOllamaClient,
+    canonical_json,
+)
+from healthcraft.reconciliation.terminal import _json_object  # noqa: E402
+
+# No model-authored shell, routing, token path, hostname or executable enters this script.
+# The body is retained as bytes (base64) before the host validates response JSON.
+BRIDGE_SCRIPT = r"""
+import base64, http.client, json, pathlib, sys
+try:
+    raw = sys.stdin.buffer.read(1048577)
+    if len(raw) > 1048576:
+        raise ValueError()
+    request = json.loads(raw)
+    if set(request) != {'method', 'path', 'payload'}:
+        raise ValueError()
+    if (request['method'], request['path']) not in {('GET', '/tools'), ('POST', '/call')}:
+        raise ValueError()
+    token = pathlib.Path('/run/reconciliation/public').read_text().strip()
+    data = None if request['payload'] is None else json.dumps(request['payload'], allow_nan=False).encode()
+    connection = http.client.HTTPConnection('127.0.0.1', 8080, timeout=30)
+    connection.request(request['method'], request['path'], body=data,
+                       headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    response = connection.getresponse()
+    body = response.read(1048577)
+    connection.close()
+    print(json.dumps({'http_status': response.status, 'body_b64': base64.b64encode(body).decode()}))
+except Exception:
+    print(json.dumps({'status': 'error', 'code': 'bridge_failure', 'outcome': 'unknown'}), file=sys.stderr)
+    sys.exit(2)
+"""
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _write(path, value):
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(canonical_json(value) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _append(path, value):
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(canonical_json(value) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _source_hashes():
+    paths = [
+        Path(__file__),
+        ROOT / "src/healthcraft/llm/local_models.py",
+        ROOT / "configs/mcp-tools.json",
+        ROOT / "pyproject.toml",
+    ]
+    paths.extend((ROOT / "src/healthcraft/reconciliation").glob("*.py"))
+    paths.extend(ROOT.glob("constraints*.txt"))
+    paths.extend(ROOT.glob("requirements*.txt"))
+    return {
+        str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(set(paths))
+    }
+
+
+def _model_config(value):
+    value = (
+        _json_object(value.read_bytes())
+        if isinstance(value, Path)
+        else _json_object(canonical_json(value))
+    )
+    if set(value) != {
+        "model",
+        "expected_digest",
+        "expected_runtime",
+        "settings",
+        "initial_messages_sha256",
+    }:
+        raise ValueError(
+            "Model config must contain exactly the five public identity/settings fields"
+        )
+    if (
+        type(value["model"]) is not str
+        or not value["model"].strip()
+        or value["model"] != value["model"].strip()
+        or type(value["expected_runtime"]) is not str
+        or not value["expected_runtime"].strip()
+        or type(value["expected_digest"]) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", value["expected_digest"]) is None
+        or type(value["initial_messages_sha256"]) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", value["initial_messages_sha256"]) is None
+        or type(value["settings"]) is not dict
+        or set(value["settings"]) != {field.name for field in fields(PilotSettings)}
+    ):
+        raise ValueError("Model config requires explicit valid local identity and every setting")
+    settings = PilotSettings(**value["settings"])
+    value["settings"] = asdict(settings)
+    return value, settings
+
+
+def _text(value):
+    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+
+
+class PublicBridge:
+    def __init__(self, backend_container, journal_path, process_runner=None):
+        if type(backend_container) is not str or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", backend_container
+        ):
+            raise ValueError("A coordinator-owned backend container identifier is required")
+        self.container = backend_container
+        self.journal = journal_path
+        self.runner = process_runner or subprocess.run
+        self.exchanges = []
+
+    def request(self, method, path, payload=None):
+        request = {"method": method, "path": path, "payload": payload}
+        data = canonical_json(request)
+        if len(data.encode()) > 1_048_576:
+            raise ValueError("Public request exceeds the bridge limit before dispatch")
+        argv = ["docker", "exec", "-i", self.container, "python", "-c", BRIDGE_SCRIPT]
+        exchange = {
+            "index": len(self.exchanges) + 1,
+            "argv": list(argv),
+            "request": request,
+            "status": "requested",
+            "outcome": "unknown",
+            "return_code": None,
+            "stdout": None,
+            "stderr": None,
+            "response": None,
+        }
+        self.exchanges.append(exchange)
+        _append(self.journal, {"event": "requested", "exchange": exchange})
+        try:
+            result = self.runner(
+                argv, input=data, text=True, capture_output=True, timeout=30, shell=False
+            )
+            exchange.update(
+                return_code=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                status="returned",
+            )
+            _append(self.journal, {"event": "returned", "exchange": exchange})
+            if (
+                type(result.returncode) is not int
+                or result.returncode != 0
+                or result.stderr not in (None, "")
+            ):
+                raise ValueError("Public bridge process did not return a clean HTTP receipt")
+            wrapper = _json_object(result.stdout)
+            if (
+                set(wrapper) != {"http_status", "body_b64"}
+                or type(wrapper["http_status"]) is not int
+            ):
+                raise ValueError("Public bridge HTTP receipt is malformed")
+            raw = base64.b64decode(wrapper["body_b64"], validate=True)
+            if len(raw) > 1_048_576:
+                raise ValueError("Public response exceeds the bridge limit")
+            response = _json_object(raw)
+            exchange["http_status"] = wrapper["http_status"]
+            exchange["response"] = response
+            if wrapper["http_status"] != 200:
+                raise ValueError("Public service returned an HTTP failure")
+            exchange["outcome"] = "returned"
+            _append(self.journal, {"event": "validated", "exchange": exchange})
+            return response
+        except (Exception, KeyboardInterrupt) as exc:
+            if isinstance(exc, subprocess.TimeoutExpired):
+                exchange.update(stdout=_text(exc.output), stderr=_text(exc.stderr))
+            exchange["error"] = {
+                "type": type(exc).__name__,
+                "message": "Public transport failed; action outcome is unknown.",
+            }
+            _append(self.journal, {"event": "failed", "exchange": exchange})
+            raise RuntimeError("Public transport failed; action outcome is unknown") from None
+
+
+def run_trial(
+    *,
+    model_config,
+    instruction,
+    output_dir,
+    backend_container,
+    process_runner=None,
+    client_factory=None,
+):
+    """Run exactly one attempt, retaining failures before/after model access."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=False)
+    receipt = {
+        "schema_version": "healthcraft-direct-model-trial/v1",
+        "execution_kind": "direct_http_via_coordinator",
+        "status": "scheduled",
+        "scheduled_attempts": 1,
+        "started_at": _now(),
+        "config": None,
+        "model_calls": 0,
+        "controller": None,
+        "model_exchanges": [],
+        "transport": [],
+        "backend_container": None,
+        "identity_before": None,
+        "identity_after": None,
+        "benchmark_score": None,
+        "benchmark_comparable": False,
+        "grading_complete": False,
+        "clinical_assessment": "unassessed",
+        "clinical_criteria": 0,
+        "safety_criteria": 0,
+        "independent_oracle": "pending_private_backend_finalization",
+    }
+    _write(output_dir / "scheduled.json", receipt)
+    for filename in ("model.jsonl", "controller.jsonl", "transport.jsonl"):
+        (output_dir / filename).touch(exist_ok=False)
+    client = controller = transport = None
+    stage = "preparation"
+    try:
+        receipt["source_hashes_before"] = _source_hashes()
+        receipt["runtime"] = {
+            "python": platform.python_version(),
+            "implementation": platform.python_implementation(),
+        }
+        normalized, settings = _model_config(model_config)
+        receipt["config"] = normalized
+        instruction = (
+            instruction.read_text(encoding="utf-8")
+            if isinstance(instruction, Path)
+            else instruction
+        )
+        if type(instruction) is not str or not instruction.strip():
+            raise ValueError("A nonempty public instruction is required")
+        receipt["instruction"] = instruction
+        receipt["instruction_sha256"] = hashlib.sha256(instruction.encode()).hexdigest()
+        transport = PublicBridge(backend_container, output_dir / "transport.jsonl", process_runner)
+        receipt["backend_container"] = transport.container
+        _write(output_dir / "prepared.json", receipt)
+        stage = "discovery"
+        tools = transport.request("GET", "/tools")
+        if set(tools) != {"tools"}:
+            raise ValueError("Public tool discovery is malformed")
+        controller = CommandController(
+            instruction,
+            tools["tools"],
+            settings=settings,
+            event_sink=lambda event: _append(output_dir / "controller.jsonl", event),
+        )
+        stage = "prompt_identity"
+        messages = controller.snapshot()["messages"]
+        actual_digest = hashlib.sha256(canonical_json(messages).encode("utf-8")).hexdigest()
+        expected_digest = normalized["initial_messages_sha256"]
+        receipt["initial_messages_sha256_expected"] = expected_digest
+        receipt["initial_messages_sha256_actual"] = actual_digest
+        _write(
+            output_dir / "initial-prompt.json",
+            {
+                "expected_sha256": expected_digest,
+                "actual_sha256": actual_digest,
+                "messages": messages,
+            },
+        )
+        if actual_digest != expected_digest:
+            raise ValueError("Actual initial messages differ from the frozen prompt identity")
+        client = (client_factory or RecordingOllamaClient)(
+            model=normalized["model"],
+            expected_digest=normalized["expected_digest"],
+            expected_runtime=normalized["expected_runtime"],
+            settings=settings,
+            event_sink=lambda event: _append(output_dir / "model.jsonl", event),
+        )
+        stage = "preflight"
+        try:
+            client.preflight()
+        finally:
+            _write(output_dir / "identity-before.json", client.identity_before)
+        while True:
+            stage = "inference"
+            command = controller.next_command(client)
+            if command["action"] == "finish":
+                receipt["status"] = "terminated"
+                break
+            stage = "tool_transport"
+            response = transport.request(
+                "POST", "/call", {"name": command["name"], "params": command["params"]}
+            )
+            stage = "tool_response"
+            controller.accept_result(response)
+    except (Exception, KeyboardInterrupt) as exc:
+        receipt["status"] = "interrupted" if isinstance(exc, KeyboardInterrupt) else "failed"
+        receipt["failure_stage"] = stage
+        receipt["error"] = {"type": type(exc).__name__, "message": str(exc)}
+        if controller is not None and controller.snapshot()["completion"]["status"] == "running":
+            controller.fail(exc, reason=stage)
+    finally:
+        if client is not None:
+            try:
+                client.postflight()
+            except (Exception, KeyboardInterrupt) as exc:
+                receipt["postflight_error"] = {"type": type(exc).__name__, "message": str(exc)}
+                if receipt["status"] != "interrupted":
+                    receipt["status"] = (
+                        "interrupted" if isinstance(exc, KeyboardInterrupt) else "failed"
+                    )
+            _write(output_dir / "identity-after.json", client.identity_after)
+            receipt["identity_before"] = client.identity_before
+            receipt["identity_after"] = client.identity_after
+            receipt["model_exchanges"] = client.exchanges
+            receipt["model_calls"] = len(client.exchanges)
+        receipt["controller"] = controller.snapshot() if controller is not None else None
+        receipt["transport"] = transport.exchanges if transport is not None else []
+        try:
+            receipt["source_hashes_after"] = _source_hashes()
+            receipt["sources_unchanged"] = (
+                receipt.get("source_hashes_before") == receipt["source_hashes_after"]
+            )
+            if not receipt["sources_unchanged"]:
+                receipt["status"] = "failed"
+        except (Exception, KeyboardInterrupt) as exc:
+            receipt["source_hashes_after"] = None
+            receipt["sources_unchanged"] = False
+            receipt["source_identity_error"] = {"type": type(exc).__name__, "message": str(exc)}
+            receipt["status"] = "failed"
+        receipt["finished_at"] = _now()
+        _write(output_dir / "receipt.json", receipt)
+    return receipt
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model-config", type=Path, required=True)
+    parser.add_argument("--instruction", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--backend-container", required=True)
+    args = parser.parse_args(argv)
+    receipt = run_trial(
+        model_config=args.model_config,
+        instruction=args.instruction,
+        output_dir=args.output_dir,
+        backend_container=args.backend_container,
+    )
+    print(canonical_json({"status": receipt["status"], "output_dir": str(args.output_dir)}))
+    return 0 if receipt["status"] == "terminated" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

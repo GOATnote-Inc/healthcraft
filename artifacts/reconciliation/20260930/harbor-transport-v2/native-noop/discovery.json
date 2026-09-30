@@ -1,0 +1,265 @@
+[
+  {
+    "category": "read",
+    "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+    "name": "searchEncounters",
+    "parameters": {
+      "properties": {
+        "chief_complaint": {
+          "type": "string"
+        },
+        "date_from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "date_to": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "admitted",
+            "discharged",
+            "transferred",
+            "ama",
+            "expired",
+            "lwbs"
+          ],
+          "type": "string"
+        },
+        "esi_level": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 50,
+          "type": "integer"
+        },
+        "patient_id": {
+          "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "returns": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "encounters": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "category": "read",
+    "description": "Search patients by name, MRN, date of birth, or demographics",
+    "name": "searchPatients",
+    "parameters": {
+      "properties": {
+        "date_of_birth": {
+          "format": "date",
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 50,
+          "type": "integer"
+        },
+        "mrn": {
+          "pattern": "^MRN-\\d{6,10}$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sex": {
+          "enum": [
+            "M",
+            "F",
+            "X"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "returns": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "patients": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "category": "read",
+    "description": "Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.",
+    "name": "getEncounterDetails",
+    "parameters": {
+      "properties": {
+        "encounter_id": {
+          "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "encounter_id"
+      ],
+      "type": "object"
+    },
+    "returns": {
+      "properties": {
+        "authored_care": {
+          "description": "Grouped authored care assertions, distinct from administration events",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "clinical_notes": {
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "imaging": {
+          "description": "Imaging source records; roles/status do not establish that a study was performed",
+          "type": "array"
+        },
+        "imaging_projection_notices": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "labs": {
+          "type": "array"
+        },
+        "meds_administered": {
+          "description": "Structured administration records, when available; an empty list does not establish that no medications were given",
+          "type": "array"
+        },
+        "patient_id": {
+          "type": "string"
+        },
+        "vitals": {
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "category": "read",
+    "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+    "name": "getPatientHistory",
+    "parameters": {
+      "properties": {
+        "patient_id": {
+          "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "type": "object"
+    },
+    "returns": {
+      "properties": {
+        "advance_directives": {
+          "type": "object"
+        },
+        "allergies": {
+          "type": "array"
+        },
+        "insurance": {
+          "type": "object"
+        },
+        "medications": {
+          "type": "array"
+        },
+        "past_medical_history": {
+          "type": "array"
+        },
+        "patient": {
+          "type": "object"
+        },
+        "prior_visits": {
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "category": "mutate",
+    "description": "Update encounter information including clinical notes, disposition status, and annotations",
+    "name": "updateEncounter",
+    "parameters": {
+      "properties": {
+        "disposition": {
+          "enum": [
+            "admitted",
+            "discharged",
+            "transferred",
+            "ama",
+            "observation"
+          ],
+          "type": "string"
+        },
+        "disposition_details": {
+          "type": "object"
+        },
+        "encounter_id": {
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work.",
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "encounter_id"
+      ],
+      "type": "object"
+    },
+    "returns": {
+      "properties": {
+        "encounter_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  }
+]

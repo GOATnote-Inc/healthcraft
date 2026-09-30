@@ -40,9 +40,44 @@ def test_failed_real_tool_calls_are_evidence_not_success():
 
 def test_recorder_rejects_unrecorded_dispatch():
     world = WorldState()
-    recorder = ExecutionRecorder(create_server(world), world)
+    dispatched = []
+
+    class UnauditedServer:
+        def call_tool(self, name, params):
+            dispatched.append((name, params))
+            return {"status": "error", "code": "unrecorded_test_failure"}
+
+    recorder = ExecutionRecorder(UnauditedServer(), world)
     with pytest.raises(ValueError, match="audit"):
-        recorder.call("nonexistentTool", {})
+        recorder.call("testUnauditedTool", {"source": "synthetic"})
+    assert dispatched == [("testUnauditedTool", {"source": "synthetic"})]
+    assert world.audit_log == []
+    assert recorder.calls == []
+
+
+def test_real_unknown_tool_attempt_is_recorded_as_failed_evidence():
+    world = WorldState()
+    server = create_server(world)
+    recorder = ExecutionRecorder(server, world)
+    params = {"source": {"values": [None, "synthetic"]}}
+    response = recorder.call("nonexistentTool", params)
+    assert response == {
+        "status": "error",
+        "code": "unknown_tool",
+        "message": "Unknown tool: nonexistentTool",
+    }
+    assert len(recorder.calls) == len(world.audit_log) == server.audit_logger.entry_count == 1
+    call = recorder.calls[0]
+    assert call["name"] == "nonexistentTool"
+    assert call["params"] == params
+    assert call["response"] == response
+    assert call["audit_index"] == 0
+    audit = world.audit_log[0]
+    assert audit.tool_name == call["name"]
+    assert audit.params == call["params"]
+    assert audit.result_summary == "error"
+    assert audit.error_code == "unknown_tool"
+    assert world.entity_counts == {}
 
 
 def test_reference_executes_all_four_visits_and_persists_summary_reproducibly():

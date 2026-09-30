@@ -33,7 +33,23 @@ def test_record_actual_error_response_without_losing_unknown_tool_attempt():
     call = recorder.calls[0]
     assert call["name"] == "doesNotExist"
     assert call["response"] == response
-    # A missing simulator audit entry is retained, not manufactured or hidden.
+    assert call["audit_start"] == 0
+    assert call["audit_end"] == 1
+    assert world.audit_log[0].error_code == "unknown_tool"
+
+
+def test_recorder_preserves_returned_attempt_when_a_handler_omits_the_audit():
+    world = WorldState()
+
+    class UnauditedServer:
+        def call_tool(self, name, params):
+            return {"status": "error", "code": "test_missing_audit"}
+
+    recorder = recorder_class()(UnauditedServer(), world)
+    response = recorder.call("getEncounterDetails", {"encounter_id": "ENC-AAAAAAAA"})
+    call = recorder.calls[0]
+    assert call["response"] == response
+    # Recorder retains a broken middleware attempt, never inventing audit evidence.
     assert call["audit_start"] == call["audit_end"] == 0
 
 

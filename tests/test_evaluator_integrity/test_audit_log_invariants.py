@@ -156,24 +156,25 @@ def test_snapshot_preserves_pre_snapshot_entries() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_world_record_audit_entry_count_matches_successful_calls() -> None:
-    """Every successful tool call writes one world.audit_log entry.
+def test_world_record_audit_entry_count_matches_all_attempts() -> None:
+    """Every attempted tool call writes one entry to both audit trails.
 
-    Errors (unknown tool, validation failure) write only to the server's audit
-    logger; the world audit log is the substrate for evaluator scoring, so
-    failed dispatches must NOT appear there or the negative-check criteria
-    will flip incorrectly.
+    Failed attempts retain their error status and code. Positive action
+    checks can distinguish success, while negative checks retain intent.
     """
     from healthcraft.mcp.server import create_server
 
     ws = WorldState()
     server = create_server(ws)
     server.call_tool("searchPatients", {})  # ok
-    server.call_tool("nonexistentTool", {})  # unknown -> world log NOT touched
+    unknown_params = {"nested": {"value": "original"}}
+    server.call_tool("nonexistentTool", unknown_params)  # rejected before dispatch
     server.call_tool("createClinicalOrder", {})  # missing params -> error
 
     world_tool_names = [e.tool_name for e in ws.audit_log]
-    # searchPatients should be there; nonexistentTool should NOT be
-    # (server skips world.record_audit on unknown tool).
-    assert "searchPatients" in world_tool_names
-    assert "nonexistentTool" not in world_tool_names
+    assert world_tool_names == ["searchPatients", "nonexistentTool", "createClinicalOrder"]
+    assert server.audit_logger.entry_count == len(ws.audit_log) == 3
+    assert [entry.result_summary for entry in ws.audit_log] == ["ok", "error", "error"]
+    unknown_entry = ws.audit_log[1]
+    assert unknown_entry.error_code == "unknown_tool"
+    assert unknown_entry.params == unknown_params

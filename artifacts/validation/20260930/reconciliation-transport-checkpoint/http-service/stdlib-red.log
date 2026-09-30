@@ -1,0 +1,132 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[unknown-method] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-350/test_stdlib_rejections_are_con0')
+request_bytes = b'TRACE /call HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'
+expected_status = 501
+
+    @pytest.mark.parametrize(
+        "request_bytes,expected_status",
+        [
+            (b"TRACE /call HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", 501),
+            (b"GET /health HTTP/not-a-version\r\nHost: localhost\r\n\r\n", 400),
+            (b"GET /health HTTP/1.1\r\nHost: localhost\r\nX-Long: " + b"x" * 66_000 + b"\r\n\r\n", 431),
+            (b"GET /" + b"x" * 66_000 + b" HTTP/1.1\r\nHost: localhost\r\n\r\n", 414),
+        ],
+        ids=["unknown-method", "malformed-version", "long-header", "long-target"],
+    )
+    def test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion(
+        tmp_path, request_bytes, expected_status
+    ):
+        with running_server(tmp_path) as (server, path):
+            raw = wire_bytes(server, request_bytes)
+            assert finalize(server)[0] == 200
+            evidence = json.loads(path.read_text())
+            assert evidence["calls"] == evidence["audit"] == []
+>           assert evidence["completion"]["status"] == "failed"
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/test_reconciliation/test_http_service.py:415: AssertionError
+_ test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[malformed-version] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-350/test_stdlib_rejections_are_con1')
+request_bytes = b'GET /health HTTP/not-a-version\r\nHost: localhost\r\n\r\n'
+expected_status = 400
+
+    @pytest.mark.parametrize(
+        "request_bytes,expected_status",
+        [
+            (b"TRACE /call HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", 501),
+            (b"GET /health HTTP/not-a-version\r\nHost: localhost\r\n\r\n", 400),
+            (b"GET /health HTTP/1.1\r\nHost: localhost\r\nX-Long: " + b"x" * 66_000 + b"\r\n\r\n", 431),
+            (b"GET /" + b"x" * 66_000 + b" HTTP/1.1\r\nHost: localhost\r\n\r\n", 414),
+        ],
+        ids=["unknown-method", "malformed-version", "long-header", "long-target"],
+    )
+    def test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion(
+        tmp_path, request_bytes, expected_status
+    ):
+        with running_server(tmp_path) as (server, path):
+            raw = wire_bytes(server, request_bytes)
+            assert finalize(server)[0] == 200
+            evidence = json.loads(path.read_text())
+            assert evidence["calls"] == evidence["audit"] == []
+>           assert evidence["completion"]["status"] == "failed"
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/test_reconciliation/test_http_service.py:415: AssertionError
+_ test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[long-header] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-350/test_stdlib_rejections_are_con2')
+request_bytes = b'GET /health HTTP/1.1\r\nHost: localhost\r\nX-Long: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\n'
+expected_status = 431
+
+    @pytest.mark.parametrize(
+        "request_bytes,expected_status",
+        [
+            (b"TRACE /call HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", 501),
+            (b"GET /health HTTP/not-a-version\r\nHost: localhost\r\n\r\n", 400),
+            (b"GET /health HTTP/1.1\r\nHost: localhost\r\nX-Long: " + b"x" * 66_000 + b"\r\n\r\n", 431),
+            (b"GET /" + b"x" * 66_000 + b" HTTP/1.1\r\nHost: localhost\r\n\r\n", 414),
+        ],
+        ids=["unknown-method", "malformed-version", "long-header", "long-target"],
+    )
+    def test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion(
+        tmp_path, request_bytes, expected_status
+    ):
+        with running_server(tmp_path) as (server, path):
+            raw = wire_bytes(server, request_bytes)
+            assert finalize(server)[0] == 200
+            evidence = json.loads(path.read_text())
+            assert evidence["calls"] == evidence["audit"] == []
+>           assert evidence["completion"]["status"] == "failed"
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/test_reconciliation/test_http_service.py:415: AssertionError
+_ test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[long-target] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-350/test_stdlib_rejections_are_con3')
+request_bytes = b'GET /xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx HTTP/1.1\r\nHost: localhost\r\n\r\n'
+expected_status = 414
+
+    @pytest.mark.parametrize(
+        "request_bytes,expected_status",
+        [
+            (b"TRACE /call HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", 501),
+            (b"GET /health HTTP/not-a-version\r\nHost: localhost\r\n\r\n", 400),
+            (b"GET /health HTTP/1.1\r\nHost: localhost\r\nX-Long: " + b"x" * 66_000 + b"\r\n\r\n", 431),
+            (b"GET /" + b"x" * 66_000 + b" HTTP/1.1\r\nHost: localhost\r\n\r\n", 414),
+        ],
+        ids=["unknown-method", "malformed-version", "long-header", "long-target"],
+    )
+    def test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion(
+        tmp_path, request_bytes, expected_status
+    ):
+        with running_server(tmp_path) as (server, path):
+            raw = wire_bytes(server, request_bytes)
+            assert finalize(server)[0] == 200
+            evidence = json.loads(path.read_text())
+            assert evidence["calls"] == evidence["audit"] == []
+>           assert evidence["completion"]["status"] == "failed"
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/test_reconciliation/test_http_service.py:415: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_http_service.py::test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[unknown-method]
+FAILED tests/test_reconciliation/test_http_service.py::test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[malformed-version]
+FAILED tests/test_reconciliation/test_http_service.py::test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[long-header]
+FAILED tests/test_reconciliation/test_http_service.py::test_stdlib_rejections_are_controlled_json_and_cannot_leave_clean_completion[long-target]
+4 failed, 36 deselected in 0.14s

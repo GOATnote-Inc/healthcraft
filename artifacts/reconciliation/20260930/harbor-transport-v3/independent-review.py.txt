@@ -1,0 +1,141 @@
+"""Read-only independent development review of four saved scripted controls."""
+import hashlib
+import json
+import math
+from pathlib import Path
+import sys
+import tarfile
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+BASE = ROOT / 'artifacts/reconciliation/20260930/harbor-transport-v3'
+FROZEN = Path('/private/tmp/healthcraft-transport-candidate-pa6o61eh')
+OUT = Path('/private/tmp/healthcraft-reconciliation-container/peer-review-v3.json')
+sys.path.insert(0, str(ROOT / 'src'))
+from healthcraft.reconciliation.oracle import verify_reconciliation, load_expectations
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+def strict(s):
+    def obj(items):
+        value = {}
+        for key, val in items:
+            if key in value: raise ValueError('duplicate key')
+            value[key] = val
+        return value
+    def number(s):
+        value = float(s)
+        if not math.isfinite(value): raise ValueError('nonfinite')
+        return value
+    return json.loads(s, object_pairs_hook=obj, parse_constant=number, parse_float=number)
+def read(p): return strict(p.read_text())
+def canonical(v): return json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+def identical(a,b): return canonical(a)==canonical(b)
+def lines(p): return [strict(s) for s in p.read_text().splitlines() if s]
+def digest_value(v): return hashlib.sha256(canonical(v).encode()).hexdigest()
+checks = {}
+def check(key, value): checks[key] = bool(value)
+artifact_files = sorted(p for p in BASE.rglob('*') if p.is_file())
+source_files = sorted(p for p in (ROOT/'src').rglob('*.py'))
+frozen_files = sorted(p for d in ['src', 'configs', 'scripts', 'integrations/harbor'] for p in (FROZEN/d).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
+before = {str(p):sha(p) for p in artifact_files+source_files+frozen_files}
+manifest = read(BASE/'build-input-manifest.json')
+manifest_failures = [key for key, val in manifest.items() if sha(BASE/'build'/key)!=val]
+check('build_manifest_386_entries',len(manifest)==386)
+check('build_manifest_all_files_exact',not manifest_failures)
+archive_receipt=read(BASE/'build-archive-receipt.json')
+check('build_archive_raw_digest',sha(BASE/archive_receipt['archive'])==archive_receipt['sha256'])
+with tarfile.open(BASE/archive_receipt['archive'],'r:gz') as archive:
+    members=[m for m in archive.getmembers() if m.isfile()]
+    archived={m.name:hashlib.sha256(archive.extractfile(m).read()).hexdigest() for m in members}
+check('build_archive_all_members_exact',len(members)==len(archived)==len(manifest) and archived==manifest)
+source_comparisons=[]
+for key,val in manifest.items():
+    if key.startswith(('backend/src/','backend/configs/')):
+        rel=key.removeprefix('backend/')
+    elif key=='backend/LICENSE': rel='LICENSE'
+    elif key in ['agent/Dockerfile','backend/Dockerfile']: rel='integrations/harbor/Dockerfile.'+key.split('/')[0]
+    elif key=='agent/terminal.py': rel='src/healthcraft/reconciliation/terminal.py'
+    elif key=='backend/requirements-backend-linux-arm64.lock': rel='integrations/harbor/requirements-backend-linux-arm64.lock'
+    else: continue
+    source_comparisons.append({'manifest_path':key,'source_path':rel,'frozen_sha256':sha(FROZEN/rel),'current_sha256':sha(ROOT/rel),'build_sha256':val})
+check('build_sources_match_frozen_candidate',all(r['build_sha256']==r['frozen_sha256'] for r in source_comparisons))
+check('build_sources_match_current_candidate',all(r['build_sha256']==r['current_sha256'] for r in source_comparisons))
+# Host orchestration is intentionally separate from the backend image. Bind it too.
+host_bindings={str(p):sha(p) for p in [FROZEN/'scripts/harbor_reconciliation_trial.py', ROOT/'scripts/harbor_reconciliation_trial.py',FROZEN/'src/healthcraft/reconciliation/controller.py',ROOT/'src/healthcraft/reconciliation/controller.py']}
+host_current_matches_executed = sha(FROZEN/'scripts/harbor_reconciliation_trial.py')==sha(ROOT/'scripts/harbor_reconciliation_trial.py')
+check('host_controller_matches_frozen',sha(FROZEN/'src/healthcraft/reconciliation/controller.py')==sha(ROOT/'src/healthcraft/reconciliation/controller.py'))
+scenario=read(BASE/'build/backend/configs/evaluation/reconciliation_v1/scenario.json')
+expectations=load_expectations(BASE/'build/backend/configs/evaluation/reconciliation_v1/expectations.json')
+roster=read(BASE/'roster.json'); summary=read(BASE/'summary.json')
+expected=[{'id':f'{arm}-{mode}','arm':arm,'mode':mode,'expected_mechanical_passed':mode=='reference'} for arm in ('native','harbor') for mode in ('reference','noop')]
+check('roster_exact_four_unique_trials',identical(roster['roster'],expected) and identical(summary['roster'],expected) and len({r['id'] for r in summary['results']})==4 and {r['id'] for r in summary['results']}=={r['id'] for r in expected})
+check('ungraded_no_model_claim',summary['benchmark_score'] is None and roster['benchmark_score'] is None and summary['model_calls']==roster['model_calls']==0)
+evidences={}; rows=[]; native_tools=read(BASE/'native-reference/discovery.json')
+check('five_native_tools', [x['name'] for x in native_tools]==['searchEncounters','searchPatients','getEncounterDetails','getPatientHistory','updateEncounter'])
+schema=read(BASE/'build/backend/configs/mcp-tools.json')
+original=schema['tools'] if isinstance(schema,dict) else schema
+check('discovery_exact_source_definitions',identical(native_tools,[x for x in original if x['name'] in {x['name'] for x in native_tools}]))
+for item in expected:
+    name=item['id']; t=BASE/name
+    e=read(t/'backend/session/evidence.json'); evidences[name]=e
+    stored=read(t/'result.json'); fresh=verify_reconciliation(scenario,expectations,e)
+    check(name+':fresh_oracle_matches_saved',identical(fresh,stored['oracle']))
+    check(name+':summary_matches_trial_result',identical(stored,next(r for r in summary['results'] if r['id']==name)))
+    check(name+':outcome',fresh['mechanical_passed'] is item['expected_mechanical_passed'])
+    check(name+':status_completed',e['completion']=={'status':'completed'} and stored['completion']==e['completion'] and stored['status']=='completed')
+    check(name+':count_conservation',len(e['calls'])==stored['actual_call_count']==(10 if item['mode']=='reference' else 0) and len(e['audit'])==len(e['calls']) and len(e['after']['entities']['clinical_note'])==stored['stored_note_count']==(1 if item['mode']=='reference' else 0))
+    check(name+':scenario_binding',e['scenario_sha256']==digest_value(scenario))
+    final=read(t/'finalization-receipt.json')
+    check(name+':finalization_receipt_digest',final=={'status':200,'body':{'status':'ok','sha256':sha(t/'backend/session/evidence.json')}})
+    call_journal=lines(t/'backend/session/journal/calls.jsonl')
+    check(name+':calls_journal_pair_count',len(call_journal)==2*len(e['calls']))
+    check(name+':no_public_transport_error',all(r['status']==200 for r in e['transport_events']))
+    check(name+':only_finalize_protocol_pending',all(r['status']==200 for r in e['protocol_events'][:-1]) and e['protocol_events'][-1]['path']=='/_control/finalize' and e['protocol_events'][-1]['status'] is None)
+    row={'id':name,'fresh_oracle':fresh,'calls':len(e['calls']),'audit_entries':len(e['audit']),'notes':len(e['after']['entities']['clinical_note']),'transport_events':len(e['transport_events']),'protocol_events':len(e['protocol_events']),'errors':{k:v for k,v in stored.items() if 'error' in k},'completion':e['completion']}
+    check(name+':no_saved_error',not row['errors'])
+    if item['mode']=='reference':
+        note=next(iter(e['after']['entities']['clinical_note'].values())); payload=strict(note['content'])
+        check(name+':six_current_two_excluded_one_conflict',len(payload['observations'])==6 and len(payload['scope_exclusions'])==2 and len(payload['unresolved_conflicts'])==1)
+        check(name+':explicit_source_ids',sorted(x['source_id'] for x in payload['observations'])==['SRC-A01','SRC-A02','SRC-A03','SRC-A04','SRC-A05','SRC-A06'] and sorted(x['source_id'] for x in payload['scope_exclusions'])==['SRC-A07','SRC-B01'])
+        check(name+':final_readback_exact_target',e['calls'][-1]['name']=='getEncounterDetails' and e['calls'][-1]['params']=={'encounter_id':scenario['target']['encounter_id']} and identical(e['calls'][-1]['response']['data'],e['after']['entities']['encounter'][scenario['target']['encounter_id']]))
+        writes=[c for c in e['calls'] if c['name']=='updateEncounter']
+        check(name+':one_write_one_identical_retry',len(writes)==2 and identical(writes[0]['params'],writes[1]['params']) and not writes[0]['response'].get('deduplicated',False) and writes[1]['response'].get('deduplicated') is True and e['audit'][writes[1]['audit_start']]['deduplicated'] is True)
+        row['source_counts']={'current':6,'excluded':2,'conflicts':1};row['ordered_call_names']=[c['name'] for c in e['calls']]
+    else: check(name+':state_unchanged',identical(e['before'],e['after']))
+    if item['arm']=='native':
+        ctl=read(t/'native-controller.json'); ex=ctl['exchanges']
+        check(name+':native_definitions_identical',identical(read(t/'discovery.json'),native_tools))
+        check(name+':controller_completed_no_model',ctl['status']=='completed' and ctl['model_calls']==0)
+        check(name+':controller_backend_exact',len(ex)==len(e['calls']) and all(x['command']=={'action':'call','name':c['name'],'params':c['params']} and identical(x['response'],c['response']) for x,c in zip(ex,e['calls'])))
+        if ex: check(name+':exchanges_jsonl_exact',identical(lines(t/'native-exchanges.jsonl'),ex))
+    else:
+        receipt=read(t/'harbor/receipt.json');agent=read(t/'harbor/agent-receipt.json');sdk=read(t/'harbor/harbor-result.json');proc=read(t/'harbor-process.json')
+        trial_dir=t/'harbor/trials'/sdk['trial_name']; exchanges=agent['exchanges']
+        check(name+':harbor_denominator_one',receipt['scheduled_trials']==receipt['recorded_trials']==1)
+        check(name+':host_exit_zero',proc['returncode']==0 and not proc.get('error'))
+        check(name+':agent_definitions_identical',identical(agent['tool_definitions'],native_tools) and identical(strict(exchanges[0]['stdout']),{'tools':native_tools}))
+        check(name+':all_cli_successful',all(x['return_code']==0 and x['status']=='returned' and x['outcome']=='returned' and x['stderr'] in (None,'') for x in exchanges))
+        check(name+':cli_backend_exact',len(exchanges)==len(e['calls'])+1 and all(x['request']=={'action':'call','name':c['name'],'params':c['params']} and identical(strict(x['stdout']),c['response']) for x,c in zip(exchanges[1:],e['calls'])))
+        journal = lines(trial_dir/'agent/terminal-exchanges.jsonl')
+        validated = [j['exchange'] for j in journal if j['event']=='validated']
+        check(name+':terminal_journal_exact',identical(validated,exchanges) and len(journal)==3*len(exchanges)+2 and journal[-1]['event']=='controller_completed' and identical(journal[-1]['completion'],agent['completion']))
+        check(name+':terminal_journal_all_request_return_pairs',all([j['event'] for j in journal if j.get('exchange',{}).get('index')==x['index']]==['requested','returned','validated'] for x in exchanges))
+        check(name+':sdk_result_exact',identical(read(trial_dir/'result.json'),sdk))
+        check(name+':sdk_agent_receipt_exact',identical(sdk['agent_result']['metadata']['healthcraft_reconciliation'],agent) and identical(receipt['agent'],agent))
+        check(name+':actual_docker_trial',sdk['config']['environment']['type']=='docker' and sdk['config']['agent']['import_path']=='scripts.harbor_reconciliation_trial:PublicReferenceAgent' and sdk['exception_info'] is None and sdk['finished_at'] is not None)
+        check(name+':connectivity_reward_one',sdk['verifier_result']=={'rewards':{'reward':1.0}} and (trial_dir/'verifier/reward.txt').read_text().strip()=='1' and identical(read(trial_dir/'verifier/tools.json'),{'tools':native_tools}))
+        check(name+':instruction_exact',agent['instruction']==(t/'task/instruction.md').read_text()==(BASE/'build/backend/configs/evaluation/reconciliation_v1/instruction.md').read_text())
+        row['harbor']={'trial_id':sdk['id'],'trial_name':sdk['trial_name'],'host_exit':proc['returncode'],'terminal_exchanges':len(exchanges),'raw_cli_exits':[x['return_code'] for x in exchanges],'reward':sdk['verifier_result']['rewards']['reward'],'oracle_mechanical_passed':fresh['mechanical_passed'],'exception':sdk['exception_info'],'version':receipt['harbor_version'],'commit':receipt['harbor_commit'],'inspection_record_is_container_list_not_isolation_probe':True}
+    rows.append(row)
+for field in ['before','after','audit','calls','completion']:
+    check('reference_cross_arm_exact:'+field,identical(evidences['native-reference'][field],evidences['harbor-reference'][field]))
+    check('noop_cross_arm_exact:'+field,identical(evidences['native-noop'][field],evidences['harbor-noop'][field]))
+prior=[]
+for version in ['v1','v2']:
+    p=BASE.parent/('harbor-transport-'+version)/'summary.json'; value=read(p)
+    prior.append({'version':version,'path':str(p),'sha256':sha(p),'recorded':len(value['results']),'scheduled':len(value['roster']),'all_controls_matched':value['all_controls_matched'],'statuses':[{'id':r['id'],'status':r['status'],'actual_call_count':r.get('actual_call_count'),'mechanical_passed':r.get('oracle',{}).get('mechanical_passed') if r.get('oracle') else None} for r in value['results']]})
+after={path:sha(Path(path)) for path in before}
+check('all_reviewed_inputs_unchanged',before==after)
+receipt={'schema_version':'healthcraft-development-peer-review/v1','scope':'Read-only ordinary correctness review of four scripted unregistered mechanical transport controls, not formal red team','artifact_root':str(BASE),'model_calls':0,'clinical_assessment':'unassessed','clinical_coverage':0,'safety_coverage':0,'benchmark_score':None,'claims':'No comparative healthcare value, clinical readiness, model performance, or network isolation established','checks':checks,'failed_checks':[k for k,v in checks.items() if not v],'trials':rows,'prior_attempts':prior,'build_manifest_entries':len(manifest),'build_manifest_failures':manifest_failures,'source_comparisons':source_comparisons,'host_bindings':host_bindings,'host_script_current_matches_executed_frozen_copy':host_current_matches_executed,'host_source_provenance_note':'Executed frozen host script is not in the image build manifest; reviewer hashes its surviving frozen copy independently. Current host script has subsequent model/probe changes and is not the executed version.','input_hashes_before':before,'input_hashes_after':after,'limitations':['Four scripted controls were authored during development, not an externally preregistered comparison.','The direct arm uses host-controlled HTTP via docker exec, not model-selected MCP calling.','Harbor reward checks tool-discovery connectivity only and is 1 for both successful reference and incorrect no-op.','Network probe runs a disposable container, not the actual Harbor task container; no network-isolation conclusion.','Snapshot/audit oracle checks consistency, not cryptographic authenticity of a fabricated transcript.','Private finalization is pending in evidence because capture is saved before its HTTP response; separate finalization receipts bind exact file digests.','v1/v2 failed attempts remain separately accounted; v3 is not a first-attempt reliability result.','Archive the frozen executed host script separately; the backend build archive does not include host scripts.']}
+with OUT.open('x') as f: json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'checks':len(checks),'failed':receipt['failed_checks'],'trials':[{'id':r['id'],'calls':r['calls'],'notes':r['notes'],'mechanical_passed':r['fresh_oracle']['mechanical_passed']} for r in rows],'source_comparisons':len(source_comparisons),'receipt':str(OUT)},indent=2))

@@ -1,0 +1,561 @@
+{
+  "actual_call_count": 0,
+  "arm": "direct",
+  "completion": {
+    "status": "failed"
+  },
+  "controller_receipt": {
+    "backend_container": "hc-reconcile-0afd468bc77d-nano-direct-01-ehr",
+    "benchmark_comparable": false,
+    "benchmark_score": null,
+    "clinical_assessment": "unassessed",
+    "clinical_criteria": 0,
+    "config": {
+      "expected_digest": "36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8",
+      "expected_runtime": "0.34.4",
+      "initial_messages_sha256": "1a2e7eafc6eb84042fd4495a65d7c348f6e38e6c044d95801125cc8bec5fb6c7",
+      "model": "counsel-nano-q5:latest",
+      "settings": {
+        "attempt_timeout_seconds": 900,
+        "keep_alive": 0,
+        "max_model_responses": 16,
+        "max_output_tokens": 4096,
+        "num_ctx": 32768,
+        "request_timeout_seconds": 240,
+        "seed": 42,
+        "temperature": 0.0,
+        "think": false
+      }
+    },
+    "controller": {
+      "benchmark_comparable": false,
+      "benchmark_score": null,
+      "calls": [],
+      "clinical_criteria": 0,
+      "completion": {
+        "error": {
+          "message": "Expected exactly one advertised call or finish command",
+          "type": "ValueError"
+        },
+        "reason": "model_error",
+        "status": "failed"
+      },
+      "grading_complete": false,
+      "messages": [
+        {
+          "content": "You are performing a synthetic source-record reconciliation exercise. Use only the public instruction and returned records. Do not provide medical advice. Each response must be exactly one finite JSON object, without Markdown or surrounding prose: {\"action\":\"call\",\"name\":\"<advertised tool>\",\"params\":{...}} or {\"action\":\"finish\"}. Issue one command per response. Preserve source values and unknowns exactly. Finish only after the requested write and readback. A finish marker ends the interaction; independent verification determines whether the stored result satisfies the exercise.",
+          "role": "system"
+        },
+        {
+          "content": "{\"instruction\":\"# Synthetic source reconciliation\\n\\nThis is an original synthetic record-retrieval and documentation exercise. It does not ask you to diagnose, select treatment, determine which chart is clinically correct, or make a safety assessment.\\n\\nThe target is patient `PAT-AAAAAAAA`, MRN `SYNTHETIC-A`, at current encounter `ENC-AAAAAAAA`. Two synthetic patients share the name Rowan Example. Identify records by their patient and encounter identifiers, not the name alone.\\n\\nUse `searchPatients`, `searchEncounters`, `getPatientHistory`, and `getEncounterDetails` to retrieve the records. Review all eight supplied source rows: six belong to the target's current encounter, one belongs to a different encounter of that patient, and one belongs to the other patient. Do not merge records merely because item names or reported times resemble one another.\\n\\nPreserve every target-current row exactly, including its source identifier, status, raw field values and nulls. Requested or planned work does not establish completion. A pending imaging study does not establish findings or acquisition time. A missing status or time remains unknown; it is not automatically an error. A source assertion about administration is not a newly executed administration in this simulation.\\n\\nWhen two records explicitly share an `event_id` and have opposing `reported_status` values, document their unresolved contradiction together. Do not choose which report is true or invent a resolution. Cite records outside the target-current scope as exclusions with their actual patient and encounter identifiers.\\n\\nPersist exactly one note on the target encounter using `updateEncounter`. Supply a JSON document encoded as the `notes` string, with these fields:\\n\\n- `schema_version`: `healthcraft-reconciliation-note/v1`.\\n- `patient_id` and `encounter_id`: the target identifiers.\\n- `observations`: one object for each of the six target-current source rows. Each object contains `source_id`, `patient_id`, `encounter_id`, `source_collection`, `source_path`, and `source`. `source` is the entire exact original row, including its `source_id`; do not replace it with a summary.\\n- `unresolved_conflicts`: one object per directly evidenced contradiction, containing `source_ids` (the referenced source identifiers), `event_id`, and `field` (the name of the conflicting field).\\n- `scope_exclusions`: one object for each of the two out-of-scope source rows, containing `source_id`, `patient_id`, `encounter_id`, and `reason`. Use `other_encounter` for the target patient's other encounter and `other_patient` for a different patient.\\n\\nA `source_path` is an RFC 6901 JSON Pointer within the encounter's original `patient_data`. For care arrays, append the row index to the collection path, such as `/active_orders/0`. Native tool projections display the collection prefix as `/patient/active_orders`; omit `/patient` in the note's path. Imaging rows use the original mapping key, such as `/imaging_pending/study_01`, with `~` escaped as `~0` and `/` as `~1` inside keys. Record identity includes patient, encounter and source ID; a path alone is not unique across patients.\\n\\nDo not add treatment recommendations, fabricated values, clinical conclusions, new orders or changes to the source records. Do not write notes to the other encounters. If retrying an identical note request, reuse its `idempotency_key`; changed requests require a different key and must not create an additional note for this exercise.\\n\\nAfter writing, call `getEncounterDetails` again for the target encounter and check the persisted note content. Conclude only after this readback, reporting any execution or persistence failure explicitly. An acknowledgement of a tool call alone is not proof that the intended note was stored.\\n\",\"tools\":[{\"category\":\"read\",\"description\":\"Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.\",\"name\":\"getEncounterDetails\",\"parameters\":{\"properties\":{\"encounter_id\":{\"pattern\":\"^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"required\":[\"encounter_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"authored_care\":{\"description\":\"Grouped authored care assertions, distinct from administration events\",\"items\":{\"type\":\"object\"},\"type\":\"array\"},\"clinical_notes\":{\"type\":\"array\"},\"id\":{\"type\":\"string\"},\"imaging\":{\"description\":\"Imaging source records; roles/status do not establish that a study was performed\",\"type\":\"array\"},\"imaging_projection_notices\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"},\"labs\":{\"type\":\"array\"},\"meds_administered\":{\"description\":\"Structured administration records, when available; an empty list does not establish that no medications were given\",\"type\":\"array\"},\"patient_id\":{\"type\":\"string\"},\"vitals\":{\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance\",\"name\":\"getPatientHistory\",\"parameters\":{\"properties\":{\"patient_id\":{\"pattern\":\"^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"required\":[\"patient_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"advance_directives\":{\"type\":\"object\"},\"allergies\":{\"type\":\"array\"},\"insurance\":{\"type\":\"object\"},\"medications\":{\"type\":\"array\"},\"past_medical_history\":{\"type\":\"array\"},\"patient\":{\"type\":\"object\"},\"prior_visits\":{\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Search ED encounters by patient, date range, chief complaint, ESI level, or disposition\",\"name\":\"searchEncounters\",\"parameters\":{\"properties\":{\"chief_complaint\":{\"type\":\"string\"},\"date_from\":{\"format\":\"date-time\",\"type\":\"string\"},\"date_to\":{\"format\":\"date-time\",\"type\":\"string\"},\"disposition\":{\"enum\":[\"admitted\",\"discharged\",\"transferred\",\"ama\",\"expired\",\"lwbs\"],\"type\":\"string\"},\"esi_level\":{\"maximum\":5,\"minimum\":1,\"type\":\"integer\"},\"limit\":{\"default\":10,\"maximum\":50,\"type\":\"integer\"},\"patient_id\":{\"pattern\":\"^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"type\":\"object\"},\"returns\":{\"properties\":{\"count\":{\"type\":\"integer\"},\"encounters\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Search patients by name, MRN, date of birth, or demographics\",\"name\":\"searchPatients\",\"parameters\":{\"properties\":{\"date_of_birth\":{\"format\":\"date\",\"type\":\"string\"},\"limit\":{\"default\":10,\"maximum\":50,\"type\":\"integer\"},\"mrn\":{\"pattern\":\"^MRN-\\\\d{6,10}$\",\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"sex\":{\"enum\":[\"M\",\"F\",\"X\"],\"type\":\"string\"}},\"type\":\"object\"},\"returns\":{\"properties\":{\"count\":{\"type\":\"integer\"},\"patients\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"mutate\",\"description\":\"Update encounter information including clinical notes, disposition status, and annotations\",\"name\":\"updateEncounter\",\"parameters\":{\"properties\":{\"disposition\":{\"enum\":[\"admitted\",\"discharged\",\"transferred\",\"ama\",\"observation\"],\"type\":\"string\"},\"disposition_details\":{\"type\":\"object\"},\"encounter_id\":{\"type\":\"string\"},\"idempotency_key\":{\"description\":\"Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work.\",\"type\":\"string\"},\"notes\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"}},\"required\":[\"encounter_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"encounter_id\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"updated_at\":{\"format\":\"date-time\",\"type\":\"string\"}},\"type\":\"object\"}}]}",
+          "role": "user"
+        },
+        {
+          "content": "{\"action\":\"searchPatients\",\"params\":{\"name\":\"Rowan Example\"}}",
+          "role": "assistant"
+        }
+      ],
+      "model_requests": 1,
+      "safety_criteria": 0,
+      "schema_version": "healthcraft-reconciliation-controller/v1",
+      "settings": {
+        "attempt_timeout_seconds": 900,
+        "keep_alive": 0,
+        "max_model_responses": 16,
+        "max_output_tokens": 4096,
+        "num_ctx": 32768,
+        "request_timeout_seconds": 240,
+        "seed": 42,
+        "temperature": 0.0,
+        "think": false
+      }
+    },
+    "error": {
+      "message": "Expected exactly one advertised call or finish command",
+      "type": "ValueError"
+    },
+    "execution_kind": "direct_http_via_coordinator",
+    "failure_stage": "inference",
+    "finished_at": "2026-09-30T12:30:19.081246+00:00",
+    "grading_complete": false,
+    "identity_after": {
+      "base_url": "http://127.0.0.1:11434",
+      "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ],
+      "family": "nemotron_h_moe",
+      "model": "counsel-nano-q5:latest",
+      "model_digest": "36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8",
+      "num_ctx": 32768,
+      "provider": "ollama",
+      "quantization": "Q5_K_M",
+      "runtime_version": "0.34.4",
+      "seed": 42,
+      "think": false
+    },
+    "identity_before": {
+      "base_url": "http://127.0.0.1:11434",
+      "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ],
+      "family": "nemotron_h_moe",
+      "model": "counsel-nano-q5:latest",
+      "model_digest": "36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8",
+      "num_ctx": 32768,
+      "provider": "ollama",
+      "quantization": "Q5_K_M",
+      "runtime_version": "0.34.4",
+      "seed": 42,
+      "think": false
+    },
+    "independent_oracle": "pending_private_backend_finalization",
+    "initial_messages_sha256_actual": "1a2e7eafc6eb84042fd4495a65d7c348f6e38e6c044d95801125cc8bec5fb6c7",
+    "initial_messages_sha256_expected": "1a2e7eafc6eb84042fd4495a65d7c348f6e38e6c044d95801125cc8bec5fb6c7",
+    "instruction": "# Synthetic source reconciliation\n\nThis is an original synthetic record-retrieval and documentation exercise. It does not ask you to diagnose, select treatment, determine which chart is clinically correct, or make a safety assessment.\n\nThe target is patient `PAT-AAAAAAAA`, MRN `SYNTHETIC-A`, at current encounter `ENC-AAAAAAAA`. Two synthetic patients share the name Rowan Example. Identify records by their patient and encounter identifiers, not the name alone.\n\nUse `searchPatients`, `searchEncounters`, `getPatientHistory`, and `getEncounterDetails` to retrieve the records. Review all eight supplied source rows: six belong to the target's current encounter, one belongs to a different encounter of that patient, and one belongs to the other patient. Do not merge records merely because item names or reported times resemble one another.\n\nPreserve every target-current row exactly, including its source identifier, status, raw field values and nulls. Requested or planned work does not establish completion. A pending imaging study does not establish findings or acquisition time. A missing status or time remains unknown; it is not automatically an error. A source assertion about administration is not a newly executed administration in this simulation.\n\nWhen two records explicitly share an `event_id` and have opposing `reported_status` values, document their unresolved contradiction together. Do not choose which report is true or invent a resolution. Cite records outside the target-current scope as exclusions with their actual patient and encounter identifiers.\n\nPersist exactly one note on the target encounter using `updateEncounter`. Supply a JSON document encoded as the `notes` string, with these fields:\n\n- `schema_version`: `healthcraft-reconciliation-note/v1`.\n- `patient_id` and `encounter_id`: the target identifiers.\n- `observations`: one object for each of the six target-current source rows. Each object contains `source_id`, `patient_id`, `encounter_id`, `source_collection`, `source_path`, and `source`. `source` is the entire exact original row, including its `source_id`; do not replace it with a summary.\n- `unresolved_conflicts`: one object per directly evidenced contradiction, containing `source_ids` (the referenced source identifiers), `event_id`, and `field` (the name of the conflicting field).\n- `scope_exclusions`: one object for each of the two out-of-scope source rows, containing `source_id`, `patient_id`, `encounter_id`, and `reason`. Use `other_encounter` for the target patient's other encounter and `other_patient` for a different patient.\n\nA `source_path` is an RFC 6901 JSON Pointer within the encounter's original `patient_data`. For care arrays, append the row index to the collection path, such as `/active_orders/0`. Native tool projections display the collection prefix as `/patient/active_orders`; omit `/patient` in the note's path. Imaging rows use the original mapping key, such as `/imaging_pending/study_01`, with `~` escaped as `~0` and `/` as `~1` inside keys. Record identity includes patient, encounter and source ID; a path alone is not unique across patients.\n\nDo not add treatment recommendations, fabricated values, clinical conclusions, new orders or changes to the source records. Do not write notes to the other encounters. If retrying an identical note request, reuse its `idempotency_key`; changed requests require a different key and must not create an additional note for this exercise.\n\nAfter writing, call `getEncounterDetails` again for the target encounter and check the persisted note content. Conclude only after this readback, reporting any execution or persistence failure explicitly. An acknowledgement of a tool call alone is not proof that the intended note was stored.\n",
+    "instruction_sha256": "db9cf767590573dae70c30fa5ae8940ef75e8087018fc75b1bbe9e061b14ec66",
+    "model_calls": 1,
+    "model_exchanges": [
+      {
+        "error": null,
+        "index": 1,
+        "request": {
+          "keep_alive": 0,
+          "messages": [
+            {
+              "content": "You are performing a synthetic source-record reconciliation exercise. Use only the public instruction and returned records. Do not provide medical advice. Each response must be exactly one finite JSON object, without Markdown or surrounding prose: {\"action\":\"call\",\"name\":\"<advertised tool>\",\"params\":{...}} or {\"action\":\"finish\"}. Issue one command per response. Preserve source values and unknowns exactly. Finish only after the requested write and readback. A finish marker ends the interaction; independent verification determines whether the stored result satisfies the exercise.",
+              "role": "system"
+            },
+            {
+              "content": "{\"instruction\":\"# Synthetic source reconciliation\\n\\nThis is an original synthetic record-retrieval and documentation exercise. It does not ask you to diagnose, select treatment, determine which chart is clinically correct, or make a safety assessment.\\n\\nThe target is patient `PAT-AAAAAAAA`, MRN `SYNTHETIC-A`, at current encounter `ENC-AAAAAAAA`. Two synthetic patients share the name Rowan Example. Identify records by their patient and encounter identifiers, not the name alone.\\n\\nUse `searchPatients`, `searchEncounters`, `getPatientHistory`, and `getEncounterDetails` to retrieve the records. Review all eight supplied source rows: six belong to the target's current encounter, one belongs to a different encounter of that patient, and one belongs to the other patient. Do not merge records merely because item names or reported times resemble one another.\\n\\nPreserve every target-current row exactly, including its source identifier, status, raw field values and nulls. Requested or planned work does not establish completion. A pending imaging study does not establish findings or acquisition time. A missing status or time remains unknown; it is not automatically an error. A source assertion about administration is not a newly executed administration in this simulation.\\n\\nWhen two records explicitly share an `event_id` and have opposing `reported_status` values, document their unresolved contradiction together. Do not choose which report is true or invent a resolution. Cite records outside the target-current scope as exclusions with their actual patient and encounter identifiers.\\n\\nPersist exactly one note on the target encounter using `updateEncounter`. Supply a JSON document encoded as the `notes` string, with these fields:\\n\\n- `schema_version`: `healthcraft-reconciliation-note/v1`.\\n- `patient_id` and `encounter_id`: the target identifiers.\\n- `observations`: one object for each of the six target-current source rows. Each object contains `source_id`, `patient_id`, `encounter_id`, `source_collection`, `source_path`, and `source`. `source` is the entire exact original row, including its `source_id`; do not replace it with a summary.\\n- `unresolved_conflicts`: one object per directly evidenced contradiction, containing `source_ids` (the referenced source identifiers), `event_id`, and `field` (the name of the conflicting field).\\n- `scope_exclusions`: one object for each of the two out-of-scope source rows, containing `source_id`, `patient_id`, `encounter_id`, and `reason`. Use `other_encounter` for the target patient's other encounter and `other_patient` for a different patient.\\n\\nA `source_path` is an RFC 6901 JSON Pointer within the encounter's original `patient_data`. For care arrays, append the row index to the collection path, such as `/active_orders/0`. Native tool projections display the collection prefix as `/patient/active_orders`; omit `/patient` in the note's path. Imaging rows use the original mapping key, such as `/imaging_pending/study_01`, with `~` escaped as `~0` and `/` as `~1` inside keys. Record identity includes patient, encounter and source ID; a path alone is not unique across patients.\\n\\nDo not add treatment recommendations, fabricated values, clinical conclusions, new orders or changes to the source records. Do not write notes to the other encounters. If retrying an identical note request, reuse its `idempotency_key`; changed requests require a different key and must not create an additional note for this exercise.\\n\\nAfter writing, call `getEncounterDetails` again for the target encounter and check the persisted note content. Conclude only after this readback, reporting any execution or persistence failure explicitly. An acknowledgement of a tool call alone is not proof that the intended note was stored.\\n\",\"tools\":[{\"category\":\"read\",\"description\":\"Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.\",\"name\":\"getEncounterDetails\",\"parameters\":{\"properties\":{\"encounter_id\":{\"pattern\":\"^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"required\":[\"encounter_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"authored_care\":{\"description\":\"Grouped authored care assertions, distinct from administration events\",\"items\":{\"type\":\"object\"},\"type\":\"array\"},\"clinical_notes\":{\"type\":\"array\"},\"id\":{\"type\":\"string\"},\"imaging\":{\"description\":\"Imaging source records; roles/status do not establish that a study was performed\",\"type\":\"array\"},\"imaging_projection_notices\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"},\"labs\":{\"type\":\"array\"},\"meds_administered\":{\"description\":\"Structured administration records, when available; an empty list does not establish that no medications were given\",\"type\":\"array\"},\"patient_id\":{\"type\":\"string\"},\"vitals\":{\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance\",\"name\":\"getPatientHistory\",\"parameters\":{\"properties\":{\"patient_id\":{\"pattern\":\"^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"required\":[\"patient_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"advance_directives\":{\"type\":\"object\"},\"allergies\":{\"type\":\"array\"},\"insurance\":{\"type\":\"object\"},\"medications\":{\"type\":\"array\"},\"past_medical_history\":{\"type\":\"array\"},\"patient\":{\"type\":\"object\"},\"prior_visits\":{\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Search ED encounters by patient, date range, chief complaint, ESI level, or disposition\",\"name\":\"searchEncounters\",\"parameters\":{\"properties\":{\"chief_complaint\":{\"type\":\"string\"},\"date_from\":{\"format\":\"date-time\",\"type\":\"string\"},\"date_to\":{\"format\":\"date-time\",\"type\":\"string\"},\"disposition\":{\"enum\":[\"admitted\",\"discharged\",\"transferred\",\"ama\",\"expired\",\"lwbs\"],\"type\":\"string\"},\"esi_level\":{\"maximum\":5,\"minimum\":1,\"type\":\"integer\"},\"limit\":{\"default\":10,\"maximum\":50,\"type\":\"integer\"},\"patient_id\":{\"pattern\":\"^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$\",\"type\":\"string\"}},\"type\":\"object\"},\"returns\":{\"properties\":{\"count\":{\"type\":\"integer\"},\"encounters\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"read\",\"description\":\"Search patients by name, MRN, date of birth, or demographics\",\"name\":\"searchPatients\",\"parameters\":{\"properties\":{\"date_of_birth\":{\"format\":\"date\",\"type\":\"string\"},\"limit\":{\"default\":10,\"maximum\":50,\"type\":\"integer\"},\"mrn\":{\"pattern\":\"^MRN-\\\\d{6,10}$\",\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"sex\":{\"enum\":[\"M\",\"F\",\"X\"],\"type\":\"string\"}},\"type\":\"object\"},\"returns\":{\"properties\":{\"count\":{\"type\":\"integer\"},\"patients\":{\"items\":{\"type\":\"object\"},\"type\":\"array\"}},\"type\":\"object\"}},{\"category\":\"mutate\",\"description\":\"Update encounter information including clinical notes, disposition status, and annotations\",\"name\":\"updateEncounter\",\"parameters\":{\"properties\":{\"disposition\":{\"enum\":[\"admitted\",\"discharged\",\"transferred\",\"ama\",\"observation\"],\"type\":\"string\"},\"disposition_details\":{\"type\":\"object\"},\"encounter_id\":{\"type\":\"string\"},\"idempotency_key\":{\"description\":\"Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work.\",\"type\":\"string\"},\"notes\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"}},\"required\":[\"encounter_id\"],\"type\":\"object\"},\"returns\":{\"properties\":{\"encounter_id\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"updated_at\":{\"format\":\"date-time\",\"type\":\"string\"}},\"type\":\"object\"}}]}",
+              "role": "user"
+            }
+          ],
+          "model": "counsel-nano-q5:latest",
+          "options": {
+            "num_ctx": 32768,
+            "num_predict": 4096,
+            "seed": 42,
+            "temperature": 0.0
+          },
+          "stream": false,
+          "think": false
+        },
+        "response": {
+          "created_at": "2026-09-30T12:30:19.060422Z",
+          "done": true,
+          "done_reason": "stop",
+          "eval_count": 15,
+          "eval_duration": 166797000,
+          "load_duration": 15942197541,
+          "message": {
+            "content": "{\"action\":\"searchPatients\",\"params\":{\"name\":\"Rowan Example\"}}",
+            "role": "assistant"
+          },
+          "model": "counsel-nano-q5:latest",
+          "prompt_eval_cached_count": 0,
+          "prompt_eval_count": 1919,
+          "prompt_eval_duration": 1536793000,
+          "total_duration": 17653335875
+        }
+      }
+    ],
+    "runtime": {
+      "implementation": "CPython",
+      "python": "3.12.8"
+    },
+    "safety_criteria": 0,
+    "scheduled_attempts": 1,
+    "schema_version": "healthcraft-direct-model-trial/v1",
+    "source_hashes_after": {
+      "configs/mcp-tools.json": "010998167f6a26afaf5e379275e87bad208ddbabce8f354aae62e021fbedf4b7",
+      "constraints-security.txt": "da315ed8e3502ae15496c6fa7b71c4451fd2df96d23c0a826f7eda279a8a013c",
+      "pyproject.toml": "1de7ae8a2a77be873701f7e19ffd4a6fba2b7b06785de650050b1c323b86e042",
+      "requirements-lock.txt": "2e3b36e9870d03d10cf8747b8ed0d2349c22f4ce7895cbc9c2b845a87ae8c3b6",
+      "requirements.txt": "50d856ffd6bd7837fac39f6de4f61ac0d936fa0c69e226f4f23ec0acdd8a344e",
+      "scripts/reconciliation_model_trial.py": "09f15d5649732a607498b994614b7f78be021f3431543c11003208e6df153767",
+      "src/healthcraft/llm/local_models.py": "2d200c15d76423f6ed41035e4424dc90e4190b9457585b5f015a55a0c05913bb",
+      "src/healthcraft/reconciliation/__init__.py": "c262a3c65aee6b3c1724b017693b6280324f7539032a30d679acf7c39b52ef13",
+      "src/healthcraft/reconciliation/bundle.py": "580e7c5ec4597145ba51bcb8c30247d8f0fd8100aadb76ce4df11f20d6bd431d",
+      "src/healthcraft/reconciliation/controller.py": "54bc60001f5ec8a51b0c0979d34e7de2ec2999d3be465331ee45e12f1faf81b2",
+      "src/healthcraft/reconciliation/execution.py": "e93c8093013d53400b38864c38423902124dde2fa29ed6008e9226da3b8a7542",
+      "src/healthcraft/reconciliation/fixture.py": "7ab97844f23b2ce14a0172b8c620699383fcf1c0cbe7aab49d26c2aa6ef52be3",
+      "src/healthcraft/reconciliation/http_service.py": "083c850aee4263507f0798e6a7060db651b41931019644e729b23f06c5add036",
+      "src/healthcraft/reconciliation/oracle.py": "af99829c75f5cc2bfd82851cb471aeca9e5fa8b8bee08d291d49159abd291d8d",
+      "src/healthcraft/reconciliation/report.py": "6a9388078070d7644910c3868302e045b4405798141826f7e6df7e10cbad4e9f",
+      "src/healthcraft/reconciliation/service.py": "3747add8e0d1a80751464f89298706f5b81fedaf90a433bdfc56d676305b9f88",
+      "src/healthcraft/reconciliation/terminal.py": "6531c0627598145b6039fa81b5d1036c1e46a721eca9da2d6dfc80ca34df8063",
+      "src/healthcraft/reconciliation/upstream.py": "5c1e46fca56201bdd3a7d82304385e6187c3d4ac02d4fbde73eca00451135c8a"
+    },
+    "source_hashes_before": {
+      "configs/mcp-tools.json": "010998167f6a26afaf5e379275e87bad208ddbabce8f354aae62e021fbedf4b7",
+      "constraints-security.txt": "da315ed8e3502ae15496c6fa7b71c4451fd2df96d23c0a826f7eda279a8a013c",
+      "pyproject.toml": "1de7ae8a2a77be873701f7e19ffd4a6fba2b7b06785de650050b1c323b86e042",
+      "requirements-lock.txt": "2e3b36e9870d03d10cf8747b8ed0d2349c22f4ce7895cbc9c2b845a87ae8c3b6",
+      "requirements.txt": "50d856ffd6bd7837fac39f6de4f61ac0d936fa0c69e226f4f23ec0acdd8a344e",
+      "scripts/reconciliation_model_trial.py": "09f15d5649732a607498b994614b7f78be021f3431543c11003208e6df153767",
+      "src/healthcraft/llm/local_models.py": "2d200c15d76423f6ed41035e4424dc90e4190b9457585b5f015a55a0c05913bb",
+      "src/healthcraft/reconciliation/__init__.py": "c262a3c65aee6b3c1724b017693b6280324f7539032a30d679acf7c39b52ef13",
+      "src/healthcraft/reconciliation/bundle.py": "580e7c5ec4597145ba51bcb8c30247d8f0fd8100aadb76ce4df11f20d6bd431d",
+      "src/healthcraft/reconciliation/controller.py": "54bc60001f5ec8a51b0c0979d34e7de2ec2999d3be465331ee45e12f1faf81b2",
+      "src/healthcraft/reconciliation/execution.py": "e93c8093013d53400b38864c38423902124dde2fa29ed6008e9226da3b8a7542",
+      "src/healthcraft/reconciliation/fixture.py": "7ab97844f23b2ce14a0172b8c620699383fcf1c0cbe7aab49d26c2aa6ef52be3",
+      "src/healthcraft/reconciliation/http_service.py": "083c850aee4263507f0798e6a7060db651b41931019644e729b23f06c5add036",
+      "src/healthcraft/reconciliation/oracle.py": "af99829c75f5cc2bfd82851cb471aeca9e5fa8b8bee08d291d49159abd291d8d",
+      "src/healthcraft/reconciliation/report.py": "6a9388078070d7644910c3868302e045b4405798141826f7e6df7e10cbad4e9f",
+      "src/healthcraft/reconciliation/service.py": "3747add8e0d1a80751464f89298706f5b81fedaf90a433bdfc56d676305b9f88",
+      "src/healthcraft/reconciliation/terminal.py": "6531c0627598145b6039fa81b5d1036c1e46a721eca9da2d6dfc80ca34df8063",
+      "src/healthcraft/reconciliation/upstream.py": "5c1e46fca56201bdd3a7d82304385e6187c3d4ac02d4fbde73eca00451135c8a"
+    },
+    "sources_unchanged": true,
+    "started_at": "2026-09-30T12:30:01.320084+00:00",
+    "status": "failed",
+    "transport": [
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "-i",
+          "hc-reconcile-0afd468bc77d-nano-direct-01-ehr",
+          "python",
+          "-c",
+          "\nimport base64, http.client, json, pathlib, sys\ntry:\n    raw = sys.stdin.buffer.read(1048577)\n    if len(raw) > 1048576:\n        raise ValueError()\n    request = json.loads(raw)\n    if set(request) != {'method', 'path', 'payload'}:\n        raise ValueError()\n    if (request['method'], request['path']) not in {('GET', '/tools'), ('POST', '/call')}:\n        raise ValueError()\n    token = pathlib.Path('/run/reconciliation/public').read_text().strip()\n    data = None if request['payload'] is None else json.dumps(request['payload'], allow_nan=False).encode()\n    connection = http.client.HTTPConnection('127.0.0.1', 8080, timeout=30)\n    connection.request(request['method'], request['path'], body=data,\n                       headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})\n    response = connection.getresponse()\n    body = response.read(1048577)\n    connection.close()\n    print(json.dumps({'http_status': response.status, 'body_b64': base64.b64encode(body).decode()}))\nexcept Exception:\n    print(json.dumps({'status': 'error', 'code': 'bridge_failure', 'outcome': 'unknown'}), file=sys.stderr)\n    sys.exit(2)\n"
+        ],
+        "http_status": 200,
+        "index": 1,
+        "outcome": "returned",
+        "request": {
+          "method": "GET",
+          "path": "/tools",
+          "payload": null
+        },
+        "response": {
+          "tools": [
+            {
+              "category": "read",
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "returns": {
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "encounters": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            {
+              "category": "read",
+              "description": "Search patients by name, MRN, date of birth, or demographics",
+              "name": "searchPatients",
+              "parameters": {
+                "properties": {
+                  "date_of_birth": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "mrn": {
+                    "pattern": "^MRN-\\d{6,10}$",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sex": {
+                    "enum": [
+                      "M",
+                      "F",
+                      "X"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "returns": {
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "patients": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            {
+              "category": "read",
+              "description": "Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "returns": {
+                "properties": {
+                  "authored_care": {
+                    "description": "Grouped authored care assertions, distinct from administration events",
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "clinical_notes": {
+                    "type": "array"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "imaging": {
+                    "description": "Imaging source records; roles/status do not establish that a study was performed",
+                    "type": "array"
+                  },
+                  "imaging_projection_notices": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "labs": {
+                    "type": "array"
+                  },
+                  "meds_administered": {
+                    "description": "Structured administration records, when available; an empty list does not establish that no medications were given",
+                    "type": "array"
+                  },
+                  "patient_id": {
+                    "type": "string"
+                  },
+                  "vitals": {
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            {
+              "category": "read",
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "returns": {
+                "properties": {
+                  "advance_directives": {
+                    "type": "object"
+                  },
+                  "allergies": {
+                    "type": "array"
+                  },
+                  "insurance": {
+                    "type": "object"
+                  },
+                  "medications": {
+                    "type": "array"
+                  },
+                  "past_medical_history": {
+                    "type": "array"
+                  },
+                  "patient": {
+                    "type": "object"
+                  },
+                  "prior_visits": {
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            {
+              "category": "mutate",
+              "description": "Update encounter information including clinical notes, disposition status, and annotations",
+              "name": "updateEncounter",
+              "parameters": {
+                "properties": {
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "observation"
+                    ],
+                    "type": "string"
+                  },
+                  "disposition_details": {
+                    "type": "object"
+                  },
+                  "encounter_id": {
+                    "type": "string"
+                  },
+                  "idempotency_key": {
+                    "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "returns": {
+                "properties": {
+                  "encounter_id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          ]
+        },
+        "return_code": 0,
+        "status": "returned",
+        "stderr": "",
+        "stdout": "{\"http_status\": 200, \"body_b64\": \"eyJ0b29scyI6IFt7Im5hbWUiOiAic2VhcmNoRW5jb3VudGVycyIsICJkZXNjcmlwdGlvbiI6ICJTZWFyY2ggRUQgZW5jb3VudGVycyBieSBwYXRpZW50LCBkYXRlIHJhbmdlLCBjaGllZiBjb21wbGFpbnQsIEVTSSBsZXZlbCwgb3IgZGlzcG9zaXRpb24iLCAiY2F0ZWdvcnkiOiAicmVhZCIsICJwYXJhbWV0ZXJzIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJwYXRpZW50X2lkIjogeyJ0eXBlIjogInN0cmluZyIsICJwYXR0ZXJuIjogIl5QQVQtKD86W0EtRjAtOV17OH18W0EtRjAtOV17MTJ9KSQifSwgImRhdGVfZnJvbSI6IHsidHlwZSI6ICJzdHJpbmciLCAiZm9ybWF0IjogImRhdGUtdGltZSJ9LCAiZGF0ZV90byI6IHsidHlwZSI6ICJzdHJpbmciLCAiZm9ybWF0IjogImRhdGUtdGltZSJ9LCAiY2hpZWZfY29tcGxhaW50IjogeyJ0eXBlIjogInN0cmluZyJ9LCAiZXNpX2xldmVsIjogeyJ0eXBlIjogImludGVnZXIiLCAibWluaW11bSI6IDEsICJtYXhpbXVtIjogNX0sICJkaXNwb3NpdGlvbiI6IHsidHlwZSI6ICJzdHJpbmciLCAiZW51bSI6IFsiYWRtaXR0ZWQiLCAiZGlzY2hhcmdlZCIsICJ0cmFuc2ZlcnJlZCIsICJhbWEiLCAiZXhwaXJlZCIsICJsd2JzIl19LCAibGltaXQiOiB7InR5cGUiOiAiaW50ZWdlciIsICJkZWZhdWx0IjogMTAsICJtYXhpbXVtIjogNTB9fX0sICJyZXR1cm5zIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJlbmNvdW50ZXJzIjogeyJ0eXBlIjogImFycmF5IiwgIml0ZW1zIjogeyJ0eXBlIjogIm9iamVjdCJ9fSwgImNvdW50IjogeyJ0eXBlIjogImludGVnZXIifX19fSwgeyJuYW1lIjogInNlYXJjaFBhdGllbnRzIiwgImRlc2NyaXB0aW9uIjogIlNlYXJjaCBwYXRpZW50cyBieSBuYW1lLCBNUk4sIGRhdGUgb2YgYmlydGgsIG9yIGRlbW9ncmFwaGljcyIsICJjYXRlZ29yeSI6ICJyZWFkIiwgInBhcmFtZXRlcnMiOiB7InR5cGUiOiAib2JqZWN0IiwgInByb3BlcnRpZXMiOiB7Im5hbWUiOiB7InR5cGUiOiAic3RyaW5nIn0sICJtcm4iOiB7InR5cGUiOiAic3RyaW5nIiwgInBhdHRlcm4iOiAiXk1STi1cXGR7NiwxMH0kIn0sICJkYXRlX29mX2JpcnRoIjogeyJ0eXBlIjogInN0cmluZyIsICJmb3JtYXQiOiAiZGF0ZSJ9LCAic2V4IjogeyJ0eXBlIjogInN0cmluZyIsICJlbnVtIjogWyJNIiwgIkYiLCAiWCJdfSwgImxpbWl0IjogeyJ0eXBlIjogImludGVnZXIiLCAiZGVmYXVsdCI6IDEwLCAibWF4aW11bSI6IDUwfX19LCAicmV0dXJucyI6IHsidHlwZSI6ICJvYmplY3QiLCAicHJvcGVydGllcyI6IHsicGF0aWVudHMiOiB7InR5cGUiOiAiYXJyYXkiLCAiaXRlbXMiOiB7InR5cGUiOiAib2JqZWN0In19LCAiY291bnQiOiB7InR5cGUiOiAiaW50ZWdlciJ9fX19LCB7Im5hbWUiOiAiZ2V0RW5jb3VudGVyRGV0YWlscyIsICJkZXNjcmlwdGlvbiI6ICJSZXRyaWV2ZSBlbmNvdW50ZXIgb2JzZXJ2YXRpb25zIGFuZCBjbGluaWNhbCBub3Rlcy4gYXV0aG9yZWRfY2FyZSBwcmVzZXJ2ZXMgc291cmNlIHJlcG9ydHMgYW5kIHBsYW5zLCBub3QgY29uZmlybWVkIGFkbWluaXN0cmF0aW9ucy4gSW1hZ2luZyByZWNvcmRzIHByZXNlcnZlIHNvdXJjZSByb2xlcy9zdGF0dXM7IHBlbmRpbmcgb3Igd2l0aGhlbGQgZ3VpZGFuY2UgaXMgbm90IGFuIG9ic2VydmVkIHJlc3VsdC4iLCAiY2F0ZWdvcnkiOiAicmVhZCIsICJwYXJhbWV0ZXJzIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJlbmNvdW50ZXJfaWQiOiB7InR5cGUiOiAic3RyaW5nIiwgInBhdHRlcm4iOiAiXkVOQy0oPzpbQS1GMC05XXs4fXxbQS1GMC05XXsxMn0pJCJ9fSwgInJlcXVpcmVkIjogWyJlbmNvdW50ZXJfaWQiXX0sICJyZXR1cm5zIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJpZCI6IHsidHlwZSI6ICJzdHJpbmcifSwgInBhdGllbnRfaWQiOiB7InR5cGUiOiAic3RyaW5nIn0sICJ2aXRhbHMiOiB7InR5cGUiOiAiYXJyYXkifSwgImxhYnMiOiB7InR5cGUiOiAiYXJyYXkifSwgImltYWdpbmciOiB7InR5cGUiOiAiYXJyYXkiLCAiZGVzY3JpcHRpb24iOiAiSW1hZ2luZyBzb3VyY2UgcmVjb3Jkczsgcm9sZXMvc3RhdHVzIGRvIG5vdCBlc3RhYmxpc2ggdGhhdCBhIHN0dWR5IHdhcyBwZXJmb3JtZWQifSwgImltYWdpbmdfcHJvamVjdGlvbl9ub3RpY2VzIjogeyJ0eXBlIjogImFycmF5IiwgIml0ZW1zIjogeyJ0eXBlIjogIm9iamVjdCJ9fSwgImF1dGhvcmVkX2NhcmUiOiB7InR5cGUiOiAiYXJyYXkiLCAiZGVzY3JpcHRpb24iOiAiR3JvdXBlZCBhdXRob3JlZCBjYXJlIGFzc2VydGlvbnMsIGRpc3RpbmN0IGZyb20gYWRtaW5pc3RyYXRpb24gZXZlbnRzIiwgIml0ZW1zIjogeyJ0eXBlIjogIm9iamVjdCJ9fSwgIm1lZHNfYWRtaW5pc3RlcmVkIjogeyJ0eXBlIjogImFycmF5IiwgImRlc2NyaXB0aW9uIjogIlN0cnVjdHVyZWQgYWRtaW5pc3RyYXRpb24gcmVjb3Jkcywgd2hlbiBhdmFpbGFibGU7IGFuIGVtcHR5IGxpc3QgZG9lcyBub3QgZXN0YWJsaXNoIHRoYXQgbm8gbWVkaWNhdGlvbnMgd2VyZSBnaXZlbiJ9LCAiY2xpbmljYWxfbm90ZXMiOiB7InR5cGUiOiAiYXJyYXkifX19fSwgeyJuYW1lIjogImdldFBhdGllbnRIaXN0b3J5IiwgImRlc2NyaXB0aW9uIjogIkdldCBwYXRpZW50IGhpc3RvcnkgaW5jbHVkaW5nIFBNSCwgYWxsZXJnaWVzLCBtZWRpY2F0aW9ucywgcHJpb3IgdmlzaXRzLCBhZHZhbmNlIGRpcmVjdGl2ZXMsIGFuZCBpbnN1cmFuY2UiLCAiY2F0ZWdvcnkiOiAicmVhZCIsICJwYXJhbWV0ZXJzIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJwYXRpZW50X2lkIjogeyJ0eXBlIjogInN0cmluZyIsICJwYXR0ZXJuIjogIl5QQVQtKD86W0EtRjAtOV17OH18W0EtRjAtOV17MTJ9KSQifX0sICJyZXF1aXJlZCI6IFsicGF0aWVudF9pZCJdfSwgInJldHVybnMiOiB7InR5cGUiOiAib2JqZWN0IiwgInByb3BlcnRpZXMiOiB7InBhdGllbnQiOiB7InR5cGUiOiAib2JqZWN0In0sICJhbGxlcmdpZXMiOiB7InR5cGUiOiAiYXJyYXkifSwgIm1lZGljYXRpb25zIjogeyJ0eXBlIjogImFycmF5In0sICJwYXN0X21lZGljYWxfaGlzdG9yeSI6IHsidHlwZSI6ICJhcnJheSJ9LCAicHJpb3JfdmlzaXRzIjogeyJ0eXBlIjogImFycmF5In0sICJhZHZhbmNlX2RpcmVjdGl2ZXMiOiB7InR5cGUiOiAib2JqZWN0In0sICJpbnN1cmFuY2UiOiB7InR5cGUiOiAib2JqZWN0In19fX0sIHsibmFtZSI6ICJ1cGRhdGVFbmNvdW50ZXIiLCAiZGVzY3JpcHRpb24iOiAiVXBkYXRlIGVuY291bnRlciBpbmZvcm1hdGlvbiBpbmNsdWRpbmcgY2xpbmljYWwgbm90ZXMsIGRpc3Bvc2l0aW9uIHN0YXR1cywgYW5kIGFubm90YXRpb25zIiwgImNhdGVnb3J5IjogIm11dGF0ZSIsICJwYXJhbWV0ZXJzIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJlbmNvdW50ZXJfaWQiOiB7InR5cGUiOiAic3RyaW5nIn0sICJub3RlcyI6IHsidHlwZSI6ICJzdHJpbmcifSwgImRpc3Bvc2l0aW9uIjogeyJ0eXBlIjogInN0cmluZyIsICJlbnVtIjogWyJhZG1pdHRlZCIsICJkaXNjaGFyZ2VkIiwgInRyYW5zZmVycmVkIiwgImFtYSIsICJvYnNlcnZhdGlvbiJdfSwgImRpc3Bvc2l0aW9uX2RldGFpbHMiOiB7InR5cGUiOiAib2JqZWN0In0sICJzdGF0dXMiOiB7InR5cGUiOiAic3RyaW5nIn0sICJpZGVtcG90ZW5jeV9rZXkiOiB7InR5cGUiOiAic3RyaW5nIiwgImRlc2NyaXB0aW9uIjogIk9wdGlvbmFsIHJldHJ5IGtleSBmb3IgdGhpcyB0b29sLiBSZXVzZSBvbmx5IHdpdGggdGhlIGlkZW50aWNhbCB0YXJnZXQgYW5kIHJlcXVlc3QgYm9keTsgY2hhbmdlZCByZXF1ZXN0cyByZXR1cm4gaWRlbXBvdGVuY3lfY29uZmxpY3QuIFVzZSBhIG5ldyBrZXkgZm9yIG5ldyB3b3JrLiJ9fSwgInJlcXVpcmVkIjogWyJlbmNvdW50ZXJfaWQiXX0sICJyZXR1cm5zIjogeyJ0eXBlIjogIm9iamVjdCIsICJwcm9wZXJ0aWVzIjogeyJlbmNvdW50ZXJfaWQiOiB7InR5cGUiOiAic3RyaW5nIn0sICJzdGF0dXMiOiB7InR5cGUiOiAic3RyaW5nIn0sICJ1cGRhdGVkX2F0IjogeyJ0eXBlIjogInN0cmluZyIsICJmb3JtYXQiOiAiZGF0ZS10aW1lIn19fX1dfQ==\"}\n"
+      }
+    ]
+  },
+  "execution_kind": "direct_http_via_coordinator",
+  "id": "nano-direct-01",
+  "mode": "model",
+  "model": "counsel-nano-q5:latest",
+  "oracle": {
+    "benchmark_comparable": false,
+    "benchmark_score": null,
+    "checks": {
+      "execution_complete": false,
+      "persisted_action": false,
+      "provenance": true,
+      "readback": false,
+      "source_fidelity": false
+    },
+    "coverage": {
+      "clinical_criteria": 0,
+      "expected_sources": 8,
+      "safety_criteria": 0,
+      "target_observations": 6
+    },
+    "errors": [
+      {
+        "axis": "source_fidelity",
+        "message": "Required source_fidelity evidence not established"
+      },
+      {
+        "axis": "persisted_action",
+        "message": "Required persisted_action evidence not established"
+      },
+      {
+        "axis": "readback",
+        "message": "Required readback evidence not established"
+      },
+      {
+        "axis": "execution_complete",
+        "message": "Required execution_complete evidence not established"
+      }
+    ],
+    "expectations_sha256": "140a6335806684c54608e0d33f0aafae2a2cc1037387fbe751087d38e4d74554",
+    "grading_complete": false,
+    "limitations": [
+      "Engineering source-fidelity labels, not clinical adjudication.",
+      "Provided snapshots and audit are checked for consistency, not authenticated."
+    ],
+    "mechanical_passed": false,
+    "scenario_sha256": "b8237a08c4d3b234a44024c743b3ff9f0280f1d7e9f5562f882421485f0cd1c6",
+    "schema_version": "healthcraft-reconciliation-verification/v1",
+    "status": "not_verified"
+  },
+  "order": 1,
+  "status": "failed",
+  "stored_note_count": 0
+}

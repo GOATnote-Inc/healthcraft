@@ -90,9 +90,16 @@ Each new bundle retains the planned roster, initial source identity, request
 journal, before/after world snapshots, audits, verification receipts and
 per-trial errors. Final source-capture failure is explicit and source drift is
 visible in the report. Failed or missing evidence stays in the denominator.
-The in-process runner is not an agent sandbox or a demonstrated Harbor lifecycle.
+The in-process runner is not an agent sandbox. A separate [Harbor transport adapter](../integrations/harbor/README.md) exercises the real pinned SDK and a private backend. Its [four scripted controls](../artifacts/reconciliation/20260930/harbor-transport-v4/README.md) complete with expected source/persistence outcomes through direct coordinator HTTP and Harbor terminal interfaces. Earlier setup-failure rosters are retained. Harbor reward remains connectivity-only; it is not the independent task verdict.
 
-Matched-model execution, operator-value measurement, independent clinical
-review and held-out evaluation remain unperformed. Ordinary TDD and peer
+The [first local-model pilot](../artifacts/reconciliation/20260930/local-model-pilot-v1/README.md)
+records all four scheduled attempts: one per model and transport. Both Nano
+attempts used the wrong command shape; both MedGemma attempts added Markdown
+fences. Each stopped after one response, before any tool action or note write.
+The frozen strict parser made no repairs or retries. These are command-format
+failures, not clinical findings or a model ranking.
+
+Operator-value measurement, independent clinical review and held-out
+evaluation remain unperformed. Ordinary TDD and peer
 review here are not the final formal red team. The release gate remains
 [value evidence → formal red team → remote main and manuscript](RELEASE_EVIDENCE_PLAN.md).
