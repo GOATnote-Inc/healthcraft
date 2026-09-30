@@ -1,0 +1,113 @@
+FF.F                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_source_hashes_accept_checkout_alias_and_detect_actual_changes ______
+
+aliased_api = (<module 'aliased_reconciliation_model_trial' from '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of...n 0 if receipt["status"] == "terminated" else 1\n\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n', ...})
+
+    def test_source_hashes_accept_checkout_alias_and_detect_actual_changes(aliased_api):
+        module, checkout, files = aliased_api
+        expected = {
+            relative: hashlib.sha256(content).hexdigest() for relative, content in files.items()
+        }
+>       assert module._source_hashes() == expected
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_scripts/test_reconciliation_model_trial.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_accept_chec0/checkout-alias/scripts/reconciliation_model_trial.py:91: in _source_hashes
+    str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        ^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_accept_chec0/checkout-alias/scripts/reconciliation_model_trial.py')
+other = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_accept_chec0/canonical-checkout')
+walk_up = False, _deprecated = (), step = 0
+
+    def relative_to(self, other, /, *_deprecated, walk_up=False):
+        """Return the relative path to another path identified by the passed
+        arguments.  If the operation is not possible (because this is not
+        related to the other path), raise ValueError.
+    
+        The *walk_up* parameter controls whether `..` may be used to resolve
+        the path.
+        """
+        if _deprecated:
+            msg = ("support for supplying more than one positional argument "
+                   "to pathlib.PurePath.relative_to() is deprecated and "
+                   "scheduled for removal in Python {remove}")
+            warnings._deprecated("pathlib.PurePath.relative_to(*args)", msg,
+                                 remove=(3, 14))
+        other = self.with_segments(other, *_deprecated)
+        for step, path in enumerate([other] + list(other.parents)):
+            if self.is_relative_to(path):
+                break
+            elif not walk_up:
+>               raise ValueError(f"{str(self)!r} is not in the subpath of {str(other)!r}")
+E               ValueError: '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_accept_chec0/checkout-alias/scripts/reconciliation_model_trial.py' is not in the subpath of '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_accept_chec0/canonical-checkout'
+
+/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py:682: ValueError
+____ test_symlinked_runner_keeps_before_after_hashes_on_preparation_failure ____
+
+aliased_api = (<module 'aliased_reconciliation_model_trial' from '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of...n 0 if receipt["status"] == "terminated" else 1\n\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n', ...})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_symlinked_runner_keeps_be0')
+
+    def test_symlinked_runner_keeps_before_after_hashes_on_preparation_failure(
+        aliased_api, tmp_path
+    ):
+        module, _, _ = aliased_api
+    
+        def forbidden(*args, **kwargs):
+            pytest.fail("Invalid config must not access discovery or a model")
+    
+        result = module.run_trial(
+            model_config={},
+            instruction="public",
+            output_dir=tmp_path / "retained-attempt",
+            backend_container="owned-backend",
+            process_runner=forbidden,
+            client_factory=forbidden,
+        )
+        assert result["failure_stage"] == "preparation"
+        assert result["model_calls"] == 0
+        assert result["scheduled_attempts"] == 1
+>       assert result["source_hashes_before"] == result["source_hashes_after"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'source_hashes_before'
+
+tests/test_scripts/test_reconciliation_model_trial.py:93: KeyError
+____ test_source_hashes_refuse_script_resolving_outside_declared_root[True] ____
+
+aliased_api = (<module 'aliased_reconciliation_model_trial' from '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of...n 0 if receipt["status"] == "terminated" else 1\n\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n', ...})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-387/test_source_hashes_refuse_scri1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10306b020>
+through_symlink = True
+
+    @pytest.mark.parametrize("through_symlink", [False, True])
+    def test_source_hashes_refuse_script_resolving_outside_declared_root(
+        aliased_api, tmp_path, monkeypatch, through_symlink
+    ):
+        module, checkout, _ = aliased_api
+        outside = tmp_path / "outside.py"
+        outside.write_text("# outside declared source root\n")
+        path = outside
+        if through_symlink:
+            path = checkout / "scripts/outside-link.py"
+            path.symlink_to(outside)
+        monkeypatch.setattr(module, "__file__", str(path))
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_scripts/test_reconciliation_model_trial.py:110: Failed
+=============================== warnings summary ===============================
+../../../private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434
+  /private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_source_hashes_accept_checkout_alias_and_detect_actual_changes
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_symlinked_runner_keeps_before_after_hashes_on_preparation_failure
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_source_hashes_refuse_script_resolving_outside_declared_root[True]
+3 failed, 1 passed, 49 deselected, 1 warning in 0.12s

@@ -1,0 +1,323 @@
+"""Account for scheduled attempts when the exploratory coordinator itself fails.
+
+This filesystem-only fallback never grades evidence, retries execution, rewrites
+raw result files, or treats missing results as successful model/tool execution.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+
+SCHEMA = "reconciliation-coordinator-failure/v1"
+
+
+def _pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _float(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError("Non-finite JSON number")
+    return value
+
+
+def _constant(_text):
+    raise ValueError("Non-finite JSON constant")
+
+
+def _read(path):
+    value = json.loads(
+        path.read_text(),
+        object_pairs_hook=_pairs,
+        parse_float=_float,
+        parse_constant=_constant,
+    )
+    if not isinstance(value, dict):
+        raise ValueError("Expected JSON object")
+    return value
+
+
+def _copy(value):
+    return json.loads(json.dumps(value, allow_nan=False))
+
+
+def _write(path, value):
+    encoded = json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    with path.open("x") as handle:
+        handle.write(encoded)
+
+
+def _result(path, item):
+    value = _read(path)
+    if value.get("id") != item["id"]:
+        raise ValueError("Result ID does not match scheduled attempt")
+    if value.get("status") not in {"completed", "failed"}:
+        raise ValueError("Result is not a terminal coordinator result")
+    completion = value.get("completion")
+    if not isinstance(completion, dict) or completion.get("status") != value["status"]:
+        raise ValueError("Result completion status is missing or inconsistent")
+    if value.get("oracle") is not None and not isinstance(value["oracle"], dict):
+        raise ValueError("Malformed recorded oracle envelope")
+    return value
+
+
+def finalize_unfinished(output_dir, roster, error):
+    """Preserve existing outcomes and explicitly account for every missing one.
+
+    An absent attempt directory proves only that this coordinator did not create
+    its attempt workspace. An existing partial directory leaves execution/tool
+    outcomes unknown. Previously recorded oracle results are retained verbatim;
+    no new oracle verdict, zero-call count, or successful completion is inferred.
+    Existing summary.json and every existing receipt are kept byte-for-byte.
+    """
+    roster = _copy(roster)
+    error = _copy(error)
+    if not isinstance(roster, list) or not roster or not isinstance(error, dict):
+        raise ValueError("Expected nonempty roster and error object")
+    seen = set()
+    for item in roster:
+        name = item.get("id") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+            raise ValueError("Invalid scheduled attempt ID")
+        if name in seen:
+            raise ValueError("Duplicate scheduled attempt ID")
+        seen.add(name)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    results = []
+    for item in roster:
+        trial = output_dir / item["id"]
+        existed = trial.exists()
+        result_path = trial / "result.json"
+        diagnostic = None
+        if result_path.exists():
+            try:
+                results.append(_result(result_path, item))
+                continue
+            except (OSError, ValueError, TypeError) as exc:
+                diagnostic = {"type": type(exc).__name__, "message": str(exc)}
+        receipt_path = trial / "coordinator-failure.json"
+        if receipt_path.exists():
+            receipt = _read(receipt_path)
+            if receipt.get("id") != item["id"] or receipt.get("schema_version") != SCHEMA:
+                raise ValueError("Existing coordinator failure receipt has invalid identity")
+        else:
+            trial.mkdir(parents=True, exist_ok=True)
+            receipt = {
+                **item,
+                "schema_version": SCHEMA,
+                "status": "execution_unknown" if existed else "not_started",
+                "accounting_state": "invalid_result"
+                if diagnostic
+                else ("partial_execution" if existed else "no_attempt_directory"),
+                "completion": None,
+                "oracle": None,
+                "actual_call_count": None,
+                "stored_note_count": None,
+                "benchmark_score": None,
+                "clinical_criteria": 0,
+                "safety_criteria": 0,
+                "coordinator_error": error,
+            }
+            if diagnostic is not None:
+                receipt["result_diagnostic"] = diagnostic
+            _write(receipt_path, receipt)
+        results.append(receipt)
+    summary = {
+        "schema_version": "reconciliation-coordinator-failure-summary/v1",
+        "roster": roster,
+        "results": results,
+        "scheduled_attempts": len(roster),
+        "all_attempts_recorded": [r["id"] for r in results] == [r["id"] for r in roster],
+        "coordinator_error": error,
+        "benchmark_score": None,
+        "no_superiority_claim": True,
+    }
+    summary_path = output_dir / "summary.json"
+    if not summary_path.exists():
+        _write(summary_path, summary)
+    return _copy(summary)
+
+
+"""Four frozen free local-model feasibility attempts; no cloud calls or retries."""
+from pathlib import Path
+import base64, hashlib, http.client, json, os, secrets, shutil, subprocess, sys, tempfile, time, uuid
+ROOT=Path('/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/healthcraft-model-candidate-v2-jkk2m6e7')
+sys.path.insert(0,str(ROOT/'src'))
+OUT=Path(sys.argv[1]).resolve(); OUT.mkdir(parents=True,exist_ok=False)
+RUN=uuid.uuid4().hex[:12]
+PROPOSAL=json.loads(Path('/private/tmp/healthcraft-reconciliation-structured-v2/protocol.json').read_text())
+MODELS={m['alias']:m for m in PROPOSAL['models']}
+ROSTER=PROPOSAL['schedule']
+
+def write(path,value):
+    with path.open('x') as f: json.dump(value,f,indent=2,sort_keys=True,allow_nan=False); f.write('\n')
+def command(argv,where,*,env=None,timeout=120,check=True):
+    started=time.monotonic()
+    try:
+        p=subprocess.run(argv,cwd=ROOT,env=env,capture_output=True,text=True,timeout=timeout)
+        receipt={'argv':argv,'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr,'elapsed_seconds':time.monotonic()-started}
+    except subprocess.TimeoutExpired as e:
+        receipt={'argv':argv,'returncode':None,'error':'TimeoutExpired','stdout':str(e.stdout),'stderr':str(e.stderr),'elapsed_seconds':time.monotonic()-started}
+    except OSError as e:
+        receipt={'argv':argv,'returncode':None,'error':type(e).__name__,'stdout':'','stderr':str(e),'elapsed_seconds':time.monotonic()-started}
+    write(where,receipt)
+    if check and receipt['returncode']!=0: raise RuntimeError(f'Command failed; see {where.name}')
+    return receipt
+write(OUT/'roster.json',{'schema_version':'reconciliation-local-model-pilot/v2','command_format':PROPOSAL['command_format'],'previous_cohort':PROPOSAL['previous_cohort'],'run_id':RUN,'roster':ROSTER,'settings':PROPOSAL['settings'],'models':PROPOSAL['models'],'scheduled_attempts':4,'attempts_per_model_per_arm':1,'retries':0,'automatic_format_repairs':0,'benchmark_score':None,'clinical_assessment':'unassessed','claims':'Open synthetic feasibility only, not ranking, operator value, clinical validity or superiority','hard_process_cap_seconds':900,'cap_scope':'child process including runtime import, setup, metadata, model work and postflight; coordinator container lifecycle excluded','harbor_verifier':'terminal_connectivity_only','prior_controls':'harbor-transport-v1/v2 infrastructure failures, v3/v4 controls and local-model-pilot-v1 format failures retained separately','proposed_initial_messages_sha256':PROPOSAL['common_interface']['initial_messages_sha256'],'local_freeze_not_external_registration':True})
+def _execute_roster():
+    HOST_INPUTS={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(ROOT.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p != ROOT/'manifest.json'}
+    if hashlib.sha256((ROOT/'manifest.json').read_bytes()).hexdigest()!='f6f97bab23d760146dfdd350d804168e4c1fb48f9e90320450540e8cdc0de64c' or HOST_INPUTS!=json.loads((ROOT/'manifest.json').read_text()):
+        raise RuntimeError('Prepared candidate manifest differs before execution')
+    write(OUT/'host-input-manifest.json',HOST_INPUTS)
+    from healthcraft.reconciliation.fixture import load_scenario
+    from healthcraft.reconciliation.oracle import load_expectations,verify_reconciliation
+    from healthcraft.reconciliation.terminal import request_json
+    from healthcraft.reconciliation.controller import reference_commands
+    def source_check():
+        differences=[]
+        for relative,expected in HOST_INPUTS.items():
+            try: actual=hashlib.sha256((ROOT/relative).read_bytes()).hexdigest()
+            except OSError: actual=None
+            if actual!=expected: differences.append({'path':relative,'expected':expected,'actual':actual})
+        return {'matched':not differences,'files_checked':len(HOST_INPUTS),'differences':differences}
+    shutil.copyfile(__file__,OUT/'run_model_pilot.py.txt')
+    write(OUT/'protocol.json',PROPOSAL)
+    from healthcraft.reconciliation.controller import command_format_identity, command_format_schema
+    if command_format_identity()!=PROPOSAL['command_format'] or command_format_schema()!=PROPOSAL['command_schema']:
+        raise RuntimeError('Frozen command schema differs from captured protocol before model access')
+    context=OUT/'build';context.mkdir()
+    backend=context/'backend';backend.mkdir();agent=context/'agent';agent.mkdir()
+    for folder in ['src','configs']: shutil.copytree(ROOT/folder,backend/folder,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+    for name in ['LICENSE']: shutil.copyfile(ROOT/name,backend/name)
+    shutil.copytree('/private/tmp/healthcraft-reconciliation-container/wheels',backend/'wheels')
+    for kind in ['backend','agent']: shutil.copyfile(ROOT/f'integrations/harbor/Dockerfile.{kind}',context/kind/'Dockerfile')
+    shutil.copyfile(ROOT/'integrations/harbor/requirements-backend-linux-arm64.lock',backend/'requirements-backend-linux-arm64.lock')
+    shutil.copyfile(ROOT/'src/healthcraft/reconciliation/terminal.py',agent/'terminal.py')
+    manifest={str(p.relative_to(context)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(context.rglob('*')) if p.is_file()}
+    write(OUT/'build-input-manifest.json',manifest)
+    for kind in ['backend','agent']:
+        command(['docker','build','--network=none','--pull=false','-t',f'healthcraft-reconciliation-{kind}:{RUN}',str(context/kind)],OUT/f'build-{kind}.json',timeout=180)
+        command(['docker','image','inspect',f'healthcraft-reconciliation-{kind}:{RUN}'],OUT/f'image-{kind}.json')
+    results=[]
+    residency_blocked=False
+    for item in ROSTER:
+        trial=OUT/item['id'];trial.mkdir(); capture=trial/'backend';capture.mkdir()
+        network=f'hc-reconcile-{RUN}-{item["id"]}';container=network+'-ehr'
+        public=secrets.token_hex(24);admin=secrets.token_hex(24)
+        temporary=Path(tempfile.mkdtemp(prefix='hc-reconcile-secrets-'))
+        (temporary/'public').write_text(public);(temporary/'admin').write_text(admin)
+        os.chmod(temporary/'public',0o600);os.chmod(temporary/'admin',0o600)
+        result={**item,'status':'scheduled','completion':None,'oracle':None}
+        model=MODELS[item['model']]
+        model_config={'model':item['model'],'expected_digest':model['expected_digest'],'expected_runtime':model['expected_runtime'],'settings':PROPOSAL['settings'],'initial_messages_sha256':PROPOSAL['common_interface']['initial_messages_sha256'],'command_format':PROPOSAL['command_format']}
+        write(trial/'model-config.json',model_config)
+        url=None;port=None;bridge_count=0
+        def bridge(method,path,payload=None,private=False):
+            # The coordinator chooses fixed HTTP operations; no model-authored shell.
+            script="import base64,http.client,json,pathlib,sys;token=pathlib.Path('/run/reconciliation/'+sys.argv[4]).read_text().strip();data=base64.b64decode(sys.argv[3]);c=http.client.HTTPConnection('127.0.0.1',8080,timeout=10);c.request(sys.argv[1],sys.argv[2],body=data if data else None,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'});r=c.getresponse();print(json.dumps({'status':r.status,'body':json.loads(r.read())}));c.close()"
+            index=len(list(trial.glob('coordinator-http-*.json')))+1
+            raw=command(['docker','exec',container,'python','-c',script,method,path,base64.b64encode(json.dumps(payload).encode()).decode() if payload is not None else '', 'admin' if private else 'public'],trial/f'coordinator-http-{index:04d}.json',timeout=20)
+            return json.loads(raw['stdout'])
+        def public_request(method,path,payload=None,**unused):
+            reply=bridge(method,path,payload)
+            if reply['status']!=200: raise RuntimeError('Public HTTP request failed')
+            return reply['body']
+        try:
+            if residency_blocked: raise RuntimeError('Prior attempt left a resident model; scheduled attempt not started')
+            before=source_check();write(trial/'host-source-check-before.json',before)
+            if not before['matched']: raise RuntimeError('Frozen host input changed before execution')
+            command(['docker','network','create','--internal','--label',f'healthcraft.reconciliation={RUN}',network],trial/'network-create.json')
+            command(['docker','run','-d','--name',container,'--label',f'healthcraft.reconciliation={RUN}','--network',network,'--network-alias','healthcraft-ehr','--read-only','--tmpfs','/tmp','--mount',f'type=bind,src={temporary},dst=/run/reconciliation,readonly','--mount',f'type=bind,src={capture},dst=/capture',f'healthcraft-reconciliation-backend:{RUN}','python','-m','healthcraft.reconciliation.http_service','--host','0.0.0.0','--public-token-file','/run/reconciliation/public','--admin-token-file','/run/reconciliation/admin','--output-dir','/capture/session'],trial/'backend-start.json')
+            port=True  # Coordinator bridge is available; no host port is published.
+            for attempt in range(10):
+                try:
+                    if bridge('GET','/health')['status']==200: break
+                except (RuntimeError,ValueError): pass
+                time.sleep(.1)
+            else: raise RuntimeError('Backend failed readiness')
+            command(['docker','network','inspect',network],trial/'network-inspect.json')
+            # Disposable client shares exactly the task's internal network. No real patient data.
+            probe="import json,socket,pathlib,sys; r={'python':sys.version,'private_source_present':pathlib.Path('/app/src/healthcraft').exists()}; s=socket.create_connection(('healthcraft-ehr',8080),2);s.close();r['backend_tcp']=True; s=socket.socket();s.settimeout(2);r['public_tcp_connect_ex']=s.connect_ex(('1.1.1.1',443));s.close();print(json.dumps(r))"
+            network_result=command(['docker','run','--rm','--network',network,'--label',f'healthcraft.reconciliation={RUN}',f'healthcraft-reconciliation-agent:{RUN}','python','-c',probe],trial/'network-probe.json')
+            observed=json.loads(network_result['stdout']);assert observed['backend_tcp'] and observed['public_tcp_connect_ex']!=0 and not observed['private_source_present']
+            env={'PATH':os.environ['PATH'],'HOME':os.environ['HOME'],'PYTHONPATH':str(ROOT)+':'+str(ROOT/'src'),'LITELLM_LOCAL_MODEL_COST_MAP':'True','LITELLM_MODE':'PRODUCTION','HC_RECONCILIATION_TOKEN':public}
+            if item['arm']=='direct':
+                process=command(['/private/tmp/healthcraft-harbor-080-runtime/bin/python',str(ROOT/'scripts/reconciliation_model_trial.py'),'--model-config',str(trial/'model-config.json'),'--instruction',str(ROOT/'configs/evaluation/reconciliation_v1/instruction.md'),'--output-dir',str(trial/'direct'),'--backend-container',container],trial/'direct-process.json',env=env,timeout=900,check=False)
+                receipt=json.loads((trial/'direct/receipt.json').read_text()) if (trial/'direct/receipt.json').exists() else {}
+                completed=process['returncode']==0 and receipt.get('status')=='terminated' and receipt.get('sources_unchanged') is True
+                result['controller_receipt']=receipt
+            else:
+                task=trial/'task';(task/'environment').mkdir(parents=True);(task/'tests').mkdir()
+                shutil.copyfile(ROOT/'configs/evaluation/reconciliation_v1/instruction.md',task/'instruction.md')
+                (task/'task.toml').write_text('version = "1.2"\n[metadata]\ndescription = "Original synthetic reconciliation; Harbor reward is connectivity only"\n[agent]\ntimeout_sec = 900\n[verifier]\ntimeout_sec = 30\n[environment]\ndocker_image = "healthcraft-reconciliation-agent:'+RUN+'"\nallow_internet = true\ncpus = 1\nmemory_mb = 512\n')
+                (task/'environment/docker-compose.yaml').write_text('services:\n  main:\n    environment:\n      HC_RECONCILIATION_URL: http://healthcraft-ehr:8080\n      HC_RECONCILIATION_TOKEN: ${HC_RECONCILIATION_TOKEN:?required}\n    networks:\n      - reconciliation\nnetworks:\n  reconciliation:\n    external: true\n    name: '+network+'\n')
+                (task/'tests/test.sh').write_text('#!/bin/sh\nset -eu\nprintf "0\\n" > /logs/verifier/reward.txt\npython /usr/local/bin/hc-ehr.py tools > /logs/verifier/tools.json\nprintf "1\\n" > /logs/verifier/reward.txt\n')
+                env={'PATH':os.environ['PATH'],'HOME':os.environ['HOME'],'PYTHONPATH':str(ROOT)+':'+str(ROOT/'src'),'LITELLM_LOCAL_MODEL_COST_MAP':'True','LITELLM_MODE':'PRODUCTION','HC_RECONCILIATION_TOKEN':public}
+                process=command(['/private/tmp/healthcraft-harbor-080-runtime/bin/python',str(ROOT/'scripts/harbor_reconciliation_trial.py'),'--task-dir',str(task),'--output-dir',str(trial/'harbor'),'--patient-id','PAT-AAAAAAAA','--encounter-id','ENC-AAAAAAAA','--mode','model','--model-config',str(trial/'model-config.json'),'--timeout-sec','900'],trial/'harbor-process.json',env=env,timeout=900,check=False)
+                receipt=json.loads((trial/'harbor/receipt.json').read_text()) if (trial/'harbor/receipt.json').exists() else {}
+                completed=process['returncode']==0 and receipt.get('controller_completed') is True
+                result['harbor_receipt']=receipt
+            after=source_check();write(trial/'host-source-check-after.json',after)
+            completed=completed and after['matched']
+            result['status']='completed' if completed else 'failed'; result['completion']={'status':result['status']}
+            if not after['matched']: result['completion']['error']={'type':'SourceIdentityDrift'}
+        except BaseException as exc:
+            result['status']='failed';result['completion']={'status':'failed','error':{'type':type(exc).__name__,'message':str(exc)}}
+        finally:
+            write(trial/'controller-outcome.json',result)
+            if port is not None:
+                try:
+                    reply=bridge('POST','/_control/finalize',result['completion'],private=True)
+                    write(trial/'finalization-receipt.json',reply)
+                except Exception as exc: write(trial/'finalization-error.json',{'type':type(exc).__name__,'message':str(exc)})
+            command(['docker','logs',container],trial/'backend-logs.json',check=False)
+            command(['docker','stop','--time','10',container],trial/'backend-stop.json',timeout=20,check=False)
+            command(['docker','rm',container],trial/'backend-remove.json',check=False)
+            # SDK may leave stopped task containers when delete=False; remove only this trial project.
+            scheduled=trial/'harbor/scheduled.json'
+            try:
+                if scheduled.exists():
+                    project=json.loads(scheduled.read_text())['trial_name']
+                    observed=command(['docker','ps','-aq','--filter','label=com.docker.compose.project='+project],trial/'harbor-container-inspection.json',check=False)
+                    own=observed['stdout'].split() if observed['returncode']==0 else []
+                    if own: command(['docker','rm','-f',*own],trial/'harbor-container-cleanup.json',check=False)
+            except Exception as exc:
+                result.setdefault('cleanup_errors',[]).append({'stage':'harbor_container_inspection','type':type(exc).__name__,'message':str(exc)})
+            command(['docker','network','rm',network],trial/'network-remove.json',check=False)
+            shutil.rmtree(temporary)
+            evidence_path=capture/'session/evidence.json'
+            try:
+                if evidence_path.exists():
+                    evidence=json.loads(evidence_path.read_text());result['oracle']=verify_reconciliation(load_scenario(),load_expectations(),evidence)
+                    result['actual_call_count']=len(evidence['calls']);result['stored_note_count']=len(evidence['after']['entities']['clinical_note'])
+                else: result['evidence_error']={'type':'MissingEvidence'}
+            except Exception as exc:
+                result['evidence_error']={'type':type(exc).__name__,'message':str(exc)}
+            try:
+                import urllib.request
+                opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with opener.open('http://127.0.0.1:11434/api/ps',timeout=5) as response: resident=json.load(response)
+                write(trial/'residency-after.json',resident)
+                residency_blocked=bool(resident.get('models'))
+            except Exception as exc:
+                residency_blocked=True
+                write(trial/'residency-after-error.json',{'type':type(exc).__name__,'message':str(exc)})
+            write(trial/'result.json',result);results.append(result)
+            print(json.dumps({'id':item['id'],'status':result['status'],'mechanical_passed':None if result['oracle'] is None else result['oracle']['mechanical_passed'],'residency_blocked':residency_blocked}),flush=True)
+    write(OUT/'summary.json',{'roster':ROSTER,'results':results,'all_attempts_recorded':[r['id'] for r in results]==[r['id'] for r in ROSTER],'scheduled_attempts':4,'benchmark_score':None,'no_superiority_claim':True})
+
+try:
+    _execute_roster()
+except BaseException as exc:
+    finalize_unfinished(OUT,ROSTER,{'type':type(exc).__name__,'message':str(exc)})
+    raise

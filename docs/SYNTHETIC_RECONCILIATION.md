@@ -99,6 +99,22 @@ fences. Each stopped after one response, before any tool action or note write.
 The frozen strict parser made no repairs or retries. These are command-format
 failures, not clinical findings or a model ranking.
 
+The separately frozen [structured-output follow-up](../artifacts/reconciliation/20260930/local-model-pilot-v2/README.md)
+reached real note writes in Harbor, while both direct attempts exposed a macOS
+filesystem-alias preparation bug. That one-line path repair was reproduced with
+TDD before the [third cohort](../artifacts/reconciliation/20260930/local-model-pilot-v3/README.md).
+All four third-cohort attempts terminated normally and stored one note each;
+none satisfied the independent reconciliation contract. The notes contain
+incorrect scope exclusions. An actual stored note is distinct from the oracle's
+content-qualified `persisted_action` check; likewise, reading back an incorrect
+note does not satisfy its `readback` check. All earlier attempts remain retained.
+
+The optional native command schema is identified separately from the prompt
+hash. Changing this decoding condition created a new development cohort; it
+did not repair or replace the first pilot's failed responses. These open-case
+attempts provide software and workflow diagnostics, not a held-out reliability
+estimate or comparator performance claim.
+
 Operator-value measurement, independent clinical review and held-out
 evaluation remain unperformed. Ordinary TDD and peer
 review here are not the final formal red team. The release gate remains

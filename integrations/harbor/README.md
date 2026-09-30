@@ -202,3 +202,46 @@ CLI argument, exit code, controller completion nor Harbor connectivity reward
 declares source fidelity, persistence or clinical success. Obtain the separate
 mechanical checks from the finalized private backend; clinical assessment
 remains unassessed. The scripted evidence linked above contains no model runs.
+
+## Explicit structured command decoding
+
+The [first model pilot](../../artifacts/reconciliation/20260930/local-model-pilot-v1/README.md)
+retains four command-format failures before tool use. It used the five-field
+configuration above, with no native `format` field. Its results are unchanged.
+
+An optional sixth configuration field, `command_format`, selects a separately
+versioned decoding condition. Obtain its exact `{version, sha256}` identity
+from `command_format_identity()` in
+`healthcraft.reconciliation.controller`; the version is
+`healthcraft-reconciliation-command/v2`. Freeze this identity before the new
+roster starts. Both adapters validate it before model access and pass the same
+identity to the controller and local client. Unknown versions, changed schema
+digests, missing identity members and explicit null are rejected. Omitting the
+sixth field retains the original unconstrained wire behavior.
+
+The native Ollama request receives a top-level `format` JSON Schema with two
+closed alternatives: a call with an advertised tool name and object parameters,
+or a finish marker. Parameters remain open; their actual validation belongs to
+the tool handlers. The schema contains no expected source facts or note content.
+Its identity is separate from `initial_messages_sha256`, because message hashes
+do not cover decoding settings. The complete native schema is recorded before
+dispatch, alongside raw responses and errors.
+
+Ollama documents [native structured output](https://docs.ollama.com/capabilities/structured-outputs)
+and its pinned runner supports a [subset of JSON Schema](https://github.com/ggml-org/llama.cpp/blob/b11081/grammars/README.md).
+Constrained decoding does not replace strict response parsing, native completion
+checks, tool validation, source verification or readback. An unsupported format
+fails the attempt; no unconstrained fallback, fence repair or retry is applied.
+Changes after inspecting an earlier cohort require a fresh protocol and roster,
+and cannot be presented as a held-out comparison.
+
+The [third local cohort](../../artifacts/reconciliation/20260930/local-model-pilot-v3/README.md)
+exercised both transports after a tested macOS source-path alias repair. Four
+attempts completed with 22 native requests, 18 tool calls and four stored notes.
+Saved native requests matched at every turn across arms within each model.
+All four notes failed the independent reconciliation contract because scope
+exclusions were wrong. MedGemma performed note readback; Nano did not. Reading
+back an incorrect note does not satisfy the oracle's correct-note verification
+axis. This is an open-fixture development result, not a reliability estimate,
+clinical assessment, operator study or superiority claim. The earlier format
+and preparation failures remain in their original cohorts.

@@ -1,0 +1,179 @@
+"""Read-only saved-evidence review; performs no model or Docker requests."""
+from pathlib import Path
+import hashlib
+import json
+import math
+import socket
+import sys
+from datetime import datetime, timezone
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+CANDIDATE = Path('/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/healthcraft-model-candidate-v3-09pbmxgu')
+OUT = ROOT / 'artifacts/reconciliation/20260930/local-model-pilot-v3'
+REVIEW = Path('/private/tmp/healthcraft-reconciliation-structured-v3/actual-model-review.json')
+
+def blocked(*args, **kwargs):
+    raise RuntimeError('Network access forbidden in saved-evidence review')
+
+socket.socket.connect = blocked
+socket.socket.connect_ex = blocked
+socket.create_connection = blocked
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError('Duplicate key: ' + key)
+        result[key] = value
+    return result
+
+def number(value):
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError('Non-finite JSON number')
+    return result
+
+def parse(text):
+    return json.loads(text, object_pairs_hook=pairs, parse_float=number, parse_constant=number)
+
+def load(path):
+    return parse(path.read_text())
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+
+def digest(value):
+    return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+def inventory(path):
+    return {str(p.relative_to(path)): sha(p) for p in sorted(path.rglob('*')) if p.is_file() and '__pycache__' not in p.parts}
+
+if not (OUT / 'summary.json').exists():
+    print(json.dumps({'status': 'waiting_for_complete_summary'}))
+    raise SystemExit(3)
+summary = load(OUT / 'summary.json')
+roster = load(OUT / 'roster.json')
+protocol = load(OUT / 'protocol.json')
+manifest = load(CANDIDATE / 'manifest.json')
+original_inventory = inventory(OUT)
+checks = {}
+findings = []
+
+def check(name, condition):
+    checks[name] = bool(condition)
+    if not condition:
+        findings.append({'check': name, 'message': 'Saved-evidence consistency check failed'})
+
+check('candidate_manifest_all442_files', {k: v for k, v in inventory(CANDIDATE).items() if k != 'manifest.json'} == manifest and len(manifest) == 442)
+check('host_manifest_exact_frozen_candidate', load(OUT / 'host-input-manifest.json') == manifest)
+check('protocol_matches_predeclared_file', sha(OUT / 'protocol.json') == sha(REVIEW.parent / 'protocol.json'))
+check('driver_matches_preflight_reviewed_file', sha(OUT / 'run_model_pilot.py.txt') == sha(REVIEW.parent / 'run_model_pilot.py'))
+check('roster_exact_four_predeclared_opportunities', roster['roster'] == protocol['schedule'] and roster['scheduled_attempts'] == 4 and summary['scheduled_attempts'] == 4 and summary['roster'] == roster['roster'])
+check('complete_summary_denominator', summary['all_attempts_recorded'] is True and [r['id'] for r in summary['results']] == [r['id'] for r in roster['roster']])
+check('zero_declared_retries_or_repairs', roster['retries'] == roster['automatic_format_repairs'] == protocol['retries'] == protocol['automatic_format_repairs'] == 0)
+check('no_clinical_or_benchmark_claim', summary['benchmark_score'] is None and summary['no_superiority_claim'] is True and roster['clinical_assessment'] == 'unassessed')
+json_count = jsonl_count = 0
+for relative in original_inventory:
+    path = OUT / relative
+    if path.suffix == '.json':
+        load(path)
+        json_count += 1
+    elif path.suffix == '.jsonl':
+        for line in path.read_text().splitlines():
+            if line.strip(): parse(line)
+        jsonl_count += 1
+check('all_saved_json_strict_finite_unique_keys', True)
+sys.path.insert(0, str(CANDIDATE / 'src'))
+from healthcraft.reconciliation.oracle import load_expectations, verify_reconciliation
+import healthcraft.reconciliation.oracle as oracle_module
+check('replay_uses_exact_frozen_oracle', Path(oracle_module.__file__).resolve() == (CANDIDATE / 'src/healthcraft/reconciliation/oracle.py').resolve() and sha(Path(oracle_module.__file__)) == manifest['src/healthcraft/reconciliation/oracle.py'])
+scenario = load(CANDIDATE / 'configs/evaluation/reconciliation_v1/scenario.json')
+expected = load_expectations(CANDIDATE / 'configs/evaluation/reconciliation_v1/expectations.json')
+models = {m['alias']: m for m in protocol['models']}
+requests = {}
+trials = []
+for declared, summarized in zip(roster['roster'], summary['results']):
+    ident = declared['id']; path = OUT / ident
+    result = load(path / 'result.json')
+    evidence_path = path / 'backend/session/evidence.json'
+    evidence = load(evidence_path)
+    harbor = declared['arm'] == 'harbor'
+    outer = result['harbor_receipt'] if harbor else result['controller_receipt']
+    agent = outer['agent'] if harbor else outer
+    config = outer['model_config'] if harbor else agent['config']
+    exchanges = agent['model_exchanges']
+    controller = agent['controller']
+    model = models[declared['model']]
+    prefix = ident + ':'
+    check(prefix + 'summary_matches_trial', result == summarized)
+    check(prefix + 'scheduled_identity', all(result[k] == v for k, v in declared.items()))
+    check(prefix + 'one_scheduled_attempt', (outer['scheduled_trials'] == outer['recorded_trials'] == 1) if harbor else agent['scheduled_attempts'] == 1)
+    check(prefix + 'config_exact_protocol', config == {'model': model['alias'], 'expected_digest': model['expected_digest'], 'expected_runtime': model['expected_runtime'], 'settings': protocol['settings'], 'initial_messages_sha256': protocol['common_interface']['initial_messages_sha256'], 'command_format': protocol['command_format']})
+    check(prefix + 'identity_before_after_equal', agent['identity_before'] == agent['identity_after'])
+    check(prefix + 'recorded_model_runtime_identity', all(agent['identity_before'].get(k) == v for k, v in {'model':model['alias'], 'model_digest':model['expected_digest'], 'runtime_version':model['expected_runtime'], 'num_ctx':32768, 'seed':42, 'think':False, 'base_url':'http://127.0.0.1:11434'}.items()))
+    for moment in ['before', 'after']:
+        source = load(path / ('host-source-check-' + moment + '.json'))
+        check(prefix + 'all442_source_hashes_' + moment, source == {'matched':True, 'files_checked':442, 'differences':[]})
+    if not harbor:
+        check(prefix + 'direct18_hashes_unchanged_match_frozen', agent['sources_unchanged'] is True and agent['source_hashes_before'] == agent['source_hashes_after'] and all(manifest.get(k) == v for k, v in agent['source_hashes_before'].items()))
+    first_messages = exchanges[0]['request']['messages']
+    prompt_sha = digest(first_messages)
+    check(prefix + 'actual_initial_messages_identity', prompt_sha == agent['initial_messages_sha256_expected'] == agent['initial_messages_sha256_actual'] == protocol['common_interface']['initial_messages_sha256'])
+    check(prefix + 'command_schema_digest', digest(protocol['command_schema']) == protocol['command_format']['sha256'])
+    check(prefix + 'count_bound_and_contiguous', agent['model_calls'] == len(exchanges) <= protocol['settings']['max_model_responses'] and [e['index'] for e in exchanges] == list(range(1, len(exchanges) + 1)))
+    native_requests = [e['request'] for e in exchanges]
+    requests[ident] = native_requests
+    check(prefix + 'every_native_request_settings', all(set(r) == ({'format','keep_alive','messages','model','options','stream','think'} if 'thinking' in model['declared_capabilities'] else {'format','keep_alive','messages','model','options','stream'}) and r['format'] == protocol['command_schema'] and r['model'] == model['alias'] and r['stream'] is False and (r.get('think') is False if 'thinking' in model['declared_capabilities'] else 'think' not in r) and r['keep_alive'] == 0 and r['options'] == {'num_ctx':32768,'num_predict':4096,'seed':42,'temperature':0.0} for r in native_requests))
+    check(prefix + 'raw_provider_natural_completion', all(e['error'] is None and e['response']['model'] == model['alias'] and e['response']['done'] is True and e['response']['done_reason'] == 'stop' and e['response']['message']['role'] == 'assistant' for e in exchanges))
+    commands = [parse(e['response']['message']['content']) for e in exchanges]
+    check(prefix + 'unrepaired_commands_bind_actual_tools', commands[-1] == {'action':'finish'} and [x for x in commands if x['action']=='call'] == [r['command'] for r in controller['calls']])
+    check(prefix + 'tools_bind_backend_receipts', [{'name':r['command']['name'],'params':r['command']['params'],'response':r['response']} for r in controller['calls']] == [{k:r[k] for k in ['name','params','response']} for r in evidence['calls']])
+    model_log = next(path.rglob('model-events.jsonl')) if harbor else path / 'direct/model.jsonl'
+    journal = [parse(line) for line in model_log.read_text().splitlines()]
+    dispatched = [r['exchange'] for r in journal if r['event']=='model_dispatched']
+    returned = [r['exchange'] for r in journal if r['event']=='model_returned']
+    check(prefix + 'journal_exact_dispatch_return_denominator', len(dispatched) == len(returned) == len(exchanges) and returned == exchanges and [r['request'] for r in dispatched] == native_requests)
+    tool_journal = [parse(line) for line in (path/'backend/session/journal/calls.jsonl').read_text().splitlines()]
+    check(prefix + 'tool_journal_matches_finalized_evidence', [r['call'] for r in tool_journal if r['event']=='returned'] == evidence['calls'] and len([r for r in tool_journal if r['event']=='requested']) == len(evidence['calls']) == result['actual_call_count'])
+    check(prefix + 'completion_bindings', controller['completion'] == {'status':'terminated','reason':'model_finish'} and result['completion'] == evidence['completion'] == {'status':'completed'} and outer['status'] == ('completed' if harbor else 'terminated'))
+    replay = verify_reconciliation(scenario, expected, evidence)
+    check(prefix + 'frozen_oracle_exact_replay', replay == result['oracle'])
+    final = load(path/'finalization-receipt.json')
+    check(prefix + 'finalized_evidence_bytes_bound', final == {'status':200,'body':{'status':'ok','sha256':sha(evidence_path)}})
+    note_records = list(evidence['after']['entities']['clinical_note'].values())
+    check(prefix + 'stored_note_count', len(note_records) == result['stored_note_count'])
+    writes = [c for c in evidence['calls'] if c['name']=='updateEncounter' and 'notes' in c['params']]
+    check(prefix + 'stored_note_exact_actual_write', len(note_records)==1 and len(writes)==1 and note_records[0]['content'] == writes[0]['params']['notes'] and note_records[0]['patient_id']==expected['target']['patient_id'] and note_records[0]['encounter_id']==expected['target']['encounter_id'])
+    note = parse(note_records[0]['content'])
+    expobs = {r['source_id']:r for r in expected['sources'] if r['source_id'] in expected['observation_source_ids']}
+    obs = {r['source_id']:r for r in note['observations']}
+    notes_detail = {'target_observations_exact':obs == expobs, 'target_observations_count':len(note['observations']), 'conflicts_exact':note['unresolved_conflicts'] == expected['unresolved_conflicts'], 'expected_scope_exclusions':expected['scope_exclusions'], 'actual_scope_exclusions':note['scope_exclusions'], 'scope_exclusions_exact':note['scope_exclusions']==expected['scope_exclusions'], 'encounters_retrieved':[c['params']['encounter_id'] for c in evidence['calls'] if c['name']=='getEncounterDetails'], 'postwrite_readback_calls':sum(c['name']=='getEncounterDetails' for c in evidence['calls'][evidence['calls'].index(writes[0])+1:]), 'postwrite_exact_final_encounter_readback':any(c['name']=='getEncounterDetails' and c['params'].get('encounter_id')==expected['target']['encounter_id'] and c['response'].get('data')==evidence['after']['entities']['encounter'][expected['target']['encounter_id']] for c in evidence['calls'][evidence['calls'].index(writes[0])+1:]), 'native_think_wire_field':'false' if 'think' in native_requests[0] else 'omitted_for_model_without_thinking_capability'}
+    cleanup = {name:load(path/name)['returncode'] for name in ['backend-stop.json','backend-remove.json','network-remove.json']}
+    check(prefix + 'cleanup_command_receipts_success', all(v == 0 for v in cleanup.values()))
+    check(prefix + 'residency_empty_after_attempt', load(path/'residency-after.json') == {'models':[]})
+    harbor_details = None
+    if harbor:
+        inspect = load(path/'harbor-container-inspection.json')
+        check(prefix + 'harbor_container_inspection_empty', inspect['returncode']==0 and inspect['stdout']=='')
+        hresult = load(path/'harbor/harbor-result.json')
+        check(prefix + 'actual_harbor_trial_connectivity_verifier', outer['harbor_version']=='0.8.0' and outer['harbor_commit']=='22b83271db78ef4bcbeb2402cdd154979cf87912' and hresult['exception_info'] is None and hresult['verifier_result']=={'rewards':{'reward':1.0}} and outer['verifier_scope']=='terminal_connectivity_only')
+        probe = agent['environment_probe']['parsed']
+        check(prefix + 'container_probe_declared_limited_results', probe['backend_tcp'] is True and all(v is False for v in probe['private_paths_present'].values()) and probe['public_tcp_connect_ex']!=0)
+        harbor_details = {'version':outer['harbor_version'],'commit':outer['harbor_commit'],'connectivity_reward':1.0,'verifier_scope':outer['verifier_scope'],'containers_remaining_in_recorded_inspection':0,'limited_probe':probe,'mount_destinations':[m['Destination'] for m in agent['host_container_inspection']['parsed']['Mounts']]}
+    trials.append({'id':ident,'model':model['alias'],'arm':declared['arm'],'model_requests':len(exchanges),'tool_calls':len(evidence['calls']),'tools':[c['name'] for c in evidence['calls']],'stored_notes':len(note_records),'completion':result['completion'],'oracle':replay,'note_mechanical_comparison':notes_detail,'native_request_sha256':[digest(r) for r in native_requests],'cleanup_returncodes':cleanup,'residency_after':{'models':[]},'harbor':harbor_details,'evidence_sha256':sha(evidence_path),'result_sha256':sha(path/'result.json')})
+parity = []
+for model in protocol['models']:
+    ids={x['arm']:x['id'] for x in roster['roster'] if x['model']==model['alias']}
+    direct,harbor=requests[ids['direct']],requests[ids['harbor']]
+    same=[canonical(a)==canonical(b) for a,b in zip(direct,harbor)]
+    parity.append({'model':model['alias'],'direct_request_count':len(direct),'harbor_request_count':len(harbor),'initial_request_exact_equal':canonical(direct[0])==canonical(harbor[0]),'all_request_objects_exact_equal':len(direct)==len(harbor) and all(same),'aligned_request_equality':same,'scope':'Exact full saved native request JSON objects under canonical serialization, including unmodified message content. Wire HTTP bytes are not captured; response timing metadata is not required equal.'})
+check('frozen_candidate_stable_after_review', {k:v for k,v in inventory(CANDIDATE).items() if k!='manifest.json'} == manifest)
+check('all_original_saved_artifact_bytes_stable_during_review', all((OUT/k).is_file() and sha(OUT/k)==v for k,v in original_inventory.items()))
+result={'schema_version':'reconciliation-v3-actual-model-review/v1','reviewed_at':datetime.now(timezone.utc).isoformat(),'review_kind':'ordinary development evidence review; not formal red team','status':'passed' if not findings else 'findings','findings':findings,'model_calls_by_reviewer':0,'checks':checks,'reviewed_artifact':str(OUT),'candidate':str(CANDIDATE),'candidate_manifest_sha256':sha(CANDIDATE/'manifest.json'),'frozen_oracle_sha256':manifest['src/healthcraft/reconciliation/oracle.py'],'artifact_file_count_at_start':len(original_inventory),'artifact_inventory_sha256':digest(original_inventory),'json_files_checked':json_count,'jsonl_files_checked':jsonl_count,'scheduled_attempts':4,'trials':trials,'request_parity':parity,'limitations':['All outcomes are from one open synthetic development fixture, one attempt per model/arm; no ranking, reliability, causal improvement, clinical safety or superiority claim.','Mechanical persisted_action is content-qualified; a false axis does not mean no note was stored.','No transport reruns, inference, Docker calls or runtime metadata endpoints were invoked for this review. A process-local socket guard rejected network access.','Saved source hashes, trace consistency and cleanup receipts are checked, not cryptographically authenticated; cleanup reflects recorded inspections, not a new daemon query.','Native request object equality does not establish raw HTTP byte identity, identical responses across repeated experiments, or deterministic execution.','Container probe covers one public TCP destination and listed paths only; no comprehensive isolation claim.'], 'review_script_sha256':sha(Path(__file__)), 'checker_correction':{'superseded_receipt':'actual-model-review-initial-checker.json','superseded_receipt_sha256':sha(REVIEW.parent/'actual-model-review-initial-checker.json'),'reason':'Initial checker incorrectly required think:false on all models. Frozen OllamaClient injects the native think field only for models declaring thinking capability. MedGemma declares completion only, so omission is expected in both arms; configured think remains false. Corrected checker matches the frozen implementation; no runtime/model artifacts changed.'}}
+with REVIEW.open('x') as f:
+    json.dump(result,f,indent=2,sort_keys=True,allow_nan=False)
+    f.write('\n')
+print(json.dumps({'status':result['status'],'checks':len(checks),'findings':findings,'receipt':str(REVIEW),'sha256':sha(REVIEW),'parity':parity}))

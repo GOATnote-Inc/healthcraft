@@ -1,0 +1,84 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_reviewed_format_identity_is_accepted_with_five_legacy_fields _______
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+
+    def test_reviewed_format_identity_is_accepted_with_five_legacy_fields(api):
+        identity = {
+            "version": "healthcraft-reconciliation-command/v2",
+            "sha256": "40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794",
+        }
+        value = {**config(), "command_format": identity}
+>       normalized, _ = api._model_config(value)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_scripts/test_reconciliation_model_trial.py:557: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = {'command_format': {'sha256': '40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794', 'version': 'healthcr...runtime': '0.34.4', 'initial_messages_sha256': '752d08c145f296615ce72731f22082002ae346f2309206b68f90184695ee615a', ...}
+
+    def _model_config(value):
+        value = (
+            _json_object(value.read_bytes())
+            if isinstance(value, Path)
+            else _json_object(canonical_json(value))
+        )
+        if set(value) != {
+            "model",
+            "expected_digest",
+            "expected_runtime",
+            "settings",
+            "initial_messages_sha256",
+        }:
+>           raise ValueError(
+                "Model config must contain exactly the five public identity/settings fields"
+            )
+E           ValueError: Model config must contain exactly the five public identity/settings fields
+
+scripts/reconciliation_model_trial.py:108: ValueError
+_ HarborModelContracts.test_reviewed_format_identity_is_accepted_with_five_legacy_fields _
+
+self = <test_harbor_reconciliation_model.HarborModelContracts testMethod=test_reviewed_format_identity_is_accepted_with_five_legacy_fields>
+
+    def test_reviewed_format_identity_is_accepted_with_five_legacy_fields(self):
+        identity = {
+            "version": "healthcraft-reconciliation-command/v2",
+            "sha256": "40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794",
+        }
+        self.config["command_format"] = identity
+>       normalized = self.module.validate_model_config(self.config)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_scripts/test_harbor_reconciliation_model.py:294: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = {'command_format': {'sha256': '40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794', 'version': 'healthcr...runtime': '0.34.4', 'initial_messages_sha256': '0000000000000000000000000000000000000000000000000000000000000000', ...}
+
+    def validate_model_config(value: dict) -> dict:
+        """Require all frozen settings explicitly, with no provider/default fallback."""
+        if type(value) is not dict or set(value) != {
+            "model",
+            "expected_digest",
+            "expected_runtime",
+            "settings",
+            "initial_messages_sha256",
+        }:
+>           raise ValueError(
+                "Expected exactly model, expected_digest, expected_runtime, settings "
+                "and initial_messages_sha256"
+            )
+E           ValueError: Expected exactly model, expected_digest, expected_runtime, settings and initial_messages_sha256
+
+scripts/harbor_reconciliation_model.py:39: ValueError
+=============================== warnings summary ===============================
+../../../private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434
+  /private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_reviewed_format_identity_is_accepted_with_five_legacy_fields
+FAILED tests/test_scripts/test_harbor_reconciliation_model.py::HarborModelContracts::test_reviewed_format_identity_is_accepted_with_five_legacy_fields
+2 failed, 62 deselected, 1 warning in 0.16s

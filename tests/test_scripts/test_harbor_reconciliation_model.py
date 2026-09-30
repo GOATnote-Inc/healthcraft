@@ -11,6 +11,7 @@ import shlex
 import tempfile
 import threading
 import unittest
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
@@ -120,6 +121,8 @@ class HarborModelContracts(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["identity_before"]["model_digest"], "a" * 64)
         self.assertEqual(state["identity_after"]["model_digest"], "a" * 64)
         self.assertNotIn("tools", self.requests[0])
+        self.assertNotIn("format", self.requests[0])
+        self.assertNotIn("command_format", state["model_config"])
         self.assertIs(self.requests[0]["think"], False)
         self.assertEqual(
             self.requests[0]["options"],
@@ -251,6 +254,98 @@ class HarborModelContracts(unittest.IsolatedAsyncioTestCase):
                 await agent.run("Public", env, self.context)
         client.assert_not_called()
         self.assertEqual(agent.snapshot()["model_calls"], 0)
+
+    async def test_structured_config_is_detached_and_reaches_both_shared_components(self):
+        self.config["command_format"] = self.api.command_format_identity()
+        original = deepcopy(self.config)
+        normalized = self.module.validate_model_config(self.config)
+        self.assertEqual(normalized, original)
+        normalized["command_format"]["sha256"] = "0" * 64
+        self.assertEqual(self.config, original)
+        agent, env = self.agent(), self.environment()
+        with self.provider(['{"action":"finish"}']):
+            await agent.setup(env)
+            await agent.run("Public", env, self.context)
+        state = agent.snapshot()
+        identity = self.api.command_format_identity()
+        self.assertEqual(state["model_config"]["command_format"], identity)
+        self.assertEqual(state["controller"]["command_format"], identity)
+        self.assertEqual(state["completion"]["status"], "completed")
+        self.assertEqual(len(self.requests), 1)
+        self.assertEqual(self.requests[0]["format"], self.api.command_format_schema())
+        self.assertIs(self.requests[0]["think"], False)
+        self.assertNotIn("tools", self.requests[0])
+        self.assertEqual(
+            self.requests[0]["options"],
+            {"temperature": 0.0, "seed": 42, "num_ctx": 32768, "num_predict": 4096},
+        )
+        events = [
+            json.loads(line) for line in (self.root / "model-events.jsonl").read_text().splitlines()
+        ]
+        dispatched = [row for row in events if row["event"] == "model_dispatched"]
+        self.assertEqual(dispatched[0]["exchange"]["request"], self.requests[0])
+
+    def test_reviewed_format_identity_is_accepted_with_five_legacy_fields(self):
+        identity = {
+            "version": "healthcraft-reconciliation-command/v2",
+            "sha256": "40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794",
+        }
+        self.config["command_format"] = identity
+        normalized = self.module.validate_model_config(self.config)
+        self.assertEqual(normalized, self.config)
+        normalized["command_format"]["sha256"] = "0" * 64
+        self.assertEqual(self.config["command_format"], identity)
+
+    async def test_invalid_command_format_blocks_actual_trial_creation(self):
+        from harbor.trial.trial import Trial
+
+        valid = self.api.command_format_identity()
+        values = [
+            None,
+            {},
+            "json",
+            {"version": valid["version"]},
+            {"sha256": valid["sha256"]},
+            {**valid, "version": "unrecognized"},
+            {**valid, "sha256": "0" * 64},
+            {**valid, "schema": {}},
+        ]
+        for index, identity in enumerate(values):
+            with self.subTest(identity=identity):
+                value = {**self.config, "command_format": identity}
+                with patch.object(Trial, "create", AsyncMock()) as create:
+                    with patch.object(self.module, "RecordingOllamaClient") as client:
+                        result = await self.helper.run_trial(
+                            self.root / "unused-task",
+                            self.root / f"invalid-{index}",
+                            target={},
+                            mode="model",
+                            model_config=value,
+                        )
+                create.assert_not_awaited()
+                client.assert_not_called()
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["scheduled_trials"], 1)
+                self.assertEqual(result["recorded_trials"], 1)
+                self.assertEqual(result["model_calls"], 0)
+                self.assertEqual(result["error"]["type"], "ValueError")
+
+    async def test_structured_format_does_not_replace_initial_prompt_guard(self):
+        self.config["command_format"] = self.api.command_format_identity()
+        agent, env = self.agent("Frozen instruction"), self.environment()
+        with patch.object(self.module, "RecordingOllamaClient") as client:
+            await agent.setup(env)
+            with self.assertRaises(ValueError):
+                await agent.run("Changed instruction", env, self.context)
+        client.assert_not_called()
+        self.assertEqual(agent.snapshot()["model_calls"], 0)
+        self.assertEqual(agent.snapshot()["completion"]["status"], "failed")
+
+    def test_structured_format_still_requires_initial_prompt_digest(self):
+        self.config["command_format"] = self.api.command_format_identity()
+        del self.config["initial_messages_sha256"]
+        with self.assertRaises(ValueError):
+            self.module.validate_model_config(self.config)
 
 
 if __name__ == "__main__":

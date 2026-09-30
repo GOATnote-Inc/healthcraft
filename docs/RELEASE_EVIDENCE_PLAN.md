@@ -173,6 +173,13 @@ prevent an operator from bypassing the required publication procedure.
   failed the frozen command format after one response, before tool use. No
   attempt was retried or repaired. These outcomes diagnose an interface
   limitation; they do not measure clinical performance or comparative value.
+- Separate [structured-command cohorts](../artifacts/reconciliation/20260930/local-model-pilot-v3/README.md)
+  reached real note writes through both transports after a TDD repair of a
+  filesystem-alias preparation defect. The final four-attempt cohort terminates
+  normally but fails source reconciliation because scope exclusions are wrong.
+  Stored notes and observed readbacks remain distinct from verification of the
+  requested correct note. Earlier format/setup failures are preserved; no
+  clinical criterion, operator endpoint or superiority margin is assessed.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

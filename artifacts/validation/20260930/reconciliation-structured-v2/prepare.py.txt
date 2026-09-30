@@ -1,0 +1,98 @@
+"""Prepare a separate open-fixture decoding-condition cohort, before inference."""
+from pathlib import Path
+from datetime import datetime, timezone
+import ast, hashlib, json, shutil, tempfile, textwrap
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+WORK = Path('/private/tmp/healthcraft-reconciliation-structured-v2')
+BASE = ROOT / 'artifacts/reconciliation/20260930/local-model-pilot-v1'
+
+def write(path, value):
+    with path.open('x') as f:
+        json.dump(value, f, indent=2, sort_keys=True)
+        f.write('\n')
+
+def prepare():
+    from healthcraft.reconciliation.controller import command_format_identity, command_format_schema
+    candidate = Path(tempfile.mkdtemp(prefix='healthcraft-model-candidate-v2-'))
+    previous = json.loads((BASE/'host-input-manifest.json').read_text())
+    manifest = {}
+    for name in previous:
+        dst = candidate / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, dst)
+        manifest[name] = hashlib.sha256(dst.read_bytes()).hexdigest()
+    write(candidate/'manifest.json', manifest)
+    baseline = json.loads((BASE/'roster.json').read_text())
+    protocol = {
+        'schema_version': 'reconciliation-structured-decoding-pilot/v2',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'status': 'frozen_before_this_cohort; local timestamp, not external registration',
+        'purpose': 'Test whether explicitly constrained command envelopes permit the existing source-reconciliation workflow to execute.',
+        'previous_cohort': 'artifacts/reconciliation/20260930/local-model-pilot-v1',
+        'change_after_observing_v1': 'Add native format JSON Schema only; no fence stripping, repair, retries, altered messages, clinical labels or expanded budget.',
+        'coordinator_changes': 'Check the prepared candidate manifest before model access and retain explicit missing-attempt accounting on coordinator setup failure.',
+        'process_cap_limit': 'The parent kills its directly supervised child at timeout; this is not a guarantee that every descendant or an in-flight Ollama request terminates. Uncertain execution remains incomplete, followed by private evidence capture and residency checks.',
+        'command_format': command_format_identity(),
+        'command_schema': command_format_schema(),
+        'settings': baseline['settings'],
+        'models': baseline['models'],
+        'schedule': baseline['roster'],
+        'common_interface': {'initial_messages_sha256': baseline['proposed_initial_messages_sha256']},
+        'scheduled_attempts': 4,
+        'attempts_per_model_per_arm': 1,
+        'retries': 0,
+        'automatic_format_repairs': 0,
+        'denominator': 'Every scheduled attempt, including infrastructure, provider, command, tool, timeout and missing-evidence failures.',
+        'stop_rule': 'Each attempt ends on first error, model finish, sixteen responses or parent 900-second cap; if residency is unresolved, remaining scheduled attempts are recorded as not started failures.',
+        'assessment': {'mechanical_oracle': 'existing independent source/persistence oracle', 'clinical_criteria': 0, 'safety_criteria': 0, 'benchmark_score': None},
+        'limits': 'Open development fixture, no ranking/reliability estimate, held-out comparison, operator study, clinical validity or superiority claim.',
+    }
+    write(WORK/'protocol.json', protocol)
+    text = (BASE/'run_model_pilot.py.txt').read_text()
+    replacements = {
+        "ROOT=Path('/private/tmp/healthcraft-model-candidate-cla2b2pj')": f'ROOT=Path({str(candidate)!r})',
+        "PROPOSAL=json.loads(Path('/private/tmp/healthcraft-reconciliation-controller/pilot-proposal.json').read_text())": f"PROPOSAL=json.loads(Path({str(WORK/'protocol.json')!r}).read_text())",
+        "ROSTER=[{'id':r['attempt_id'].replace('native','direct'),'arm':'direct' if r['arm']=='native_mcp' else 'harbor','execution_kind':'direct_http_via_coordinator' if r['arm']=='native_mcp' else 'harbor_terminal','mode':'model','model':r['model'],'order':r['order']} for r in PROPOSAL['schedule']]": "ROSTER=PROPOSAL['schedule']",
+        "'schema_version':'reconciliation-local-model-pilot/v1'": "'schema_version':'reconciliation-local-model-pilot/v2','command_format':PROPOSAL['command_format'],'previous_cohort':PROPOSAL['previous_cohort']",
+        "'prior_controls':'harbor-transport-v1/v2 failures and v3/v4 controls retained separately'": "'prior_controls':'harbor-transport-v1/v2 infrastructure failures, v3/v4 controls and local-model-pilot-v1 format failures retained separately'",
+        "'initial_messages_sha256':PROPOSAL['common_interface']['initial_messages_sha256']}": "'initial_messages_sha256':PROPOSAL['common_interface']['initial_messages_sha256'],'command_format':PROPOSAL['command_format']}",
+        "shutil.copyfile(__file__,OUT/'run_model_pilot.py.txt')": "shutil.copyfile(__file__,OUT/'run_model_pilot.py.txt')\nwrite(OUT/'protocol.json',PROPOSAL)\nfrom healthcraft.reconciliation.controller import command_format_identity, command_format_schema\nif command_format_identity()!=PROPOSAL['command_format'] or command_format_schema()!=PROPOSAL['command_schema']:\n    raise RuntimeError('Frozen command schema differs from captured protocol before model access')",
+    }
+    for before, after in replacements.items():
+        assert text.count(before) == 1, before
+        text = text.replace(before, after)
+    project_imports = [
+        'from healthcraft.reconciliation.fixture import load_scenario',
+        'from healthcraft.reconciliation.oracle import load_expectations,verify_reconciliation',
+        'from healthcraft.reconciliation.terminal import request_json',
+        'from healthcraft.reconciliation.controller import reference_commands',
+    ]
+    for statement in project_imports:
+        assert text.count(statement + '\n') == 1
+        text = text.replace(statement + '\n', '')
+    expected_manifest = hashlib.sha256((candidate/'manifest.json').read_bytes()).hexdigest()
+    guard = (
+        f"if hashlib.sha256((ROOT/'manifest.json').read_bytes()).hexdigest()!={expected_manifest!r} "
+        "or HOST_INPUTS!=json.loads((ROOT/'manifest.json').read_text()):\n"
+        "    raise RuntimeError('Prepared candidate manifest differs before execution')\n"
+    )
+    marker = "write(OUT/'host-input-manifest.json',HOST_INPUTS)"
+    assert text.count(marker) == 1
+    text = text.replace(marker, guard + marker + '\n' + '\n'.join(project_imports))
+    before, body = text.split('HOST_INPUTS={', 1)
+    text = before + 'def _execute_roster():\n' + textwrap.indent('HOST_INPUTS={' + body, '    ')
+    text += (
+        "\ntry:\n    _execute_roster()\nexcept BaseException as exc:\n"
+        "    finalize_unfinished(OUT,ROSTER,{'type':type(exc).__name__,'message':str(exc)})\n"
+        "    raise\n"
+    )
+    helper = (WORK/'failure_accounting.py').read_text()
+    text = helper + '\n\n' + text
+    ast.parse(text)
+    (WORK/'run_model_pilot.py').write_text(text)
+    write(WORK/'preparation.json', {'candidate':str(candidate),'files':len(manifest),'driver_sha256':hashlib.sha256(text.encode()).hexdigest(),'protocol_sha256':hashlib.sha256((WORK/'protocol.json').read_bytes()).hexdigest(),'baseline_commit':'4ed92c30b4fb0aa0ae543f0dfaf2656dc6120d12'})
+    print(json.dumps({'candidate':str(candidate),'files':len(manifest),'protocol':str(WORK/'protocol.json')}))
+
+if __name__ == '__main__':
+    prepare()
