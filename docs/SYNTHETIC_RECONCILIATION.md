@@ -11,6 +11,11 @@ current encounter; one belongs to that patient's other encounter and one to
 the other patient. This is a development case, not a held-out evaluation set.
 Published task definitions and benchmark metrics are unchanged.
 
+The separate [v2 development casebook](RECONCILIATION_CASEBOOK.md) expands this
+to eight original source scenarios with variable record counts and dedicated
+ownership, write and capture controls. It has its own schemas, pinned source
+inventory and command; v1 reports and operator tutorials remain v1 artifacts.
+
 ## Run from a source checkout
 
 Use a new output directory for each execution. Existing directories are refused.

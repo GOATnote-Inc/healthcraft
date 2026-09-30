@@ -1,0 +1,175 @@
+"""Read-only independent stdlib structural check of authored JSON, not clinical review."""
+
+import hashlib
+import json
+import re
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft/configs/evaluation/reconciliation_v2')
+OUT = Path('/private/tmp/healthcraft-reconciliation-v2-authoring/structural-check.json')
+
+
+def canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'),
+                      allow_nan=False).encode('utf-8')
+
+
+def digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def strict(path):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            assert key not in result, (path, 'duplicate key', key)
+            result[key] = value
+        return result
+    value = json.loads(path.read_bytes(), object_pairs_hook=pairs)
+    canonical(value)
+    return value
+
+
+def resolve(value, pointer):
+    assert pointer == '' or pointer.startswith('/')
+    for part in pointer[1:].split('/') if pointer else []:
+        assert re.search(r'~(?![01])', part) is None
+        part = part.replace('~1', '/').replace('~0', '~')
+        value = value[int(part)] if type(value) is list else value[part]
+    return value
+
+
+def aware(value):
+    if value is not None:
+        assert type(value) is str
+        assert datetime.fromisoformat(value.replace('Z', '+00:00')).utcoffset() is not None
+
+
+def main():
+    before = {p.relative_to(ROOT).as_posix(): digest(p.read_bytes())
+              for p in ROOT.rglob('*.json')}
+    book = strict(ROOT / 'casebook.json')
+    assert set(book['files']) == set(before) - {'casebook.json'}
+    assert all(before[p] == sha for p, sha in book['files'].items())
+    assert book['exposure'] == 'development'
+    assert book['label_status'] == 'engineering_authored_independent_review_pending'
+    assert [row['case_id'] for row in book['cases']] == [f'REC2-{i:03d}' for i in range(1, 9)]
+    assert [row['designated_control'] for row in book['cases']] == [
+        'valid', 'wrong_exclusion', 'wrong_target', 'ack_without_storage',
+        'duplicate_notes', 'incorrect_content_readback', 'interrupted_after_write',
+        'incomplete_capture',
+    ]
+    patient_ids, encounter_ids, names, summaries = set(), set(), set(), []
+    for case in book['cases']:
+        scenario, expected = [strict(ROOT / case[key]) for key in ('scenario', 'expectations')]
+        assert digest(canonical(scenario)) == case['scenario_sha256']
+        assert digest(canonical(expected)) == case['expectations_sha256']
+        assert expected['scenario_sha256'] == case['scenario_sha256']
+        assert scenario['schema_version'] == 'healthcraft-reconciliation-scenario/v2'
+        assert expected['schema_version'] == 'healthcraft-reconciliation-expectations/v2'
+        assert scenario['id'] == 'synthetic-ed-reconciliation/v2/' + case['case_id']
+        assert expected['scenario_id'] == scenario['id']
+        assert expected['target'] == scenario['target']
+        aware(scenario['clock'])
+        patients = {row['id']: row for row in scenario['patients']}
+        encounters = {row['id']: row for row in scenario['encounters']}
+        assert len(patients) == len(scenario['patients'])
+        assert len(encounters) == len(scenario['encounters'])
+        assert not (set(patients) & patient_ids or set(encounters) & encounter_ids)
+        patient_ids.update(patients)
+        encounter_ids.update(encounters)
+        assert all(re.fullmatch(r'PAT-[A-F0-9]{8}(?:[A-F0-9]{4})?', key) for key in patients)
+        assert all(re.fullmatch(r'ENC-[A-F0-9]{8}(?:[A-F0-9]{4})?', key) for key in encounters)
+        fullnames = {(row['first_name'], row['last_name']) for row in patients.values()}
+        assert len(fullnames) == 1 and not fullnames & names
+        names.update(fullnames)
+        assert all(row['date_of_birth'] is None for row in patients.values())
+        assert len({row['mrn'] for row in patients.values()}) == len(patients)
+        assert max(Counter(row['patient_id'] for row in encounters.values()).values()) <= 9
+        for patient in patients.values():
+            assert len(set(patient['prior_visit_ids'])) == len(patient['prior_visit_ids'])
+            assert all(encounters[prior]['patient_id'] == patient['id']
+                       for prior in patient['prior_visit_ids'])
+        target = scenario['target']
+        assert encounters[target['encounter_id']]['patient_id'] == target['patient_id']
+        assert target['encounter_id'] not in patients[target['patient_id']]['prior_visit_ids']
+        found = {}
+        for encounter in encounters.values():
+            assert encounter['patient_id'] in patients
+            aware(encounter['arrival_time'])
+            for collection, rows in encounter['patient_data'].items():
+                assert collection in {'active_orders', 'current_management',
+                                      'treatments_given', 'imaging_pending'}
+                values = rows.items() if type(rows) is dict else enumerate(rows)
+                for position, row in values:
+                    sid = row['source_id']
+                    assert sid not in found and re.fullmatch(r'SRC-[A-Z][0-9]{2}', sid)
+                    for field in ('time', 'event_time'):
+                        if field in row:
+                            aware(row[field])
+                    found[sid] = (encounter, collection, position, row)
+        ledger = {row['source_id']: row for row in expected['sources']}
+        assert len(ledger) == len(expected['sources']) and set(ledger) == set(found)
+        for sid, row in ledger.items():
+            encounter, collection, _, facts = found[sid]
+            assert row['patient_id'] == encounter['patient_id']
+            assert row['encounter_id'] == encounter['id']
+            assert row['source_collection'] == collection
+            assert canonical(row['source']) == canonical(facts)
+            assert canonical(resolve(encounter['patient_data'], row['source_path'])) == canonical(facts)
+        observations = expected['observation_source_ids']
+        exclusions = {row['source_id']: row for row in expected['scope_exclusions']}
+        assert len(set(observations)) == len(observations)
+        assert len(exclusions) == len(expected['scope_exclusions'])
+        assert not set(observations) & set(exclusions)
+        assert set(observations) | set(exclusions) == set(ledger)
+        for sid, row in ledger.items():
+            if sid in observations:
+                assert row['encounter_id'] == target['encounter_id']
+            else:
+                exclusion = exclusions[sid]
+                assert {key: exclusion[key] for key in ('patient_id', 'encounter_id')} == {
+                    key: row[key] for key in ('patient_id', 'encounter_id')}
+                reason = 'other_patient' if row['patient_id'] != target['patient_id'] else 'other_encounter'
+                assert exclusion['reason'] == reason
+                assert row['encounter_id'] != target['encounter_id']
+        groups = {}
+        for sid in observations:
+            source = ledger[sid]['source']
+            if 'event_id' in source and 'reported_status' in source:
+                groups.setdefault(source['event_id'], []).append(source)
+        conflict_members = {group['event_id']: set(group['source_ids'])
+                            for group in expected['unresolved_conflicts']}
+        # Structural disagreement only; this does not decide which report is true.
+        assert conflict_members == {
+            event: {row['source_id'] for row in rows}
+            for event, rows in groups.items() if len({row['reported_status'] for row in rows}) > 1
+        }
+        assert all(group['field'] == 'reported_status' for group in expected['unresolved_conflicts'])
+        summaries.append({'case_id': case['case_id'], 'rows': len(ledger),
+                          'included': len(observations), 'excluded': len(exclusions),
+                          'conflicts': len(conflict_members)})
+    assert [row['rows'] for row in summaries] == [6, 5, 6, 5, 6, 7, 4, 11]
+    assert sum(row['rows'] for row in summaries) == 50
+    assert len(patient_ids) == 15 and len(encounter_ids) == 22
+    after = {p.relative_to(ROOT).as_posix(): digest(p.read_bytes()) for p in ROOT.rglob('*.json')}
+    assert before == after
+    result = {'status': 'passed', 'scope': 'Independent stdlib structural consistency checks, not independent authoring or human review',
+              'candidate_code_imports': False, 'case_execution': False,
+              'source_files_unchanged': True, 'files': before,
+              'casebook_canonical_sha256': digest(canonical(book)), 'cases': summaries,
+              'patients': len(patient_ids), 'encounters': len(encounter_ids), 'source_rows': 50,
+              'target_rows': 31, 'excluded_rows': 19,
+              'checker_sha256': digest(Path(__file__).read_bytes())}
+    with OUT.open('x') as stream:
+        json.dump(result, stream, indent=2)
+        stream.write('\n')
+    print(json.dumps({'status': 'passed', 'cases': len(summaries), 'patients': len(patient_ids),
+                      'encounters': len(encounter_ids), 'source_rows': 50,
+                      'casebook_canonical_sha256': result['casebook_canonical_sha256']}))
+
+
+if __name__ == '__main__':
+    main()

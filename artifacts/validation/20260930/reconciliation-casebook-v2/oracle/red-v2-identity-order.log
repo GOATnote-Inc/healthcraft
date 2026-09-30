@@ -1,0 +1,35 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___________ test_case_id_syntax_matches_registry_and_native_fixture ____________
+
+    def test_case_id_syntax_matches_registry_and_native_fixture():
+        case = case_data()
+        case["case_id"] = "../renamed"
+        case["scenario"]["id"] = "synthetic-ed-reconciliation/v2/../renamed"
+        case["expectations"]["scenario_id"] = case["scenario"]["id"]
+        rebind(case)
+>       assert verify(case, run(case))["status"] == "provenance_error"
+E       AssertionError: assert 'verified' == 'provenance_error'
+E         
+E         - provenance_error
+E         + verified
+
+tests/test_reconciliation/test_oracle_v2.py:605: AssertionError
+___________ test_conflict_source_order_is_not_a_new_semantic_answer ____________
+
+    def test_conflict_source_order_is_not_a_new_semantic_answer():
+        from healthcraft.reconciliation.execution_v2 import run_case
+    
+        case = catalog_case("REC2-004")
+        case["expectations"]["unresolved_conflicts"][0]["source_ids"].reverse()
+        rebind(case)
+        result = verify(case, run_case(case))
+>       assert result["mechanical_passed"] is True, result["errors"]
+E       AssertionError: [{'axis': 'source_fidelity', 'message': 'Required source_fidelity evidence not established'}, {'axis': 'persisted_acti...isted_action evidence not established'}, {'axis': 'readback', 'message': 'Required readback evidence not established'}]
+E       assert False is True
+
+tests/test_reconciliation/test_oracle_v2.py:615: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_oracle_v2.py::test_case_id_syntax_matches_registry_and_native_fixture
+FAILED tests/test_reconciliation/test_oracle_v2.py::test_conflict_source_order_is_not_a_new_semantic_answer
+2 failed, 54 deselected in 0.06s

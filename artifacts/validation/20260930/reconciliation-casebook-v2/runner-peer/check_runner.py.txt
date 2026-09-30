@@ -1,0 +1,83 @@
+"""Independent bounded development checks; no models or external services."""
+import hashlib
+import json
+import sys
+import tempfile
+from copy import deepcopy
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, '/Users/kiteboard/healthcraft/src')
+from healthcraft.reconciliation import casebook_runner as runner
+from healthcraft.reconciliation.casebook import load_cases
+from healthcraft.reconciliation.case_controls import run_control
+from healthcraft.reconciliation.oracle_v2 import verify_case
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-casebook-runner-review')
+paths = ['src/healthcraft/reconciliation/casebook_runner.py', 'scripts/reconciliation_casebook.py', 'src/healthcraft/reconciliation/case_controls.py', 'src/healthcraft/reconciliation/oracle.py', 'src/healthcraft/reconciliation/oracle_v2.py', 'tests/test_reconciliation/test_casebook_runner.py']
+hashes = lambda: {p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths}
+before = hashes()
+checks = []
+
+def check(name, predicate):
+    assert predicate, name
+    checks.append(name)
+
+with tempfile.TemporaryDirectory(prefix='casebook-peer-', dir=OUT) as scratch:
+    work = Path(scratch)
+    result = runner.run_casebook(work/'all')
+    check('all sixteen declared controls accounted', result['counts'] == {'scheduled':16, 'attempted':16, 'recorded':16, 'matched':16, 'mismatched':0, 'errors':0})
+    check('no model/clinical score claim', result['model_calls']==0 and result['benchmark_score'] is None and result['clinical_validated'] is False)
+    for case in load_cases():
+        cid = case['case_id']
+        for arm in ('reference','designated'):
+            folder = work/'all'/cid/arm
+            evidence = json.loads((folder/'execution.json').read_text())
+            saved = json.loads((folder/'verification.json').read_text())
+            check(f'{cid}/{arm} replay equals saved', verify_case(case,evidence)==saved)
+            check(f'{cid}/{arm} actual call receipts and journal', bool(evidence['calls']) and (folder/'journal.jsonl').stat().st_size>0)
+    files = {p.relative_to(work/'all').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (work/'all').rglob('*') if p.is_file() and p.name!='manifest.json'}
+    check('complete immutable file inventory', files==result['files'])
+    try:
+        runner.run_casebook(work/'all')
+        raise AssertionError('occupied output accepted')
+    except FileExistsError: pass
+    check('existing output unchanged', files=={p.relative_to(work/'all').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (work/'all').rglob('*') if p.is_file() and p.name!='manifest.json'})
+    with patch.object(runner,'run_control',side_effect=AssertionError('must not run')):
+        try: runner.run_casebook(work/'unknown',case_ids=['REC2-001','REC2-999'])
+        except ValueError: pass
+        else: raise AssertionError('unknown ID accepted')
+        check('unknown selected case rejected before output',not (work/'unknown').exists())
+    original_control = runner.run_control
+    case8 = next(c for c in load_cases() if c['case_id']=='REC2-008')
+    capture = run_control(case8)
+    for mode in ('missing_transform','wrong_transform','missing_original','invalid_original'):
+        mutant = deepcopy(capture)
+        if mode=='missing_transform': mutant['capture_transformation']=None
+        elif mode=='wrong_transform': mutant['capture_transformation']['kind']='not_applied'
+        elif mode=='missing_original': mutant['original_evidence']=None
+        else: mutant['original_evidence']['completion']={'status':'failed','error':{'type':'RuntimeError','message':'original failed'}}
+        with patch.object(runner,'run_control',return_value=mutant):
+            result = runner.run_casebook(work/mode,case_ids=['REC2-008'],mode='designated')
+        check(f'{mode} cannot masquerade as expected incomplete capture',not result['development_controls_matched'] and result['counts']['matched']==0 and result['counts']['recorded']==1)
+    count = 0
+    original_verify = runner.verify_case
+    def grade_error(case,evidence):
+        global count
+        count += 1
+        if count==1: raise RuntimeError('independent injected verifier failure')
+        return original_verify(case,evidence)
+    with patch.object(runner,'verify_case',side_effect=grade_error):
+        result=runner.run_casebook(work/'grader-error',case_ids=['REC2-001','REC2-002'])
+    check('verifier error preserves full roster',result['counts']['scheduled']==result['counts']['recorded']==4 and result['counts']['errors']==1 and result['counts']['matched']==3)
+    check('verifier error retains execution', (work/'grader-error/REC2-001/reference/execution.json').is_file())
+    source_before = runner._source_hashes()
+    with patch.object(runner,'_source_hashes',side_effect=[source_before,{**source_before,'peer-synthetic-drift':'f'*64}]):
+        result=runner.run_casebook(work/'drift',case_ids=['REC2-001'],mode='reference')
+    check('source drift retains observations without certifying',result['counts']['recorded']==1 and result['counts']['matched']==1 and result['status']=='implementation_changed' and result['development_controls_matched'] is False)
+after = hashes()
+check('reviewed source remained unchanged',before==after)
+receipt={'schema_version':'healthcraft-development-peer-review/v1','scope':'Bounded offline casebook runner consistency review','checks':checks,'checks_passed':len(checks),'source_sha256_before':before,'source_sha256_after':after,'findings':[],'limitations':['Ordinary development review, not formal red team or clinical validation.','Uses actual in-process handlers and explicit failure substitutions; no model calls.']}
+(OUT/'peer-review.json').write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+print(json.dumps({'passed':len(checks),'receipt':str(OUT/'peer-review.json')}))

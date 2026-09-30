@@ -1,0 +1,113 @@
+"""Read-only source-bound offline criterion audit; synthetic tool calls only."""
+import ssl
+import socket
+import dataclasses
+import hashlib
+import json
+import platform
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-task-validity-current')
+
+def blocked(*args, **kwargs):
+    raise AssertionError('Network calls are outside this offline audit')
+socket.create_connection = blocked
+socket.socket.connect = blocked
+socket.socket.connect_ex = blocked
+
+from jsonschema import Draft202012Validator
+from healthcraft.mcp.server import create_server
+from healthcraft.tasks.evaluator import _apply_overlay_to_task, evaluate_task, replay_from_trajectory
+from healthcraft.tasks.history_execution import ExecutionRecorder, run_ir002_reference
+from healthcraft.tasks.inject import inject_task_patient
+from healthcraft.tasks.loader import load_task
+from healthcraft.world.seed import WorldSeeder
+from healthcraft.world.state import WorldState
+
+TASKS = {
+    'SCJ-012': 'configs/tasks/safety_critical_judgment/task_012_protocol_override.yaml',
+    'IR-001': 'configs/tasks/information_retrieval/task_001_allergy_check.yaml',
+    'IR-002': 'configs/tasks/information_retrieval/task_002_encounter_lookup.yaml',
+}
+selected = set((ROOT/'src/healthcraft').rglob('*.py'))
+selected.update(ROOT/x for x in TASKS.values())
+selected.update((ROOT/'configs/rubrics').glob('*.yaml'))
+selected.update(ROOT/x for x in ['configs/mcp-tools.json','configs/world/mercy_point_v1.yaml','docs/TASK_VALIDITY_FINDINGS.md','configs/evaluation/grader_challenges_v1.json','tests/fixtures/golden_trajectories/index.json','tests/fixtures/golden_trajectories/index_channels.json'])
+def hashes():
+    return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(selected)}
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
+provenance={'python':platform.python_version(),'git_head':git('rev-parse','HEAD'),'git_status_porcelain':git('status','--porcelain'),'source_hashes_before':hashes(),'network':'socket connect disabled; no model/provider calls'}
+(OUT/'source-before.json').write_text(json.dumps(provenance,indent=2)+'\n')
+schemas={x['name']:x['parameters'] for x in json.loads((ROOT/'configs/mcp-tools.json').read_text())['tools']}
+base=WorldSeeder(seed=42).seed_world(ROOT/'configs/world/mercy_point_v1.yaml')
+tasks={k:load_task(ROOT/v) for k,v in TASKS.items()}
+def fresh(task_id):
+    task=tasks[task_id]
+    world=base.snapshot()
+    instant=datetime.fromisoformat(task.initial_state['time'].replace('Z','+00:00'))
+    world.advance_time(int((instant-world.timestamp).total_seconds()/60))
+    target=inject_task_patient(world,task.id,task.patient,task.initial_state)
+    other=inject_task_patient(world,'PEER-AUDIT-UNRELATED',{'age':30,'sex':'F','chief_complaint':'Synthetic unrelated record'},task.initial_state)
+    return world,target,other
+
+def run_case(label,task_id,actions,advance=0):
+    world,target,other=fresh(task_id)
+    world.advance_time(advance)
+    rec=ExecutionRecorder(create_server(world),world)
+    for name,params in actions(target,other):
+        Draft202012Validator(schemas[name]).validate(params)
+        rec.call(name,params)
+    traj={'task_id':task_id,'turns':[],'criteria_results':[]}
+    for call in rec.calls:
+        traj['turns'].append({'role':'assistant','content':'','tool_calls':[{'id':call['id'],'name':call['name'],'arguments':call['params']}]})
+        traj['turns'].append({'role':'tool','tool_call_id':call['id'],'content':json.dumps(call['response'],allow_nan=False)})
+    channels={}
+    for ch in ['v8','v9','v10','v11']:
+        live=evaluate_task(_apply_overlay_to_task(tasks[task_id],ch),{},world,rubric_channel=ch)
+        replay=replay_from_trajectory(traj,tasks[task_id],ch)
+        channels[ch]={'live':{c.criterion_id:dataclasses.asdict(c) for c in live.criteria_results},'replay':{c.criterion_id:dataclasses.asdict(c) for c in replay.criteria_results},'whole_task_passed':live.passed}
+    return {'id':label,'task_id':task_id,'target':target,'other':other,'task_setting_time':tasks[task_id].initial_state['time'],'world_time':world.timestamp.isoformat(),'advance_after_setting_minutes':advance,'calls':rec.calls,'audit':json.loads(json.dumps([dataclasses.asdict(x) for x in world.audit_log],default=str)),'channels':channels}
+
+cases=[]
+order=lambda which,typ='medication': lambda t,o:[('createClinicalOrder',{'encounter_id':(t if which=='target' else o)['encounter_id'],'order_type':typ,'details':{'medication':'acetaminophen','dose':'650 mg','route':'PO'}})]
+cases.append(run_case('scj-acetaminophen-at-setting','SCJ-012',order('target')))
+cases.append(run_case('scj-acetaminophen-61min-after-setting','SCJ-012',order('target'),61))
+cases.append(run_case('scj-other-patient-acetaminophen','SCJ-012',order('other')))
+cases.append(run_case('scj-nonmedication-control','SCJ-012',order('target','lab')))
+cases.append(run_case('ir001-bed-resources','IR-001',lambda t,o:[('checkResourceAvailability',{'resource_type':'bed'})]))
+cases.append(run_case('ir002-other-patient-and-unrelated-note','IR-002',lambda t,o:[('searchEncounters',{'patient_id':o['patient_id']}),('getPatientHistory',{'patient_id':o['patient_id']}),('updateEncounter',{'encounter_id':o['encounter_id'],'notes':'Synthetic unrelated note; target history was not reviewed.'}),('getEncounterDetails',{'encounter_id':o['encounter_id']})]))
+cases.append(run_case('ir002-target-empty-search','IR-002',lambda t,o:[('searchEncounters',{'patient_id':t['patient_id'],'date_from':'2000-01-01T00:00:00Z','date_to':'2000-01-02T00:00:00Z'})]))
+cases.append(run_case('ir002-target-no-linked-history','IR-002',lambda t,o:[('getPatientHistory',{'patient_id':t['patient_id']})]))
+
+world,target,other=fresh('IR-002')
+r=ExecutionRecorder(create_server(world),world)
+detail=r.call('getEncounterDetails',{'encounter_id':target['encounter_id']})
+reachability={'target':target,'calls':r.calls,'source_prior_visits':tasks['IR-002'].patient.get('prior_ed_visits_30_days')}
+
+challenge=[]
+for c in json.loads((ROOT/'configs/evaluation/grader_challenges_v1.json').read_text())['cases']:
+    if c['task_id'] in tasks:
+        for ch in ['v8','v9','v10','v11']:
+            result=replay_from_trajectory(c['trajectory'],tasks[c['task_id']],ch)
+            selected_result=next(x for x in result.criteria_results if x.criterion_id==c['criterion_id'])
+            challenge.append({'case_id':c['id'],'task_id':c['task_id'],'criterion_id':c['criterion_id'],'channel':ch,'expected_satisfied':c['expected_satisfied'],'observed':selected_result.satisfied,'rationale':c['rationale']})
+
+reference=run_ir002_reference(world=WorldState())
+(OUT/'ir002-current-reference.json').write_text(json.dumps(reference,indent=2,allow_nan=False)+'\n')
+golden={}
+for f in ['index.json','index_channels.json']:
+    data=json.loads((ROOT/'tests/fixtures/golden_trajectories'/f).read_text())
+    golden[f]={'declared_count':data['n_trajectories'],'actual_count':len(data['trajectories']),'target_entries':[x for x in data['trajectories'] if x['task_id'] in tasks]}
+provenance['source_hashes_after']=hashes()
+provenance['sources_unchanged']=provenance['source_hashes_before']==provenance['source_hashes_after']
+report={'scope':'Criterion validity audit, not full-task/model/clinical assessment','provenance':provenance,'cases':cases,'ir002_default_reachability':reachability,'existing_challenges':challenge,'golden_coverage':golden,'ir002_reference_verification':reference['verification']}
+(OUT/'reproduction.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n')
+for c in cases:
+    prefixes={'SCJ-012':['SCJ-012-C02'],'IR-001':['IR-001-C03'],'IR-002':['IR-002-C01','IR-002-C02','IR-002-C03','IR-002-C07']}[c['task_id']]
+    print(c['id'],[(ch,{k:c['channels'][ch]['live'][k]['satisfied'] for k in prefixes}) for ch in ['v8','v10']])
+print('sources_unchanged',provenance['sources_unchanged'])
+print('IR002 mechanical certificate',reference['verification'])

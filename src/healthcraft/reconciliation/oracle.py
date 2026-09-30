@@ -194,14 +194,22 @@ def _canonical_tool(name: str) -> str:
     return reverse.get(name, name)
 
 
-def _validate_provenance(scenario: dict, expected: dict, evidence: dict) -> tuple[dict, dict, list]:
+def _validate_provenance(
+    scenario: dict,
+    expected: dict,
+    evidence: dict,
+    *,
+    expected_digest: str = EXPECTATIONS_SHA256,
+    execution_schema: str = "healthcraft-reconciliation-execution/v1",
+    expected_clock: str | None = None,
+) -> tuple[dict, dict, list]:
     for value in (scenario, expected, evidence):
         _require(type(value) is dict, "Oracle inputs must be objects")
         _json(value)
-    _require(_digest(expected) == EXPECTATIONS_SHA256, "Expectations identity mismatch")
+    _require(_digest(expected) == expected_digest, "Expectations identity mismatch")
     _require(_digest(scenario) == expected["scenario_sha256"], "Scenario identity mismatch")
     _require(
-        evidence.get("schema_version") == "healthcraft-reconciliation-execution/v1",
+        evidence.get("schema_version") == execution_schema,
         "Wrong execution schema",
     )
     _require(
@@ -209,7 +217,9 @@ def _validate_provenance(scenario: dict, expected: dict, evidence: dict) -> tupl
         "Execution scenario identity mismatch",
     )
     before, after = _snapshot(evidence["before"]), _snapshot(evidence["after"])
-    clock = scenario["clock"].replace("Z", "+00:00")
+    clock = (
+        expected_clock if expected_clock is not None else scenario["clock"].replace("Z", "+00:00")
+    )
     _require(
         evidence["before"]["timestamp"] == evidence["after"]["timestamp"] == clock,
         "Simulation clock mismatch",
@@ -345,6 +355,14 @@ def _validate_provenance(scenario: dict, expected: dict, evidence: dict) -> tupl
         and completion.get("status") in ("completed", "interrupted", "failed"),
         "Missing completion provenance",
     )
+    # Writers may omit an unknown error or explicitly record null. Falsey
+    # scalars/containers are not a typed absence and must not become success.
+    for field in ("error", "controller_error"):
+        detail = completion.get(field)
+        _require(
+            detail is None or (type(detail) is dict and bool(detail)),
+            f"Completion {field} must be a nonempty object or null",
+        )
     return before, after, linked
 
 
@@ -386,6 +404,7 @@ def _note_matches(content: str, expected: dict) -> bool:
             "Scope exclusion mismatch",
         )
         conflicts = deepcopy(note["unresolved_conflicts"])
+        expected_conflicts = deepcopy(expected["unresolved_conflicts"])
         _require(type(conflicts) is list, "Conflicts must be an array")
         for conflict in conflicts:
             _require(
@@ -395,10 +414,10 @@ def _note_matches(content: str, expected: dict) -> bool:
                 "Invalid conflict sources",
             )
             conflict["source_ids"].sort()
+        for conflict in expected_conflicts:
+            conflict["source_ids"].sort()
         _require(
-            _same(
-                sorted(conflicts, key=_json), sorted(expected["unresolved_conflicts"], key=_json)
-            ),
+            _same(sorted(conflicts, key=_json), sorted(expected_conflicts, key=_json)),
             "Unresolved conflict mismatch",
         )
         return True
@@ -416,6 +435,26 @@ def verify_reconciliation(scenario: dict, expectations: dict, evidence: dict) ->
     Malformed evidence/labels return a provenance error. A valid write followed
     by an interruption retains source/action findings but cannot be complete.
     """
+    return _verify_reconciliation(scenario, expectations, evidence)
+
+
+def _verify_reconciliation(
+    scenario: dict,
+    expectations: dict,
+    evidence: dict,
+    *,
+    expected_digest: str = EXPECTATIONS_SHA256,
+    execution_schema: str = "healthcraft-reconciliation-execution/v1",
+    verification_schema: str = "healthcraft-reconciliation-verification/v1",
+    expected_sources: int = 8,
+    target_observations: int = 6,
+    expected_clock: str | None = None,
+) -> dict:
+    """Shared mechanical checks after a version-specific caller validates labels.
+
+    Only the private v2 entry changes these arguments. The public v1 entry
+    retains the original fixed expectation pin, schemas and coverage values.
+    """
     checks = {
         name: False
         for name in (
@@ -427,7 +466,7 @@ def verify_reconciliation(scenario: dict, expectations: dict, evidence: dict) ->
         )
     }
     report = {
-        "schema_version": "healthcraft-reconciliation-verification/v1",
+        "schema_version": verification_schema,
         "status": "provenance_error",
         "checks": checks,
         "mechanical_passed": False,
@@ -435,20 +474,27 @@ def verify_reconciliation(scenario: dict, expectations: dict, evidence: dict) ->
         "benchmark_comparable": False,
         "grading_complete": False,
         "coverage": {
-            "expected_sources": 8,
-            "target_observations": 6,
+            "expected_sources": expected_sources,
+            "target_observations": target_observations,
             "clinical_criteria": 0,
             "safety_criteria": 0,
         },
         "errors": [],
-        "expectations_sha256": EXPECTATIONS_SHA256,
+        "expectations_sha256": expected_digest,
         "limitations": [
             "Engineering source-fidelity labels, not clinical adjudication.",
             "Provided snapshots and audit are checked for consistency, not authenticated.",
         ],
     }
     try:
-        before, after, linked = _validate_provenance(scenario, expectations, evidence)
+        before, after, linked = _validate_provenance(
+            scenario,
+            expectations,
+            evidence,
+            expected_digest=expected_digest,
+            execution_schema=execution_schema,
+            expected_clock=expected_clock,
+        )
         checks["provenance"] = True
         report["scenario_sha256"] = expectations["scenario_sha256"]
         target = expectations["target"]
@@ -537,6 +583,7 @@ def verify_reconciliation(scenario: dict, expectations: dict, evidence: dict) ->
         checks["execution_complete"] = (
             completion["status"] == "completed"
             and not completion.get("error")
+            and not completion.get("controller_error")
             and all(_successful(item) for item in linked)
         )
         for axis, satisfied in checks.items():

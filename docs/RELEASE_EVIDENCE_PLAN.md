@@ -188,9 +188,12 @@ The [operator review tutorial](OPERATOR_REVIEW.md) now provides a separate
 collection contract for exposed reconciliation attempts: equal source documents
 in raw and assisted views, six explicit judgments, source citations and manual
 timing provenance. Immutable imports preserve pending and malformed responses.
-This is engineering support for later study work; fresh cases, registered
-assignments, instrumented time collection, independent participants and outcome
-adjudication remain absent.
+This is engineering support for later study work. The separate
+[v2 casebook](RECONCILIATION_CASEBOOK.md) now supplies eight varied source cases
+and real-handler development controls. They are exposed, share an authoring
+ledger with their expectations, and have independent review pending. They do
+not constitute held-out outcomes. Registered assignments, instrumented time
+collection, independent participants and valid-report adjudication remain absent.
 
 Installation constraints, task-specific policies, and offline evidence review
 are implemented locally. Current work improves authored-record reachability,

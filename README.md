@@ -49,6 +49,11 @@ persists a source-linked note through actual handlers. Its independent checks
 and optional Microsoft CSV verifier measure separate engineering contracts;
 no clinical criteria or benchmark performance are assessed.
 
+The opt-in [v2 development casebook](docs/RECONCILIATION_CASEBOOK.md) adds eight
+original cases with 50 source records and explicit ownership, persistence and
+capture controls. Its expectations remain engineering-authored; independent
+review and comparative operator outcomes are pending.
+
 **Canonical: v10 grading channel** (2026-06). 205 tasks, 2,323 binary criteria
 (529 safety-critical), 3 trials per model, seed 42, one common neutral judge
 (grok-4) for both models — an apples-to-apples cross-model comparison on the

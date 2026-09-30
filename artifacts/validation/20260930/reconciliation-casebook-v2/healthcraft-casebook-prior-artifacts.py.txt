@@ -1,0 +1,29 @@
+"""Read-only integrity check of already frozen local development evidence."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+DEST=Path('/private/tmp/healthcraft-casebook-prior-artifacts.json')
+BOOKS={
+    'artifacts/reconciliation/20260930/local-model-pilot-v3':'816114ca43540db985d96e684f535696c3a234d1e38a405321afeed04bf1fba1',
+    'artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1':'b90075ce0c922bd99d329d7fc946082ebb3558cdfb2493494ee37b556138d1f1',
+    'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1':'a252937c51e2eafa63d0d9fa87c54b0490c4725423df6b7398050c9ae6498011',
+    'artifacts/reconciliation/20260930/operator-review-tutorial-v1':'b7e76ecd7437ba905a2d882a9817d6be955d2f27254a982ec8d7995ebb91f628',
+    'artifacts/validation/20260930/operator-review-v1':'9374813109284560a5ef916d786b6a6c5966e01c035eaea570e2abf35c246892',
+}
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+records=[]
+for name, expected in BOOKS.items():
+    root=ROOT/name
+    manifest=root/'manifest.json'
+    assert sha(manifest)==expected, name
+    data=json.loads(manifest.read_text())
+    for relative, digest in data['files'].items():
+        assert sha(root/relative)==digest, (name,relative)
+    records.append({'directory':name,'manifest_sha256':expected,'payloads_checked':len(data['files']),'unchanged':True})
+with DEST.open('x') as stream:
+    json.dump({'scope':'Frozen local evidence byte identity only; not regrading or clinical review',
+               'records':records,'total_payloads':sum(row['payloads_checked'] for row in records)},stream,indent=2)
+    stream.write('\n')
+print(DEST)

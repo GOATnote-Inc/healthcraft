@@ -1,0 +1,88 @@
+"""Execute the frozen development roster through the documented external CLI."""
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=ROOT/'artifacts/reconciliation/20260930/casebook-native-v2'
+FINAL=Path('/private/tmp/healthcraft-casebook-final')
+
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def write(path, value):
+    with path.open('x') as stream:
+        json.dump(value,stream,indent=2,ensure_ascii=False,allow_nan=False)
+        stream.write('\n')
+
+candidate=json.loads((FINAL/'candidate-inputs.json').read_text())
+assert all(sha(ROOT/name)==digest for name,digest in candidate.items())
+OUT.mkdir(parents=True,exist_ok=False)
+command=[str(ROOT/'.venv/bin/python'),str(ROOT/'scripts/reconciliation_casebook.py'),
+         '--output-dir',str(OUT/'run')]
+with (OUT/'cli.stdout.json').open('x') as stdout, (OUT/'cli.stderr.log').open('x') as stderr:
+    code=subprocess.run(command,cwd='/private/tmp',stdout=stdout,stderr=stderr).returncode
+write(OUT/'cli-receipt.json',{'command':command,'cwd':'/private/tmp','exit_code':code})
+assert code==0
+run=json.loads((OUT/'run/manifest.json').read_text())
+assert run['counts']=={'scheduled':16,'attempted':16,'recorded':16,'matched':16,'mismatched':0,'errors':0}
+assert run['development_controls_matched'] is True and run['model_calls']==0
+assert all(sha(ROOT/name)==digest for name,digest in candidate.items())
+for name,digest in run['files'].items():
+    assert sha(OUT/'run'/name)==digest
+notes=[]
+for row in run['roster']:
+    folder=OUT/'run'/row['id']
+    evidence=json.loads((folder/'execution.json').read_text())
+    snapshot=evidence['after']
+    notes.append({'attempt':row['id'],'control':row['control'],
+                  'completion':evidence['completion']['status'],
+                  'stored_note_count':len(snapshot['entities']['clinical_note']) if snapshot else None,
+                  'final_snapshot_available':snapshot is not None,
+                  'actual_calls':len(evidence['calls'])})
+write(OUT/'capture-summary.json',notes)
+with (OUT/'README.md').open('x') as stream:
+    stream.write('''# Reconciliation casebook v2 native development record
+
+The documented CLI ran from outside the repository with the frozen source
+candidate. All 16 scheduled attempts were retained: one faithful reference and
+one designated constructed control for each of eight original exposed cases.
+Every declared mechanical outcome matched. No model or human participant ran.
+
+The casebook contains 50 source rows, 15 patients and 22 encounters. Source
+scenarios and expectation receipts share an authoring ledger; separate files
+and verifier code do not establish independent labels or clinical validation.
+There are zero assessed clinical/safety criteria and no benchmark score.
+
+Inspect [run/manifest.json](run/manifest.json) for the fixed roster, declared
+expected checks, observed outcomes, runtime and source identities. Each case
+has canonical source/expectation snapshots. Every attempt retains its actual
+request/response journal, world snapshots, audits, completion and verification.
+The strict persisted-action/readback axes require correct target content;
+wrong-target and incorrect-content controls still have actual stored/read notes.
+
+REC2-008/designated deliberately withholds final capture evidence. Its complete
+original-execution.json and unmodified journal remain alongside the derivative;
+the actual execution was not interrupted. Unexpected failures before this
+transformation are retained and cannot count as a matched omission control.
+Acknowledgement without storage uses an explicitly defective test handler
+under native validation/audit middleware. All other writes reach real handlers.
+
+This is engineering regression evidence, not eight statistically independent
+clinical cases, held-out model performance, operator benefit or superiority.
+The v1 model captures and operator tutorials remain unchanged. The v2 review
+interface, valid-report adjudication, independent clinical/participant review,
+registered comparative protocol and held-out outcomes remain unfinished.
+Formal red team, remote main and manuscript updates have not begun.
+''')
+manifest={
+    'schema_version':'healthcraft-reconciliation-casebook-native-record/v2',
+    'base_commit':'44f0c4c74701ef81ba345a868a7e2cda747b84b0',
+    'candidate_inputs':candidate,'run_manifest_sha256':sha(OUT/'run/manifest.json'),
+    'model_calls':0,'human_participants':0,'clinical_validation':'not_established',
+    'superiority':'not_demonstrated','formal_red_team':'not_started',
+    'remote_updated':False,'paper_updated':False,
+    'files':{p.relative_to(OUT).as_posix():sha(p) for p in sorted(OUT.rglob('*')) if p.is_file()},
+}
+write(OUT/'manifest.json',manifest)
+print(json.dumps({'output':str(OUT),'payloads':len(manifest['files']),
+                  'manifest_sha256':sha(OUT/'manifest.json')},indent=2))
