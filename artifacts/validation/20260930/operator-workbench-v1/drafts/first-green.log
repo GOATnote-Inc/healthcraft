@@ -1,0 +1,30 @@
+..........................F                                              [100%]
+=================================== FAILURES ===================================
+___ test_raw_draft_findings_and_references_roundtrip_without_inferred_status ___
+
+    def test_raw_draft_findings_and_references_roundtrip_without_inferred_status():
+        helpers = ui_helpers(); pair = ("incident", helpers.incident.__wrapped__()); value = exported(pair)
+        value["cases"][0]["incident_assessment"]["findings"] = [{
+            "finding_id": "finding-8", "category": "source_uncertainty", "claim": "Draft only",
+            "observed_target": {"patient_id": None, "encounter_id": "ENC-draft"},
+            "source_ids": ["SRC-1"],
+            "evidence_refs": [{"document": "evidence", "pointer": "/note", "decoded_json_pointer": "/nested/unknown"}],
+        }]
+        action = """(()=>{HealthcraftDrafts.preview(raw);HealthcraftDrafts.apply();const result=EXPORT;
+    const count=findingCounters[0];HealthcraftDrafts.undo();return {result,count,findings:ids['findings-0'].children.length};})()""".replace("EXPORT", export_expression(pair))
+        result = run_js(pair, value, action)
+>       assert result["result"]["result"] == value
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests/test_operator_workbench_drafts.py:244: KeyError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench_drafts.py::test_raw_draft_findings_and_references_roundtrip_without_inferred_status
+1 failed, 26 passed, 1 warning in 0.72s

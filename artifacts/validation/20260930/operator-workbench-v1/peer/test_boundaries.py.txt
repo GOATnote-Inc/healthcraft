@@ -1,0 +1,110 @@
+"""Independent workbench boundary probes; renderer deliberately excluded."""
+from pathlib import Path
+from copy import deepcopy
+import hashlib
+import json
+import shutil
+import sys
+sys.path.insert(0, '/Users/kiteboard/healthcraft/src')
+import pytest
+from healthcraft import operator_workbench as workbench
+ROOT=Path('/Users/kiteboard/healthcraft')
+ORIGINAL=ROOT/'artifacts/operator-review/20260930/incidents-v2'
+
+
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def tree(path): return {p.relative_to(path).as_posix():sha(p) for p in path.rglob('*') if p.is_file()}
+def save(path,value): path.write_text(json.dumps(value,sort_keys=True))
+@pytest.fixture
+def core(monkeypatch):
+    monkeypatch.setattr(workbench,'_implementation',lambda:{'core-only':sha(ROOT/'src/healthcraft/operator_workbench.py')})
+    monkeypatch.setattr(workbench,'_render',lambda p,t:json.dumps([p,t],ensure_ascii=False,sort_keys=True))
+    return workbench
+@pytest.fixture
+def source(tmp_path):
+    destination=tmp_path/'issuer'
+    shutil.copytree(ORIGINAL/'native-assisted',destination)
+    return destination
+
+@pytest.mark.parametrize('name', ['native-raw','native-assisted','model-raw','model-assisted','synthetic-reviewer-a','synthetic-resolver'])
+def test_all_assignments_and_exact_bytes_retained(core,tmp_path,name):
+    issuer=tmp_path/'issuer'
+    shutil.copytree(ORIGINAL/name,issuer)
+    original=tree(issuer)
+    core.build_workbench(issuer/'manifest.json',tmp_path/'view')
+    packet,manifest=core.validate_workbench(tmp_path/'view/manifest.json')
+    assert packet==json.loads((issuer/'public/packet.json').read_text())
+    for name in ('packet.json','response-template.json'):
+        assert (issuer/'public'/name).read_bytes()==(tmp_path/'view/public'/name).read_bytes()
+    assert tree(issuer)==original
+    assert set(manifest['files'])=={'public/packet.json','public/response-template.json','public/report.html','README.md'}
+    assert not (tmp_path/'view/coordinator').exists()
+
+@pytest.mark.parametrize('mutation',['drop_case','alter_document','fill_answer','html','extra_file'])
+def test_rehashed_display_changes_cannot_validate(core,source,tmp_path,mutation):
+    view=tmp_path/'view'
+    core.build_workbench(source/'manifest.json',view)
+    manifest=json.loads((view/'manifest.json').read_text())
+    if mutation in ('drop_case','alter_document'):
+        path=view/'public/packet.json'
+        packet=json.loads(path.read_text())
+        if mutation=='drop_case': packet['cases'].pop()
+        else: packet['cases'][0]['documents']['task']['target']['patient_id']='PAT-WRONG'
+        save(path,packet)
+        manifest['packet_sha256']=workbench._digest(packet)
+    elif mutation=='fill_answer':
+        path=view/'public/response-template.json'
+        data=json.loads(path.read_text()); data['cases'][0]['incident_summary']='Fabricated prefilled decision';save(path,data)
+    elif mutation=='html':
+        path=view/'public/report.html';path.write_text('Altered display')
+    else:
+        path=view/'public/extra.json';path.write_text('{}')
+    manifest['files'][path.relative_to(view).as_posix()]=sha(path)
+    save(view/'manifest.json',manifest)
+    with pytest.raises(ValueError):core.validate_workbench(view/'manifest.json')
+
+@pytest.mark.parametrize('where',['issuer','view'])
+def test_unknown_version_fails(core,source,tmp_path,where):
+    view=tmp_path/'view'
+    if where=='view':core.build_workbench(source/'manifest.json',view)
+    path=(source if where=='issuer' else view)/'manifest.json'
+    manifest=json.loads(path.read_text());manifest['schema_version']='unsupported/v999';save(path,manifest)
+    with pytest.raises(ValueError):
+        if where=='issuer':core.build_workbench(path,view)
+        else:core.validate_workbench(path)
+    if where=='issuer':assert not view.exists()
+
+
+def test_both_relocated_dependencies_use_exact_pins(core,source,tmp_path):
+    original_source=ROOT/'artifacts/reconciliation/20260930/casebook-native-v2/run'
+    relocated_source=tmp_path/'source-copy';shutil.copytree(original_source,relocated_source)
+    core.build_workbench(source/'manifest.json',tmp_path/'view',source_manifest_override=relocated_source/'manifest.json')
+    moved=tmp_path/'moved-issuer';source.rename(moved)
+    packet,_=core.validate_workbench(tmp_path/'view/manifest.json',issuer_manifest_override=moved/'manifest.json',source_manifest_override=relocated_source/'manifest.json')
+    assert len(packet['cases'])==4
+    first=next(p for p in relocated_source.rglob('execution.json'))
+    first.write_bytes(first.read_bytes()+b' ')
+    with pytest.raises(ValueError):core.validate_workbench(tmp_path/'view/manifest.json',issuer_manifest_override=moved/'manifest.json',source_manifest_override=relocated_source/'manifest.json')
+
+
+def test_missing_original_is_not_inferred_from_view_copy(core,source,tmp_path):
+    core.build_workbench(source/'manifest.json',tmp_path/'view')
+    source.rename(tmp_path/'moved')
+    with pytest.raises(OSError):core.validate_workbench(tmp_path/'view/manifest.json')
+
+
+def test_detached_validation_return(core,source,tmp_path):
+    core.build_workbench(source/'manifest.json',tmp_path/'view')
+    packet,manifest=core.validate_workbench(tmp_path/'view/manifest.json')
+    packet['cases'].clear();manifest['files'].clear()
+    packet2,manifest2=core.validate_workbench(tmp_path/'view/manifest.json')
+    assert len(packet2['cases'])==4 and len(manifest2['files'])==4
+
+
+def test_existing_artifact_parent_inventory_protected(core,source,tmp_path):
+    # A prior import remains an immutable dependency even when its original
+    # directory path was not retained in the resolver's copied snapshots.
+    prior=tmp_path/'prior-import';shutil.copytree(ORIGINAL/'synthetic-reviewer-a-import',prior)
+    original=tree(prior)
+    with pytest.raises(ValueError):core.build_workbench(source/'manifest.json',prior/'view')
+    assert tree(prior)==original

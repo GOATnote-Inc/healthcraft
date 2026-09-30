@@ -1,0 +1,35 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_response_namespace_cannot_offer_unrepresentable_decoded_citation _____
+
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-694/test_response_namespace_cannot0')
+
+    def test_response_namespace_cannot_offer_unrepresentable_decoded_citation(
+        adjudication, examples, tmp_path
+    ):
+        packet, template = adjudication
+        raw = '{"result":"displayed nested claim"}'
+        packet["cases"][0]["documents"]["response"]["incident_assessment"]["summary"] = raw
+        template["packet_sha256"] = examples.digest(packet)
+        pointer = "/incident_assessment/summary"
+        rows = node_inspect(
+            adjudication,
+            [
+                [0, {"document": "response", "pointer": pointer}],
+                [0, {"document": "response", "pointer": pointer, "decoded_json_pointer": "/result"}],
+                [0, {"document": "response", "pointer": pointer, "decoded_json_pointer": ""}],
+            ],
+            tmp_path,
+            examples,
+        )
+        assert rows[0]["status"] == "available" and rows[0]["display"] == raw
+>       assert all("Response references cannot decode JSON" in row.get("error", "") for row in rows[1:])
+E       assert False
+E        +  where False = all(<generator object test_response_namespace_cannot_offer_unrepresentable_decoded_citation.<locals>.<genexpr> at 0x10920b5b0>)
+
+tests/test_operator_workbench_report.py:191: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench_report.py::test_response_namespace_cannot_offer_unrepresentable_decoded_citation
+1 failed, 19 deselected in 0.09s

@@ -1,0 +1,38 @@
+from pathlib import Path
+import re
+
+def layout(script):
+ parts=[];i=0
+ while i<len(script):
+  c=script[i]
+  if c in '\"\'`/':
+   j=i+1;cls=False
+   while j<len(script):
+    if script[j]=='\\':j+=2;continue
+    if c=='/':
+     if script[j]=='[':cls=True
+     elif script[j]==']':cls=False
+    if script[j]==c and not cls:break
+    j+=1
+   assert j<len(script),(i,script[i:i+90])
+   parts.append(script[i:j+1]);i=j+1
+  else:parts.append(('\n' if c=='}' else '')+c+('\n' if c in '{};,' else ''));i+=1
+ lines=[];indent=0
+ for line in ''.join(parts).splitlines():
+  line=line.strip()
+  if not line:continue
+  if line.startswith('}'):indent=max(0,indent-1)
+  lines.append('  '*indent+line)
+  if line.endswith('{'):indent+=1
+ return '\n'+'\n'.join(lines)+'\n'
+for name in ['src/healthcraft/operator_workbench_drafts.py','tests/test_operator_workbench_drafts.py']:
+ p=Path(name);text=p.read_text()
+ def update(m):
+  body=m.group(2)
+  return m.group(1)+layout(body)+'"""' if 'HealthcraftDrafts' in body and 'globalThis' not in body[:200] or "const fs=" in body else m.group(0)
+ # Process only JavaScript raw/normal literal blocks, not docstrings.
+ if name.startswith('src/'):
+  start=text.index('SCRIPT = r"""')+len('SCRIPT = r"""');end=text.index('"""',start);text=text[:start]+layout(text[start:end])+text[end:]
+ else:
+  text=re.sub(r'(r?""")(.*?)"""',update,text,flags=re.S)
+ p.write_text(text)

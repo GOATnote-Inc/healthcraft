@@ -1,0 +1,537 @@
+FFFFFFFFFFFFFF                                                           [100%]
+=================================== FAILURES ===================================
+__________ test_initial_source_markup_is_bounded_and_packet_unchanged __________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+
+    def test_initial_source_markup_is_bounded_and_packet_unchanged(incident, examples):
+        before = deepcopy(incident)
+>       page = examples.Page(render(incident))
+                             ^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________________ test_all_lexemes_and_pointer_values_stay_exact ________________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_all_lexemes_and_pointer_v0')
+
+    def test_all_lexemes_and_pointer_values_stay_exact(incident, examples, tmp_path):
+        packet, template = incident
+        docs = packet["cases"][0]["documents"]
+        docs["scenario"].update(big=90071992547409931234567890, negative_zero=-0.0, array=list(range(123)))
+        docs["evidence"]["note"] = '{"n":90071992547409931234567891,"decimal":0.10000000000000001,"nil":null}'
+        for key in ("scenario", "evidence"):
+            packet["cases"][0]["availability"][key]["sha256"] = examples.digest(docs[key])
+        template["packet_sha256"] = examples.digest(packet)
+        refs = [[0, {"document":"scenario","pointer":"/big"}],
+                [0, {"document":"scenario","pointer":"/negative_zero"}],
+                [0, {"document":"evidence","pointer":"/note","decoded_json_pointer":"/n"}],
+                [0, {"document":"evidence","pointer":"/note","decoded_json_pointer":"/decimal"}],
+                [0, {"document":"scenario","pointer":"/nested/a~1b~0c/1/literal"}],
+                [0, {"document":"scenario","pointer":"/array"}, 50]]
+>       rows = node_inspect(incident, refs, tmp_path, examples)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________ test_invalid_or_missing_reference_never_becomes_null[/missing] ________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_invalid_or_missing_refere0')
+pointer = '/missing'
+
+    @pytest.mark.parametrize('pointer', ['/missing','/nested/a~1b~0c/00','/nested/a~1b~0c/0\n','\n','/bad~2key'])
+    def test_invalid_or_missing_reference_never_becomes_null(incident, examples, tmp_path, pointer):
+>       row = node_inspect(incident, [[0,{'document':'scenario','pointer':pointer}]],tmp_path,examples)[0]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___ test_invalid_or_missing_reference_never_becomes_null[/nested/a~1b~0c/00] ___
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_invalid_or_missing_refere1')
+pointer = '/nested/a~1b~0c/00'
+
+    @pytest.mark.parametrize('pointer', ['/missing','/nested/a~1b~0c/00','/nested/a~1b~0c/0\n','\n','/bad~2key'])
+    def test_invalid_or_missing_reference_never_becomes_null(incident, examples, tmp_path, pointer):
+>       row = node_inspect(incident, [[0,{'document':'scenario','pointer':pointer}]],tmp_path,examples)[0]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+__ test_invalid_or_missing_reference_never_becomes_null[/nested/a~1b~0c/0\n] ___
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_invalid_or_missing_refere2')
+pointer = '/nested/a~1b~0c/0\n'
+
+    @pytest.mark.parametrize('pointer', ['/missing','/nested/a~1b~0c/00','/nested/a~1b~0c/0\n','\n','/bad~2key'])
+    def test_invalid_or_missing_reference_never_becomes_null(incident, examples, tmp_path, pointer):
+>       row = node_inspect(incident, [[0,{'document':'scenario','pointer':pointer}]],tmp_path,examples)[0]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___________ test_invalid_or_missing_reference_never_becomes_null[\n] ___________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_invalid_or_missing_refere3')
+pointer = '\n'
+
+    @pytest.mark.parametrize('pointer', ['/missing','/nested/a~1b~0c/00','/nested/a~1b~0c/0\n','\n','/bad~2key'])
+    def test_invalid_or_missing_reference_never_becomes_null(incident, examples, tmp_path, pointer):
+>       row = node_inspect(incident, [[0,{'document':'scenario','pointer':pointer}]],tmp_path,examples)[0]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_invalid_or_missing_reference_never_becomes_null[/bad~2key] ________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_invalid_or_missing_refere4')
+pointer = '/bad~2key'
+
+    @pytest.mark.parametrize('pointer', ['/missing','/nested/a~1b~0c/00','/nested/a~1b~0c/0\n','\n','/bad~2key'])
+    def test_invalid_or_missing_reference_never_becomes_null(incident, examples, tmp_path, pointer):
+>       row = node_inspect(incident, [[0,{'document':'scenario','pointer':pointer}]],tmp_path,examples)[0]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________ test_missing_document_null_and_bad_decoded_json_stay_distinct _________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_missing_document_null_and0')
+
+    def test_missing_document_null_and_bad_decoded_json_stay_distinct(incident, examples, tmp_path):
+        refs = [[0,{'document':'runtime','pointer':''}],
+                [0,{'document':'scenario','pointer':'/nested/a~1b~0c/0'}],
+                [0,{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':'/x'}]]
+>       missing, null, invalid = node_inspect(incident, refs, tmp_path, examples)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+______ test_decoded_json_rejects_invalid_values_without_repair[{"n":NaN}] ______
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_decoded_json_rejects_inva0')
+raw = '{"n":NaN}'
+
+    @pytest.mark.parametrize('raw', ['{"n":NaN}','{"n":Infinity}','{"n":1e400}', '{"a":1,"\\u0061":2}'])
+    def test_decoded_json_rejects_invalid_values_without_repair(incident, examples, tmp_path, raw):
+        packet,template=incident
+        packet['cases'][0]['documents']['evidence']['bad_note']=raw
+        packet['cases'][0]['availability']['evidence']['sha256']=examples.digest(packet['cases'][0]['documents']['evidence'])
+        template['packet_sha256']=examples.digest(packet)
+>       row=node_inspect(incident, [[0,{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':''}]],tmp_path,examples)[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___ test_decoded_json_rejects_invalid_values_without_repair[{"n":Infinity}] ____
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_decoded_json_rejects_inva1')
+raw = '{"n":Infinity}'
+
+    @pytest.mark.parametrize('raw', ['{"n":NaN}','{"n":Infinity}','{"n":1e400}', '{"a":1,"\\u0061":2}'])
+    def test_decoded_json_rejects_invalid_values_without_repair(incident, examples, tmp_path, raw):
+        packet,template=incident
+        packet['cases'][0]['documents']['evidence']['bad_note']=raw
+        packet['cases'][0]['availability']['evidence']['sha256']=examples.digest(packet['cases'][0]['documents']['evidence'])
+        template['packet_sha256']=examples.digest(packet)
+>       row=node_inspect(incident, [[0,{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':''}]],tmp_path,examples)[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____ test_decoded_json_rejects_invalid_values_without_repair[{"n":1e400}] _____
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_decoded_json_rejects_inva2')
+raw = '{"n":1e400}'
+
+    @pytest.mark.parametrize('raw', ['{"n":NaN}','{"n":Infinity}','{"n":1e400}', '{"a":1,"\\u0061":2}'])
+    def test_decoded_json_rejects_invalid_values_without_repair(incident, examples, tmp_path, raw):
+        packet,template=incident
+        packet['cases'][0]['documents']['evidence']['bad_note']=raw
+        packet['cases'][0]['availability']['evidence']['sha256']=examples.digest(packet['cases'][0]['documents']['evidence'])
+        template['packet_sha256']=examples.digest(packet)
+>       row=node_inspect(incident, [[0,{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':''}]],tmp_path,examples)[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_decoded_json_rejects_invalid_values_without_repair[{"a":1,"\\u0061":2}] _
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-676/test_decoded_json_rejects_inva3')
+raw = '{"a":1,"\\u0061":2}'
+
+    @pytest.mark.parametrize('raw', ['{"n":NaN}','{"n":Infinity}','{"n":1e400}', '{"a":1,"\\u0061":2}'])
+    def test_decoded_json_rejects_invalid_values_without_repair(incident, examples, tmp_path, raw):
+        packet,template=incident
+        packet['cases'][0]['documents']['evidence']['bad_note']=raw
+        packet['cases'][0]['availability']['evidence']['sha256']=examples.digest(packet['cases'][0]['documents']['evidence'])
+        template['packet_sha256']=examples.digest(packet)
+>       row=node_inspect(incident, [[0,{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':''}]],tmp_path,examples)[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:44: in node_inspect
+    page = examples.Page(render(pair))
+                         ^^^^^^^^^^^^
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___________ test_adjudication_and_canonical_reload_have_exact_forms ____________
+
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+
+    def test_adjudication_and_canonical_reload_have_exact_forms(adjudication, examples):
+>       page=examples.Page(render(adjudication))
+                           ^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______________ test_untrusted_source_text_cannot_create_markup ________________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+
+    def test_untrusted_source_text_cannot_create_markup(incident, examples):
+        packet,template=incident
+        packet['cases'][0]['documents']['scenario']['payload']='</script><img src=x onerror=alert(1)>'
+        packet['cases'][0]['availability']['scenario']['sha256']=examples.digest(packet['cases'][0]['documents']['scenario'])
+        template['packet_sha256']=examples.digest(packet)
+>       page=examples.Page(render(incident))
+                           ^^^^^^^^^^^^^^^^
+
+tests/test_operator_workbench_report.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_workbench_report.py:37: in render
+    return importlib.import_module("healthcraft.operator_workbench_report").render_workbench(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1398: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'healthcraft.operator_workbench_report'
+import_ = <function _gcd_import at 0x100f53e20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'healthcraft.operator_workbench_report'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench_report.py::test_initial_source_markup_is_bounded_and_packet_unchanged
+FAILED tests/test_operator_workbench_report.py::test_all_lexemes_and_pointer_values_stay_exact
+FAILED tests/test_operator_workbench_report.py::test_invalid_or_missing_reference_never_becomes_null[/missing]
+FAILED tests/test_operator_workbench_report.py::test_invalid_or_missing_reference_never_becomes_null[/nested/a~1b~0c/00]
+FAILED tests/test_operator_workbench_report.py::test_invalid_or_missing_reference_never_becomes_null[/nested/a~1b~0c/0\n]
+FAILED tests/test_operator_workbench_report.py::test_invalid_or_missing_reference_never_becomes_null[\n]
+FAILED tests/test_operator_workbench_report.py::test_invalid_or_missing_reference_never_becomes_null[/bad~2key]
+FAILED tests/test_operator_workbench_report.py::test_missing_document_null_and_bad_decoded_json_stay_distinct
+FAILED tests/test_operator_workbench_report.py::test_decoded_json_rejects_invalid_values_without_repair[{"n":NaN}]
+FAILED tests/test_operator_workbench_report.py::test_decoded_json_rejects_invalid_values_without_repair[{"n":Infinity}]
+FAILED tests/test_operator_workbench_report.py::test_decoded_json_rejects_invalid_values_without_repair[{"n":1e400}]
+FAILED tests/test_operator_workbench_report.py::test_decoded_json_rejects_invalid_values_without_repair[{"a":1,"\\u0061":2}]
+FAILED tests/test_operator_workbench_report.py::test_adjudication_and_canonical_reload_have_exact_forms
+FAILED tests/test_operator_workbench_report.py::test_untrusted_source_text_cannot_create_markup
+14 failed in 0.11s

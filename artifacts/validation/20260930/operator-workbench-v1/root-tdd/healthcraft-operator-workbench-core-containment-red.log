@@ -1,0 +1,52 @@
+..............FF                                                         [100%]
+=================================== FAILURES ===================================
+_____ test_output_cannot_invalidate_an_existing_unlisted_inventory[False] ______
+
+core = <module 'healthcraft.operator_workbench' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_workbench.py'>
+issuer = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-680/test_output_cannot_invalidate_0/issuer')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-680/test_output_cannot_invalidate_0')
+via_symlink = False
+
+    @pytest.mark.parametrize('via_symlink', [False, True])
+    def test_output_cannot_invalidate_an_existing_unlisted_inventory(core, issuer, tmp_path, via_symlink):
+        prior = tmp_path/'prior-import'
+        prior.mkdir()
+        (prior/'submission.json').write_text('{}')
+        (prior/'manifest.json').write_text(json.dumps({'schema_version':'healthcraft-operator-adjudication-import/v2','files':{'submission.json':digest(prior/'submission.json')}}))
+        target = prior
+        if via_symlink:
+            target = tmp_path/'prior-link'
+            target.symlink_to(prior, target_is_directory=True)
+        before = {p.name:p.read_bytes() for p in prior.iterdir()}
+>       with pytest.raises(ValueError, match='inventory|manifest'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_workbench.py:163: Failed
+______ test_output_cannot_invalidate_an_existing_unlisted_inventory[True] ______
+
+core = <module 'healthcraft.operator_workbench' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_workbench.py'>
+issuer = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-680/test_output_cannot_invalidate_1/issuer')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-680/test_output_cannot_invalidate_1')
+via_symlink = True
+
+    @pytest.mark.parametrize('via_symlink', [False, True])
+    def test_output_cannot_invalidate_an_existing_unlisted_inventory(core, issuer, tmp_path, via_symlink):
+        prior = tmp_path/'prior-import'
+        prior.mkdir()
+        (prior/'submission.json').write_text('{}')
+        (prior/'manifest.json').write_text(json.dumps({'schema_version':'healthcraft-operator-adjudication-import/v2','files':{'submission.json':digest(prior/'submission.json')}}))
+        target = prior
+        if via_symlink:
+            target = tmp_path/'prior-link'
+            target.symlink_to(prior, target_is_directory=True)
+        before = {p.name:p.read_bytes() for p in prior.iterdir()}
+>       with pytest.raises(ValueError, match='inventory|manifest'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_workbench.py:163: Failed
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench.py::test_output_cannot_invalidate_an_existing_unlisted_inventory[False]
+FAILED tests/test_operator_workbench.py::test_output_cannot_invalidate_an_existing_unlisted_inventory[True]
+2 failed, 14 passed in 1.93s

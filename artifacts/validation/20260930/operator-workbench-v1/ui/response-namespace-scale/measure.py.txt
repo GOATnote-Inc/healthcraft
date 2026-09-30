@@ -1,0 +1,25 @@
+"""Read original packets and render only new temporary workbench HTML."""
+from pathlib import Path
+from html.parser import HTMLParser
+from collections import Counter
+import json,hashlib
+from healthcraft.operator_workbench_report import render_workbench
+BASE=Path('/Users/kiteboard/healthcraft/artifacts/operator-review/20260930/incidents-v2')
+OUT=Path('/private/tmp/healthcraft-operator-workbench-ui/response-namespace-scale')
+class CounterParser(HTMLParser):
+ def __init__(self,raw):super().__init__();self.tags=Counter();self.sources=0;self.controls=0;self.refs=0;self.feed(raw)
+ def handle_starttag(self,tag,attrs):
+  a=dict(attrs);self.tags[tag]+=1;self.sources+='data-source-document'in a
+  self.controls+=tag in ('input','textarea','select','button');self.refs+='data-source-ref'in a
+sha=lambda raw:hashlib.sha256(raw).hexdigest()
+rows=[]
+for name in ('native-raw','native-assisted','model-raw','model-assisted'):
+ public=BASE/name/'public';inputs={p.name:p.read_bytes() for p in public.iterdir() if p.is_file()}
+ packet=json.loads(inputs['packet.json']);template=json.loads(inputs['response-template.json'])
+ report=render_workbench(packet,template).encode();before=CounterParser(inputs['report.html'].decode());after=CounterParser(report.decode())
+ destination=OUT/(name+'-workbench.html')
+ with destination.open('xb') as stream:stream.write(report)
+ rows.append({'name':name,'input_sha256':{k:sha(v) for k,v in inputs.items()},'output':destination.name,'output_sha256':sha(report),'original_bytes':len(inputs['report.html']),'workbench_bytes':len(report),'byte_reduction_percent':round(100*(1-len(report)/len(inputs['report.html'])),2),'original_start_tags':sum(before.tags.values()),'workbench_start_tags':sum(after.tags.values()),'source_roots':after.sources,'initial_controls':after.controls,'assistance_reference_links':after.refs,'original_unchanged':inputs=={p.name:p.read_bytes() for p in public.iterdir() if p.is_file()}})
+receipt={'scope':'Static serialized bytes and HTML start tags, not browser timings or observed usability','reports':rows}
+(OUT/'scale-final.json').write_text(json.dumps(receipt,indent=2)+'\n')
+for row in rows:print(json.dumps({k:row[k] for k in ['name','original_bytes','workbench_bytes','byte_reduction_percent','original_start_tags','workbench_start_tags','source_roots','initial_controls','assistance_reference_links','original_unchanged']}))

@@ -1,0 +1,38 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-workbench-ui-peer')
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+paths=['src/healthcraft/operator_workbench_drafts.py','src/healthcraft/operator_workbench_report.py','tests/test_operator_workbench_drafts.py','tests/test_operator_workbench_report.py']
+recheck=json.loads((OUT/'recheck-probes.json').read_text());hashes={p:sha(ROOT/p)for p in paths}
+assert all(hashes[p]==h for p,h in recheck['source_sha256'].items())
+assert recheck['response_decoding']['decoded']['status']=='unavailable'
+assert not recheck['response_decoding']['shown']and not recheck['response_decoding']['citation']
+assert recheck['finding_counter']['result']['idsNow']==['finding-9007199254740991','finding-1','finding-2']
+frozen=['src/healthcraft/operator_incident_report.py','src/healthcraft/operator_incidents.py','src/healthcraft/operator_adjudication.py']
+original={p:sha(ROOT/p)for p in frozen}
+assert all(hashlib.sha256(subprocess.check_output(['git','show','HEAD:'+p],cwd=ROOT)).hexdigest()==h for p,h in original.items())
+receipt={
+ 'schema_version':'healthcraft-workbench-ui-development-peer/v1',
+ 'status':'no_remaining_findings_in_bounded_scope',
+ 'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+ 'scope':'Ordinary offline peer review of saved-response binding, atomic application/undo, source navigation, exact numeric display and copied reference meaning. Node plus explicit DOM stubs; no browser or formal red team.',
+ 'reviewed_source_sha256':hashes,
+ 'source_hashes_stable_since_exact_recheck':True,
+ 'frozen_original_modules_match_HEAD':original,
+ 'findings':[
+  {'id':'response-decoding-reference-mismatch','original':'A manually entered response decoded_json_pointer displayed nested JSON but copied only the raw response pointer.','initial_source':json.loads((OUT/'initial-probes.json').read_text())['source_sha256']['src/healthcraft/operator_workbench_report.py'],'repair':'Response document decoded pointers reject explicitly; raw response pointers remain available. Unavailable/error navigation clears displayed value and copied citation.','status':'reproduced_then_rechecked_fixed'},
+  {'id':'finding-id-counter-overflow','original':'Loading finding-9007199254740991 and clicking Add twice created duplicate finding-9007199254740992 identifiers; export failed Duplicate finding ID after required fields supplied.','initial_source':json.loads((OUT/'initial-probes.json').read_text())['source_sha256']['src/healthcraft/operator_workbench_drafts.py'],'repair':'New-view capture listener selects unused small suffix before unchanged original Add handler. Imported identifiers stay exact; add/remove/export/undo checked for maximum-safe, larger and mixed-case gap IDs.','status':'reproduced_then_rechecked_fixed'}],
+ 'validation':{
+  'python':sys.version.split()[0],
+  'node':subprocess.check_output(['node','--version'],text=True).strip(),
+  'combined_recheck':'74 passed = 11 independent + 43 draft + 20 renderer tests; recheck-tests.log',
+  'final_independent':'14 passed; final-independent.log. Three additional add/remove/export/undo cases added after combined recheck, total 77 distinct passing cases across logs.',
+  'initial_peer':'1 failed, 10 passed. Renderer was already narrowly repaired between the two-defect reproduction and this later regression run; initial-probes.json and complete-export-probes.json preserve both original failures.',
+  'dom_model':'Owner harness retains capture and target-phase listeners; both new capture allocator and unchanged legacy Add callback execute, rather than overwriting a single fake listener.',
+  'real_saved_response_roundtrips':6},
+ 'positive_checks':['Exact incident, raw, model-assisted, initial-adjudication and resolver response identities/contents round-trip through actual form serializer and Python response validation.','Preview does not mutate; undo restores preceding form including tested pending content.','Large saved IDs and mixed-case finding IDs survive allocation/removal; final current IDs remain unique.','Arbitrary large integer, precise decimal, negative-zero and null source lexemes display without Number rounding.','Missing documents, missing paths and malformed decoded JSON remain unavailable and clear stale citations; malformed raw JSON stays inspectable.','Existing 63 source/draft tests cover invalid bindings, atomic rollback, cancellation races, unsupported shapes, pagination and actual source references.'],
+ 'limits':['No actual browser event/layout/accessibility or human usability validation.','No authentication, human validity, clinical performance or comparative value conclusion.','No new model calls, network, repository edits or original artifact mutations.'],
+ 'evidence_files_sha256':{p.name:sha(p)for p in OUT.iterdir()if p.is_file()and p.name!='peer-review.json'}
+}
+with (OUT/'peer-review.json').open('x')as f:json.dump(receipt,f,indent=2,ensure_ascii=False,allow_nan=False);f.write('\n')
+print(json.dumps({'path':str(OUT/'peer-review.json'),'sha256':sha(OUT/'peer-review.json'),'source':hashes},indent=2))

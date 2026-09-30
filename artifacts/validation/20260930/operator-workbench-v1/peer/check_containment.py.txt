@@ -1,0 +1,36 @@
+from pathlib import Path
+import hashlib, json, shutil, sys
+sys.path.insert(0, '/Users/kiteboard/healthcraft/src')
+from healthcraft import operator_workbench as w
+from healthcraft.operator_adjudication import build_adjudication_packet, _load_record
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-operator-workbench-peer/containment')
+OUT.mkdir(exist_ok=False)
+ORIGINAL=ROOT/'artifacts/operator-review/20260930/incidents-v2'
+w._implementation=lambda:{'core-boundary-probe':'a'*64}
+w._render=lambda p,t:json.dumps([p,t],sort_keys=True)
+for name in ('native-assisted','synthetic-reviewer-a-import','synthetic-reviewer-b-import'):
+    shutil.copytree(ORIGINAL/name,OUT/name)
+response=OUT/'response.json'
+response.write_bytes((ORIGINAL/'coordinator/synthetic-operator-response.json').read_bytes())
+records={f'synthetic-reviewer-{x}':OUT/f'synthetic-reviewer-{x}-import/manifest.json' for x in ('a','b')}
+resolver=OUT/'resolver'
+build_adjudication_packet(OUT/'native-assisted/manifest.json',response,resolver,assignment={'assignment_id':'peer-resolver','adjudicator_id':'peer-resolver','role':'resolver'},prior_records=records)
+prior=OUT/'synthetic-reviewer-a-import'
+def inventory(path):return {p.relative_to(path).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in path.rglob('*') if p.is_file()}
+before=inventory(prior)
+_load_record(prior/'manifest.json')
+try:
+    value=w.build_workbench(resolver/'manifest.json',prior/'new-view')
+    result={'build':'accepted','issuer_kind':value['issuer_kind']}
+except Exception as exc:
+    result={'build':'rejected','error':f'{type(exc).__name__}: {exc}'}
+try:
+    _load_record(prior/'manifest.json')
+    result['prior_import_after']='valid'
+except Exception as exc:
+    result['prior_import_after']='invalid'
+    result['prior_error']=f'{type(exc).__name__}: {exc}'
+result.update({'new_files':sorted(set(inventory(prior))-set(before)),'old_payloads_unchanged':all(inventory(prior)[p]==h for p,h in before.items()),'workbench_source_sha256':hashlib.sha256((ROOT/'src/healthcraft/operator_workbench.py').read_bytes()).hexdigest(),'renderer':'stubbed; active renderer excluded','original_artifacts_modified':False})
+(OUT.parent/'containment-result.json').write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps(result,indent=2))
