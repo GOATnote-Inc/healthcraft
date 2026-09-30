@@ -22,6 +22,11 @@ retry readers, and local tool interaction rather than checking source text.
 | Retries overwrote prior evidence, and retry artifacts could be counted as extra trials. | Create numbered attempts and summaries exclusively. Shared readers select one latest attempt per trial. Resume can repair a missing log entry from its saved trajectory. | `test_checkpoint_provenance.py`, `test_retry_readers.py` |
 | A log-write failure could overwrite a successfully saved trajectory with an error shell. | Preserve the saved evidence and surface the persistence error. | `test_checkpoint_provenance.py` |
 | `validateTreatmentPlan` rejected its advertised patient/object inputs, crashed on structured allergies, and silently ignored a requested protocol. | Support canonical and legacy inputs, normalize names without changing records, enforce patient/encounter ownership, and explicitly reject unsupported protocol validation. Return the advertised `interactions` field. | `test_treatment_plan_contract.py` |
+| Same-clock patient registrations overwrote earlier records and invented unprovided clinical history. | Allocate distinct deterministic identities and linked untriaged encounters; retain supplied demographics and leave missing clinical data unknown. | `test_mutation_contract.py` |
+| Structured allergies crashed medication orders and record updates; encounter notes were acknowledged but discarded. | Interpret structured allergy names, preserve record details, and persist notes on the correct patient encounter. | `test_mutation_contract.py` |
+| Nested caller/response dictionaries could rewrite records and audit evidence after a call. | Detach structured records, returned data, recorded parameters, public audit views, and world audit snapshots. Registration also retains arrival mode and explicitly unverified supplied insurance data. | `test_mutation_contract.py`, `test_audit_snapshots.py` |
+| Discharge ignored canonical medication/instruction/follow-up fields and could mutate disposition before a documentation error. | Validate before the state transition; preserve supplied content in linked, retrievable notes. Missing instructions, follow-up, and medication continuation remain explicitly unspecified. | `test_discharge_contract.py` |
+| A truncated judge response could count as a valid verdict if its JSON happened to parse. | Require normal completion before parsing; incomplete or blocked responses carry a grading error. The native smoke also checks completion before dispatch and before declaring success. | `test_verdict_types.py`, `test_local_model_smoke.py` |
 
 ## Local integration
 
@@ -33,7 +38,8 @@ and Qwen are tool-capable agents. No hosted API spending or weight downloads
 were needed. See [local setup](LOCAL_MODELS.md).
 
 The native smoke demonstrates a real tool round trip and two known-label
-judge cases. A full IR-001 diagnostic exposed an incomplete 25-call search
+judge cases. A subsequent run with completion guards passed both again
+in 28.926 seconds on the installed local models. A full IR-001 diagnostic exposed an incomplete 25-call search
 loop that the earlier runner scored anyway. The corrected run records
 zero reward, one incomplete/error run, seven ungraded criteria, and no
 asserted clinical safety failure excluding errors. These are diagnostic
@@ -42,10 +48,12 @@ limitations are in [the local run notes](../artifacts/local-models/20260930/READ
 
 ## Compatibility and limits
 
-Validation at this development checkpoint: `make test` **1,442 passed, two
+Validation at this development checkpoint: `make test` **1,595 passed, two
 skipped**; `make preflight` passed; the canonical-number structural audit
 passed. `make lint` passed against an export of the staged repository
-source (251 Python files). The development checkout additionally contains
+source (258 Python files). The full suite requires localhost HTTP test
+servers, so it ran with local-server permission after the sandboxed attempt
+could not bind `127.0.0.1`. The development checkout additionally contains
 untracked research archives and presentation scripts with 115 unrelated
 lint errors; those files were excluded from the commit and clean export.
 
@@ -55,6 +63,12 @@ gold-set checks. Independent review exercised canonical medication objects
 against all 196 task-injected patients without a normalization/internal
 error. The existing drug/allergy rules remain limited simulation rules;
 this contract repair does not validate their clinical coverage.
+
+Both named and anonymous whitepaper PDFs build and pass the repository's
+verification checks. All 18 pages were rendered for layout review. The
+historical result tables remain byte-identical; current architecture,
+inventory, reward-boundary, and adjudication descriptions were corrected
+against the implementation and released evidence.
 
 Historical V8 and channel replay locks remain unchanged. Old trajectories
 are still replayable; they cannot prove compatibility for live checkpoint
@@ -74,3 +88,29 @@ and relevant medication references were not found during the diagnostic.
 Those are task-validity audit leads. They are not silently repaired by
 changing a historical rubric or treating a low model score as sufficient
 evidence that the task is well designed.
+
+## Executable counterexamples
+
+`make grader-challenges` runs independently authored synthetic replay
+fixtures against the real grader. Its first seven cases cover only two
+criteria and expose three false passes: an unrelated bed lookup for an
+allergy cross-reactivity assertion, another patient's encounter history,
+and empty history where the task specifies prior visits. Failed, missing,
+and mismatched tool responses are rejected, and the complete-history
+positive control passes. These cases measure no safety criteria; safety
+rates are therefore **null**, not zero.
+
+The CLI exits 1 for a mismatch and 2 for a harness error. `--report-only`
+allows inspection of known mismatches but does not suppress harness errors.
+The [saved v10 report](../artifacts/evaluation-integrity/20260930/grader-challenges-v10.json)
+includes the fixture, source, task, and overlay hashes; use
+`--output NEW_PATH.json` to save a report without overwriting prior evidence.
+Neither the fixture labels nor the seven-case rates are clinical ground
+truth, representative error estimates, or new benchmark results.
+
+The existing preflight check is now labeled **Verifier Syntax Reachability**
+to describe what it actually proves. A green structural preflight does not
+establish task solvability. Fixing these semantic defects requires reviewed,
+versioned task/evidence contracts and accessible reference data, with new
+positive and counterexample trajectories. Historical task YAML, overlay
+definitions, and scores remain unchanged in this repair.

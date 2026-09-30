@@ -123,7 +123,8 @@ class TestWorldStateAuditLog:
         world = WorldState()
         entry = world.record_audit("get_patient", {"patient_id": "PAT-001"}, "ok")
         assert len(world.audit_log) == 1
-        assert world.audit_log[0] is entry
+        assert world.audit_log[0] == entry
+        assert world.audit_log[0] is not entry
 
     def test_audit_entry_is_frozen(self) -> None:
         world = WorldState()

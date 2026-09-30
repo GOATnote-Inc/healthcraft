@@ -108,12 +108,17 @@ before it is marked complete.
 | P2 | Portable ecosystem adapter | A Harbor or NeMo Gym adapter reproduces the same initial state, tool audit, criterion results, and terminal reward as native execution for reference success, safety failure, and tool-error fixtures. Adapter imports stay optional. |
 | P2 | Evidence-based training claim | Preregister the reward ablations and anti-gaming probes from issues #8–#10; compare base/SFT/RL on frozen held-out and external tasks. Improved training reward alone cannot support a transfer or clinical-readiness claim. |
 
-## Concrete next implementation slice
+## First challenge slice and next implementation
 
-After repository regressions and local provider compatibility, implement an
-**offline rubric challenge report** in a new diagnostics module and CLI.
-This complements the current static satisfiability tests and RL
-distribution canaries without changing the published rubric.
+An initial **offline rubric challenge report** is implemented in
+`src/healthcraft/tasks/challenges.py` and `scripts/grade_challenges.py`.
+Seven independently labeled synthetic replay cases across two criteria
+expose three false passes in the current rubric. This complements the
+structural preflight checks and RL distribution canaries without changing
+published tasks or rewards. The suite has no safety-criterion coverage.
+See [the integrity report](EVALUATION_INTEGRITY_2026-09-30.md).
+
+The broader challenge and task-certificate work remains:
 
 1. Define typed probe outcomes: expected failure/success, observed verdict,
    criterion/task ID, probe type, evidence, and `unsupported` reason.

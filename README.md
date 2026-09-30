@@ -17,7 +17,7 @@
 > ([#10](https://github.com/GOATnote-Inc/healthcraft/issues/10)) is required
 > before any deployment conversation.
 
-An open-source, high-fidelity reinforcement learning environment for training and evaluating AI agents in emergency medicine workflows. Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with 24 tools, 14 entity types, and 6 task categories spanning the full complexity of a Level I Trauma Center ED.
+An open-source reinforcement learning environment for training and evaluating AI agents in synthetic emergency medicine workflows. Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with 24 tools, 14 entity types, and 6 task categories representing selected workflows of a Level I Trauma Center ED.
 
 > **Attribution:** HEALTHCRAFT directly adapts the architecture described in
 > [EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments](https://arxiv.org/abs/2602.16179)
@@ -130,9 +130,9 @@ The Corecraft Megatron+SGLang+GRPO loop is scaffolded under
 [`docs/RL_COUPLING.md`](docs/RL_COUPLING.md). HealthCraft owns the
 environment + reward; an external trainer (slime / verl) owns Megatron
 training and SGLang weight sync. The training-reward design responds to
-the whitepaper's NEG-smoke 0.929 restraint-prevalence finding (verifiable
-anchoring + restraint folding + judge abstention) and leaves Eq. 1
-evaluation reward byte-identical.
+the whitepaper's NEG-smoke 0.929 overall criterion-prevalence finding (verifiable
+anchoring + restraint folding + judge abstention) and keeps the Eq. 1
+evaluation-reward formula separate and unchanged.
 
 > **Empirical training-safety validation — soft-gate/hard-gate ablation,
 > restraint-criterion reweighting study, reward-hacking probes — remains
@@ -254,7 +254,8 @@ bug discovery, and correction. See
 ## Known Limitations
 
 **Environment:**
-- Static world state -- patient vitals don't evolve during agent interaction
+- Static patient vitals by default -- optional seeded dynamics and simplified
+  action-conditioned physiology are available, but are not clinically validated
 - No interruption testing -- real EDs have interruptions every 3-5 minutes
 - Episodic tasks only -- no sustained multi-patient workload management
 - Single-agent -- no team coordination or consultant disagreement scenarios
@@ -301,7 +302,9 @@ Target: ~260 tasks covering the full operational complexity of a Level I Trauma 
 ### v0.2 Hardening
 
 v0.2 addresses shortcomings identified in a staff-engineer review of v0.1.
-All changes are opt-in (default off) to preserve V8 result reproducibility.
+Defaults differ by feature: dynamic patient state is opt-in, while tool
+idempotency is enabled by default. Set `HC_IDEMPOTENT_TOOLS=0` when the
+historical evaluation protocol requires the earlier mutation behavior.
 
 - **Evaluator integrity:** Schema-handler contracts, golden-trajectory replay, audit-log invariants, task satisfiability checks
 - **Judge validation:** 92 judge tests, v9 deterministic rubric overlay (`--rubric-channel v9`), BEFORE/AFTER temporal operators

@@ -128,7 +128,8 @@ class WorldState:
         snap._start_time = self._start_time
         snap._current_time = self._current_time
         snap._entities = copy.deepcopy(self._entities)
-        snap._audit_log = list(self._audit_log)  # AuditEntry is frozen, shallow copy OK
+        # Frozen entries still contain mutable nested parameter values.
+        snap._audit_log = copy.deepcopy(self._audit_log)
         snap._dynamic_state_enabled = self._dynamic_state_enabled
         snap._physiology = dict(self._physiology)  # VitalsTrajectory is frozen
         snap._last_vitals = dict(self._last_vitals)  # VitalsSnapshot is frozen
@@ -255,8 +256,8 @@ class WorldState:
 
     @property
     def audit_log(self) -> list[AuditEntry]:
-        """The append-only audit log of tool invocations."""
-        return self._audit_log
+        """An isolated view of the append-only audit log of tool invocations."""
+        return copy.deepcopy(self._audit_log)
 
     def record_audit(
         self,
@@ -273,7 +274,7 @@ class WorldState:
 
         Args:
             tool_name: Name of the tool invoked.
-            params: Parameters passed to the tool.
+            params: Parameters passed to the tool, captured as a deep snapshot.
             result_summary: Brief summary of the result.
             error_code: When ``result_summary == "error"``, the error code
                 from the tool response (e.g. ``"missing_param"``,
@@ -288,12 +289,12 @@ class WorldState:
                 (no state change applied; cached result returned).
 
         Returns:
-            The created AuditEntry.
+            An isolated copy of the created AuditEntry.
         """
         entry = AuditEntry(
             tool_name=tool_name,
             timestamp=self._current_time,
-            params=dict(params),
+            params=copy.deepcopy(params),
             result_summary=result_summary,
             error_code=error_code,
             idempotency_key=idempotency_key,
@@ -301,7 +302,7 @@ class WorldState:
             deduplicated=deduplicated,
         )
         self._audit_log.append(entry)
-        return entry
+        return copy.deepcopy(entry)
 
     # --- Repr ---
 

@@ -104,6 +104,25 @@ def test_judge_runtime_failure_has_typed_error() -> None:
     assert result.evidence.startswith("Judge error:")
 
 
+@pytest.mark.parametrize(
+    "stop_reason", ["length", "max_tokens", "max_output_tokens", "content_filter", "tool_calls"]
+)
+@pytest.mark.parametrize("satisfied", [True, False])
+def test_incomplete_judge_response_is_not_a_verdict(stop_reason, satisfied):
+    class IncompleteClient:
+        def chat(self, **_kwargs):
+            return {
+                "content": json.dumps({"satisfied": satisfied, "confidence": "high"}),
+                "stop_reason": stop_reason,
+                "tool_calls": [],
+            }
+
+    result = LLMJudge(IncompleteClient()).evaluate_criterion(_criterion(), [])
+    assert result.satisfied is False
+    assert result.error is not None
+    assert stop_reason in result.error
+
+
 @pytest.mark.parametrize("satisfied", [True, False])
 def test_valid_judge_verdict_has_no_error(satisfied: bool) -> None:
     judge = LLMJudge(

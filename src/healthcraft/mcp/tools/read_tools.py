@@ -9,6 +9,7 @@ Corecraft noise: search tools return MAX 10 results with no hasMore signal.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict
 from typing import Any
 
@@ -20,7 +21,7 @@ def _serialize(entity: Any) -> dict:
     if hasattr(entity, "__dataclass_fields__"):
         return asdict(entity)
     if isinstance(entity, dict):
-        return entity
+        return deepcopy(entity)
     return {"value": str(entity)}
 
 

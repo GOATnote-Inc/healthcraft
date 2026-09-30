@@ -53,6 +53,7 @@ def client_factory(monkeypatch):
             }
 
     monkeypatch.setattr(local_model_smoke, "create_client", lambda model, key: Client(model))
+    return Client
 
 
 def test_smoke_executes_a_real_seeded_encounter_and_both_judge_labels(client_factory):
@@ -80,3 +81,29 @@ def test_negative_judge_infrastructure_failure_does_not_count_as_correct(
     result = local_model_smoke.run_smoke("ollama:nano", "ollama:medgemma")
     assert result["passed"] is False
     assert result["judge_sanity_cases"][1]["error"] == "invalid JSON"
+
+
+@pytest.mark.parametrize("stage", ["tool", "final"])
+@pytest.mark.parametrize("reason", ["length", "max_tokens", "content_filter"])
+def test_incomplete_native_smoke_cannot_pass(client_factory, monkeypatch, stage, reason):
+    original = client_factory.chat
+    servers = []
+    server_factory = local_model_smoke.create_server
+
+    def record_server(world):
+        server = server_factory(world)
+        servers.append(server)
+        return server
+
+    def interrupted_chat(client, messages, tools=None, **kwargs):
+        response = original(client, messages, tools=tools, **kwargs)
+        if "nano" in client.model and ((stage == "tool") == bool(tools)):
+            response["stop_reason"] = reason
+        return response
+
+    monkeypatch.setattr(client_factory, "chat", interrupted_chat)
+    monkeypatch.setattr(local_model_smoke, "create_server", record_server)
+    with pytest.raises(RuntimeError, match="incomplete"):
+        local_model_smoke.run_smoke("ollama:nano", "ollama:medgemma")
+    if stage == "tool":
+        assert servers[0].world_state.audit_log == []

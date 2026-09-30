@@ -20,8 +20,12 @@ format:
 smoke:
 	$(PYTHON) scripts/smoke_test.py
 
-grader-goldset:  ## Measure grader precision (FP/FN + Wilson CI) on the EM-labeled gold-set
+grader-goldset:  ## Measure FP/FN + Wilson CI on the curated regression set
 	$(PYTHON) -m healthcraft.evals.grader_goldset
+
+.PHONY: grader-challenges
+grader-challenges:  ## Offline counterexamples; nonzero means a mismatch or harness error
+	$(PYTHON) scripts/grade_challenges.py
 
 docker-up:
 	docker compose -f docker/docker-compose.yaml up -d --build

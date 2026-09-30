@@ -9,8 +9,9 @@
 
 Table~\ref{tab:tools} gives the complete list of the 24~MCP tools. The
 canonical JSON Schema (with per-argument constraints, return types, and
-error codes) lives in \texttt{configs/mcp-tools.json} and is loaded
-directly by the FastMCP server.
+error codes) lives in \texttt{configs/mcp-tools.json}. The agent's
+tool-definition loader reads this file to expose parameter schemas
+to the model.
 
 \begin{table}[h]
 \centering
@@ -57,20 +58,18 @@ $\{\texttt{status}{:}\,\texttt{"error"},\ \texttt{code}{:}\,\ldots,\ \texttt{mes
 \section{Criteria by dimension}
 \label{app:criteria}
 
-The 2{,}255 binary criteria decompose approximately as follows
-across the six weighted dimensions, aggregated over all task
-categories: \textsf{clinical\_completeness}~$\sim$20\%;
-\textsf{clinical\_correctness}~$\sim$25\%;
-\textsf{protocol\_adherence}~$\sim$15\%;
-\textsf{documentation\_quality}~$\sim$10\%;
-\textsf{safety}~$\sim$20\% (the 515 safety-critical criteria are a
-superset of the \textsf{safety} dimension and can additionally appear
-in any of the other dimensions when they were authored with
-safety\_critical=true);
-\textsf{temporal\_sequencing}~$\sim$10\%. Exact counts per category
-are emitted by \texttt{scripts/analyze\_results.py}. Dimension weights
-are used only for post-hoc error decomposition; they do not enter
-Eq.~\ref{eq:reward}.
+The frozen V8 suite contains 2{,}255 binary criteria, each assigned
+to one of six diagnostic dimensions. The configured weights are
+\textsf{clinical\_completeness}~20\%;
+\textsf{clinical\_correctness}~25\%;
+\textsf{protocol\_adherence}~15\%;
+\textsf{documentation\_quality}~10\%;
+\textsf{safety}~20\%; and \textsf{temporal\_sequencing}~10\%.
+These are diagnostic weights, not observed fractions of criteria.
+The 515 safety-critical flags are independent of dimension membership:
+any dimension may contain a criterion with \texttt{safety\_critical=true}.
+Counts must be derived from the task definitions for the relevant
+snapshot. Dimension weights do not enter Eq.~\ref{eq:reward}.
 
 \section{Pilot v2--v8 changelog}
 \label{app:pilots}
@@ -95,7 +94,8 @@ normal approximation when $n \hat p (1 - \hat p)$ is small; over
 Clopper--Pearson it is less conservative without becoming
 anti-conservative in the $n\sim 200$ regime relevant for this
 benchmark. The implementation is
-\texttt{src/metrics/confidence\_intervals.py}.
+\texttt{wilson\_interval} in
+\texttt{src/healthcraft/evals/grader\_goldset.py}.
 
 \section{Judge reliability details}
 \label{app:judge}
@@ -107,9 +107,9 @@ judge; Gemini~3.1~Pro $\to$ Claude Opus~4.6 judge. Cohen's
 $\kappa=0.553$ was computed over a 100-criterion test-retest sample
 (each criterion graded three times, $n=300$ calls), with 77.0\% raw
 self-agreement. Oracle validation on task CC-001 returned 5/5 agreement
-with the \texttt{world\_state} verification method, indicating that for
-the \texttt{world\_state}-verifiable subset the judge does not
-introduce additional drift.
+with the \texttt{world\_state} verification method. This small
+task-specific comparison does not establish drift-free judging across
+the wider \texttt{world\_state}-verifiable subset.
 
 \paragraph{Stratification by trajectory length.}
 Agreement and $\kappa$ were stratified by trajectory length: short
@@ -262,7 +262,8 @@ all                         & $264$ & $76.1\%$ & $79.5\%$ & $0.402$ & $0.523$ \\
 
 \paragraph{Disagreement taxonomy.}
 A rule-based classifier
-(\texttt{scripts/kappa\_validation.py::\_classify\_disagreement})
+(\texttt{\_classify\_disagreement} in
+\texttt{scripts/kappa\_validation.py})
 assigns one of six labels to each disagreeing observation in
 priority order: \texttt{overlay\_wrong\_entity} (overlay
 targets wrong tool/params); \texttt{infrastructure\_error}
@@ -310,18 +311,19 @@ total                      & $63$ & $100\%$ & $6$ \\
 
 \paragraph{Tiering.}
 On the basis of the disagreement taxonomy each of the 44
-overlay entries is assigned one of three tiers:
+overlay entries is assigned one of three analytical recommendation tiers:
 
 \begin{itemize}
   \item \textbf{Tier 1 (reward-safe): $10$ entries.} % CN:v9_tier1_count
   All six trials agree with the V8 judge. The overlay can
   replace \texttt{llm\_judge} for these criteria in reward
-  computation without changing any verdict.
+  computation without changing a verdict in those audited trials;
+  agreement alone does not establish clinical validity.
   \item \textbf{Tier 2 (research-only): $26$ entries.} % CN:v9_tier2_count
   Disagreement labels are a subset of $\{$\texttt{judge\_hallucination},
   \texttt{infrastructure\_error}$\}$. The overlay is
   plausibly correct and the judge is plausibly at fault,
-  but we do not use the overlay for reward until physician
+  but the recommendation is to withhold it from reward until physician
   adjudication has confirmed the direction.
   \item \textbf{Tier 3 (keep \texttt{llm\_judge}):
   $8$ entries.} % CN:v9_tier3_count
@@ -329,16 +331,16 @@ overlay entries is assigned one of three tiers:
   judge-noise set (\texttt{overlay\_wrong\_entity},
   \texttt{intent\_execution\_split}, \texttt{vocab\_gap},
   \texttt{conditional\_logic}). These flag real overlay or
-  semantic issues; the V8 judge remains binding until the
-  overlay is corrected.
+  semantic issues; the recommendation is to retain the V8 judge until
+  the overlay is corrected.
 \end{itemize}
 
-The tiering is presented not as a HealthCraft-specific
-artefact but as a reusable template: given any
-deterministic-overlay audit of an LLM judge, the six-label
-classifier over disagreements induces a three-way tiering
-(reward-safe~/ research-only~/ keep-judge), and only the
-reward-safe tier changes the production reward signal.
+The tiering is an analytical template for reviewing deterministic
+overlays, not an enforced runtime policy. The channel loader in
+\texttt{src/healthcraft/llm/orchestrator.py} applies every configured
+overlay entry without a tier filter. Selecting a channel therefore does
+not automatically restrict reward computation to the recommended
+Tier~1 subset.
 
 \paragraph{Why $\kappa \ge 0.80$ is the wrong gate here.}
 Cohen's $\kappa$ treats the reference grader as ground
@@ -398,8 +400,10 @@ pyelonephritis, NEG-009 acute low back pain without
 red flags), and one clinical-reasoning task (NEG-010
 benign vasovagal syncope). The post-NEG audit set is
 $205$ tasks, % CN:post_neg_tasks
-$2{,}337$ criteria, % CN:post_neg_criteria
+$2{,}323$ criteria, % CN:post_neg_criteria
 and $529$ safety-critical. % CN:post_neg_safety_critical
+These current inventory counts are measured independently of the
+frozen V8 counts rather than obtained by adding to that snapshot.
 
 \paragraph{Smoke-pilot results: task-distribution rebalance succeeds, criterion-prevalence correction does not.}
 A 60-run smoke pilot (Claude Opus 4.7 and GPT-5.4, each at

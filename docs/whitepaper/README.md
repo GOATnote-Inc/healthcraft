@@ -36,8 +36,10 @@ Requirements: TeX Live 2023+ with `pdflatex`, `bibtex`. Optional:
 
 Every number, percentage, or count in `content.tex` / `appendix.tex`
 must be tagged with a `% CN:<tag>` comment that maps to a row in
-`canonical_numbers.md`. `scripts/verify_canonical_numbers.py` enforces
-correspondence on every build.
+`canonical_numbers.md`. `scripts/verify_canonical_numbers.py` checks
+tag definitions and cited source paths on every build. It does not
+compare prose values with the table or detect untagged numbers; numerical
+agreement still requires review against the cited evidence.
 
 Example:
 ```latex

@@ -92,7 +92,7 @@ class Encounter(Entity):
 
     patient_id: str = ""
     chief_complaint: str = ""
-    esi_level: ESILevel = ESILevel.URGENT
+    esi_level: ESILevel | None = ESILevel.URGENT  # None until a registered patient is triaged
     bed_assignment: str = ""
     arrival_time: datetime | None = None
     triage_time: datetime | None = None
@@ -104,6 +104,7 @@ class Encounter(Entity):
     meds_administered: tuple[MedicationAdministration, ...] = ()
     exam_findings: tuple[tuple[str, str], ...] = ()
     clinical_notes: tuple[tuple[str, str], ...] = ()
+    arrival_mode: str = ""  # Empty until supplied; registration does not infer it.
 
 
 # --- Chief complaints by ESI level ---

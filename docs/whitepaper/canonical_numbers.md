@@ -2,9 +2,10 @@
 
 Every quantitative claim in `content.tex` and `appendix.tex` MUST be tagged
 with a `% CN:<tag>` LaTeX comment that maps to a row in this file.
-`scripts/verify_canonical_numbers.py` enforces correspondence on every
-build. A bare number in the prose without a corresponding `% CN` tag is
-a CI failure.
+`scripts/verify_canonical_numbers.py` checks that cited tags are defined
+and cited repository source paths exist (or are explicitly deferred).
+It does not detect untagged numbers or compare prose values with this
+table; those require a separate numerical review.
 
 ## Schema
 
@@ -22,8 +23,9 @@ a CI failure.
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
-| `CN:entity_types` | FHIR entity types in world state | 14 | n/a | `docs/ENTITY_MAPPING.md` |
-| `CN:entities_seeded` | Entities at seed=42 | 4,075 | n/a | `src/healthcraft/world/seed.py` (measured 2026-08-31: `WorldSeeder(seed=42).seed_world(configs/world/mercy_point_v1.yaml)`; guarded by `tests/test_release/test_readme_counts.py`) |
+| `CN:entity_types` | Populated synthetic entity collections in world state | 14 | n/a | `docs/ENTITY_MAPPING.md` |
+| `CN:entities_seeded` | Base-install entities at seed=42 (OpenEM unavailable) | 4,075 | n/a | `src/healthcraft/world/seed.py` (verified 2026-09-30 with the OpenEM loader disabled); guarded by `tests/test_release/test_readme_counts.py` |
+| `CN:entities_seeded_openem` | Entities at seed=42 with the 370-condition OpenEM source corpus | 4,450 | n/a | `src/healthcraft/world/seed.py` (verified 2026-09-30 using the installed source corpus); guarded by `tests/test_release/test_readme_counts.py` |
 | `CN:n_tools` | MCP tools exposed | 24 | n/a | `configs/mcp-tools.json` |
 | `CN:tool_waves` | Tool waves (read/compute/mutate/workflow) | 4 | n/a | `docs/TOOL_MAPPING.md` |
 | `CN:openem_conditions` | OpenEM conditions covered | 370 | n/a | OpenEM v0.5.1 `openem-corpus` |
@@ -187,8 +189,9 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
-| `CN:goldset_n` | EM-adjudicated gold-set trajectories | 55 | n/a | `evals/grader_goldset/goldset.yaml` |
-| `CN:goldset_safety_false_pass` | Gold-set safety-critical false-PASS | 0 | [0, ~20%] | `src/healthcraft/evals/grader_goldset.py` |
+| `CN:goldset_n` | Curated regression cases (world-state and judge-parser cases) | 55 | n/a | `evals/grader_goldset/goldset.yaml` |
+| `CN:goldset_safety_false_pass` | Gold-set safety-critical false-PASS count | 0 | n/a (count, not a population error-rate estimate) | `src/healthcraft/evals/grader_goldset.py` |
+| `CN:goldset_v10_negative_cases` | True-violation cases in the v10 world-state stratum | 15 | For 0 false passes in this stratum: [0, ~20%] | `evals/grader_goldset/goldset.yaml`; `src/healthcraft/evals/grader_goldset.py` |
 | `CN:goldset_false_pass` | Gold-set false-PASS (all) | 0 | n/a | `grader_goldset.py` |
 | `CN:goldset_false_fail` | Gold-set false-FAIL (all) | 0 | n/a | `grader_goldset.py` |
 | `CN:channel_lock_trajectories` | Channel verdict-lock trajectories | 88 | n/a | `tests/fixtures/golden_trajectories/index_channels.json` |

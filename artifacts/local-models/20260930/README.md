@@ -8,6 +8,12 @@ frontier leaderboard submission. No paid APIs or model downloads were used.
   seeded world and two known-label MedGemma judge sanity cases (25.121 seconds).
   This report predates the added runtime-version and explicit judge-error
   fields; its two saved judge verdicts contain valid evidence.
+- `native-smoke-completion-checked.json` and `.log`: rerun with explicit
+  agent/judge completion guards. Native tool round trip and both judge
+  sanity cases passed in 28.926 seconds, with no judge errors. Records
+  Ollama 0.34.4, model digests, seed 42, 8,192 context, thinking disabled,
+  command/exit status, and source hashes. This tiny diagnostic is not
+  clinical judge calibration or a benchmark result.
 - `ir001-nano-medgemma/`: first full IR-001/v10 diagnostic, run while fixes were
   still being developed. The process used the earlier completion handling.
   It contains 25 tool calls and ends on a tool response without a final answer.

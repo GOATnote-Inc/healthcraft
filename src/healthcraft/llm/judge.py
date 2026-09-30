@@ -350,6 +350,12 @@ Respond with JSON: {{"satisfied": true/false, "evidence": "...", "confidence": "
                 max_tokens=max_tokens,
             )
 
+            stop_reason = response.get("stop_reason", "stop")
+            if stop_reason not in ("stop", "end_turn", "stop_sequence") or response.get(
+                "tool_calls"
+            ):
+                raise ValueError(f"Judge response did not complete normally ({stop_reason})")
+
             content = response.get("content", "")
             result = _parse_judge_response(content)
 

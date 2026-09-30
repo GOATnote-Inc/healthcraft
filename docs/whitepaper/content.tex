@@ -3,7 +3,8 @@
 % ============================================================
 % Numeric claims carry % CN:<tag> comments that map to
 % canonical_numbers.md. scripts/verify_canonical_numbers.py
-% enforces correspondence as a blocking CI gate.
+% checks tag definitions and cited source paths as a blocking CI gate;
+% numerical agreement between prose and sources requires separate review.
 % ============================================================
 
 \begin{abstract}
@@ -12,16 +13,16 @@ workflows faster than the infrastructure to evaluate them safely.
 Static medical-QA benchmarks cannot detect the failure modes that
 matter in emergency medicine: trajectory-level safety collapse, tool
 misuse against a patient record, and capitulation under sustained
-clinical pressure. We present \textbf{HealthCraft}, the first public
+clinical pressure. We present \textbf{HealthCraft}, a public
 reinforcement-learning environment that rewards trajectory-level safety
 behavior under realistic emergency-medicine conditions, adapted from
-the Corecraft architecture. It is built on a FHIR~R4 world state with
-14 entity types and 3{,}987 seed entities, exposes 24 MCP tools for
+the Corecraft architecture. It uses a synthetic, FHIR-R4-shaped world state with
+14 entity types and 4{,}075 entities in the base seed, exposes 24 MCP tools for % CN:entities_seeded
 read/compute/mutate/workflow interaction, and defines a dual-layer
 rubric that gates reward to zero whenever any safety-critical criterion
 is violated. We release a benchmark of 195 tasks across six categories,
 graded against 2{,}255 binary criteria of which 515 are safety-critical;
-a post-hoc 10-task negative-class slate extends this to
+a post-hoc 10-task negative-class slate is included in the current inventory of
 $205$ tasks % CN:post_neg_tasks
 and $2{,}323$ criteria % CN:post_neg_criteria
 (\S\ref{sec:limits}, Appendix~F.5).
@@ -41,14 +42,13 @@ the measurement, not a separate axis. HealthCraft is released as an evaluation b
 LLM-judge audit overlay (Appendix~\ref{app:v9-overlay}) surfaced a judge
 fail-\emph{open} tendency that a subsequent grader-fidelity audit
 (\S\ref{sec:grader-superseded}) confirmed on the published grading path and
-fixed (the judge now fails closed; a 55-case EM-adjudicated gold set finds
+fixed (the judge now fails closed; a curated 55-case regression set finds
 zero safety-critical false-\textsc{pass}), and a
 negative-class task slate with 60-run smoke pilot
-(\S\ref{sec:limits}) provides direct empirical evidence that the
-same reward signal is \emph{not} drop-in training-safe:
-restraint-pattern criteria pass at $0.929$ prevalence % CN:neg_smoke_crit_prev
-on the smoke pilot, a structural gameability an evaluation harness
-can tolerate but a training reward cannot. We scaffold the coupling to a Megatron+SGLang+GRPO
+(\S\ref{sec:limits}) motivates studying the evaluation-to-training boundary:
+overall NEG criteria pass at $0.929$ prevalence % CN:neg_smoke_crit_prev
+on the smoke pilot. This identifies a possible reward-design concern,
+not an observed training outcome. We scaffold the coupling to a Megatron+SGLang+GRPO
 loop per Corecraft~\S5.2 and leave training-reward ablations as
 future work. Environment, task suite, rubrics, and evaluation harness
 are released under Apache~2.0.
@@ -86,9 +86,10 @@ HealthCraft adapts the Corecraft architecture to emergency medicine
 with three substantive changes:
 
 \begin{enumerate}
-  \item The world state is FHIR~R4, grounded in the OpenEM clinical
-  knowledge corpus. Entities, tool returns, and audit records have a
-  direct analogue in any real clinical integration.
+  \item The world state contains synthetic clinical entities with
+  FHIR-R4-shaped representations and optional OpenEM clinical knowledge.
+  Formal FHIR profile validation and production interoperability have
+  not been established.
   \item The reward function is Eq.~1 of Corecraft augmented with a
   hard safety gate: a single unsatisfied safety-critical criterion
   zeros the reward. This matches the non-negotiable structure of
@@ -99,8 +100,8 @@ with three substantive changes:
   rather than author intuition.
 \end{enumerate}
 
-Our contributions are: (a)~the first public RL environment for
-emergency medicine with a FHIR-R4 world state and a 24-tool MCP
+Our contributions are: (a)~a public RL environment for
+emergency medicine with a synthetic world state and a 24-tool MCP
 surface; (b)~a dual-layer rubric with a hard safety gate, together
 with the reward formula (Eq.~\ref{eq:reward}); (c)~a benchmark of
 195 tasks, 2{,}255 binary criteria, and 515 safety-critical criteria
@@ -133,7 +134,7 @@ which introduces a high-fidelity retail/enterprise RL environment
 built around an MCP tool surface over a relational world state, a
 binary-criteria rubric, and a Docker-bundled training loop. Our
 entity graph, action space, rubric Eq.~1, and Docker topology all
-follow Corecraft; the adaptations are (a)~the FHIR R4 world state,
+follow Corecraft; the adaptations are (a)~FHIR-R4-shaped clinical entities,
 (b)~a hard safety gate on Eq.~\ref{eq:reward}, and (c)~a
 domain-specific task suite. \textsc{$\tau$-Bench}
 \citep{tau_bench2024} and BFCL \citep{bfcl2024} established the
@@ -157,25 +158,27 @@ setting. Our safety-critical criteria are the negative side effects
 that must not occur; the hard gate is the exploration constraint.
 
 \paragraph{Clinical interoperability.}
-The world state conforms to FHIR R4 \citep{fhir_r4}, which is the
-base interoperability standard for clinical data systems. Modelling
-the environment at the FHIR resource level (rather than a custom
-schema) means tool calls and their audit records have a direct
-analogue in any real clinical integration, and retrieval tasks can
-be unit-tested against the same terminologies (LOINC, SNOMED,
-RxNorm) used in production.
+FHIR R4 \citep{fhir_r4} informs the environment's clinical entity
+representations and bundle-generation helpers. Runtime entities are
+Python dataclasses and dictionaries; the release does not run a formal
+FHIR profile validator or demonstrate interoperability with a production
+EHR. Terminology coverage and resource conformance therefore require
+separate validation before any integration claim.
 
 % ============================================================
 \section{Environment Design}
 \label{sec:env}
 % ============================================================
 
-HealthCraft is a Docker-bundled environment with three services: a
-PostgreSQL world-state store, a FastMCP tool server, and a task engine
-that loads tasks, drives rollouts, and evaluates the rubric
-(Figure~\ref{fig:architecture}). The composition follows Corecraft's
-Table~2 (\texttt{docker/}) so that HealthCraft slots into the same
-training loop (Megatron + SGLang + GRPO) as the reference environment.
+HealthCraft's Docker scaffold provisions three services: PostgreSQL,
+a tool server, and a task engine (\texttt{docker/}). The running tool
+server uses an in-memory \texttt{WorldState}; no runtime code connects
+it to the provisioned PostgreSQL service. Session mutations are retained
+in that process, and trajectories are saved separately as JSON artifacts
+(Figure~\ref{fig:architecture}). The container topology follows Corecraft's
+Table~2, but the bundle alone does not run Megatron, SGLang, or GRPO.
+The Python RL interfaces provide the environment and training reward;
+an external trainer owns optimization and weight synchronization.
 
 \begin{figure}[t]
 \centering
@@ -188,7 +191,7 @@ training loop (Megatron + SGLang + GRPO) as the reference environment.
 ]
 \node[block] (agent) {Frontier LLM\\(rollout)};
 \node[block, right=12mm of agent] (mcp) {MCP server\\(24 tools)};
-\node[store, right=12mm of mcp] (state) {World state\\(FHIR R4 Postgres)};
+\node[store, right=12mm of mcp] (state) {World state\\(in-memory)};
 \node[block, below=8mm of mcp] (tasks) {Task engine\\(195 tasks)};
 \node[block, below=8mm of state] (rubric) {Rubric grader\\(2{,}255 criteria)};
 
@@ -196,13 +199,13 @@ training loop (Megatron + SGLang + GRPO) as the reference environment.
 \draw[arrow] (mcp) -- node[above, font=\scriptsize]{read/write} (state);
 \draw[arrow] (mcp.south) -- node[right, font=\scriptsize]{audit} (tasks.north);
 \draw[arrow] (tasks.east) -- (rubric.west);
-\draw[arrow] (rubric.north) -- node[right, font=\scriptsize]{reward (Eq.~\ref{eq:reward})} (state.south);
-\draw[arrow] (rubric.south) to[out=-90, in=-90, looseness=1.4]
-    node[pos=0.5, below, font=\scriptsize]{trajectory} (agent.south);
+\draw[arrow] (state.south) -- node[right, font=\scriptsize]{state evidence} (rubric.north);
+\draw[arrow] (agent.south) to[out=-90, in=-90, looseness=1.4]
+    node[pos=0.5, below, font=\scriptsize]{trajectory} (rubric.south);
 \end{tikzpicture}
 \caption{HealthCraft architecture. A frontier LLM agent issues MCP tool
-calls against a FHIR-R4 world state. Every call is audit-logged. At
-trajectory end, the rubric grader scores 2{,}255 binary criteria
+calls against a synthetic in-memory world state. Every call is audit-logged.
+For the V8 task suite, the rubric grader scores 2{,}255 binary criteria
 (515~safety-critical) and applies Eq.~\ref{eq:reward}. A single
 safety-critical violation zeros the reward.}
 \label{fig:architecture}
@@ -210,21 +213,27 @@ safety-critical violation zeros the reward.}
 
 \subsection{State space}
 \label{sec:state}
-The world state is a FHIR R4 Postgres schema populated by a
+The world state consists of in-memory entity collections populated by a
 deterministic seed (seed=42)  % CN:seed
 covering 14 entity types  % CN:entity_types
-and 4{,}075 entities.  % CN:entities_seeded
+and 4{,}075 entities in the base installation.  % CN:entities_seeded
+With the OpenEM source corpus available, the same seed produces
+4{,}450 entities; the optional knowledge corpus also changes generated
+clinical-task counts.  % CN:entities_seeded_openem
 Patients, encounters, beds, staff, clinical tasks, treatment plans,
 protocols, decision rules, conditions, medications, supplies,
-insurance, reference materials, and transfer records all have valid
-FHIR R4 representations. Figure~\ref{fig:entity-graph} shows the
-reference structure of the graph; the full list of invariants
+insurance, and reference materials are synthetic records; the release
+does not establish formal FHIR R4 conformance for these collections.
+Figure~\ref{fig:entity-graph} shows the conceptual reference structure
+of the graph, including transfer records from the original design that
+are not seeded as a standalone collection. Entity invariants
 (e.g.\ every \textsc{Encounter.patient\_id} resolves to a live
-\textsc{Patient}; bed occupancy is conserved) is enforced at seed time
-and checked by the test suite. Clinical knowledge is grounded in
-OpenEM, which contributes 370 conditions,  % CN:openem_conditions
-and supplies the confusion pairs, decision rules, and evaluation
-properties that drive task generation (\S\ref{sec:tasks}).
+\textsc{Patient}; bed occupancy is conserved) are covered by repository
+tests rather than a formal FHIR validation pass. The base installation includes bundled
+clinical knowledge; an optional OpenEM source checkout supplies
+370 conditions,  % CN:openem_conditions
+in addition to the confusion pairs, decision rules, and evaluation
+properties used in task authorship (\S\ref{sec:tasks}).
 
 \begin{figure}[t]
 \centering
@@ -262,10 +271,10 @@ properties that drive task generation (\S\ref{sec:tasks}).
 \draw[edge] (cond) -- (ref);
 \draw[edge] (enc) -- (xfer);
 \end{tikzpicture}
-\caption{Entity graph. Fourteen FHIR-R4 entity types with 3{,}987 entities
-at seed=42. OpenEM's 370 conditions ground the \textsc{Condition}
-layer; \textsc{Protocol} and \textsc{Decision Rule} reference it. Edges
-denote foreign-key or terminology references.}
+\caption{Conceptual entity graph from the original design. Current seeded
+collections and counts are described in \S\ref{sec:state}; the diagram
+does not assert FHIR conformance. OpenEM's 370-condition corpus is an
+optional knowledge source. Edges denote intended entity references.}
 \label{fig:entity-graph}
 \end{figure}
 
@@ -299,7 +308,8 @@ tools.
 
 \subsection{Tool semantics and error model}
 \label{sec:semantics}
-Tool calls are deterministic given the world state: no latency is
+In the V8 evaluation configuration, tool calls are deterministic given
+the world state: no latency is
 simulated, no retry or timeout semantics are modelled, and no
 partial-success or idempotency markers are attached to the mutating
 operations. Every call returns either
@@ -307,11 +317,10 @@ $\{\texttt{status}{:}\,\texttt{"ok"},\ \texttt{data}{:}\,\ldots\}$
 or
 $\{\texttt{status}{:}\,\texttt{"error"},\ \texttt{code}{:}\,\ldots,\ \texttt{message}{:}\,\ldots\}$
 and is recorded in an append-only audit log that the world state
-exposes to the rubric grader. The absence of latency and retry
-semantics is deliberate for this release---not because the real world
-lacks them, but because modelling them honestly would require a
-concurrency story this environment does not yet have
-(\S\ref{sec:limits}).
+exposes to the rubric grader. The current RL scaffold additionally
+provides optional seeded latency and transient-failure injection;
+mutation idempotency is enabled by default. These additions do not
+retroactively change the historical V8 configuration or its saved results.
 
 Per Corecraft \S5.5, HealthCraft injects six classes of
 structured noise that are seeded deterministically so that evaluations
@@ -328,17 +337,17 @@ task authorship.
 
 \subsection{FHIR integration and OpenEM bridge}
 \label{sec:fhir}
-The world state stores entities as FHIR R4 resources
-(\texttt{src/fhir/resources.py}) generated by the ED-realism FHIR
-generator (\texttt{src/fhir/generator.py}), which consumes terminology
-bindings (LOINC labs, SNOMED conditions, RxNorm medications) from
-\texttt{src/fhir/terminology.py}. Clinical knowledge is indexed through
-the OpenEM bridge
-(\texttt{src/healthcraft/openem/\{bridge,fhir\_adapter,condition\_mapper\}.py}):
-at seed time, OpenEM conditions, confusion pairs, decision rules, and
-evaluation properties are loaded and projected onto the entity graph
-so that any task grounded in an OpenEM condition has a resolvable
-chain all the way to FHIR resources the agent can retrieve.
+The live tool runtime stores synthetic entity objects in
+\texttt{src/healthcraft/world/state.py}.
+\texttt{src/healthcraft/world/fhir\_store.py} provides a separate
+dictionary-backed resource store, and
+\texttt{src/healthcraft/openem/fhir\_adapter.py} provides synthetic
+patient and encounter bundle helpers. Neither supplies a PostgreSQL
+connection or formal FHIR profile validation. At seed time,
+\texttt{src/healthcraft/world/seed.py} optionally loads OpenEM condition
+frontmatter; when the corpus is unavailable, it uses the bundled
+clinical-knowledge fallback. This optional corpus path is distinct from
+task authorship using OpenEM metadata and from validated EHR integration.
 
 \subsection{Determinism}
 \label{sec:determinism}
@@ -371,7 +380,7 @@ provider noise.
 Let $\tau$ denote a trajectory, $C$ the set of binary criteria for the
 task, $C_{\text{safety}} \subseteq C$ the subset flagged
 \texttt{safety\_critical}, and $\operatorname{sat}(c,\tau) \in \{0,1\}$
-the indicator that criterion $c$ is satisfied by $\tau$. Reward is
+the indicator that criterion $c$ is satisfied by $\tau$. Evaluation reward is
 \begin{equation}
 \label{eq:reward}
 r(\tau) \;=\;
@@ -394,9 +403,12 @@ between a lethal error and an otherwise competent performance, so the
 reward surface must reflect that. This makes the landscape non-convex
 in a way that Corecraft's retail domain does not require: our models
 routinely satisfy $10$ of $11$ criteria on a task and score $0$ because
-the $11$th was safety-critical (\S\ref{sec:results}). Section~4 of the
-reference implementation (\texttt{src/healthcraft/tasks/rubrics.py}
-lines 55--86) is the source of truth for Eq.~\ref{eq:reward}.
+the $11$th was safety-critical (\S\ref{sec:results}). The
+\texttt{compute\_reward} function in
+\texttt{src/healthcraft/tasks/rubrics.py}
+is the source of truth for Eq.~\ref{eq:reward}. The separate experimental
+training reward in \texttt{src/healthcraft/rl/reward.py} uses verifiable
+anchoring, restraint folding, and judge abstention; it is not Eq.~\ref{eq:reward}.
 
 \paragraph{Verification methods.}
 Each criterion declares how it is to be verified. The three methods
@@ -407,7 +419,7 @@ not order anticoagulation'' resolves to a predicate over the audit
 entries and is evaluated without an LLM in the loop;
 (ii)~\emph{llm\_judge}, a cross-vendor judge (\S\ref{sec:eval}) that
 reads the full trajectory and returns a binary decision with evidence;
-(iii)~\emph{pattern}, a regex match over the final assistant turn,
+(iii)~\emph{pattern}, a regex match over concatenated assistant-turn text,
 retained for light-weight presentational checks (e.g.\ discharge
 instructions contain return-precautions language).
 We prefer \emph{world\_state} wherever a deterministic predicate is
@@ -511,9 +523,9 @@ environment under Apache~2.0.
 \label{sec:eval}
 % ============================================================
 
-An evaluation run consists of: (a)~for each of 195 tasks, spin up a
-fresh Docker container holding a deterministic world state at
-seed=42; (b)~drive the agent for up to $N$ turns (category-dependent)
+An evaluation run consists of: (a)~for each of 195 tasks, seed a
+fresh in-memory world for each trial using the configured deterministic
+seed schedule; (b)~drive the agent for up to $N$ turns (category-dependent)
 against the MCP server; (c)~capture the complete audit log and
 assistant/tool message trail; (d)~apply the rubric grader to each
 trajectory; (e)~aggregate per-model, per-category, and per-task
@@ -805,12 +817,14 @@ so the V8/V9 safety-failure numbers are biased \emph{low}---the defect made
 models look safer than they were. Per operator decision we do not re-grade
 the cached V8/V9 trajectories for this revision; their aggregates are
 therefore \textbf{superseded, not re-measured}, and should be read as
-pre-audit. As evidence that the \emph{corrected} grader is sound we report a
-hand-labeled, EM-adjudicated gold set of 55 trajectories run through the real
-graders: \textbf{zero} false-\textsc{pass}, \textbf{zero} false-\textsc{fail},
-and \textbf{zero} safety-critical false-\textsc{pass}, with Wilson intervals
-that---given $n=55$---bound the safety false-\textsc{pass} rate below roughly
-20\%, not to zero. This measures grader \emph{mechanics}, not the judge's
+pre-audit. As a regression check of the \emph{corrected} grader we report a
+curated set of 55 cases run through the real graders: \textbf{zero}
+false-\textsc{pass}, \textbf{zero} false-\textsc{fail}, and \textbf{zero}
+safety-critical false-\textsc{pass}. The roughly 20\% Wilson upper bound
+is for the v10 world-state false-pass stratum's $n=15$ true-violation % CN:goldset_v10_negative_cases
+cases, not all $55$ cases. Reviewer identities and an adjudication protocol
+are not included in the released case artifact. This measures grader
+\emph{mechanics} on curated cases, not a population clinical-error rate or the judge's
 clinical agreement with physicians, which remains future work
 (\S\ref{sec:limits}). As with V7, we did not ablate each grader fix in
 isolation. We highlight this because a safety benchmark whose grader silently
@@ -850,7 +864,7 @@ claim.
 
 \paragraph{Scope and non-claims.}
 HealthCraft measures \emph{execution correctness} under a fixed
-rubric in a deterministic FHIR tool-use environment; it does not
+rubric in a seeded synthetic clinical tool-use environment; it does not
 measure clinical reasoning under uncertainty, calibrated risk
 judgement, or deployment-time behaviour. Safety is operationalized as
 binary criterion satisfaction with a hard gate, not as dynamic risk
@@ -861,40 +875,40 @@ from the stochastic variability that deployment confronts. Model
 \emph{sampling} is not deterministic for current frontier models: Opus 4.7+
 and gpt-5.5 no longer support \texttt{temperature=0}
 (\S\ref{sec:determinism}), so their runs reproduce only up to the fixed
-environment plus multi-trial Pass@$k$, not bit-identical trajectories. FHIR~R4 grounding is a claim about
-interoperability surfaces, not about team communication,
-interruptions, or the social dynamics of an emergency department. A
-strong result on HealthCraft is necessary but not sufficient evidence
-of clinical readiness, and we state this so downstream use of the
-benchmark does not overclaim.
+environment plus multi-trial Pass@$k$, not bit-identical trajectories.
+FHIR-R4-shaped representations describe a data-design choice; verified
+interoperability, team communication, interruptions, and the social
+dynamics of an emergency department remain outside the evidence. A
+strong result on HealthCraft does not establish clinical readiness;
+the relationship between benchmark scores and clinical performance
+has not been prospectively validated.
 
-\paragraph{Static patient state.}
-Between agent actions, patient state does not evolve. Vitals do not
+\paragraph{Static patient state in the historical evaluation.}
+In the V8 configuration, patient state does not evolve between agent actions. Vitals do not
 trend, the septic patient does not decompensate, and the triaged-low
 patient does not bounce back to triage. Emergency medicine is a
 temporal discipline, and this is the largest single fidelity gap in
-the environment. A future release will introduce a patient state
-machine whose transitions are driven by a combination of elapsed
-simulated time and the agent's actions.
+the evaluated environment. The current code includes optional seeded
+vitals trajectories and simplified action-conditioned physiology in the
+RL path. Their clinical fidelity and effect on benchmark outcomes have
+not been established by the historical results reported here.
 
-\paragraph{No latency, retry, or timeout semantics.}
-Tool calls return instantaneously and deterministically. Real MCP
+\paragraph{Tool timing in the historical evaluation.}
+The historical evaluation uses instantaneous, deterministic tool calls. Real MCP
 endpoints fail, time out, and return partial results; real clinical
-systems have queueing and contention. We chose not to simulate these
-rather than simulate them badly; the present environment should be
-treated as an upper bound on the agent's performance under ideal
-infrastructure. Introducing honest latency requires a concurrency
-model (e.g.\ simulated wall-clock with action budgets) that we are
-not shipping in this release.
+systems have queueing and contention. The current RL scaffold supplies
+optional seeded simulated latency, transient errors, and retry budgets
+through \texttt{src/healthcraft/mcp/faults.py}; it is not a full
+concurrency or clinical queueing model. No empirical robustness gain
+from these additions is established by the reported evaluations.
 
-\paragraph{No idempotency markers on mutating operations.}
-Wave~3 tools do not accept an idempotency key, so a retried
-\texttt{createClinicalOrder} can silently create a duplicate order.
-Our tasks are structured so this is not exercised, but an RL loop
-that encourages retries would need this before being safe to train
-against. (The RL-coupling scaffold added in 2026-05 supplies idempotency
-keys, fault injection, and process signals on the training path; the V8
-evaluation tool surface described here predates it.)
+\paragraph{Idempotency in the historical tool surface.}
+The V8 wave~3 tool surface did not accept an idempotency key, so a
+retried \texttt{createClinicalOrder} could create a duplicate order.
+The historical tasks did not exercise this retry behavior. The current
+runtime supports idempotency keys with duplicate-mutation protection
+enabled by default; the V8 evaluation described here predates that
+implementation and does not measure its effect.
 
 \paragraph{LLM-judge reliability.}
 Cohen's $\kappa = 0.553$ is moderate, not substantial, and our
@@ -913,13 +927,15 @@ this: of 63 disagreements between the overlay and the V8 judge,
 inversions  % CN:v9_safety_inversions
 are judge PASS verdicts on trajectories in which the audit log
 contains no successful qualifying tool call---i.e.\ the judge
-invented the passing behaviour. Under the Tier~1 subset of 10 overlay
-entries  % CN:v9_tier1_count
-where disagreements are exhausted by judge hallucination plus
-$\le 2$ safe labels, we recommend replacing \texttt{llm\_judge} with
+invented the passing behaviour. For the Tier~1 subset of 10 overlay
+entries with no disagreements in the audited trials,  % CN:v9_tier1_count
+we recommend replacing \texttt{llm\_judge} with
 the deterministic rule for reward; Tier~2 (26 entries,  % CN:v9_tier2_count
 research-only) and Tier~3 (8 entries,  % CN:v9_tier3_count
-keep \texttt{llm\_judge}) retain the LLM grader. The partial mitigation
+keep \texttt{llm\_judge}) are recommendations to retain the LLM grader
+pending further review. These tiers are analytical recommendations:
+the runtime loader applies all configured channel entries without a
+tier filter. The partial mitigation
 is to prefer \texttt{world\_state} at authoring time and to apply
 Tier~1 overlays where available; the full mitigation is
 physician-in-the-loop adjudication, which is underway on a related
@@ -931,10 +947,13 @@ Most consequentially, the 2026-05-31 grader-fidelity audit
 five-of-six safety inversions above are a symptom of this, not residual
 variance. The judge is now built at a negation-first prompt version that
 fails \emph{closed}; \texttt{judge\_model} and \texttt{judge\_prompt\_version}
-are persisted per trajectory; and a 55-case EM-adjudicated gold set finds
-zero safety-critical false-\textsc{pass} (Wilson-bounded below $\sim 20\%$ at
-$n=55$, not zero). This measures grader \emph{mechanics}; clinical agreement
-with physicians remains the open item.
+are persisted per trajectory; and a curated 55-case regression set finds
+zero safety-critical false-\textsc{pass}. The $\sim 20\%$ Wilson upper bound
+belongs to the v10 world-state false-pass stratum with $n=15$ true-violation
+cases, not to all $55$ cases. Reviewer identities and an adjudication
+protocol are not included in the released case artifact. This measures
+grader \emph{mechanics} on curated cases, not a population clinical-error
+rate; clinical agreement with physicians remains the open item.
 
 \paragraph{Residual grader gaps and the deployment gate.}
 Three residuals we state plainly. (i)~The corrected drug gates match curated
@@ -982,10 +1001,10 @@ under-samples action-negative ones where the correct
 behaviour is restraint. As a shipped structural fix we
 committed a $10$-task % CN:neg_tasks
 negative-class slate (NEG-001 through NEG-010,
-Appendix~\ref{app:v9-overlay}) adding $82$ criteria--% CN:neg_criteria
-$14$ safety-critical-% CN:neg_safety_critical
-for a total of $205$ tasks % CN:post_neg_tasks
-and $2{,}337$ criteria. % CN:post_neg_criteria
+Appendix~\ref{app:v9-overlay}) adding $82$ criteria, % CN:neg_criteria
+of which $14$ are safety-critical. % CN:neg_safety_critical
+The current live inventory contains $205$ tasks % CN:post_neg_tasks
+and $2{,}323$ criteria, measured independently of the frozen V8 counts. % CN:post_neg_criteria
 A 60-run smoke pilot (\texttt{docs/NEG\_SMOKE\_PILOT.md})
 establishes that the slate rebalances \emph{task-level}
 difficulty: mean Pass@1 is $0.500$ % CN:neg_smoke_claude_pass1
@@ -1007,16 +1026,17 @@ remains open is physician adjudication of the Tier~2 subset
 (Appendix~\ref{app:v9-overlay}), not further task authoring.
 
 \paragraph{Evaluation-to-training boundary.}
-The same Eq.~1 signal that supports evaluation is the nominal reward
-an RL loop would read. The NEG smoke-pilot result above is direct
-empirical evidence that it is not drop-in training-safe: a
-training loop that credited restraint criteria at their observed
-PASS prevalence of $0.929$ % CN:neg_smoke_crit_prev
-would be pushed toward pattern-matching
-the specific over-actions frontier models have already been trained
-against, rather than toward generalized clinical judgement. We
-scaffold the coupling to Megatron+SGLang+GRPO per
-Corecraft~\S5.2 but do not claim training-safety; closing this
+Equation~\ref{eq:reward} remains the evaluation reward. The implemented
+RL path instead reads \texttt{compute\_training\_reward} in
+\texttt{src/healthcraft/rl/reward.py}: a separate experimental objective
+that gates on safety and restraint, combines verifiable and judged
+criteria, and supports a capped process term. The NEG smoke-pilot's
+overall criterion-PASS prevalence of $0.929$ % CN:neg_smoke_crit_prev
+motivates this design; it is not a measurement of training outcomes or
+proof that this alternative prevents reward hacking. The coupling to
+Megatron+SGLang+GRPO follows Corecraft~\S5.2, but optimization remains
+the responsibility of an external trainer. We do not claim
+training-safety; closing this
 boundary requires a soft-gate/hard-gate ablation, restraint-criterion
 reweighting, and reward-hacking probes that we leave as future work.
 
@@ -1027,11 +1047,12 @@ frontier configurations; we cite it where broader context is needed
 and defer our own scaling analysis.
 
 \paragraph{Future work.}
-Dynamic patient state; full RL training integration (Megatron +
-SGLang + GRPO per Corecraft \S5.2); task-set scaling to a
+Clinical validation of the optional dynamic-state model; live external
+RL training runs (Megatron + SGLang + GRPO per Corecraft \S5.2);
+training-reward ablations; task-set scaling to a
 $\sim\!1000$-task training split kept disjoint from the
 evaluation split; physician-adjudication data on HealthCraft
-criteria; the V10 pilot that will re-grade against the
+criteria; further controlled evaluation on the
 post-NEG $205$-task corpus.
 
 % ============================================================
@@ -1040,9 +1061,9 @@ post-NEG $205$-task corpus.
 % ============================================================
 
 HealthCraft is a reinforcement-learning environment for emergency
-medicine built to be honest about what it measures. The FHIR-R4
-world state and 24-tool MCP surface are grounded in an interoperability
-standard used in production clinical systems; the dual-layer rubric
+medicine built to be honest about what it measures. Its synthetic
+in-memory world state, FHIR-R4-shaped representations, and 24-tool MCP
+surface support clinical workflow experiments; the dual-layer rubric
 with its hard safety gate reflects the way emergency medicine
 actually weighs tradeoffs; and the 195-task benchmark is traceable
 back to OpenEM's peer-reviewed clinical sources.

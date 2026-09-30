@@ -43,6 +43,8 @@ def run_smoke(agent_model: str, judge_model: str) -> dict:
     ]
     started = time.monotonic()
     response = agent.chat(messages, tools=tools, max_tokens=256)
+    if response.get("stop_reason", "tool_calls") not in ("tool_calls", "tool_use"):
+        raise RuntimeError(f"Agent tool response incomplete: {response.get('stop_reason')}")
     calls = response["tool_calls"]
     if len(calls) != 1 or calls[0]["name"] != "getEncounterDetails":
         raise RuntimeError(f"Agent did not issue the required native tool call: {response}")
@@ -67,6 +69,10 @@ def run_smoke(agent_model: str, judge_model: str) -> dict:
         ]
     )
     final = agent.chat(messages, max_tokens=128)
+    if final.get("stop_reason", "stop") not in ("stop", "end_turn", "stop_sequence") or final.get(
+        "tool_calls"
+    ):
+        raise RuntimeError(f"Agent final response incomplete: {final.get('stop_reason')}")
     if encounter_id not in final["content"]:
         raise RuntimeError(f"Agent did not use the tool response: {final}")
     agent_seconds = time.monotonic() - started
