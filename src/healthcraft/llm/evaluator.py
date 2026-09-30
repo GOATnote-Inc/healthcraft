@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from healthcraft.llm.agent import create_client
+from healthcraft.llm.checkpoint import selected_trajectory_paths
 from healthcraft.llm.judge import LLMJudge
 from healthcraft.tasks.loader import Task, load_task
 from healthcraft.tasks.rubrics import (
@@ -465,7 +466,7 @@ def main() -> None:
         traj_paths = [Path(args.trajectory)]
     else:
         traj_dir = Path(args.trajectory_dir)
-        traj_paths = sorted(traj_dir.rglob("*.json"))
+        traj_paths = selected_trajectory_paths(traj_dir)
         # Exclude grading result files
         traj_paths = [p for p in traj_paths if not p.stem.endswith("_grading")]
 

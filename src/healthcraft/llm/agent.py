@@ -548,11 +548,28 @@ class GeminiClient:
             config=config,
         )
 
+        # Google distinguishes a natural STOP from MAX_TOKENS, safety blocks,
+        # invalid function calls, and other incomplete endings. A non-streaming
+        # response with no finish reason has not established completion either.
+        # https://ai.google.dev/api/generate-content#finishreason
+        if not response.candidates:
+            feedback = getattr(response, "prompt_feedback", None)
+            blocked = getattr(feedback, "block_reason", None)
+            blocked_name = getattr(blocked, "value", blocked) or "unknown"
+            raise RuntimeError(
+                f"Gemini completion returned no candidate (prompt block: {blocked_name})"
+            )
+        candidate = response.candidates[0]
+        finish = getattr(candidate, "finish_reason", None)
+        finish_name = getattr(finish, "value", finish) or "missing"
+        if finish_name not in {"STOP", "MAX_TOKENS"}:
+            raise RuntimeError(f"Gemini completion did not finish successfully: {finish_name}")
+
         # Parse response
         content = ""
         tool_calls = []
-        if response.candidates and response.candidates[0].content:
-            for part in response.candidates[0].content.parts:
+        if candidate.content:
+            for part in candidate.content.parts or []:
                 if part.text:
                     content += part.text
                 elif part.function_call:
@@ -569,8 +586,8 @@ class GeminiClient:
                         ).decode("ascii")
                     tool_calls.append(tc_entry)
 
-        stop_reason = "stop"
-        if tool_calls:
+        stop_reason = "max_tokens" if finish_name == "MAX_TOKENS" else "stop"
+        if tool_calls and finish_name == "STOP":
             stop_reason = "tool_calls"
 
         return {
@@ -592,6 +609,10 @@ def create_client(model: str, api_key: str) -> ModelClient:
         A ModelClient instance.
     """
     m = model.lower()
+    if m.startswith("ollama:"):
+        from healthcraft.llm.local_models import OllamaClient
+
+        return OllamaClient(model=model[len("ollama:") :])
     if m.startswith("sglang:") or m.startswith("http://") or m.startswith("https://"):
         # Open-weights policy served by SGLang (used by the RL coupling).
         # Two forms:
@@ -717,6 +738,7 @@ def run_agent_task(
             "category": task.category,
             "level": task.level,
             "title": task.title,
+            "max_tool_rounds": MAX_TOOL_ROUNDS,
         },
     )
 
@@ -744,17 +766,25 @@ def run_agent_task(
         except Exception as e:
             logger.error("API call failed on round %d: %s", round_num + 1, e)
             traj.error = f"API error on round {round_num + 1}: {e}"
+            traj.metadata["stop_reason"] = "client_error"
             break
 
         content = response["content"]
         tool_calls = response["tool_calls"]
+        stop_reason = response.get("stop_reason", "tool_calls" if tool_calls else "stop")
+        traj.metadata["stop_reason"] = stop_reason
 
         # Record assistant turn
         traj.add_turn(
             "assistant",
             content,
             tool_calls=[
-                {"name": tc["name"], "arguments": tc.get("arguments", {})} for tc in tool_calls
+                {
+                    "id": tc.get("id", ""),
+                    "name": tc["name"],
+                    "arguments": tc.get("arguments", {}),
+                }
+                for tc in tool_calls
             ],
         )
 
@@ -763,6 +793,10 @@ def run_agent_task(
         if tool_calls:
             assistant_msg["tool_calls"] = tool_calls
         messages.append(assistant_msg)
+
+        if stop_reason in {"length", "max_tokens", "max_output_tokens"}:
+            traj.error = f"Agent response truncated ({stop_reason}) on round {round_num + 1}"
+            break
 
         # If no tool calls, the agent is done
         if not tool_calls:
@@ -790,6 +824,11 @@ def run_agent_task(
                     "content": result_str,
                 }
             )
+    else:
+        traj.error = (
+            f"Agent exhausted tool round limit ({MAX_TOOL_ROUNDS}) without a final response"
+        )
+        traj.metadata["stop_reason"] = "tool_round_limit"
 
     traj.duration_seconds = time.monotonic() - start_time
     return traj

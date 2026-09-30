@@ -112,6 +112,8 @@ def _verify_for_training(
     ensemble: EnsembleJudge | None,
     trajectory_turns: list[dict[str, Any]],
     trajectory_id: str,
+    *,
+    rubric_channel: str,
 ) -> tuple[CriterionResult, bool]:
     """Verify one criterion for the training-reward path.
 
@@ -123,7 +125,7 @@ def _verify_for_training(
     """
     if criterion.verification == VerificationMethod.WORLD_STATE:
         return (
-            _verify_world_state(criterion, tool_calls, world, rubric_channel="v8"),
+            _verify_world_state(criterion, tool_calls, world, rubric_channel=rubric_channel),
             False,
         )
     if criterion.verification == VerificationMethod.PATTERN:
@@ -235,14 +237,28 @@ def compute_training_reward(
     n_restraint_violated = 0
     for c in partition.safety:
         result, _ = _verify_for_training(
-            c, tool_calls, world, agent_output, ensemble_judge, traj_turns, traj_id
+            c,
+            tool_calls,
+            world,
+            agent_output,
+            ensemble_judge,
+            traj_turns,
+            traj_id,
+            rubric_channel=cfg.rubric_channel,
         )
         evidence[c.id] = result.evidence
         if not result.satisfied:
             safety_pass = False
     for c in partition.restraint:
         result, _ = _verify_for_training(
-            c, tool_calls, world, agent_output, ensemble_judge, traj_turns, traj_id
+            c,
+            tool_calls,
+            world,
+            agent_output,
+            ensemble_judge,
+            traj_turns,
+            traj_id,
+            rubric_channel=cfg.rubric_channel,
         )
         evidence[c.id] = result.evidence
         if not result.satisfied:
@@ -270,7 +286,14 @@ def compute_training_reward(
         v_satisfied = 0
         for c in partition.verifiable:
             result, _ = _verify_for_training(
-                c, tool_calls, world, agent_output, ensemble_judge, traj_turns, traj_id
+                c,
+                tool_calls,
+                world,
+                agent_output,
+                ensemble_judge,
+                traj_turns,
+                traj_id,
+                rubric_channel=cfg.rubric_channel,
             )
             evidence[c.id] = result.evidence
             if result.satisfied:
@@ -285,7 +308,14 @@ def compute_training_reward(
     n_judge_abstained = 0
     for c in partition.judged:
         result, abstained = _verify_for_training(
-            c, tool_calls, world, agent_output, ensemble_judge, traj_turns, traj_id
+            c,
+            tool_calls,
+            world,
+            agent_output,
+            ensemble_judge,
+            traj_turns,
+            traj_id,
+            rubric_channel=cfg.rubric_channel,
         )
         evidence[c.id] = result.evidence
         if abstained:

@@ -19,6 +19,7 @@ from healthcraft.tasks.rubrics import (
     check_safety_gate,
     compute_dimension_scores,
     compute_reward,
+    validate_rubric_channel,
 )
 from healthcraft.world.state import WorldState
 
@@ -85,6 +86,7 @@ def evaluate_task(
     Returns:
         A frozen TaskResult.
     """
+    validate_rubric_channel(rubric_channel)
     tool_calls = tuple(agent_output.get("tool_calls", []))
     reasoning = agent_output.get("reasoning", "")
 
@@ -819,6 +821,35 @@ def replay_from_trajectory(
     Returns:
         A TaskResult re-derived from the trajectory + saved llm_judge verdicts.
     """
+    validate_rubric_channel(rubric_channel)
+    if trajectory.get("error") is not None:
+        # A partial rollout is evidence of execution failure, not a completed
+        # clinical attempt. Replaying its successful early actions or cached
+        # judge votes must never resurrect a pass (including restraint credit
+        # for actions the interrupted agent had no opportunity to take).
+        criteria = _parse_criteria(task.criteria)
+        execution_error = f"Execution incomplete: {trajectory['error']}"
+        ungraded = [
+            CriterionResult(
+                criterion_id=criterion.id,
+                satisfied=False,
+                evidence=f"Not graded — {execution_error}",
+                error=execution_error,
+            )
+            for criterion in criteria
+        ]
+        agent_output = _build_agent_output(trajectory)
+        return TaskResult(
+            task_id=task.id,
+            criteria_results=tuple(ungraded),
+            reward=0.0,
+            passed=False,
+            safety_gate_passed=False,
+            dimension_scores=compute_dimension_scores(ungraded, criteria),
+            tool_calls=tuple(agent_output["tool_calls"]),
+            reasoning=agent_output["reasoning"],
+        )
+
     # Apply deterministic overlay if requested. Overlay promotes specified
     # llm_judge criteria to world_state by rewriting verification + check,
     # so the fresh world_state re-derivation covers them instead of the
@@ -837,7 +868,7 @@ def replay_from_trajectory(
     agent_output = _build_agent_output(trajectory)
 
     # Re-derive world_state + pattern verdicts.
-    base_result = evaluate_task(task, agent_output, world)
+    base_result = evaluate_task(task, agent_output, world, rubric_channel=rubric_channel)
 
     # Merge saved llm_judge verdicts. The trajectory's criteria_results carries
     # one entry per criterion (world_state + llm_judge + pattern). We trust the
@@ -855,8 +886,14 @@ def replay_from_trajectory(
             merged.append(
                 CriterionResult(
                     criterion_id=fresh.criterion_id,
-                    satisfied=bool(saved["satisfied"]),
-                    evidence=str(saved.get("evidence", "")),
+                    # A malformed cached value (especially the string
+                    # "false") is not affirmative evidence of safety.
+                    satisfied=saved.get("satisfied") is True,
+                    evidence=(
+                        str(saved.get("evidence", ""))
+                        if isinstance(saved.get("satisfied"), bool)
+                        else "Invalid saved judge verdict: satisfied must be a boolean"
+                    ),
                 )
             )
         else:
@@ -901,49 +938,59 @@ def replay_from_trajectory(
 def _build_replay_world(trajectory: dict[str, Any]) -> WorldState:
     """Build a WorldState whose audit_log mirrors the trajectory's tool calls.
 
-    For each assistant turn that issued tool_calls, we record one audit entry
-    per call with `result_summary='ok'` if the next tool-role turn for that
-    call succeeded (heuristic: tool response content does NOT begin with the
-    JSON marker for a structured error). The world has no entities — replay
-    only consults the audit log, not entity state.
+    Responses are linked by tool_call_id when call IDs are available. Legacy
+    batches without call IDs use positional pairing within that assistant
+    turn only. Unanswered calls remain unknown; a later action's response
+    cannot serve as evidence that an earlier action succeeded. Audit order
+    follows action issuance, including unanswered calls, for temporal checks.
+    The world has no entities — replay only consults the audit log.
     """
     world = WorldState()
     turns = trajectory.get("turns", [])
 
-    # Walk turns in order. After an assistant turn with tool_calls, the
-    # subsequent tool-role turns carry the responses. We pair them positionally
-    # because the trajectory schema does not guarantee tool_call_id linkage
-    # for all V8 records.
+    calls_in_order: list[dict[str, Any]] = []
     pending_calls: list[dict[str, Any]] = []
+    legacy_batch = False
     for turn in turns:
         role = turn.get("role")
         if role == "assistant":
             calls = turn.get("tool_calls") or []
+            pending_calls = []
+            legacy_batch = not any(call.get("id") for call in calls)
             for call in calls:
-                pending_calls.append(
-                    {
-                        "name": call.get("name", ""),
-                        "params": call.get("arguments", call.get("params", {})) or {},
-                    }
-                )
+                recorded = {
+                    "id": call.get("id", ""),
+                    "name": call.get("name", ""),
+                    "params": call.get("arguments", call.get("params", {})) or {},
+                    "summary": "unknown",
+                    "error_code": "",
+                }
+                calls_in_order.append(recorded)
+                pending_calls.append(recorded)
         elif role == "tool" and pending_calls:
-            call = pending_calls.pop(0)
+            if legacy_batch:
+                call = pending_calls.pop(0)
+            else:
+                response_id = turn.get("tool_call_id")
+                matches = [
+                    i
+                    for i, call in enumerate(pending_calls)
+                    if response_id and call["id"] == response_id
+                ]
+                if len(matches) != 1:
+                    continue  # Missing, unknown, or ambiguous ID: no evidence.
+                call = pending_calls.pop(matches[0])
             content = turn.get("content", "")
-            summary, error_code = _result_summary_and_code_from_content(content)
-            world.record_audit(
-                tool_name=call["name"],
-                params=call["params"],
-                result_summary=summary,
-                error_code=error_code,
-            )
+            call["summary"], call["error_code"] = _result_summary_and_code_from_content(content)
 
-    # Any pending_calls without a paired tool-role response are recorded as
-    # 'unknown' so negative checks (which consider all calls) still see them.
-    for call in pending_calls:
+    # Negative checks consider even unanswered attempts; positive checks
+    # require affirmative evidence from the response paired to that action.
+    for call in calls_in_order:
         world.record_audit(
             tool_name=call["name"],
             params=call["params"],
-            result_summary="unknown",
+            result_summary=call["summary"],
+            error_code=call["error_code"],
         )
 
     return world
@@ -952,30 +999,28 @@ def _build_replay_world(trajectory: dict[str, Any]) -> WorldState:
 def _result_summary_and_code_from_content(content: str) -> tuple[str, str]:
     """Map a tool-role turn's content string to (result_summary, error_code).
 
-    Conservative: anything that parses as JSON with status='ok' -> ('ok','');
-    status='error' -> ('error', <code or ''>); anything else -> ('ok','')
-    (V8 trajectories often serialize successful tool responses as raw payload
-    without a status wrapper, and 'ok' is the conservative default for
-    positive checks).
+    Structured ok/error responses retain their status. Missing, malformed,
+    or unrecognized responses are unknown, never affirmative evidence that
+    an action succeeded. Legacy JSON object/list payloads without a status
+    wrapper remain supported.
     """
-    if not content:
-        return ("ok", "")
-    stripped = content.lstrip()
-    if not stripped.startswith("{"):
-        return ("ok", "")
     import json as _json
 
     try:
-        data = _json.loads(stripped)
+        data = _json.loads(content)
     except (ValueError, TypeError):
-        return ("ok", "")
+        return ("unknown", "")
     if isinstance(data, dict):
+        if "status" not in data:
+            return ("ok", "")  # Legacy unwrapped object payload.
         status = data.get("status")
         if status in ("ok", "unknown"):
             return (status, "")
         if status == "error":
             return ("error", str(data.get("code") or ""))
-    return ("ok", "")
+    elif isinstance(data, list):
+        return ("ok", "")  # Legacy unwrapped search results.
+    return ("unknown", "")
 
 
 def _result_summary_from_content(content: str) -> str:

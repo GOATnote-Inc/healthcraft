@@ -20,9 +20,17 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+
+from healthcraft.llm.checkpoint import (  # noqa: E402
+    load_latest_summary,
+    selected_experiment_entries,
+)
+
 
 def load_experiments(results_dir: Path) -> list[dict]:
-    """Load experiment entries from a results directory."""
+    """Load each trial's newest attempt, retaining its original log position."""
     log_path = results_dir / "experiments.jsonl"
     if not log_path.exists():
         return []
@@ -30,7 +38,7 @@ def load_experiments(results_dir: Path) -> list[dict]:
     for line in log_path.read_text().strip().split("\n"):
         if line.strip():
             entries.append(json.loads(line))
-    return entries
+    return selected_experiment_entries(entries)
 
 
 def compute_pass_at_k(task_trials: list[bool], k: int) -> float:
@@ -343,9 +351,8 @@ def main() -> None:
             continue
         entries = load_experiments(results_dir)
 
-        summary_path = results_dir / "summary.json"
-        if summary_path.exists():
-            summary = json.loads(summary_path.read_text())
+        summary = load_latest_summary(results_dir)
+        if summary is not None:
             model_name = summary.get("agent_model", results_dir.name)
         elif entries:
             model_name = entries[0].get("model", results_dir.name)

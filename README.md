@@ -6,7 +6,10 @@
 **Emergency Medicine RL Training Environment**
 
 
-> **Maintenance status (2026-09):** passive. This repository is kept available as a reference implementation; CI runs on pushes and pull requests only, Dependabot security alerts remain enabled, and no scheduled jobs or hosted services consume ongoing resources. No active development is planned.
+> **Development status (2026-09-30):** evaluation integrity and reproducible
+> local-model testing are under active development. See the
+> [evaluation design roadmap](docs/EVALUATION_DESIGN_ROADMAP.md) for the
+> evidence required for further capability and validation claims.
 
 > **Research artifact — synthetic data only.** HEALTHCRAFT is a research
 > benchmark and RL environment, not a medical device, and must not be used
@@ -18,16 +21,21 @@ An open-source, high-fidelity reinforcement learning environment for training an
 
 > **Attribution:** HEALTHCRAFT directly adapts the architecture described in
 > [EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments](https://arxiv.org/abs/2602.16179)
-> by Sushant Mehta, Alexander Ritchie, Sai Mahesh Garre, Paulo Niebres, Brady Heiner, and Albert Chen (Surge AI). The Corecraft team demonstrated that
+> by Sushant Mehta, Logan Ritchie, Suhaas Garre, Ian Niebres, Nick Heiner, and Edwin Chen (Surge AI). The Corecraft team demonstrated that
 > high-fidelity RL environments with task-centric world building, expert-authored
 > rubrics, and realistic workflows produce agents that generalize beyond their
 > training distribution. HEALTHCRAFT extends this architecture to emergency
-> medicine -- a domain with temporal reasoning, cyclic entity graphs, safety-gated
-> rewards, and clinical uncertainty that creates substantially harder agent tasks.
+> medicine, adding clinical workflows, safety-gated rewards, and temporal
+> constraints. Cross-domain pass rates do not establish comparative difficulty.
 > See [`docs/CORECRAFT_ATTRIBUTION.md`](docs/CORECRAFT_ATTRIBUTION.md) for the
 > complete entity, tool, and task mapping.
 
 ## Evaluation Results
+
+For testing without hosted-model API charges, see
+[local MedGemma/Nemotron evaluation](docs/LOCAL_MODELS.md). Local smoke tests
+are integration diagnostics and do not establish benchmark or clinical
+performance. Historical scores below have not been recomputed by these fixes.
 
 **Canonical: v10 grading channel** (2026-06). 205 tasks, 2,323 binary criteria
 (529 safety-critical), 3 trials per model, seed 42, one common neutral judge

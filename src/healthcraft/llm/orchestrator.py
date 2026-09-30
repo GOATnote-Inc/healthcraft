@@ -27,7 +27,19 @@ from typing import Any
 import yaml
 
 from healthcraft.llm.agent import create_client, run_agent_task
+from healthcraft.llm.checkpoint import (
+    checkpoint_identity,
+    client_identity,
+    environment_digest,
+    latest_attempt,
+    next_attempt,
+    save_checkpoint,
+    save_summary,
+    trajectory_path,
+    validate_checkpoint,
+)
 from healthcraft.llm.judge import LLMJudge, select_judge_model
+from healthcraft.llm.local_models import LocalModelError, OllamaClient, is_local_model
 from healthcraft.mcp.server import create_server
 from healthcraft.tasks.evaluator import evaluate_task
 from healthcraft.tasks.inject import inject_task_patient
@@ -191,6 +203,9 @@ def _merge_judge_verdicts(eval_task, base_result, judge, turns):
 
     criteria = _parse_criteria(eval_task.criteria)  # POST-overlay (see docstring)
     llm_results = judge.evaluate_criteria(criteria, turns)
+    errors = [result.error for result in llm_results if result.error is not None]
+    if errors:
+        raise RuntimeError("Judge infrastructure failure: " + "; ".join(errors))
     llm_map = {r.criterion_id: r for r in llm_results}
     merged = [llm_map.get(cr.criterion_id, cr) for cr in base_result.criteria_results]
     return (
@@ -251,16 +266,22 @@ def run_frontier_evaluation(
     tasks_dir = tasks_dir or _TASKS_DIR
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Auto-select judge model if not specified
-    if judge_model is None:
-        judge_model = select_judge_model(agent_model)
-        logger.info("Auto-selected judge model: %s", judge_model)
+    # A local run never selects a paid/cloud judge implicitly or explicitly.
+    try:
+        judge_model = _select_evaluation_judge(agent_model, judge_model)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
     # Create clients
     agent_client = create_client(agent_model, agent_key)
+    if isinstance(agent_client, OllamaClient):
+        try:
+            agent_client.validate_capabilities(require_tools=True)
+        except LocalModelError as exc:
+            return {"error": str(exc)}
 
     judge = None
-    if judge_key:
+    if judge_model and (judge_key or is_local_model(judge_model)):
         # Cross-vendor guard (never self-judge). select_judge_model only forces
         # a cross-vendor judge when judge_model is None; an explicit --judge-model
         # can self-judge. Refuse when judge and agent are the same vendor. Reuse
@@ -282,7 +303,22 @@ def run_frontier_evaluation(
                     "different --judge-model or omit it for auto-selection."
                 ),
             }
-        judge_client = create_client(judge_model, judge_key)
+        judge_client = create_client(judge_model, judge_key or "")
+        if isinstance(agent_client, OllamaClient) or isinstance(judge_client, OllamaClient):
+            try:
+                agent_info = (
+                    agent_client.model_metadata()
+                    if isinstance(agent_client, OllamaClient)
+                    else {"model": agent_model, "vendor": _vendor_of(agent_model)}
+                )
+                judge_info = (
+                    judge_client.model_metadata()
+                    if isinstance(judge_client, OllamaClient)
+                    else {"model": judge_model, "vendor": _vendor_of(judge_model)}
+                )
+                _check_local_judge_pair(agent_info, judge_info)
+            except (LocalModelError, ValueError) as exc:
+                return {"error": str(exc)}
         # Default the production judge to the tightened v2 prompt so the
         # safety_critical low-confidence downgrade (judge.py:358-362) actually
         # runs. v1 stays available for explicit V8 replay; replay_from_trajectory
@@ -324,7 +360,57 @@ def run_frontier_evaluation(
             len(overlay),
         )
 
+    # Validate every selected checkpoint before running any new trial. Filename
+    # equality alone cannot establish that grading/configuration is comparable.
+    environment = environment_digest(Path(__file__).parents[3])
+    agent_settings = client_identity(agent_client)
+    judge_settings = client_identity(judge_client) if judge else {}
+    prompts = {task.id: _load_system_prompt(task) for task in tasks}
+    identities = {
+        task.id: checkpoint_identity(
+            task,
+            prompts[task.id],
+            agent_model=agent_model,
+            judge_model=judge_model,
+            judge_enabled=judge is not None,
+            rubric_channel=rubric_channel,
+            dynamic_state=dynamic_state,
+            overlay=overlay,
+            environment=environment,
+            agent_settings=agent_settings,
+            judge_settings=judge_settings,
+        )
+        for task in tasks
+    }
+    checkpoints: dict[tuple[str, int], tuple[Path, Trajectory | None]] = {}
+    for task in tasks:
+        for trial in range(1, trials + 1):
+            trial_seed = seed + trial - 1
+            base_path = trajectory_path(results_dir, task, agent_model, trial_seed, trial)
+            path = latest_attempt(base_path)
+            existing = None
+            if path.exists():
+                try:
+                    existing = Trajectory.load(path)
+                    validate_checkpoint(
+                        existing,
+                        task_id=task.id,
+                        model=agent_model,
+                        seed=trial_seed,
+                        rubric_channel=rubric_channel,
+                        identity=identities[task.id],
+                    )
+                except Exception as exc:
+                    return {
+                        "error": f"Cannot resume checkpoint {path}: {exc}. "
+                        "Use a new results directory; existing evidence was preserved."
+                    }
+                if retry_errors and existing.error is not None:
+                    path, existing = next_attempt(base_path), None
+            checkpoints[(task.id, trial)] = (path, existing)
+
     exp_log = ExperimentLog(results_dir / "experiments.jsonl")
+    logged_paths = {entry.trajectory_path for entry in exp_log.load_all()}
 
     logger.info(
         "Evaluation: %d tasks x %d trials, agent=%s, judge=%s, channel=%s",
@@ -341,48 +427,47 @@ def run_frontier_evaluation(
     rewards: list[float] = []
     safety_failures = 0
     error_runs = 0
+    ungraded_criteria = 0
 
     for task in tasks:
         for trial in range(1, trials + 1):
             trial_seed = seed + trial - 1
 
             # Compute trajectory path once (used for checkpoint and save)
-            traj_filename = f"{task.id}_{agent_model}_{trial_seed}_t{trial}.json"
-            traj_path = results_dir / "trajectories" / task.category / traj_filename
+            traj_path, existing = checkpoints[(task.id, trial)]
+            traj_filename = traj_path.name
+            missing_judge = (
+                sum(
+                    overlay.get(raw["id"], raw).get("verification") == "llm_judge"
+                    for raw in task.criteria
+                )
+                if judge is None
+                else 0
+            )
 
             # Resume: skip if trajectory already exists on disk
-            if traj_path.exists():
-                try:
-                    existing = Trajectory.load(traj_path)
-                    # If --retry-errors, re-run error trajectories
-                    if retry_errors and existing.error is not None:
-                        logger.info(
-                            "Task %s trial %d — retrying previous error",
-                            task.id,
-                            trial,
-                        )
-                    else:
-                        total_runs += 1
-                        rewards.append(existing.reward)
-                        if existing.passed:
-                            total_passed += 1
-                        if not existing.safety_gate_passed:
-                            safety_failures += 1
-                        if existing.error is not None:
-                            error_runs += 1
-                        logger.info(
-                            "Task %s trial %d — CACHED (reward=%.3f)",
-                            task.id,
-                            trial,
-                            existing.reward,
-                        )
-                        continue
-                except Exception as e:
-                    logger.warning(
-                        "Corrupt checkpoint %s, re-running: %s",
-                        traj_path,
-                        e,
-                    )
+            if existing is not None:
+                relative_path = f"trajectories/{task.category}/{traj_filename}"
+                if relative_path not in logged_paths:
+                    # Recover an interrupted write between immutable trajectory
+                    # creation and its append-only experiment-log entry.
+                    exp_log.append(ExperimentEntry.from_trajectory(existing, relative_path))
+                    logged_paths.add(relative_path)
+                total_runs += 1
+                rewards.append(existing.reward)
+                if existing.passed:
+                    total_passed += 1
+                if not existing.safety_gate_passed or existing.error is not None:
+                    safety_failures += 1
+                if existing.error is not None:
+                    error_runs += 1
+                    ungraded_criteria += len(task.criteria)
+                else:
+                    ungraded_criteria += missing_judge
+                logger.info(
+                    "Task %s trial %d — CACHED (reward=%.3f)", task.id, trial, existing.reward
+                )
+                continue
 
             logger.info(
                 "Task %s trial %d/%d (seed=%d)",
@@ -392,6 +477,8 @@ def run_frontier_evaluation(
                 trial_seed,
             )
 
+            traj = None
+            failure_stage = "environment"
             try:
                 # Seed fresh world state for each trial
                 world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
@@ -433,7 +520,7 @@ def run_frontier_evaluation(
                 server = create_server(world)
 
                 # Load system prompt
-                system_prompt = _load_system_prompt(task)
+                system_prompt = prompts[task.id]
 
                 # Append injected patient/encounter IDs to the task so
                 # the agent knows which patient to look up (prevents GPT
@@ -451,9 +538,41 @@ def run_frontier_evaluation(
                     )
 
                 # Run agent
+                failure_stage = "agent"
                 traj = run_agent_task(agent_client, task_with_context, server, system_prompt)
                 traj.model = agent_model
                 traj.seed = trial_seed
+                traj.rubric_channel = rubric_channel
+                traj.metadata.update(
+                    {
+                        "judge_model": judge_model if judge is not None else None,
+                        "judge_prompt_version": "v2" if judge is not None else None,
+                        "checkpoint_identity": identities[task.id],
+                        "dynamic_state": dynamic_state,
+                        "agent_settings": agent_settings,
+                        "judge_settings": judge_settings,
+                    }
+                )
+
+                # run_agent_task captures API failures on its trajectory instead
+                # of raising. Preserve partial evidence, but do not judge or
+                # award successful completion to an interrupted execution.
+                if traj.error is not None:
+                    traj.metadata["failure_stage"] = "agent"
+                    traj.set_results([], 0.0, False, False, {})
+                    save_checkpoint(traj, traj_path)
+                    exp_log.append(
+                        ExperimentEntry.from_trajectory(
+                            traj, f"trajectories/{task.category}/{traj_filename}"
+                        )
+                    )
+                    total_runs += 1
+                    rewards.append(0.0)
+                    safety_failures += 1
+                    error_runs += 1
+                    ungraded_criteria += len(task.criteria)
+                    logger.error("Task %s trial %d interrupted: %s", task.id, trial, traj.error)
+                    continue
 
                 # Evaluate with world_state and pattern criteria
                 agent_output = {
@@ -504,6 +623,7 @@ def run_frontier_evaluation(
                 # result. The judge runs over the POST-overlay criteria so an
                 # overlay-promoted (now world_state) criterion keeps its
                 # deterministic verdict (fixes HC-002 overlay-defeat).
+                failure_stage = "grader"
                 (
                     merged_results,
                     merged_reward,
@@ -530,14 +650,9 @@ def run_frontier_evaluation(
                     dimension_scores=merged_dims,
                 )
 
-                # Record grading provenance so the verdict is traceable from
-                # the trajectory file alone (v11 audit D4-F4).
-                traj.rubric_channel = rubric_channel
-                traj.metadata["judge_model"] = judge_model
-                traj.metadata["judge_prompt_version"] = "v2"
-
                 # Save trajectory
-                traj.save(traj_path)
+                failure_stage = "persistence"
+                save_checkpoint(traj, traj_path)
 
                 # Log experiment
                 traj_rel = f"trajectories/{task.category}/{traj_filename}"
@@ -546,6 +661,7 @@ def run_frontier_evaluation(
 
                 total_runs += 1
                 rewards.append(merged_reward)
+                ungraded_criteria += missing_judge
                 if merged_passed:
                     total_passed += 1
                 if not merged_safety:
@@ -561,34 +677,37 @@ def run_frontier_evaluation(
 
             except Exception as e:
                 logger.error("Task %s trial %d FAILED: %s", task.id, trial, e)
-                error_traj = Trajectory(
+                if traj_path.exists():
+                    return {
+                        "error": f"Persistence failed for checkpoint {traj_path}: {e}. "
+                        "Existing trajectory evidence was preserved."
+                    }
+                error_traj = traj or Trajectory(
                     task_id=task.id,
                     model=agent_model,
                     seed=trial_seed,
                     system_prompt="",
                     rubric_channel=rubric_channel,
+                    safety_gate_passed=False,
+                    metadata={
+                        "checkpoint_identity": identities[task.id],
+                        "dynamic_state": dynamic_state,
+                        "agent_settings": agent_settings,
+                        "judge_settings": judge_settings,
+                    },
                     error=str(e),
                 )
-                error_traj.save(traj_path)
+                error_traj.error = str(e)
+                error_traj.set_results([], 0.0, False, False, {})
+                error_traj.metadata["failure_stage"] = failure_stage
+                save_checkpoint(error_traj, traj_path)
                 traj_rel = f"trajectories/{task.category}/{traj_filename}"
-                exp_log.append(
-                    ExperimentEntry(
-                        task_id=task.id,
-                        model=agent_model,
-                        seed=trial_seed,
-                        reward=0.0,
-                        passed=False,
-                        safety_gate_passed=False,
-                        total_tool_calls=0,
-                        duration_seconds=0.0,
-                        trajectory_path=traj_rel,
-                        error=str(e),
-                    )
-                )
+                exp_log.append(ExperimentEntry.from_trajectory(error_traj, traj_rel))
                 total_runs += 1
                 rewards.append(0.0)
                 safety_failures += 1
                 error_runs += 1
+                ungraded_criteria += len(task.criteria)
                 continue
 
     # Compute summary
@@ -613,11 +732,19 @@ def run_frontier_evaluation(
         # infra-vs-model split explicit so analysis can separate them.
         "error_runs": error_runs,
         "safety_failures_excl_errors": safety_failures - error_runs,
+        "evaluation_mode": (
+            "local_diagnostic"
+            if is_local_model(agent_model) or is_local_model(judge_model)
+            else "full"
+            if judge is not None
+            else "deterministic_only"
+        ),
+        "ungraded_criteria": ungraded_criteria,
+        "grading_complete": ungraded_criteria == 0,
         "results_dir": str(results_dir),
     }
 
-    summary_path = results_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    save_summary(results_dir, summary)
 
     logger.info("=" * 60)
     logger.info("EVALUATION COMPLETE")
@@ -636,9 +763,50 @@ def run_frontier_evaluation(
     return summary
 
 
+def _select_evaluation_judge(agent_model: str, judge_model: str | None) -> str | None:
+    """Local evaluation is keyless and only uses an explicitly selected local judge."""
+    if is_local_model(agent_model):
+        if judge_model and not is_local_model(judge_model):
+            raise ValueError("A local agent requires a local judge; cloud judging is refused")
+        return judge_model
+    return judge_model or select_judge_model(agent_model)
+
+
+def _check_local_judge_pair(agent: dict[str, Any], judge: dict[str, Any]) -> None:
+    """Reject self-judging even when local models use different aliases."""
+
+    def vendor(info):
+        if info.get("vendor"):
+            return info["vendor"]
+        family = info.get("family", "").lower()
+        for prefix, name in (
+            ("nemotron", "nvidia"),
+            ("gemma", "google"),
+            ("qwen", "alibaba"),
+            ("llama", "meta"),
+            ("mistral", "mistral"),
+            ("phi", "microsoft"),
+            ("deepseek", "deepseek"),
+            ("gptoss", "openai"),
+            ("gpt-oss", "openai"),
+        ):
+            if family.startswith(prefix):
+                return name
+        raise ValueError(f"Cannot establish vendor for local model family {family!r}")
+
+    if (
+        agent["model"] == judge["model"]
+        or (agent.get("model_digest") and agent["model_digest"] == judge.get("model_digest"))
+        or vendor(agent) == vendor(judge)
+    ):
+        raise ValueError("Refusing to self-judge: local agent and judge must be different vendors")
+
+
 def _resolve_api_key(model: str) -> str:
     """Resolve API key from environment based on model name."""
     m = model.lower()
+    if is_local_model(model):
+        return ""
     if "claude" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return os.environ.get("ANTHROPIC_API_KEY", "")
     elif "gpt" in m or "o1" in m or "o3" in m:
@@ -664,6 +832,15 @@ def _api_preflight(
     from healthcraft.llm.agent import create_client
 
     def _probe(label: str, model: str, key: str) -> None:
+        if is_local_model(model):
+            try:
+                client = create_client(model, "")
+                client.validate_capabilities(require_tools=label == "agent")
+            except (LocalModelError, ValueError) as exc:
+                logger.error("PREFLIGHT FAIL (%s=%s): %s", label, model, exc)
+                sys.exit(2)
+            logger.info("PREFLIGHT OK: %s=%s (local capability check, no inference)", label, model)
+            return
         if not model or not key:
             logger.error("PREFLIGHT FAIL (%s): missing model or key", label)
             sys.exit(2)
@@ -732,7 +909,7 @@ def _api_preflight(
         logger.info("PREFLIGHT OK: %s=%s", label, model)
 
     _probe("agent", agent_model, agent_key)
-    if judge_model and judge_key:
+    if judge_model and (judge_key or is_local_model(judge_model)):
         _probe("judge", judge_model, judge_key)
 
 
@@ -789,19 +966,20 @@ def main() -> None:
     if not agent_key:
         agent_key = _resolve_api_key(args.agent_model)
 
-    judge_key = args.judge_key
-    if not judge_key:
-        judge_model = args.judge_model or select_judge_model(args.agent_model)
-        judge_key = _resolve_api_key(judge_model)
+    try:
+        judge_model = _select_evaluation_judge(args.agent_model, args.judge_model)
+    except ValueError as exc:
+        parser.error(str(exc))
+    judge_key = args.judge_key or (_resolve_api_key(judge_model) if judge_model else "")
 
-    if not agent_key:
+    if not agent_key and not is_local_model(args.agent_model):
         logger.error("No API key for agent model. Set --agent-key or env var.")
         sys.exit(1)
 
     _api_preflight(
         agent_model=args.agent_model,
         agent_key=agent_key,
-        judge_model=args.judge_model or select_judge_model(args.agent_model),
+        judge_model=judge_model,
         judge_key=judge_key,
     )
 

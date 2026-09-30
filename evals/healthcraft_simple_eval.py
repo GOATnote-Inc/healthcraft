@@ -47,6 +47,10 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.llm.checkpoint import (  # noqa: E402
+    selected_trajectory_paths,
+    trajectory_attempt,
+)
 
 # ---------------------------------------------------------------------------
 # Types
@@ -116,12 +120,12 @@ def _iter_trajectory_files(root: Path) -> list[Path]:
         tdir = root
     if not tdir.exists():
         return []
-    return sorted(tdir.rglob("*.json"))
+    return selected_trajectory_paths(tdir)
 
 
 def _parse_trial_from_path(path: Path) -> int:
     """Best-effort: extract trial number from a ``..._tN.json`` filename."""
-    stem = path.stem
+    stem = trajectory_attempt(path)[0].stem
     # Trajectories from the orchestrator end with ``_<seed>_t<N>``.
     parts = stem.rsplit("_t", 1)
     if len(parts) == 2:

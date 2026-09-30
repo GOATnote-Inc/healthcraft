@@ -54,6 +54,7 @@ import yaml
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.llm.checkpoint import selected_trajectory_paths  # noqa: E402
 from healthcraft.llm.ensemble_judge import EnsembleJudge  # noqa: E402
 from healthcraft.tasks.loader import Task, load_tasks  # noqa: E402
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod  # noqa: E402
@@ -157,8 +158,7 @@ def _iter_trajectory_files(results_dirs: Iterable[Path]) -> list[Path]:
         if not tdir.exists():
             print(f"[warn] no trajectories dir under {rd}", file=sys.stderr)
             continue
-        for path in sorted(tdir.rglob("*.json")):
-            paths.append(path)
+        paths.extend(selected_trajectory_paths(tdir))
     return paths
 
 
