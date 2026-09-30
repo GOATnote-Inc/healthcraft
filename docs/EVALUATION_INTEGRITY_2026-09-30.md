@@ -27,6 +27,7 @@ retry readers, and local tool interaction rather than checking source text.
 | Nested caller/response dictionaries could rewrite records and audit evidence after a call. | Detach structured records, returned data, recorded parameters, public audit views, and world audit snapshots. Registration also retains arrival mode and explicitly unverified supplied insurance data. | `test_mutation_contract.py`, `test_audit_snapshots.py` |
 | Discharge ignored canonical medication/instruction/follow-up fields and could mutate disposition before a documentation error. | Validate before the state transition; preserve supplied content in linked, retrievable notes. Missing instructions, follow-up, and medication continuation remain explicitly unspecified. | `test_discharge_contract.py` |
 | A truncated judge response could count as a valid verdict if its JSON happened to parse. | Require normal completion before parsing; incomplete or blocked responses carry a grading error. The native smoke also checks completion before dispatch and before declaring success. | `test_verdict_types.py`, `test_local_model_smoke.py` |
+| Encounter searches ignored advertised date bounds. | Apply inclusive, timezone-aware bounds without rounding fractional seconds; reject invalid/reversed bounds and omit unknown arrival instants from bounded searches. | `test_encounter_date_filters.py` |
 
 ## Local integration
 
@@ -48,14 +49,21 @@ limitations are in [the local run notes](../artifacts/local-models/20260930/READ
 
 ## Compatibility and limits
 
-Validation at this development checkpoint: `make test` **1,595 passed, two
+Validation after the date-filter repair: `make test` **1,653 passed, two
 skipped**; `make preflight` passed; the canonical-number structural audit
 passed. `make lint` passed against an export of the staged repository
-source (258 Python files). The full suite requires localhost HTTP test
+source (259 Python files). The full suite requires localhost HTTP test
 servers, so it ran with local-server permission after the sandboxed attempt
 could not bind `127.0.0.1`. The development checkout additionally contains
 untracked research archives and presentation scripts with 115 unrelated
 lint errors; those files were excluded from the commit and clean export.
+
+The date repair has 58 regressions. Initial date-bound tests exposed 46
+failures; later precision and Python 3.10 compatibility cases also failed
+before their fixes. Fractional seconds remain exact even when the runtime's
+timestamp parser supports fewer fractional digits. Date-only historical
+records remain excluded from instant-bounded searches; see the separate
+[task validity findings](TASK_VALIDITY_FINDINGS.md).
 
 The subsequent treatment-plan fix has **39 dedicated regressions** (36
 failed before the fix), with **116 passing** across the MCP tool and grader
@@ -114,3 +122,7 @@ establish task solvability. Fixing these semantic defects requires reviewed,
 versioned task/evidence contracts and accessible reference data, with new
 positive and counterexample trajectories. Historical task YAML, overlay
 definitions, and scores remain unchanged in this repair.
+
+The [task-validity findings](TASK_VALIDITY_FINDINGS.md) document the actual
+IR-002 tool behavior, distinguish narrative history from linked encounters,
+and specify the next versioned reference-execution certificate.

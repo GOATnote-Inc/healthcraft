@@ -9,11 +9,17 @@ Corecraft noise: search tools return MAX 10 results with no hasMore signal.
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 _MAX_RESULTS = 10  # Pagination limit (Corecraft noise: no hasMore signal)
+_RFC3339_DATETIME = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-5][0-9]:[0-5][0-9]"
+    r"(?:\.([0-9]+))?(?:[Zz]|[+-][0-9]{2}:[0-5][0-9])"
+)
 
 
 def _serialize(entity: Any) -> dict:
@@ -49,6 +55,32 @@ def _matches_substring(value, query):
     return query.lower() in str(value).lower()
 
 
+def _arrival_instant(value: Any) -> tuple[datetime, str]:
+    """Return a UTC sort key without inventing time/zone or losing precision."""
+    fraction = None
+    if isinstance(value, str):
+        match = _RFC3339_DATETIME.fullmatch(value)
+        if match is None:
+            raise ValueError("Expected RFC3339 date-time with an explicit timezone")
+        fraction = (match.group(1) or "").rstrip("0")
+        # Parse whole seconds only: Python 3.10 accepts just 3/6 fractional
+        # digits, while the exact fraction is preserved separately above.
+        if match.group(1) is not None:
+            value = value[: match.start(1) - 1] + value[match.end(1) :]
+        # Python 3.10 does not accept trailing Z in datetime.fromisoformat.
+        if value.endswith(("Z", "z")):
+            value = value[:-1] + "+00:00"
+        value = datetime.fromisoformat(value)
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise ValueError("Expected a timezone-aware arrival timestamp")
+    value = value.astimezone(timezone.utc)
+    if fraction is None:
+        fraction = f"{value.microsecond:06d}".rstrip("0")
+    # Digit strings sort as decimal fractions once trailing zeros are removed.
+    # Keep all RFC3339 digits instead of fromisoformat's microsecond truncation.
+    return value.replace(microsecond=0), fraction
+
+
 # ---------------------------------------------------------------------------
 # 1. searchEncounters
 # ---------------------------------------------------------------------------
@@ -58,8 +90,27 @@ def search_encounters(world, params):
     """Search encounters with optional filters.
 
     Params:
-        patient_id, date_range, chief_complaint, esi_level, disposition, limit
+        patient_id, date_from, date_to, chief_complaint, esi_level, disposition, limit
+
+    Date bounds are inclusive RFC3339 date-times with explicit timezones.
+    Date-only and naive bounds are rejected. Bounded searches exclude records
+    whose arrival time is missing or cannot identify an aware instant.
     """
+    bounds = {}
+    for field in ("date_from", "date_to"):
+        if field in params:
+            try:
+                if not isinstance(params[field], str):
+                    raise ValueError("Date bounds must be strings")
+                bounds[field] = _arrival_instant(params[field])
+            except (ValueError, OverflowError):
+                return _error(
+                    "invalid_params", f"{field} must be an RFC3339 date-time with timezone"
+                )
+    date_from, date_to = bounds.get("date_from"), bounds.get("date_to")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        return _error("invalid_params", "date_from must be at or before date_to")
+
     encounters = world.list_entities("encounter")
     patient_id = params.get("patient_id")
     chief_complaint = params.get("chief_complaint")
@@ -69,6 +120,15 @@ def search_encounters(world, params):
 
     results = []
     for eid, enc in encounters.items():
+        if bounds:
+            try:
+                arrival = _arrival_instant(_get(enc, "arrival_time"))
+            except (ValueError, OverflowError):
+                continue
+            if date_from is not None and arrival < date_from:
+                continue
+            if date_to is not None and arrival > date_to:
+                continue
         if patient_id and _get(enc, "patient_id") != patient_id:
             continue
         if chief_complaint and not _matches_substring(
