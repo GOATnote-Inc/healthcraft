@@ -1,0 +1,40 @@
+....FF                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_requested_but_unavailable_upstream_is_explicitly_incomplete _______
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-303/test_requested_but_unavailable0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bf44830>
+
+    def test_requested_but_unavailable_upstream_is_explicitly_incomplete(tmp_path, monkeypatch):
+        from healthcraft.reconciliation.bundle import run_development_suite
+        import healthcraft.reconciliation.upstream as upstream
+    
+        monkeypatch.setattr(upstream, "run_upstream_verifier", lambda *args, **kwargs: {
+            "status": "unavailable_dependency", "upstream_reward": None
+        })
+        bundle = run_development_suite(tmp_path / "suite", upstream=True)
+        assert bundle["development_controls_matched"] is True
+>       assert bundle["upstream_requested"] is True
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'upstream_requested'
+
+tests/test_reconciliation/test_bundle.py:96: KeyError
+_________ test_report_shows_secondary_reward_beside_failed_note_checks _________
+
+    def test_report_shows_secondary_reward_beside_failed_note_checks():
+        from healthcraft.reconciliation.report import render_report
+    
+        trial = {
+            "id": "invented_administration", "description": "Invented care",
+            "status": "completed", "verification": {"checks": {"source_fidelity": False}},
+            "upstream": {"status": "completed", "upstream_reward": 1.0}
+        }
+        rendered = render_report({"roster": [trial], "trials": [trial]})
+>       assert "reward 1.0" in rendered
+E       assert 'reward 1.0' in '<!doctype html>\n<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scal...ecords file hashes; hashes are not execution attestations. Visual browser QA is not recorded.</footer>\n</main></html>'
+
+tests/test_reconciliation/test_bundle.py:110: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_bundle.py::test_requested_but_unavailable_upstream_is_explicitly_incomplete
+FAILED tests/test_reconciliation/test_bundle.py::test_report_shows_secondary_reward_beside_failed_note_checks
+2 failed, 4 passed in 0.18s

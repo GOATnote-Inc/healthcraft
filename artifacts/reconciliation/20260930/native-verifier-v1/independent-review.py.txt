@@ -1,0 +1,152 @@
+"""Read-only checks of the saved reconciliation capture; no execution/model rerun."""
+import csv
+import hashlib
+import io
+import json
+import math
+import sys
+from copy import deepcopy
+from html import escape
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urlsplit, unquote
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+BASE = ROOT / 'artifacts/reconciliation/20260930/native-verifier-v1'
+CANDIDATE_RECEIPT = Path('/private/tmp/healthcraft-reconciliation-candidate.json')
+RECEIPT = Path('/private/tmp/healthcraft-reconciliation-artifact-review.json')
+checks = []
+
+def require(name, condition, detail=None):
+    checks.append({'check':name,'passed':bool(condition), 'detail':detail})
+    if not condition:
+        raise AssertionError(name + ': ' + str(detail))
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def pairs(items):
+    d = {}
+    for key, value in items:
+        if key in d: raise ValueError('Duplicate JSON key: ' + key)
+        d[key] = value
+    return d
+
+def number(value):
+    n = float(value)
+    if not math.isfinite(n): raise ValueError('Nonfinite JSON number')
+    return n
+
+def parse(text):
+    return json.loads(text, object_pairs_hook=pairs, parse_float=number, parse_constant=number)
+
+def load(path):
+    return parse(path.read_text())
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+
+candidate = load(CANDIDATE_RECEIPT)
+FROZEN = Path(candidate['candidate'])
+manifest = load(BASE / 'manifest.json')
+bundle = load(BASE / 'bundle.json')
+roster = load(BASE / 'roster.json')
+capture = load(BASE / 'capture.json')
+runtime = load(BASE / 'runtime.json')
+source_identity = load(BASE / 'source-identity.json')
+
+finite_json = finite_jsonl = 0
+for path in BASE.rglob('*.json'):
+    load(path); finite_json += 1
+for path in BASE.rglob('*.jsonl'):
+    for line in path.read_text().splitlines():
+        parse(line); finite_jsonl += 1
+require('all_json_and_journal_lines_strict_finite', True, {'json_files':finite_json,'journal_lines':finite_jsonl})
+require('suite_manifest_130_files',len(manifest)==130)
+require('all_suite_manifest_hashes_match', all((BASE/name).is_file() and sha(BASE/name)==digest for name,digest in manifest.items()))
+require('candidate_601_inputs',len(candidate['inputs'])==601)
+for label, root in [('frozen',FROZEN),('current',ROOT)]:
+    bad=[name for name,digest in candidate['inputs'].items() if not (root/name).is_file() or sha(root/name)!=digest]
+    require('candidate_inputs_match_'+label,not bad,bad)
+require('source_hashes_before_after_equal',bundle['sources_unchanged'] is True and bundle['source_hashes_before']==bundle['source_hashes_after'] and bundle['source_identity_error'] is None)
+source_hashes=bundle['source_hashes_before']
+require('source_identity_139_inputs',len(source_hashes)==139 and source_identity['source_hashes_before']==source_hashes and source_identity['error'] is None)
+require('execution_sources_match_candidate',all(candidate['inputs'].get(name)==digest for name,digest in source_hashes.items()))
+require('capture_bound_to_candidate',capture['cwd']==str(FROZEN) and capture['baseline_commit']==candidate['baseline_commit'] and capture['exit_code']==0 and capture['runner_sha256']==sha(BASE/'capture.py.txt'))
+require('capture_declares_tool_invocation_unit_and_no_models',capture['model_calls']==bundle['model_calls']==0 and capture['upstream_turn_count_unit']=='recorded synchronous tool invocations; zero model turns')
+require('runtime_identity_consistent',runtime['python']==bundle['python_version']==source_identity['python_version']=='3.12.8' and runtime['packages']['pandas']=='3.0.1' and runtime['executable']==capture['command'][0])
+require('exact_roster_preserved',bundle['roster']==roster and len(roster)==len(bundle['trials'])==9 and len({x['id'] for x in roster})==9 and [x['id'] for x in roster]==[x['id'] for x in bundle['trials']])
+require('secondary_denominator_complete',bundle['upstream_requested'] is True and bundle['upstream_all_completed'] is True and bundle['upstream_completed_count']==9)
+require('scope_unassessed',bundle['benchmark_score'] is None and bundle['clinical_criteria_assessed']==0 and 'not formal red team' in bundle['purpose'])
+
+sys.path.insert(0,str(FROZEN/'src'))
+from healthcraft.reconciliation.oracle import verify_reconciliation
+from healthcraft.reconciliation.report import render_report
+scenario = load(FROZEN/'configs/evaluation/reconciliation_v1/scenario.json')
+expectations = load(FROZEN/'configs/evaluation/reconciliation_v1/expectations.json')
+require('scenario_and_expectations_canonical_bindings',hashlib.sha256(canonical(scenario).encode()).hexdigest()==expectations['scenario_sha256'])
+expected_labels=[{'table':'treatments_given','_row_id':sid,'cluster_id':'EVENT-A01-reported-status','error_family':'source_disagreement','error_subtype':'opposing_reported_status'} for sid in ('SRC-A04','SRC-A05')]
+trial_summary=[]
+for planned,trial in zip(roster,bundle['trials']):
+    tid=planned['id']; directory=BASE/tid
+    evidence=load(directory/'evidence.json'); verification=load(directory/'verification.json'); upstream=load(directory/'upstream/report.json')
+    require(tid+': copies_bound',load(directory/'trial.json')==trial and trial['verification']==verification and trial['upstream']==upstream)
+    require(tid+': frozen_oracle_replay_agrees',verify_reconciliation(scenario,expectations,evidence)==verification)
+    require(tid+': declared_control_result',trial['control_matched'] is True and all((verification['mechanical_passed'] if key=='mechanical_passed' else verification['checks'][key]) is value for key,value in planned['expected'].items()))
+    require(tid+': unassessed_clinical_coverage',verification['benchmark_score'] is None and verification['benchmark_comparable'] is False and verification['coverage']['clinical_criteria']==verification['coverage']['safety_criteria']==0)
+    calls=evidence['calls'];audit=evidence['audit'];journal=[parse(line) for line in (directory/'journal.jsonl').read_text().splitlines()]
+    require(tid+': journal_complete',len(journal)==2*len(calls) and len(calls)==len(audit))
+    for index,call in enumerate(calls):
+        requested=journal[2*index]; returned=journal[2*index+1]
+        require(tid+': journal_call_'+str(index),requested['event']=='requested' and returned['event']=='returned' and returned['call']==call and requested['call']=={key:call[key] for key in ('id','name','audit_start','params')})
+        a=audit[index]
+        require(tid+': audit_call_'+str(index),call['audit_start']==index and call['audit_end']==index+1 and a['tool_name']==call['name'] and canonical(a['params'])==canonical(call['params']) and a['result_summary']==call['response']['status'] and a['deduplicated']==call['response'].get('deduplicated',False))
+    require(tid+': completed_upstream',upstream['status']=='completed' and upstream['scheduled_evaluations']==upstream['attempted_evaluations']==1 and upstream['error'] is None and upstream['artifact_errors']==[])
+    require(tid+': declared_tool_count_preserved',type(upstream['declared_turn_count']) is int and upstream['declared_turn_count']==len(calls)==upstream['metrics']['turn_count'])
+    require(tid+': upstream_snapshots_bound',sha(directory/'flagged_rows.csv')==sha(directory/'upstream/inputs/submission.csv')==upstream['inputs']['submission']['sha256'] and sha(directory/'coordinator-labels.csv')==sha(directory/'upstream/inputs/labels.csv')==upstream['inputs']['labels']['sha256'])
+    require(tid+': raw_upstream_hashes_match',all(sha(directory/'upstream'/name)==digest for name,digest in upstream['artifacts'].items()))
+    prov=upstream['provenance']
+    require(tid+': pinned_source_license_runtime',prov['source_sha256']=='7ce0c9808afb5efb031c04e535e22f4fd8cad093b6bd500681c87fef2a8fde5d' and prov['license_sha256']=='646f8936b8ddcd14e13e578ff6857e368780b0d1a4f6066bee89211923a373e2' and prov['upstream']['revision']=='bcbb8085fd549469e2dc7455f4bfd68a1b98895a' and prov['wrapper_sha256']==source_hashes['src/healthcraft/reconciliation/upstream.py'] and prov['python_version']==runtime['python'] and prov['pandas_version']==runtime['packages']['pandas'] and prov['target_runtime_matches'] is True)
+    labels=list(csv.DictReader(io.StringIO((directory/'coordinator-labels.csv').read_text())))
+    require(tid+': exact_original_synthetic_labels',labels==expected_labels)
+    rows=list(csv.DictReader(io.StringIO((directory/'flagged_rows.csv').read_text())))
+    saved_rows=[]
+    for note in evidence['after']['entities']['clinical_note'].values():
+        content=parse(note['content'])
+        for conflict in content['unresolved_conflicts']:
+            saved_rows.extend({'table':'treatments_given','_row_id':source_id} for source_id in conflict['source_ids'])
+    require(tid+': submission_from_actual_store',rows==saved_rows)
+    flagged={(r['table'],r['_row_id']) for r in rows}; useful=flagged & {('treatments_given','SRC-A04'),('treatments_given','SRC-A05')}
+    recall=1.0 if useful else 0.0;precision=len(useful)/len(flagged) if flagged else 0.0; reward=float(recall>=1 and precision>=.01)
+    metrics=load(directory/'upstream/upstream/metrics.json')
+    require(tid+': independent_csv_metric_arithmetic',metrics==upstream['metrics'] and reward==upstream['upstream_reward']==float((directory/'upstream/upstream/reward.txt').read_text()) and metrics['recall']==recall and metrics['precision']==precision and metrics['n_flagged_rows']==len(flagged) and metrics['n_useful_flagged_rows']==len(useful) and metrics['n_label_rows']==2 and metrics['n_clusters']==1 and metrics['precision_threshold']==.01)
+    trial_summary.append({'id':tid,'calls':len(calls),'notes':len(evidence['after']['entities']['clinical_note']),'completion':evidence['completion']['status'],'checks':verification['checks'],'upstream_reward':reward})
+
+reference=trial_summary[0]
+require('faithful_all_five_axes',reference['checks']=={key:True for key in ('provenance','source_fidelity','persisted_action','readback','execution_complete')} and reference['notes']==1)
+interrupted=next(t for t in trial_summary if t['id']=='interrupted_after_write')
+require('interrupted_persistence_retained_without_completion',interrupted['checks']['persisted_action'] is True and interrupted['checks']['execution_complete'] is False and interrupted['checks']['readback'] is False and interrupted['completion']=='interrupted')
+require('seven_upstream_ones_six_nonreference',sum(t['upstream_reward']==1 for t in trial_summary)==7 and sum(t['id']!='reference' and t['upstream_reward']==1 for t in trial_summary)==6)
+
+class ReportParser(HTMLParser):
+    def __init__(self):
+        super().__init__();self.links=[];self.active=[];self.table_rows=0
+    def handle_starttag(self,tag,attrs):
+        if tag=='tr':self.table_rows+=1
+        if tag in ('script','iframe','object','embed'):self.active.append(tag)
+        for name,value in attrs:
+            if name.lower().startswith('on'):self.active.append(name)
+            if name in ('href','src'):self.links.append(value)
+
+html=(BASE/'report.html').read_text();parser=ReportParser();parser.feed(html)
+require('html_matches_frozen_renderer',html==render_report(bundle))
+require('html_all_rows_no_active_remote_content',parser.table_rows==10 and not parser.active and len(parser.links)==18 and all(not urlsplit(link).scheme and not urlsplit(link).netloc and (BASE/unquote(urlsplit(link).path)).is_file() for link in parser.links))
+require('html_contract_limits_explicit','positive CSV reward with failed note' in html and 'not a formal red team' in html and 'Visual browser QA is not recorded' in html)
+mutant=deepcopy(bundle);sentinel='<script>alert("review-only")</script>&'
+mutant['roster'][0]['description']=sentinel;mutant['trials'][0]['status']=sentinel;mutant['trials'][0]['verification']['errors']=[{'message':sentinel}]
+rendered=render_report(mutant);probe=ReportParser();probe.feed(rendered)
+require('renderer_untrusted_text_is_escaped',escape(sentinel) in rendered and sentinel not in rendered and not probe.active)
+
+receipt={'kind':'ordinary_saved_artifact_development_review','artifact':str(BASE.relative_to(ROOT)),'findings':[],'passed_checks':len(checks),'checks':checks,'trial_summary':trial_summary,'manifest_files':len(manifest),'candidate_inputs':len(candidate['inputs']),'execution_source_inputs':len(source_hashes),'artifact_manifest_sha256':sha(BASE/'manifest.json'),'bundle_sha256':sha(BASE/'bundle.json'),'candidate_receipt_sha256':sha(CANDIDATE_RECEIPT),'checker_sha256':sha(Path(__file__)),'scope':['Read-only saved artifacts; no new simulator trials, models, upstream grader runs, browser, or network calls.','Pure frozen-oracle replay and CSV arithmetic check saved evidence; hashes establish local consistency, not independent attestation.','Suite manifest excludes capture wrapper/runtime receipts added after suite completion; those receipts were checked separately.','Seven CSV rewards of one include six nonreference controls; CSV cluster retrieval does not establish correct note persistence, clinical validity or model performance.','Static HTML checks only; no visual browser QA.','Value-evidence/release gate remains open; no clinical, comparative-superiority or formal-red-team claim.'],'command':'PYTHONPATH=src .venv/bin/python /private/tmp/healthcraft-reconciliation-artifact-review.py'}
+with RECEIPT.open('x') as handle:json.dump(receipt,handle,indent=2,allow_nan=False);handle.write('\n')
+print(json.dumps({'receipt':str(RECEIPT),'passed_checks':len(checks),'findings':[],'upstream_reward_ones':7}))

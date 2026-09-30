@@ -43,6 +43,12 @@ the local Ollama transport and source-retrieval tools. The additive
 members as linked identity resources and source documents. Both are engineering
 capabilities; the [comparative value gate](docs/RELEASE_EVIDENCE_PLAN.md) remains open.
 
+The [synthetic reconciliation workflow](docs/SYNTHETIC_RECONCILIATION.md) retrieves
+eight original source rows, preserves unknowns and opposing assertions, and
+persists a source-linked note through actual handlers. Its independent checks
+and optional Microsoft CSV verifier measure separate engineering contracts;
+no clinical criteria or benchmark performance are assessed.
+
 **Canonical: v10 grading channel** (2026-06). 205 tasks, 2,323 binary criteria
 (529 safety-critical), 3 trials per model, seed 42, one common neutral judge
 (grok-4) for both models — an apples-to-apples cross-model comparison on the

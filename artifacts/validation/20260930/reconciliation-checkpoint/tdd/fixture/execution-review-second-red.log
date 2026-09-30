@@ -1,0 +1,125 @@
+FFF.F                                                                    [100%]
+=================================== FAILURES ===================================
+____ test_verifier_failure_after_real_execution_is_not_a_preparation_error _____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-316/test_verifier_failure_after_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106ef56e0>
+
+    def test_verifier_failure_after_real_execution_is_not_a_preparation_error(tmp_path, monkeypatch):
+        import healthcraft.reconciliation.oracle as oracle
+    
+        one_reference(monkeypatch)
+    
+        def unavailable(*args, **kwargs):
+            raise RuntimeError("Independent verifier failed after execution")
+    
+        monkeypatch.setattr(oracle, "verify_reconciliation", unavailable)
+        directory = tmp_path / "grader-failure"
+        bundle = bundle_module.run_development_suite(directory)
+        evidence = json.loads((directory / "reference/evidence.json").read_text())
+        assert evidence["completion"]["status"] == "completed"
+        assert len(evidence["after"]["entities"]["clinical_note"]) == 1
+        assert len(evidence["calls"]) > 0
+        assert len(bundle["trials"]) == len(bundle["roster"]) == 1
+        assert bundle["trials"][0]["verification"] is None
+>       assert bundle["trials"][0]["status"] != "preparation_error"
+E       AssertionError: assert 'preparation_error' != 'preparation_error'
+
+tests/test_reconciliation/test_execution_review.py:29: AssertionError
+_____________ test_source_drift_is_visible_to_static_report_reader _____________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-316/test_source_drift_is_visible_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106ef50f0>
+
+    def test_source_drift_is_visible_to_static_report_reader(tmp_path, monkeypatch):
+        one_reference(monkeypatch)
+        captured = iter([{"fixture.py": "before"}, {"fixture.py": "after"}])
+        monkeypatch.setattr(bundle_module, "_hashes", lambda: next(captured))
+        directory = tmp_path / "drift"
+        bundle = bundle_module.run_development_suite(directory)
+        assert bundle["sources_unchanged"] is False
+        assert bundle["trials"][0]["verification"]["mechanical_passed"] is True
+        report = (directory / "report.html").read_text()
+>       assert "Source identity changed" in report
+E       assert 'Source identity changed' in '<!doctype html>\n<html lang="en"><meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-sc...cords file hashes; hashes are not execution attestations.\nVisual browser QA is not recorded.</footer>\n</main></html>'
+
+tests/test_reconciliation/test_execution_review.py:41: AssertionError
+___________ test_initial_source_hashes_survive_finalization_failure ____________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-316/test_initial_source_hashes_sur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106f627b0>
+
+    def test_initial_source_hashes_survive_finalization_failure(tmp_path, monkeypatch):
+        one_reference(monkeypatch)
+        initial = {"fixture.py": "source-identity-before-the-only-trial"}
+        reads = 0
+    
+        def hashes():
+            nonlocal reads
+            reads += 1
+            if reads == 1:
+                return initial
+            raise OSError("Final source identity capture failed")
+    
+        monkeypatch.setattr(bundle_module, "_hashes", hashes)
+        directory = tmp_path / "finalization-failure"
+>       bundle = bundle_module.run_development_suite(directory)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_execution_review.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/reconciliation/bundle.py:203: in run_development_suite
+    hashes_after = _hashes()
+                   ^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def hashes():
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            return initial
+>       raise OSError("Final source identity capture failed")
+E       OSError: Final source identity capture failed
+
+tests/test_reconciliation/test_execution_review.py:54: OSError
+__ test_negative_axis_does_not_match_when_its_evidence_has_invalid_provenance __
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-316/test_negative_axis_does_not_ma0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106fecf30>
+
+    def test_negative_axis_does_not_match_when_its_evidence_has_invalid_provenance(
+        tmp_path, monkeypatch
+    ):
+        import healthcraft.reconciliation.oracle as oracle
+    
+        actual_verify = oracle.verify_reconciliation
+    
+        def verify_one_corrupted_binding(scenario, expectations, evidence):
+            # The omitted-source control's intended outcome is source_fidelity=False.
+            # Invalid source identity must not be mistaken for that successfully
+            # demonstrated negative result; leave every other control unchanged.
+            note = next(iter(evidence["after"]["entities"]["clinical_note"].values()), None)
+            if note and len(json.loads(note["content"])["observations"]) == 5:
+                from copy import deepcopy
+    
+                evidence = deepcopy(evidence)
+                evidence["scenario_sha256"] = "0" * 64
+            return actual_verify(scenario, expectations, evidence)
+    
+        monkeypatch.setattr(oracle, "verify_reconciliation", verify_one_corrupted_binding)
+        bundle = bundle_module.run_development_suite(tmp_path / "negative-provenance")
+        by_id = {trial["id"]: trial for trial in bundle["trials"]}
+        assert by_id["reference"]["control_matched"] is True
+        corrupted = by_id["omitted_source"]
+        assert corrupted["verification"]["status"] == "provenance_error"
+        assert corrupted["verification"]["checks"]["source_fidelity"] is False
+>       assert corrupted["control_matched"] is False
+E       assert True is False
+
+tests/test_reconciliation/test_execution_review.py:121: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_execution_review.py::test_verifier_failure_after_real_execution_is_not_a_preparation_error
+FAILED tests/test_reconciliation/test_execution_review.py::test_source_drift_is_visible_to_static_report_reader
+FAILED tests/test_reconciliation/test_execution_review.py::test_initial_source_hashes_survive_finalization_failure
+FAILED tests/test_reconciliation/test_execution_review.py::test_negative_axis_does_not_match_when_its_evidence_has_invalid_provenance
+4 failed, 1 passed in 0.15s

@@ -1,0 +1,69 @@
+..............................sssssssFF                                  [100%]
+=================================== FAILURES ===================================
+__ test_artifact_hash_failure_preserves_executed_denominator_and_raw_outputs ___
+
+adapter = <module 'healthcraft.reconciliation.upstream' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/upstream.py'>
+inputs = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_artifact_hash...olders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_artifact_hash_failure_pre0/new-output'))
+stub_loader = [(PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_artifact_has...vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_artifact_hash_failure_pre0/new-output/upstream'), 6)]
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109398dd0>
+
+    def test_artifact_hash_failure_preserves_executed_denominator_and_raw_outputs(
+        adapter, inputs, stub_loader, monkeypatch
+    ):
+        original = Path.read_bytes
+        failed_path = inputs[2] / "upstream/reward.txt"
+    
+        def unreadable_artifact(path):
+            if path == failed_path:
+                raise OSError("simulated final artifact read failure")
+            return original(path)
+    
+        monkeypatch.setattr(Path, "read_bytes", unreadable_artifact)
+>       result = adapter.run_upstream_verifier(*inputs, turn_count=6)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_upstream_verifier.py:285: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/reconciliation/upstream.py:247: in run_upstream_verifier
+    str(path.relative_to(output_dir)): _sha(path.read_bytes())
+                                            ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_artifact_hash_failure_pre0/new-output/upstream/reward.txt')
+
+    def unreadable_artifact(path):
+        if path == failed_path:
+>           raise OSError("simulated final artifact read failure")
+E           OSError: simulated final artifact read failure
+
+tests/test_reconciliation/test_upstream_verifier.py:281: OSError
+________ test_started_journal_records_attempt_before_verifier_dispatch _________
+
+adapter = <module 'healthcraft.reconciliation.upstream' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/upstream.py'>
+inputs = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_started_journ...olders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-314/test_started_journal_records_a0/new-output'))
+stub_loader = []
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10943ec80>
+
+    def test_started_journal_records_attempt_before_verifier_dispatch(
+        adapter, inputs, stub_loader, monkeypatch
+    ):
+        def interrupted(submission, labels, logs, turn_count_override):
+            journal = json.loads((inputs[2] / "report.json").read_text())
+            assert journal["attempted_evaluations"] == 1
+            assert journal["declared_turn_count"] == turn_count_override == 3
+            assert journal["inputs"]["labels"]["rows"] == 2
+            raise RuntimeError("simulation of verifier failure")
+    
+        monkeypatch.setattr(adapter, "_load_verifier", lambda path: SimpleNamespace(evaluate=interrupted))
+        result = adapter.run_upstream_verifier(*inputs, turn_count=3)
+>       assert result["error"]["message"] == "simulation of verifier failure"
+E       AssertionError: assert 'assert 0 == 1' == 'simulation o...ifier failure'
+E         
+E         - simulation of verifier failure
+E         + assert 0 == 1
+
+tests/test_reconciliation/test_upstream_verifier.py:309: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_upstream_verifier.py::test_artifact_hash_failure_preserves_executed_denominator_and_raw_outputs
+FAILED tests/test_reconciliation/test_upstream_verifier.py::test_started_journal_records_attempt_before_verifier_dispatch
+2 failed, 30 passed, 7 skipped in 0.09s

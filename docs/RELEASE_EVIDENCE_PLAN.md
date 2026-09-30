@@ -161,6 +161,12 @@ prevent an operator from bypassing the required publication procedure.
   reproduced false criterion passes and checks frozen report provenance.
   Its local Nemotron round trip confirms one literal synthetic action only;
   it does not establish clinical or comparative performance.
+- The [original synthetic reconciliation workflow](SYNTHETIC_RECONCILIATION.md)
+  uses actual handlers, a pinned independent source/persistence oracle and nine
+  scripted controls over eight records. The optional unchanged Microsoft CSV
+  verifier assesses a separate retrieval contract. Its [evidence bundle](../artifacts/reconciliation/20260930/native-verifier-v1/README.md)
+  does not establish a Harbor lifecycle, matched-model comparison, operator
+  benefit or clinical validity; all clinical criteria remain unassessed.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

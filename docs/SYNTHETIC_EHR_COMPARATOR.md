@@ -1,14 +1,14 @@
 # Synthetic emergency EHR comparator feasibility — 2026-09-30
 
-Status: source inspection only. No external code executed, environments installed, dataset/labels downloaded, cloud/model calls, contacts, or repository changes. This does not establish a working comparator, clinical validity, or superiority. It respects HealthCraft's value-evidence → formal-red-team → publication gate.
+Status: the [native synthetic reconciliation workflow](SYNTHETIC_RECONCILIATION.md), independent source/persistence oracle and optional unchanged Microsoft CSV verifier are implemented. Scripted controls use wholly original synthetic data. The source inspection below records the external interfaces and data boundaries; no upstream patient records or labels are reused. Harbor lifecycle execution, matched-model comparison, operator studies and clinical validation remain unperformed. The value-evidence → formal-red-team → publication gate remains open.
 
 ## Decision
 
-Implement an **original synthetic emergency EHR reconciliation task in the HealthAgentBench/Harbor task format**, with HealthAgentBench's small deterministic data-quality verifier used unchanged as a secondary compatibility output. Add a framework-independent source-and-persistence oracle for the actual workflow. Start with scripted reference and negative executions; defer any model or operator comparison until both runners are demonstrably equivalent in information access and the protocol is frozen.
+The implemented milestone is an **original synthetic emergency EHR reconciliation workflow through native HealthCraft handlers**, with an independent source-and-persistence oracle and HealthAgentBench's small deterministic data-quality verifier as a separate optional compatibility output. Scripted reference and negative executions precede any model or operator comparison. A HealthAgentBench/Harbor task-format adapter remains future work; both runners must demonstrate equivalent information access before a comparison protocol is frozen.
 
-The proposal avoids dependencies not established for the published MedAgentBench action benchmark: its public loop does not execute POST writes and its reference grader is outside the repository. If implemented and validated, it would extend the NeMo four-record retrieval pilot by letting a reviewer inspect source contradictions, unknown status/time, cross-patient attribution, a persisted reconciliation note, and separately classified execution/grader failures.
+The proposal avoids dependencies not established for the published MedAgentBench action benchmark: its public loop does not execute POST writes and its reference grader is outside the repository. The native milestone extends the NeMo four-record retrieval pilot with evidence that lets a reviewer inspect source contradictions, unknown status/time, cross-patient attribution, a persisted reconciliation note, and separately classified execution/grader failures.
 
-Use the description **“HealthCraft-authored synthetic Harbor workflow, adapted from HealthAgentBench's task/verifier interface.”** Do not call its results the HealthAgentBench benchmark score, MedAgentBench replication, physician validation, or a test of treatment appropriateness.
+Describe the current implementation as **“HealthCraft-authored synthetic reconciliation workflow with an optional HealthAgentBench CSV verifier.”** Reserve “synthetic Harbor workflow” for an exercised Harbor lifecycle. Do not call its results the HealthAgentBench benchmark score, MedAgentBench replication, physician validation, or a test of treatment appropriateness.
 
 ## Exact source pins and inspected material
 
@@ -52,7 +52,7 @@ Selected concrete component: [combined EHR data-quality task](https://github.com
 - Malformed agent input generally yields reward zero plus a diagnostic. Invalid/unavailable label files can raise before that handling. An outer harness must preserve a grader/provenance-error outcome and scheduled denominator rather than call this an agent failure.
 - [Environment](https://github.com/microsoft/HealthAgentBench/blob/bcbb8085fd549469e2dc7455f4bfd68a1b98895a/tasks/ehr_data_quality_task_combined/environment/Dockerfile) is CPU Python 3.12 with pandas 3.0.1, plus additional data dependencies. The selected task allows internet by default, and its [bootstrap](https://github.com/microsoft/HealthAgentBench/blob/bcbb8085fd549469e2dc7455f4bfd68a1b98895a/tasks/ehr_data_quality_task_combined/environment/bootstrap.sh) downloads/stages MIMIC-IV-demo on cache miss and verifies corruption against gold labels. **Do not run that bootstrap for a synthetic probe.**
 
-**Accessible:** task layout, callable deterministic verifier and schemas, CPU dependency declarations, hidden-verifier lifecycle pattern. **Not established:** local native-Ollama Harbor agent operation, offline container reproducibility, genuine state-mutation evaluation, fairness of terminal-vs-MCP access, or clinical validity for new synthetic cases. The other EHR ETL task also consumes MIMIC demo data and does not provide an emergency clinical-action API.
+**Implemented locally:** the unchanged callable CSV verifier on original synthetic inputs, plus independent native HealthCraft state-mutation checks. **Not established:** local native-Ollama Harbor agent operation, offline container reproducibility, equivalent terminal-vs-MCP access, or clinical validity for new synthetic cases. The other EHR ETL task also consumes MIMIC demo data and does not provide an emergency clinical-action API.
 
 ## Code and data boundaries
 
@@ -66,11 +66,11 @@ Selected concrete component: [combined EHR data-quality task](https://github.com
 The subsequent [native contract probe and proposal](../artifacts/evaluation-integrity/20260930/execution-report-v1/native-ehr-feasibility.md)
 maps real read/note handlers, supplies an original eight-record synthetic
 fixture and records its limited in-process note/readback controls. It also
-reproduced a retry acknowledgement defect requiring repair before the
-comparison harness can rely on note persistence. This is feasibility work;
-no common oracle, Harbor execution or clinical comparison has yet run.
+reproduced a retry acknowledgement defect subsequently repaired with TDD.
+The native workflow and independent oracle now execute nine scripted controls;
+Harbor execution and clinical comparison remain unperformed.
 
-Proposed new fixture: `synthetic-ed-reconciliation/v1` (pilot, never a held-out evaluation case). Select a small authored scenario with multiple patients/encounters, dated and unknown-time observations, medication order/statement/administration distinctions, and imaging request/result distinctions. Introduce only explicit structural/source contradictions with independently authored labels. A pending medication or absent acquisition time is not automatically an error.
+Implemented open fixture: `synthetic-ed-reconciliation/v1` (pilot, never a held-out evaluation case), with eight original source rows, two patients and three encounters. It preserves explicit source contradictions, planned work, pending imaging, reported administrations and unknown status/time, with independently authored engineering expectations. A pending medication or absent acquisition time is not automatically an error.
 
 Common requested work: retrieve the target encounter's relevant source records, list unresolved contradictions/unknowns with exact source references, and persist a source-linked review note on that encounter. Do not ask for diagnosis, treatment selection, medication administration or inference of missing clinical facts.
 
@@ -83,7 +83,7 @@ Artifacts/contracts:
 5. Trial evidence: immutable predeclared trial roster, full raw requests/responses/action receipts, before/after source and runtime identities, final note readback, raw upstream verifier artifacts, shared oracle results, execution/provider/grader errors, abstentions and unassessed clinical criteria. Failed or missing trials remain in the denominator. No best-of selection or retry replacement.
 6. First tests without models: faithful reference; wrong-patient citation/write; one source omitted; invented administration/time; valid unknown preserved; tool success acknowledgement without store mutation; duplicate note write; malformed submission; corrupted hidden label input; interrupted run after a valid write. Verify each expected outcome separately. These are ordinary development controls, not the gated formal red team.
 
-Initial runnable boundary, after a future isolated test environment and new synthetic files exist (not executed here):
+The implemented wrapper and CLI are documented in the [workflow guide](SYNTHETIC_RECONCILIATION.md) and [optional integration README](../integrations/healthagentbench/README.md). The underlying upstream callable interface remains:
 
 ```python
 # Import only the pinned tests/harbor_evaluator.py after source review.
@@ -98,10 +98,10 @@ reward = harbor_evaluator.evaluate(
 
 This adaptation tests workflow/evidence portability, not an independent Microsoft EHR simulator. Documented verifier isolation is not yet a verified runtime boundary.
 
-Start with Python 3.12 and the task's pinned pandas 3.0.1 in an isolated optional environment; resolve/pin transitive dependencies before installation. Do not install the full project or add Harbor/pandas to HealthCraft's core dependencies. Actual Harbor 0.8.0 lifecycle and local-model adapter testing follow only after this offline oracle/fixture boundary passes. The exact native model settings and terminal/MCP affordance differences must be frozen before a comparative pilot.
+The optional verifier runtime uses Python 3.12 and pinned pandas 3.0.1 as documented by the integration. Harbor/pandas are not added to HealthCraft's core dependencies, and the upstream data bootstrap is not used. Actual Harbor 0.8.0 lifecycle and local-model adapter testing remain separate unperformed work. The exact native model settings and terminal/MCP affordance differences must be frozen before a comparative pilot.
 
 ## Intended value and remaining evidence
 
-The proposed deliverable would give an evaluator/reviewer one evidence bundle showing source fidelity, a real persisted action, upstream-verifier behavior and failure accounting on identical synthetic facts. It can support a later study of operator time to a **valid** report, using the already proposed capped-time/complete-denominator contract in `docs/RELEASE_EVIDENCE_PLAN.md`.
+The native deliverable gives an evaluator/reviewer one evidence bundle showing source fidelity, a real persisted action, separate upstream-verifier behavior and failure accounting on identical synthetic facts. It can support a later study of operator time to a **valid** report, using the already proposed capped-time/complete-denominator contract in `docs/RELEASE_EVIDENCE_PLAN.md`.
 
 It does not yet establish comparable local agent behavior, end-user time savings, independent clinical relevance, grading calibration, held-out generalization, patient benefit, or superiority over either benchmark/product. No model/operator outcomes have been acquired in this research. Published benchmark numbers cannot be compared to results on our new synthetic task.

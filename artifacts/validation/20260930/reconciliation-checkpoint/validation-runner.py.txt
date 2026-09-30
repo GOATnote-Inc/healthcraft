@@ -1,0 +1,72 @@
+from pathlib import Path
+import datetime
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+META = Path('/private/tmp/healthcraft-reconciliation-candidate.json')
+OUT = ROOT / 'artifacts/validation/20260930/reconciliation-checkpoint'
+PYTHON = str(ROOT / '.venv/bin/python')
+
+if sys.argv[1] == 'prepare':
+    baseline = subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip()
+    names = set(subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')) - {''}
+    for directory in ('src/healthcraft/reconciliation', 'tests/test_reconciliation', 'configs/evaluation/reconciliation_v1', 'integrations/healthagentbench'):
+        names.update(str(p.relative_to(ROOT)) for p in (ROOT/directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
+    names.add('scripts/reconcile_synthetic_ehr.py')
+    if (ROOT/'docs/SYNTHETIC_RECONCILIATION.md').exists():
+        names.add('docs/SYNTHETIC_RECONCILIATION.md')
+    candidate = Path(tempfile.mkdtemp(prefix='healthcraft-reconciliation-candidate-', dir='/private/tmp'))
+    for name in sorted(names):
+        source = ROOT/name
+        destination = candidate/name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    inputs = {name:hashlib.sha256((candidate/name).read_bytes()).hexdigest() for name in sorted(names)
+              if name.startswith(('src/','tests/','configs/','system-prompts/','scripts/','integrations/'))
+              or name in ('Makefile','pyproject.toml','requirements-lock.txt','constraints-security.txt')}
+    receipt = {'baseline_commit':baseline,'candidate':str(candidate),'inputs':inputs}
+    META.write_text(json.dumps(receipt,indent=2)+'\n')
+    OUT.mkdir(parents=True,exist_ok=False)
+    with (OUT/'candidate.json').open('x') as stream:
+        json.dump(receipt,stream,indent=2)
+    shutil.copyfile(__file__, OUT/'validation-runner.py.txt')
+    print(json.dumps({'candidate':str(candidate),'inputs':len(inputs)}))
+    raise SystemExit(0)
+
+metadata = json.loads(META.read_text())
+candidate = Path(metadata['candidate'])
+job = sys.argv[1]
+commands = {
+ 'full-tests': ['make','test','PYTEST='+str(ROOT/'.venv/bin/pytest')],
+ 'lint': ['make','lint','PYTHON='+PYTHON],
+ 'python310': ['/private/tmp/healthcraft-check-py310/bin/python','-m','pytest','tests/test_reconciliation','-q'],
+ 'python312-upstream': ['/private/tmp/healthcraft-reconciliation-upstream-runtime/bin/python','-c',
+   "import sys; sys.path.append('/private/tmp/healthcraft-check-py312/lib/python3.12/site-packages'); import pytest; raise SystemExit(pytest.main(['tests/test_reconciliation','-q']))"],
+ 'smoke': ['make','smoke','PYTHON='+PYTHON],
+ 'grader-goldset': ['make','grader-goldset','PYTHON='+PYTHON],
+}
+env = {'PATH':'/usr/bin:/bin:/usr/sbin:/sbin', 'PYTHONPATH':str(candidate/'src')+os.pathsep+str(candidate), 'PYTHONUNBUFFERED':'1'}
+command = commands[job]
+receipt = {'job':job,'command':command,'cwd':str(candidate),'environment':env,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+started = time.monotonic()
+with (OUT/(job+'.started.json')).open('x') as stream:
+    json.dump(receipt,stream,indent=2)
+try:
+    with (OUT/(job+'.log')).open('xb') as stream:
+        process = subprocess.run(command,cwd=candidate,env=env,stdout=stream,stderr=subprocess.STDOUT,timeout=600)
+    receipt.update(status='finished',exit_code=process.returncode)
+except Exception as exc:
+    receipt.update(status='runner_error',exit_code=None,error={'type':type(exc).__name__,'message':str(exc)})
+receipt.update(duration_seconds=round(time.monotonic()-started,3),ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+with (OUT/(job+'.finished.json')).open('x') as stream:
+    json.dump(receipt,stream,indent=2)
+print(json.dumps(receipt))
+print((OUT/(job+'.log')).read_text(errors='replace')[-1800:])
+raise SystemExit(receipt['exit_code'] if receipt['exit_code'] is not None else 2)
