@@ -21,6 +21,8 @@ import json
 import logging
 import os
 import sys
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +42,7 @@ from healthcraft.llm.checkpoint import (
 )
 from healthcraft.llm.judge import LLMJudge, select_judge_model
 from healthcraft.llm.local_models import LocalModelError, OllamaClient, is_local_model
+from healthcraft.llm.review_context import freeze_review_context, seal_review_context
 from healthcraft.mcp.server import create_server
 from healthcraft.tasks.environment import prepare_task_environment
 from healthcraft.tasks.evaluator import evaluate_task
@@ -141,6 +144,18 @@ def _load_system_prompt(task: Task) -> str:
         _SYSTEM_PROMPT_DIR,
         ("base.txt", "mercy_point.txt", "policies.txt", "tool_reference.txt"),
     )
+
+
+def _evaluation_task(task: Task, overlay: dict[str, dict[str, str]]) -> Task:
+    """Freeze the exact rubric used for both capture and subsequent grading."""
+    frozen = deepcopy(task)
+    criteria = []
+    for raw in frozen.criteria:
+        if raw["id"] in overlay:
+            entry = overlay[raw["id"]]
+            raw = {**raw, "verification": entry["verification"], "check": entry["check"]}
+        criteria.append(raw)
+    return replace(frozen, criteria=tuple(criteria))
 
 
 def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]:
@@ -505,6 +520,7 @@ def run_frontier_evaluation(
             )
 
             traj = None
+            review_draft = None
             scenario_context = (
                 {"profile_version": scenario_profile, "preparation_complete": False}
                 if scenario_profile
@@ -512,6 +528,10 @@ def run_frontier_evaluation(
             )
             failure_stage = "environment"
             try:
+                # Preserve authored input before world preparation or model
+                # execution can retain or mutate nested task dictionaries.
+                source_task = deepcopy(task)
+                eval_task = _evaluation_task(source_task, overlay)
                 # Seed fresh world state for each trial
                 world = WorldSeeder(seed=trial_seed).seed_world(_CONFIG_PATH)
 
@@ -535,12 +555,12 @@ def run_frontier_evaluation(
                         from healthcraft.world.physiology import create_trajectory
 
                         pid = injected_ids["patient_id"]
-                        traj = create_trajectory(
+                        physiology = create_trajectory(
                             clinical_trajectory,
                             trial_seed,
                             pid,
                         )
-                        world.attach_physiology(pid, traj)
+                        world.attach_physiology(pid, physiology)
                         logger.debug(
                             "Attached %s trajectory to %s",
                             clinical_trajectory,
@@ -551,6 +571,15 @@ def run_frontier_evaluation(
 
                 # Load system prompt
                 system_prompt = prompts[task.id]
+
+                review_draft = freeze_review_context(
+                    source_task,
+                    list(eval_task.criteria),
+                    rubric_channel=rubric_channel,
+                    scenario_context=scenario_context,
+                    checkpoint_identity=identities[task.id],
+                    grading_mode="profile_diagnostic" if scenario_profile else "benchmark",
+                )
 
                 # Run agent
                 failure_stage = "agent"
@@ -568,15 +597,20 @@ def run_frontier_evaluation(
                         "judge_settings": judge_settings,
                         "scenario_context": scenario_context,
                         "expected_criteria_count": len(task.criteria),
+                        "grading_complete": missing_judge == 0,
+                        "ungraded_criteria": missing_judge,
                     }
                 )
 
                 traj.metadata.update(profile_metadata)
+                traj.metadata["review_context"] = seal_review_context(review_draft, traj)
                 # run_agent_task captures API failures on its trajectory instead
                 # of raising. Preserve partial evidence, but do not judge or
                 # award successful completion to an interrupted execution.
                 if traj.error is not None:
                     traj.metadata["failure_stage"] = "agent"
+                    traj.metadata["grading_complete"] = False
+                    traj.metadata["ungraded_criteria"] = len(task.criteria)
                     traj.set_results([], 0.0, False, False, {})
                     save_checkpoint(traj, traj_path)
                     exp_log.append(
@@ -626,28 +660,6 @@ def run_frontier_evaluation(
                         turn.content for turn in traj.turns if turn.role == "assistant"
                     ),
                 }
-
-                # Apply deterministic overlay (v9 or v10): rewrite matching
-                # criteria from llm_judge -> world_state before evaluation.
-                eval_task = task
-                if overlay:
-                    rewritten_criteria = []
-                    for raw in task.criteria:
-                        crit_id = raw["id"]
-                        if crit_id in overlay:
-                            overlay_entry = overlay[crit_id]
-                            rewritten = dict(raw)
-                            rewritten["verification"] = overlay_entry["verification"]
-                            rewritten["check"] = overlay_entry["check"]
-                            rewritten_criteria.append(rewritten)
-                        else:
-                            rewritten_criteria.append(raw)
-                    from dataclasses import replace as dc_replace
-
-                    eval_task = dc_replace(
-                        task,
-                        criteria=tuple(rewritten_criteria),
-                    )
 
                 result = evaluate_task(
                     eval_task,
@@ -739,7 +751,13 @@ def run_frontier_evaluation(
                 error_traj.error = str(e)
                 error_traj.set_results([], 0.0, False, False, {})
                 error_traj.metadata["failure_stage"] = failure_stage
+                error_traj.metadata["grading_complete"] = False
+                error_traj.metadata["ungraded_criteria"] = len(task.criteria)
                 error_traj.metadata.update(profile_metadata)
+                if review_draft is not None and "review_context" not in error_traj.metadata:
+                    error_traj.metadata["review_context"] = seal_review_context(
+                        review_draft, error_traj
+                    )
                 save_checkpoint(error_traj, traj_path)
                 traj_rel = f"trajectories/{task.category}/{traj_filename}"
                 exp_log.append(ExperimentEntry.from_trajectory(error_traj, traj_rel))

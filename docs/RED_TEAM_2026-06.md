@@ -1,5 +1,13 @@
 # Red-team — HealthCraft paper (arXiv 2605.21496) + the 2026-05/06 work
 
+> Historical document; provenance correction, 2026-09-30: “EM-persona” labels
+> below do not establish physician adjudication. The 55 current grader
+> fixtures are engineering regression expectations, not independently
+> verified clinical truth. See [current validity findings](TASK_VALIDITY_FINDINGS.md).
+> This earlier self-review does not satisfy the new release's formal red-team
+> stage, which remains deferred until comparative value is demonstrated under
+> the [release evidence plan](RELEASE_EVIDENCE_PLAN.md).
+
 Adversarial self-review, written to be consumed by the arXiv-v2 update (which lands
 when the gpt-5.5 run finishes). Performed **offline** — no model API calls. Ground
 rule for v2 (operator decision): **no re-grade** of the V8 trajectories; V8 numbers

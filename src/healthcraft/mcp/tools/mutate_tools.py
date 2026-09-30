@@ -14,6 +14,7 @@ dataclasses.replace().
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import random
 import uuid
@@ -23,7 +24,7 @@ from datetime import date
 from typing import Any
 
 from healthcraft.entities.base import EntityType
-from healthcraft.entities.clinical_tasks import generate_clinical_task
+from healthcraft.entities.clinical_tasks import ClinicalTask, generate_clinical_task
 from healthcraft.entities.encounters import Encounter
 from healthcraft.entities.patients import Patient
 from healthcraft.world.state import WorldState
@@ -222,6 +223,25 @@ def create_clinical_order(world: WorldState, params: dict) -> dict:
     if not isinstance(details, dict):
         return _error("invalid_details", "details must be a dict")
 
+    if "priority" in params and (
+        not isinstance(params["priority"], str)
+        or params["priority"] not in {"routine", "urgent", "stat", "emergent"}
+    ):
+        return _error("invalid_param", "priority must be routine, urgent, stat, or emergent")
+    if "indication" in params and not isinstance(params["indication"], str):
+        return _error("invalid_param", "indication must be a string")
+    try:
+        # Preserve heterogeneous authored action details without interpreting doses,
+        # units, scheduling prose, or which detail field names the clinical action.
+        description = json.dumps(
+            {"order_type": order_type, "details": details},
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return _error("invalid_details", "details must contain finite JSON values")
+
     # Resolve encounter
     encounter = world.get_entity("encounter", encounter_id)
     if encounter is None:
@@ -272,15 +292,29 @@ def create_clinical_order(world: WorldState, params: dict) -> dict:
         order_id = _deterministic_order_id(encounter_id, order_type, idem_key)
         existing = world.get_entity("order", order_id)
         if existing is not None:
+            if (
+                _get_field(existing, "encounter_id") != encounter_id
+                or _get_field(existing, "order_type") != order_type
+            ):
+                return _error("id_collision", "Order ID belongs to different clinical work")
             # Deduplicated: return existing order without creating a new one
             result = _ok(existing if isinstance(existing, dict) else _entity_to_dict(existing))
             result["deduplicated"] = True
             return result
     else:
         order_id = f"ORD-{uuid.uuid4().hex[:8]}"
+        if world.get_entity("order", order_id) is not None:
+            return _error("id_collision", "Order ID already exists; no order was created")
+
+    task_suffix = hashlib.sha256(f"clinical-order:{order_id}".encode()).hexdigest()[:8].upper()
+    task_id = f"TASK-{task_suffix}"
+    if world.get_entity("clinical_task", task_id) is not None:
+        return _error("id_collision", "Clinical task ID already exists; no order was created")
 
     order: dict[str, Any] = {
         "id": order_id,
+        "order_id": order_id,
+        "task_id": task_id,
         "encounter_id": encounter_id,
         "order_type": order_type,
         "details": deepcopy(details),
@@ -288,12 +322,27 @@ def create_clinical_order(world: WorldState, params: dict) -> dict:
         "ordered_at": world.timestamp.isoformat(),
         "ordered_by": "attending",
     }
-    world.put_entity("order", order_id, order)
+    for field in ("priority", "indication"):
+        if field in params:
+            order[field] = params[field]
 
-    # Create a corresponding clinical task
-    task_type = _ORDER_TYPE_TO_TASK_TYPE[order_type]
-    rng = random.Random(hash(order_id))
-    task = generate_clinical_task(rng, encounter_id, task_type)
+    # Runtime actions are supplied work, not synthetic seed examples. Unknown
+    # priority, assignment and deadline stay empty/None; no clinical time policy
+    # or random staff identity is inferred from the requested order.
+    task = ClinicalTask(
+        id=task_id,
+        entity_type=EntityType.CLINICAL_TASK,
+        created_at=world.timestamp,
+        updated_at=world.timestamp,
+        task_id=task_id,
+        encounter_id=encounter_id,
+        task_type=_ORDER_TYPE_TO_TASK_TYPE[order_type],
+        description=description,
+        priority=params.get("priority", ""),
+        ordered_by=order["ordered_by"],
+        notes=params.get("indication", ""),
+    )
+    world.put_entity("order", order_id, order)
     world.put_entity("clinical_task", task.id, task)
 
     return _ok(order)

@@ -1,31 +1,19 @@
-"""Gold-set grader-precision harness.
+"""Hermetic engineering regression fixtures exercised through real graders.
 
-Turns "we fixed the known bypasses" into a *measured*, defensible number: it
-runs a hand-labeled, EM-adjudicated gold-set of trajectories with known ground
-truth through the REAL graders and reports, per verification method and per
-rubric channel, the false-positive (false safety-PASS) and false-negative
-(false safety-FAIL) rates with Wilson 95% confidence intervals.
+World cases supply synthetic audit entries, not executed tool trajectories.
+Judge-parser cases supply canned responses, not independent clinical reviews.
+Expected labels and explanatory notes are regression expectations; this file
+does not verify physician adjudication or establish clinical ground truth.
 
-Design (deliberate):
-  * Faithful — world_state cases run through the real
-    ``_apply_overlay_to_task`` + ``evaluate_task`` path (the same code the
-    pilots use), so a grader bug cannot hide behind a re-implementation.
-    Judge cases run the real ``LLMJudge.evaluate_criterion`` parser via a stub
-    client that returns canned (malformed / negation) responses.
-  * Hermetic — no judge API, no network, deterministic. Safe to wire into CI.
-    The judge *parser* is measured (PR #14's fail-closed fix); the judge's
-    *clinical* agreement (kappa vs physicians) is a separate, API-gated study.
-  * Fail-closed gate — any ``safety_critical`` false safety-PASS (the grader
-    certifies a true violation as satisfied) makes ``main`` exit non-zero. That
-    is the single metric that must stay at zero for any deployment claim.
-
-Ground-truth labels live in ``evals/grader_goldset/goldset.yaml``; each carries
-a ``clinical_note``. The set is additive — harder/edge cases can be appended to
-push the measured upper bound down.
+Selected, potentially correlated fixtures measure known regression coverage.
+Nominal Wilson intervals are not population estimates or clinical calibration.
+Any harness error or safety-marked false pass blocks this regression gate;
+passing it is not evidence of clinical safety or deployment readiness.
 """
 
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,20 +66,20 @@ class GroupStats:
 
     method: str
     channel: str
-    should_fire: int = 0  # expected_satisfied == False (a true violation)
-    should_pass: int = 0  # expected_satisfied == True (correct care)
-    false_pass: int = 0  # grader said satisfied=True on a true violation (DANGEROUS)
-    false_fail: int = 0  # grader said satisfied=False on correct care
+    should_fire: int = 0  # expected_satisfied == False for this selected criterion
+    should_pass: int = 0  # expected_satisfied == True for this selected criterion
+    false_pass: int = 0  # grader said True where the fixture expected False
+    false_fail: int = 0  # grader said False where the fixture expected True
     safety_false_pass: int = 0  # false_pass on a safety_critical criterion
 
-    def false_pass_rate_ci(self) -> tuple[float, float, float]:
+    def false_pass_rate_ci(self) -> tuple[float | None, float, float]:
         lo, hi = wilson_interval(self.false_pass, self.should_fire)
-        rate = self.false_pass / self.should_fire if self.should_fire else 0.0
+        rate = self.false_pass / self.should_fire if self.should_fire else None
         return rate, lo, hi
 
-    def false_fail_rate_ci(self) -> tuple[float, float, float]:
+    def false_fail_rate_ci(self) -> tuple[float | None, float, float]:
         lo, hi = wilson_interval(self.false_fail, self.should_pass)
-        rate = self.false_fail / self.should_pass if self.should_pass else 0.0
+        rate = self.false_fail / self.should_pass if self.should_pass else None
         return rate, lo, hi
 
 
@@ -119,6 +107,11 @@ class Report:
     outcomes: list[CaseOutcome] = field(default_factory=list)
     groups: dict[tuple[str, str], GroupStats] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    label_basis: str = "engineering_regression"
+    clinician_adjudication_verified: bool = False
+    fixture_sha256: str | None = None
+    source_hashes: dict[str, str] = field(default_factory=dict)
+    total_cases: int = 0
 
     @property
     def safety_false_passes(self) -> list[CaseOutcome]:
@@ -203,7 +196,15 @@ def _evaluate_judge_case(case: dict) -> bool:
 
 
 def load_goldset(path: Path | None = None) -> dict:
-    return yaml.safe_load((path or _DEFAULT_GOLDSET).read_text())
+    data = yaml.safe_load((path or _DEFAULT_GOLDSET).read_text())
+    if not isinstance(data, dict):
+        raise ValueError("Goldset must be an object")
+    for key in ("cases", "judge_parser_cases"):
+        if not isinstance(data.get(key, []), list):
+            raise ValueError(f"{key} must be an array")
+    if not data.get("cases") and not data.get("judge_parser_cases"):
+        raise ValueError("Goldset must contain at least one regression case")
+    return data
 
 
 def _missing_keys(case: dict, kind: str) -> list[str]:
@@ -214,20 +215,71 @@ def _missing_keys(case: dict, kind: str) -> list[str]:
     return [k for k in required if k not in case]
 
 
+def _source_hashes() -> dict[str, str]:
+    """Pin executable graders and their task/overlay/vocabulary inputs."""
+    files = set((_REPO_ROOT / "src/healthcraft/tasks").glob("*.py"))
+    files.update(_TASKS_DIR.rglob("*.yaml"))
+    files.update(_TASKS_DIR.rglob("*.yml"))
+    files.update((_REPO_ROOT / "configs/rubrics").glob("*.yaml"))
+    files.update(
+        _REPO_ROOT / path
+        for path in (
+            "src/healthcraft/evals/grader_goldset.py",
+            "src/healthcraft/llm/judge.py",
+            "src/healthcraft/mcp/server.py",
+            "src/healthcraft/world/state.py",
+            "configs/em_vocab.yaml",
+        )
+    )
+    return {
+        str(path.relative_to(_REPO_ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(files)
+    }
+
+
+def _validate_case(case: Any, kind: str, seen: set[str]) -> None:
+    if not isinstance(case, dict):
+        raise ValueError("Case must be an object")
+    missing = _missing_keys(case, kind)
+    if missing:
+        raise ValueError(f"Missing required keys {missing}")
+    case_id = case["id"]
+    if not isinstance(case_id, str) or not case_id.strip():
+        raise ValueError("Case id must be a nonempty string")
+    if case_id in seen:
+        raise ValueError(f"Duplicate case id: {case_id}")
+    seen.add(case_id)
+    for label in ("expected_satisfied", "safety_critical"):
+        if type(case[label]) is not bool:
+            raise ValueError(f"{label} must be a boolean")
+    if kind == "judge" and not isinstance(case["judge_response"], str):
+        raise ValueError("judge_response must be a string, including for malformed-text tests")
+
+
 def run_goldset(path: Path | None = None) -> Report:
-    data = load_goldset(path)
-    task_by_id = {t.id: t for t in load_tasks(_TASKS_DIR)}
     report = Report()
+    fixture_path = path or _DEFAULT_GOLDSET
+    try:
+        report.fixture_sha256 = hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+        report.source_hashes = _source_hashes()
+        data = load_goldset(fixture_path)
+        task_by_id = {t.id: t for t in load_tasks(_TASKS_DIR)}
+    except Exception as exc:  # noqa: BLE001 — invalid evidence must fail the CLI gate
+        report.errors.append(f"Invalid suite: {type(exc).__name__}: {exc}")
+        return report
+    seen: set[str] = set()
 
     def _record(case: dict, method: str, observed: bool) -> None:
+        if type(observed) is not bool:
+            raise ValueError("Grader verdict must be a boolean")
         channel = case.get("channel", "v8") if method != "judge_parser" else "n/a"
         outcome = CaseOutcome(
             case_id=case["id"],
             method=method,
             channel=channel,
-            safety_critical=bool(case["safety_critical"]),
-            expected=bool(case["expected_satisfied"]),
-            observed=bool(observed),
+            safety_critical=case["safety_critical"],
+            expected=case["expected_satisfied"],
+            observed=observed,
             clinical_note=case.get("clinical_note", ""),
         )
         report.outcomes.append(outcome)
@@ -244,33 +296,53 @@ def run_goldset(path: Path | None = None) -> Report:
             if outcome.is_false_fail:
                 g.false_fail += 1
 
-    for case in data.get("cases", []):
-        missing = _missing_keys(case, "world")
-        if missing:
-            report.errors.append(f"{case.get('id', '?')}: missing required keys {missing}")
-            continue
+    for index, case in enumerate(data.get("cases", [])):
+        report.total_cases += 1
         try:
+            _validate_case(case, "world", seen)
+            task = _apply_overlay_to_task(task_by_id[case["task_id"]], case.get("channel", "v8"))
+            raw = next(c for c in task.criteria if c["id"] == case["criterion_id"])
+            if raw["verification"] not in {"world_state", "pattern"}:
+                raise ValueError(
+                    "World cases require a deterministic criterion, not an LLM placeholder"
+                )
+            safety = raw.get("safety_critical", False)
+            if type(safety) is not bool or safety is not case["safety_critical"]:
+                raise ValueError(
+                    "safety_critical label does not match the effective task criterion"
+                )
             observed = _evaluate_world_case(task_by_id, case)
-            _record(case, "world_state", observed)
+            _record(case, raw["verification"], observed)
         except Exception as e:  # noqa: BLE001 — surface, don't crash the harness
-            report.errors.append(f"{case.get('id', '?')}: {type(e).__name__}: {e}")
+            label = case.get("id", "?") if isinstance(case, dict) else f"world[{index}]"
+            report.errors.append(f"{label}: {type(e).__name__}: {e}")
 
-    for case in data.get("judge_parser_cases", []):
-        missing = _missing_keys(case, "judge")
-        if missing:
-            report.errors.append(f"{case.get('id', '?')}: missing required keys {missing}")
-            continue
+    for index, case in enumerate(data.get("judge_parser_cases", [])):
+        report.total_cases += 1
         try:
+            _validate_case(case, "judge", seen)
             observed = _evaluate_judge_case(case)
             _record(case, "judge_parser", observed)
         except Exception as e:  # noqa: BLE001
-            report.errors.append(f"{case.get('id', '?')}: {type(e).__name__}: {e}")
+            label = case.get("id", "?") if isinstance(case, dict) else f"judge_parser[{index}]"
+            report.errors.append(f"{label}: {type(e).__name__}: {e}")
 
+    if hashlib.sha256(fixture_path.read_bytes()).hexdigest() != report.fixture_sha256:
+        report.errors.append("Fixture content changed during evaluation")
+    if _source_hashes() != report.source_hashes:
+        report.errors.append("Grader or task source changed during evaluation")
     return report
 
 
 def format_report(report: Report) -> str:
-    lines = ["", "HealthCraft grader-precision gold-set", "=" * 64]
+    lines = ["", "HealthCraft engineering grader regression fixtures", "=" * 64]
+    lines.append(
+        "Synthetic audit entries and canned judge-parser replies; not clinician adjudication."
+    )
+    lines.append(
+        "Selected fixtures; not a population error estimate or clinical safety validation."
+    )
+    lines.append("Nominal binomial intervals do not establish independence of related fixtures.")
     lines.append(f"cases evaluated: {len(report.outcomes)}   errors: {len(report.errors)}")
     lines.append("")
     lines.append(
@@ -282,12 +354,20 @@ def format_report(report: Report) -> str:
         fn_rate, fn_lo, fn_hi = g.false_fail_rate_ci()
         n = g.should_fire + g.should_pass
         fp = (
-            f"{g.false_pass}/{g.should_fire} "
-            f"{100 * fp_rate:.0f}% [{100 * fp_lo:.0f}-{100 * fp_hi:.0f}]"
+            "unmeasured"
+            if fp_rate is None
+            else (
+                f"{g.false_pass}/{g.should_fire} "
+                f"{100 * fp_rate:.0f}% [{100 * fp_lo:.0f}-{100 * fp_hi:.0f}]"
+            )
         )
         fn = (
-            f"{g.false_fail}/{g.should_pass} "
-            f"{100 * fn_rate:.0f}% [{100 * fn_lo:.0f}-{100 * fn_hi:.0f}]"
+            "unmeasured"
+            if fn_rate is None
+            else (
+                f"{g.false_fail}/{g.should_pass} "
+                f"{100 * fn_rate:.0f}% [{100 * fn_lo:.0f}-{100 * fn_hi:.0f}]"
+            )
         )
         lines.append(f"{g.method:<14}{g.channel:<6}{n:>4}{fp:>26}{fn:>26}")
     lines.append("-" * 76)
@@ -299,7 +379,7 @@ def format_report(report: Report) -> str:
     if report.safety_false_passes:
         lines.append("")
         lines.append(
-            "DANGEROUS — safety_critical false-PASS (grader certified a violation as safe):"
+            "SAFETY-MARKED LABEL MISMATCHES (grader passed where fixture expected failure):"
         )
         for o in report.safety_false_passes:
             lines.append(f"  - {o.case_id} [{o.channel}]: {o.clinical_note}")
@@ -316,7 +396,7 @@ def main() -> int:
     report = run_goldset()
     print(format_report(report))
     # Hard gate: a safety_critical false-PASS, or any harness error, fails.
-    if report.safety_false_passes or report.errors:
+    if not report.outcomes or report.safety_false_passes or report.errors:
         return 1
     return 0
 

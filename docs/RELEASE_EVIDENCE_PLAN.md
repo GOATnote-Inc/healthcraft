@@ -139,7 +139,15 @@ prevent an operator from bypassing the required publication procedure.
   preserves the single incomplete counter trial and exact request settings.
   Thinking, context, seed, and output settings differ from HealthCraft's;
   it is not a matched performance comparison or healthcare-value evidence.
-- Three historical rubric false passes remain explicitly documented.
+- The [offline review workflow](CLINICAL_REVIEW.md) binds new trajectories to
+  their actual prompts, tools and effective criteria, creates masked reviewer
+  packets, and records independent submissions without inventing expert labels.
+  Independent reviewer recruitment/verification, adjudication and calibration
+  remain unperformed.
+- [Action/grader repairs and open task-validity findings](TASK_VALIDITY_FINDINGS.md)
+  distinguish corrected execution/alias defects from unresolved rubric meaning
+  and temporal-source problems. Passing regression fixtures does not establish
+  independent clinical adjudication.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

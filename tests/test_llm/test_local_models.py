@@ -206,6 +206,46 @@ def test_truncated_native_tool_call_is_not_executed(monkeypatch, reason):
     assert trajectory.metadata["stop_reason"] == reason
 
 
+@pytest.mark.parametrize("termination", [{}, {"done_reason": None}, {"done_reason": "unknown"}])
+@pytest.mark.parametrize("with_tools", [False, True])
+def test_unknown_native_termination_cannot_complete_or_dispatch(
+    monkeypatch, termination, with_tools
+):
+    from types import SimpleNamespace
+
+    from healthcraft.llm.agent import run_agent_task
+
+    message = {"content": "A response is not proof of completed generation."}
+    if with_tools:
+        message["tool_calls"] = [
+            {"function": {"name": "searchPatients", "arguments": {}}},
+        ]
+    client, requests = _client(
+        monkeypatch, response={"message": message, "done": True, **termination}
+    )
+    dispatched = []
+    server = SimpleNamespace(
+        available_tools=["searchPatients"],
+        call_tool=lambda *args: dispatched.append(args) or {"status": "ok"},
+    )
+    task = SimpleNamespace(
+        id="IR-unknown-termination",
+        category="information_retrieval",
+        level=1,
+        title="test",
+        description="retrieve",
+        initial_state={},
+    )
+
+    trajectory = run_agent_task(client, task, server, "system")
+
+    assert dispatched == []
+    assert trajectory.error is not None
+    assert trajectory.metadata["termination_kind"] == "incomplete_provider_turn"
+    assert trajectory.metadata["stop_reason"] == termination.get("done_reason")
+    assert sum(path == "/api/chat" for path, _ in requests) == 1
+
+
 @pytest.mark.parametrize("arguments", ["broken JSON", "[]", [1], None])
 def test_malformed_tool_arguments_fail_before_execution(monkeypatch, arguments):
     client, _ = _client(

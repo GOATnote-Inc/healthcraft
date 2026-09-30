@@ -260,7 +260,9 @@ class OllamaClient:
                     "arguments": arguments,
                 }
             )
-        reason = response.get("done_reason", "stop")
+        # ``done`` closes the response envelope; it does not establish why
+        # generation ended. Missing termination provenance remains unknown.
+        reason = response.get("done_reason")
         return {
             "content": message.get("content") or "",
             "tool_calls": calls,

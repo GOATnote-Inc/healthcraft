@@ -258,6 +258,28 @@ def test_no_judge_reports_missing_grading_coverage(harness):
     assert result["evaluation_mode"] == "deterministic_only"
     assert result["ungraded_criteria"] == 1
     assert result["grading_complete"] is False
+    trajectory = Trajectory.load(next(root.rglob("TEST-001*.json")))
+    assert trajectory.metadata["grading_complete"] is False
+    assert trajectory.metadata["ungraded_criteria"] == 1
+
+
+def test_dynamic_setup_failure_preserves_error_checkpoint_not_physiology(harness, monkeypatch):
+    state, run, root = harness
+    state["task"] = replace(state["task"], initial_state={"clinical_trajectory": "sepsis"})
+    state["error"] = True
+    monkeypatch.setattr(
+        orch,
+        "prepare_task_environment",
+        lambda world, task, **kwargs: (task, {"patient_id": "PAT-SYNTHETIC"}),
+    )
+    result = run(dynamic_state=True)
+    assert result["error_runs"] == 1
+    trajectory = Trajectory.load(next(root.rglob("TEST-001*.json")))
+    assert "synthetic runtime failure" in trajectory.error
+    assert trajectory.metadata["failure_stage"] == "agent"
+    assert trajectory.metadata["grading_complete"] is False
+    assert trajectory.metadata["ungraded_criteria"] == 1
+    assert trajectory.metadata["review_context"]["payload"]["capture_status"] == "incomplete"
 
 
 def test_judge_error_preserves_rollout_and_counts_as_infrastructure_failure(harness, monkeypatch):

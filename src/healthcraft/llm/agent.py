@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import time
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -776,6 +777,9 @@ def run_agent_task(
     )
 
     tools = _build_tool_definitions(server)
+    # Preserve the actual advertised interface before passing mutable objects
+    # to a client. This is coordinator evidence, never added to model messages.
+    traj.metadata["agent_tool_definitions"] = deepcopy(tools)
 
     # Build user message: task description + setting context
     user_content = task.description

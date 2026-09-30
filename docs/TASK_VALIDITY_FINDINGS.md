@@ -4,6 +4,52 @@ This is an engineering audit of supplied synthetic facts, tool behavior,
 and verifier evidence. It is not a clinical adjudication or a replacement
 for the published benchmark. Historical tasks and results remain unchanged.
 
+## Action and grading fidelity: 2026-09-30 development follow-up
+
+Reproductions at `5bc224f` exposed two executable defects. A valid
+`createClinicalOrder` request for a stat potassium measurement created a
+random follow-up task with unrelated work, staff and timing. The repair
+preserves exact order details, priority and indication, links the order to a
+deterministic clinical task, and uses simulation time. Unspecified deadlines
+and assignees remain unknown. Real-tool tests cover all six order kinds,
+four priorities, idempotent retries, collisions, and subsequent task completion.
+
+The server also accepts `create_clinical_order`, but the evaluator previously
+failed to recognize that spelling. A successful, persisted heparin order
+violated NEG-001-C02 through the camelCase spelling and incorrectly passed
+the same criterion through the snake_case alias, in both live evaluation
+and replay. Matching now uses the server's `TOOL_NAME_MAP` for registered
+aliases while preserving original audit entries and existing success/error
+semantics. Historical result files are not rewritten.
+
+The small grader regression suite had additional accounting defects: the
+string `"false"` was coerced to true, an incorrect safety label could remove
+a critical false pass from its gate, and an empty suite could pass. Strict
+types, task-derived safety checks and explicit missing-denominator reporting
+now prevent these cases. Its 55 synthetic audit/parser fixtures have no
+verified independent physician adjudication. They are engineering regression
+expectations, not clinical calibration; all existing expected labels are
+preserved.
+
+The following issues remain open and block stronger validity claims:
+
+- SCJ-012-C02's v9/v10 overlay accepts any medication order, including
+  acetaminophen, for an assertion requiring broad-spectrum antibiotics
+  within an hour. Fixing tool spelling does not repair that semantic and
+  temporal mismatch. It requires a separately reviewed rubric revision.
+- TR-015 drops the separately authored `vitals_at_presentation` observation.
+  TR-018 replaces explicitly supplied 06:38 bolus vitals with a generated
+  13:15 timestamp, after the 07:45 scenario time. TR-024 similarly replaces
+  supplied arrival/vitals times and flattens a structured troponin entry
+  into a string. These are source-fidelity findings, not new clinical labels
+  or a determination that every affected task is unsolvable.
+
+The [original captures and hashes](../artifacts/evaluation-integrity/20260930/action-grading-review-v1/README.md)
+retain the defects before repair. Regression coverage lives in
+[order action tests](../tests/test_mcp_tools/test_order_action_fidelity.py),
+[tool alias tests](../tests/test_evaluator_integrity/test_tool_aliases.py), and
+[grader contract tests](../tests/test_evals/test_grader_goldset_contract.py).
+
 ## IR-002: prior encounter retrieval
 
 The audit at commit `31511e8` seeded the actual world, injected IR-002,

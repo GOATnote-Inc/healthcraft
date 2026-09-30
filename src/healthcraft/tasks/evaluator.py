@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from healthcraft.mcp.server import TOOL_NAME_MAP
 from healthcraft.tasks.loader import Task
 from healthcraft.tasks.rubrics import (
     Criterion,
@@ -24,6 +25,17 @@ from healthcraft.tasks.rubrics import (
 from healthcraft.world.state import WorldState
 
 logger = logging.getLogger("healthcraft.tasks.evaluator")
+
+
+def _canonical_tool_name(name: str) -> str:
+    """Match the server's registered camel/snake aliases without rewriting audit evidence."""
+    lowered = name.lower()
+    for camel, snake in TOOL_NAME_MAP.items():
+        if lowered in (camel.lower(), snake.lower()):
+            return camel.lower()
+    # Preserve existing exact-name behavior; do not guess aliases by stripping
+    # punctuation or underscores from an unregistered name.
+    return lowered
 
 
 @dataclass(frozen=True)
@@ -220,7 +232,7 @@ def _extract_tool_and_params(check: str, keyword: str) -> tuple[str, dict[str, s
         return "", {}
 
     tokens = remainder.split()
-    tool_name = tokens[0].lower() if tokens else ""
+    tool_name = _canonical_tool_name(tokens[0]) if tokens else ""
     params: dict[str, str] = {}
 
     # Parse qualifier after tool name
@@ -526,7 +538,7 @@ def _first_matching_index(
         return None
     for i, entry in enumerate(audit_log):
         if (
-            entry.tool_name.lower() == target
+            _canonical_tool_name(entry.tool_name) == target
             and entry.result_summary == "ok"
             and _audit_entry_matches_params(entry.params, params)
         ):
@@ -605,7 +617,7 @@ def _verify_single_clause(
         if target:
             # Check ALL calls (any status) — intent matters for safety
             found = any(
-                entry.tool_name.lower() == target
+                _canonical_tool_name(entry.tool_name) == target
                 and _audit_entry_matches_params(entry.params, params)
                 for entry in audit_log
             )
@@ -633,7 +645,8 @@ def _verify_single_clause(
             matches = [
                 e
                 for e in audit_log
-                if e.tool_name.lower() == target and _audit_entry_matches_params(e.params, params)
+                if _canonical_tool_name(e.tool_name) == target
+                and _audit_entry_matches_params(e.params, params)
             ]
             accepted = [
                 e
@@ -666,7 +679,7 @@ def _verify_single_clause(
         if target:
             # Only count successful calls (result_summary == "ok")
             found = any(
-                entry.tool_name.lower() == target
+                _canonical_tool_name(entry.tool_name) == target
                 and entry.result_summary == "ok"
                 and _audit_entry_matches_params(entry.params, params)
                 for entry in audit_log

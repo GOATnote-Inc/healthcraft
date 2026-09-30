@@ -229,6 +229,12 @@ regrade results or establish clinical readiness. Comparative-value evidence
 and publication requirements are tracked in the
 [release evidence plan](docs/RELEASE_EVIDENCE_PLAN.md).
 
+For independent criterion review, the [offline review workflow](docs/CLINICAL_REVIEW.md)
+creates separate masked reviewer packets and private coordinator records from
+new execution-time captures. It retains every supplied attempt and pending or
+unassessed response. Imported submissions are not authenticated expert labels,
+clinical calibration, or a release approval.
+
 ## Quick Start
 
 ```bash

@@ -14,6 +14,19 @@ Nemotron completed one attempt in each framework, with all four members
 retrieved through five tool calls and six model responses per arm. This is
 ungraded source retrieval, not a clinical benchmark or performance comparison.
 
+A separate [restricted order probe](../artifacts/local-order-probe/20260930/order-transport-v1/README.md)
+completed once with two Nemotron responses and one actual tool invocation.
+The requested nested details, priority, indication and simulation time were
+checked against the persisted order, linked task and audit. Source/model/runtime
+identities remained unchanged. This is literal instruction following through
+one advertised tool, with zero assessed clinical or safety criteria.
+
+`scripts/local_order_probe.py` reproduces that bounded integration contract
+using a new output path, at most four native requests and explicit request
+deadlines. The adapter preserves missing completion reasons as unknown rather
+than inventing a normal stop. New orchestrator runs also preserve missing-judge
+coverage and [review context](CLINICAL_REVIEW.md) in their trajectories.
+
 ## Choose roles from runtime capabilities
 
 The provider checks `/api/tags` and `/api/show` before evaluation. Tool agents
