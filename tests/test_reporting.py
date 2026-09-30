@@ -738,3 +738,106 @@ def test_valid_captured_profile_mode_blocks_legacy_placeholder_verdicts(tmp_path
     assert record["unvalidated_profile"] is True
     assert report["counts"]["criterion_ungraded"] == 2
     assert report["counts"]["criterion_passed"] == 0
+
+
+@pytest.mark.parametrize(
+    "execution_error,criteria,expected_criterion_error_trials,expected_status",
+    [
+        (
+            None,
+            [
+                {
+                    "id": "C1",
+                    "satisfied": False,
+                    "evidence": "Judge error: unavailable",
+                    "error": "unavailable",
+                }
+            ],
+            1,
+            "incomplete",
+        ),
+        (
+            None,
+            [
+                {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                {
+                    "id": "C2",
+                    "satisfied": False,
+                    "evidence": "PARSE FAILURE (fail-closed): malformed",
+                },
+            ],
+            1,
+            "incomplete",
+        ),
+        (
+            "provider timeout",
+            [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+            0,
+            "error",
+        ),
+        (
+            "provider timeout",
+            [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+            1,
+            "error",
+        ),
+        (
+            None,
+            [
+                {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+            ],
+            0,
+            "incomplete",
+        ),
+        (None, [], 0, "incomplete"),
+    ],
+)
+def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+    tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+):
+    save(
+        tmp_path,
+        "run.json",
+        trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+    )
+    report = collect_evidence(tmp_path)
+    assert report["counts"]["selected_trials"] == 1
+    assert report["records"][0]["status"] == expected_status
+    assert report["counts"]["error"] == int(execution_error is not None)
+    assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+    assert report["counts"]["rubric_fail"] == report["counts"]["criterion_failed"] == 0
+    html = render_evidence(report)
+    assert "Execution / grader errors" not in html
+    assert f"<b>{int(execution_error is not None)}</b>Trajectory errors" in html
+    assert f"<b>{expected_criterion_error_trials}</b>Trials with criterion errors" in html
+    assert "Trajectory-error and criterion-error trial counts can overlap" in html
+    assert "each selected trial is counted once in each error category." in html
+
+
+def test_criterion_error_trial_count_uses_selected_trajectory_only(tmp_path):
+    failed = trajectory(
+        passed=False,
+        criteria_results=[{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+    )
+    save(tmp_path, "trajectories/IR-002_model_42_t1.json", failed)
+    save(tmp_path, "trajectories/IR-002_model_42_t1_attempt2.json", trajectory())
+    save(
+        tmp_path,
+        "diagnostic.json",
+        {"kind": "diagnostic", "criteria_results": failed["criteria_results"]},
+    )
+    report = collect_evidence(tmp_path)
+    assert report["counts"]["selected_trials"] == 1
+    assert report["counts"]["raw_attempts"] == 2
+    assert report["counts"]["recorded_pass"] == 1
+    assert report["counts"]["diagnostic"] == 1
+    assert report["counts"]["trials_with_criterion_errors"] == 0
+
+
+def test_empty_report_has_zero_observed_error_counts_without_clinical_inference(tmp_path):
+    report = collect_evidence(tmp_path)
+    assert report["counts"]["selected_trials"] == 0
+    assert report["counts"]["trials_with_criterion_errors"] == 0
+    html = render_evidence(report)
+    assert "No completion or safety conclusion is available" in html

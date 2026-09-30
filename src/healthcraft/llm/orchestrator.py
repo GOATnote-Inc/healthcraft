@@ -992,9 +992,16 @@ def _api_preflight(
         _probe("judge", judge_model, judge_key)
 
 
-def main() -> None:
+def _positive_count(value: str) -> int:
+    count = int(value)
+    if count <= 0:
+        raise argparse.ArgumentTypeError("Count must be positive")
+    return count
+
+
+def main(argv: list[str] | None = None, *, prog: str | None = None) -> None:
     """CLI entry point for frontier model evaluation."""
-    parser = argparse.ArgumentParser(description="HEALTHCRAFT Frontier Model Evaluation")
+    parser = argparse.ArgumentParser(prog=prog, description="HEALTHCRAFT Model Evaluation")
     parser.add_argument("--agent-model", required=True, help="Agent model ID")
     parser.add_argument(
         "--agent-key",
@@ -1008,9 +1015,9 @@ def main() -> None:
         help="Judge API key (auto-detected from env if not set)",
     )
     parser.add_argument("--tasks", default="all", help="Task ID or 'all'")
-    parser.add_argument("--trials", type=int, default=5, help="Trials per task")
+    parser.add_argument("--trials", type=_positive_count, default=5, help="Trials per task")
     parser.add_argument("--seed", type=int, default=42, help="Base seed")
-    parser.add_argument("--max-tasks", type=int, default=None, help="Limit tasks")
+    parser.add_argument("--max-tasks", type=_positive_count, default=None, help="Limit tasks")
     parser.add_argument("--results-dir", default=None, help="Results directory")
     parser.add_argument("--tasks-dir", default=None, help="Tasks directory")
     parser.add_argument(
@@ -1042,7 +1049,7 @@ def main() -> None:
         help="Opt-in roster observations; ungraded diagnostics, not benchmark scores",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     logging.basicConfig(level=getattr(logging, args.log_level, logging.INFO))
 
     use_dynamic_state = args.dynamic_state or os.environ.get("HC_DYNAMIC_STATE", "0") == "1"

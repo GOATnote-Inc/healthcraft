@@ -1,0 +1,28 @@
+..................................F                                      [100%]
+=================================== FAILURES ===================================
+_____________ test_cli_default_chooses_fresh_simulation_directory ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c1cf1b0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-417/test_cli_default_chooses_fresh0')
+capsys = <_pytest.capture.CaptureFixture object at 0x10c0cb4d0>
+
+    def test_cli_default_chooses_fresh_simulation_directory(monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(eval_runner, "_RESULTS_DIR", tmp_path / "existing-results")
+        selected = []
+    
+        def run_stub(task_filter, model, trials, seed, results_dir, tasks_dir):
+            selected.append(results_dir)
+            return {"execution_error_runs": 0, "tool_error_runs": 0, "model": model}
+    
+        monkeypatch.setattr(eval_runner, "run_evaluation", run_stub)
+        assert eval_runner.main([]) == eval_runner.main([]) == 0
+>       assert selected[0] != selected[1]
+E       AssertionError: assert PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-417/test_cli_default_chooses_fresh0/existing-results') != PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-417/test_cli_default_chooses_fresh0/existing-results')
+
+tests/test_eval_runner.py:286: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"execution_error_runs": 0, "model": "simulated", "tool_error_runs": 0}
+{"execution_error_runs": 0, "model": "simulated", "tool_error_runs": 0}
+=========================== short test summary info ============================
+FAILED tests/test_eval_runner.py::test_cli_default_chooses_fresh_simulation_directory
+1 failed, 34 passed in 5.78s

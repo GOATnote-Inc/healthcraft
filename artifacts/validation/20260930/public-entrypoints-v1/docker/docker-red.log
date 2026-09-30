@@ -1,0 +1,86 @@
+FF....F                                                                  [100%]
+=================================== FAILURES ===================================
+______ test_declared_entrypoint_consumes_environment_and_positional_task _______
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-442/test_declared_entrypoint_consu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b9a9220>
+
+    def test_declared_entrypoint_consumes_environment_and_positional_task(tmp_path, monkeypatch):
+        completed, invocation = image_entrypoint(tmp_path, ["IR-001"])
+        assert completed.returncode == 0
+>       task, model, trials, seed, output, _ = runner_options(monkeypatch, invocation)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_scripts/test_docker_task_engine.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_scripts/test_docker_task_engine.py:77: in runner_options
+    assert eval_runner.main(invocation[3:]) == 0
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/eval_runner.py:269: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2007: in parse_args
+    self.error(msg)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='python -m pytest', usage=None, description="Unassessed scripted smoke runner; this module does no...mp/new-healthcraft-smoke\n", formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'python -m pytest: error: unrecognized arguments: IR-001\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: python -m pytest [-h] [--tasks TASKS] [--model {simulated}]
+                        [--trials TRIALS] [--seed SEED]
+                        [--results-dir RESULTS_DIR] [--tasks-dir TASKS_DIR]
+                        [--log-level LOG_LEVEL]
+python -m pytest: error: unrecognized arguments: IR-001
+___________ test_explicit_runner_flags_override_environment_defaults ___________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-442/test_explicit_runner_flags_ove0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b311e00>
+
+    def test_explicit_runner_flags_override_environment_defaults(tmp_path, monkeypatch):
+        completed, invocation = image_entrypoint(
+            tmp_path, ["--tasks", "CC-001", "--trials", "2", "--seed", "31"]
+        )
+        assert completed.returncode == 0
+        task, model, trials, seed, output, _ = runner_options(monkeypatch, invocation)
+        assert (task, model, trials, seed) == ("CC-001", "simulated", 2, 31)
+>       assert output == tmp_path / "new-results"
+E       AssertionError: assert PosixPath('/Users/kiteboard/healthcraft/results/simulations/run-8b38c61e09c0461eaee900972963c2a4') == (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-442/test_explicit_runner_flags_ove0') / 'new-results')
+
+tests/test_scripts/test_docker_task_engine.py:98: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"execution_error_runs": 0, "tool_error_runs": 0}
+________ test_compose_task_engine_only_advertises_consumed_environment _________
+
+    def test_compose_task_engine_only_advertises_consumed_environment():
+        compose = yaml.safe_load((ROOT / "docker/docker-compose.yaml").read_text())
+        environment = compose["services"]["task-engine"]["environment"]
+>       assert set(environment) == {
+            "HEALTHCRAFT_MODEL",
+            "HEALTHCRAFT_TRIALS",
+            "HEALTHCRAFT_SEED",
+            "HEALTHCRAFT_LOG_LEVEL",
+        }
+E       AssertionError: assert {'HEALTHCRAFT...CRAFT_TRIALS'} == {'HEALTHCRAFT...CRAFT_TRIALS'}
+E         
+E         Extra items in the left set:
+E         'HEALTHCRAFT_MCP_URL'
+E         'HEALTHCRAFT_SEED_CONFIG'
+E         Use -v to get more diff
+
+tests/test_scripts/test_docker_task_engine.py:112: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_docker_task_engine.py::test_declared_entrypoint_consumes_environment_and_positional_task
+FAILED tests/test_scripts/test_docker_task_engine.py::test_explicit_runner_flags_override_environment_defaults
+FAILED tests/test_scripts/test_docker_task_engine.py::test_compose_task_engine_only_advertises_consumed_environment
+3 failed, 4 passed in 0.92s

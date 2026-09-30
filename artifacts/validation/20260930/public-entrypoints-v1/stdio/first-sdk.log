@@ -1,0 +1,289 @@
+.....FFF......F                                                          [100%]
+=================================== FAILURES ===================================
+_____ test_discovery_config_mismatch_fails_before_seeding[invalid_schema] ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c606cf0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-422/test_discovery_config_mismatch3')
+mutation = 'invalid_schema'
+
+    @pytest.mark.parametrize("mutation", ["missing", "duplicate", "extra", "invalid_schema"])
+    def test_discovery_config_mismatch_fails_before_seeding(monkeypatch, tmp_path, mutation):
+        doc = json.loads(SCHEMAS.read_text())
+        if mutation == "missing":
+            doc["tools"].pop()
+        elif mutation == "duplicate":
+            doc["tools"].append(copy.deepcopy(doc["tools"][0]))
+        elif mutation == "extra":
+            doc["tools"].append({"name": "extraTool", "description": "extra", "parameters": {}})
+        else:
+            doc["tools"][0]["parameters"]["type"] = 42
+        path = tmp_path / "tools.json"
+        path.write_text(json.dumps(doc))
+        monkeypatch.setattr(WorldSeeder, "seed_world", lambda *a: pytest.fail("must not seed"))
+        with pytest.raises(ValueError, match="tool schema"):
+>           stdio.create_stdio_server(CONFIG, schema_path=path)
+
+tests/test_mcp/test_stdio.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/mcp/stdio.py:126: in create_stdio_server
+    definitions = _load_schemas(schema_path or _DEFAULT_SCHEMAS)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/mcp/stdio.py:64: in _load_schemas
+    validator_for(row["parameters"]).check_schema(row["parameters"])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'jsonschema.validators.Draft202012Validator'>
+schema = {'properties': {'chief_complaint': {'type': 'string'}, 'date_from': {'format': 'date-time', 'type': 'string'}, 'date_t...on': {'enum': ['admitted', 'discharged', 'transferred', 'ama', 'expired', 'lwbs'], 'type': 'string'}, ...}, 'type': 42}
+format_checker = <FormatChecker checkers=['date', 'email', 'idn-email', 'idn-hostname', 'ipv4', 'ipv6', 'regex', 'uuid']>
+
+    @classmethod
+    def check_schema(cls, schema, format_checker=_UNSET):
+        Validator = validator_for(cls.META_SCHEMA, default=cls)
+        if format_checker is _UNSET:
+            format_checker = Validator.FORMAT_CHECKER
+        validator = Validator(
+            schema=cls.META_SCHEMA,
+            format_checker=format_checker,
+        )
+        for error in validator.iter_errors(schema):
+>           raise exceptions.SchemaError.create_from(error)
+E           jsonschema.exceptions.SchemaError: 42 is not valid under any of the given schemas
+E           
+E           Failed validating 'anyOf' in metaschema['allOf'][3]['properties']['type']:
+E               {'anyOf': [{'$ref': '#/$defs/simpleTypes'},
+E                          {'type': 'array',
+E                           'items': {'$ref': '#/$defs/simpleTypes'},
+E                           'minItems': 1,
+E                           'uniqueItems': True}]}
+E           
+E           On schema['type']:
+E               42
+
+/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/jsonschema/validators.py:317: SchemaError
+______________ test_real_sdk_initialize_and_exact_full_discovery _______________
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 102, in test_real_sdk_initialize_and_exact_full_discovery
+  |     result = run_async(scenario)
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 29, in run_async
+  |     return anyio.run(function)
+  |            ~~~~~~~~~^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_core/_eventloop.py", line 83, in run
+  |     return async_backend.run(func, args, {}, backend_options)
+  |            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2548, in run
+  |     return runner.run(wrapper())
+  |            ~~~~~~~~~~^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/runners.py", line 119, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2531, in wrapper
+  |     return await func(*args)
+  |            ^^^^^^^^^^^^^^^^^
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 93, in scenario
+  |     async with create_connected_server_and_client_session(adapter.server) as session:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 73, in create_connected_server_and_client_session
+  |     async with anyio.create_task_group() as tg:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 84, in create_connected_server_and_client_session
+    |     async with ClientSession(
+    |                ~~~~~~~~~~~~~^
+    |         read_stream=client_read,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<7 lines>...
+    |         elicitation_callback=elicitation_callback,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ) as client_session:
+    |     ^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 96, in create_connected_server_and_client_session
+      |     yield client_session
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 100, in scenario
+      |     return payload(await session.call_tool("searchEncounters", {}))
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 35, in payload
+      |     parsed = json.loads(result.content[0].text)
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/__init__.py", line 352, in loads
+      |     return _default_decoder.decode(s)
+      |            ~~~~~~~~~~~~~~~~~~~~~~~^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 345, in decode
+      |     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 363, in raw_decode
+      |     raise JSONDecodeError("Expecting value", s, err.value) from None
+      | json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+      +------------------------------------
+________ test_real_sdk_mutation_persisted_with_exact_audit_and_readback ________
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 131, in test_real_sdk_mutation_persisted_with_exact_audit_and_readback
+  |     before, created, updated, after = run_async(scenario)
+  |                                       ~~~~~~~~~^^^^^^^^^^
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 29, in run_async
+  |     return anyio.run(function)
+  |            ~~~~~~~~~^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_core/_eventloop.py", line 83, in run
+  |     return async_backend.run(func, args, {}, backend_options)
+  |            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2548, in run
+  |     return runner.run(wrapper())
+  |            ~~~~~~~~~~^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/runners.py", line 119, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2531, in wrapper
+  |     return await func(*args)
+  |            ^^^^^^^^^^^^^^^^^
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 124, in scenario
+  |     async with create_connected_server_and_client_session(adapter.server) as session:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 73, in create_connected_server_and_client_session
+  |     async with anyio.create_task_group() as tg:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 84, in create_connected_server_and_client_session
+    |     async with ClientSession(
+    |                ~~~~~~~~~~~~~^
+    |         read_stream=client_read,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<7 lines>...
+    |         elicitation_callback=elicitation_callback,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ) as client_session:
+    |     ^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/memory.py", line 96, in create_connected_server_and_client_session
+      |     yield client_session
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 125, in scenario
+      |     before = payload(await session.call_tool("getEncounterDetails", {"encounter_id": encounter_id}))
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 35, in payload
+      |     parsed = json.loads(result.content[0].text)
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/__init__.py", line 352, in loads
+      |     return _default_decoder.decode(s)
+      |            ~~~~~~~~~~~~~~~~~~~~~~~^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 345, in decode
+      |     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 363, in raw_decode
+      |     raise JSONDecodeError("Expecting value", s, err.value) from None
+      | json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+      +------------------------------------
+____ test_real_sdk_child_stdio_initialize_list_call_and_persisted_readback _____
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 228, in test_real_sdk_child_stdio_initialize_list_call_and_persisted_readback
+  |     run_async(scenario)
+  |     ~~~~~~~~~^^^^^^^^^^
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 29, in run_async
+  |     return anyio.run(function)
+  |            ~~~~~~~~~^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_core/_eventloop.py", line 83, in run
+  |     return async_backend.run(func, args, {}, backend_options)
+  |            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2548, in run
+  |     return runner.run(wrapper())
+  |            ~~~~~~~~~~^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/runners.py", line 119, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2531, in wrapper
+  |     return await func(*args)
+  |            ^^^^^^^^^^^^^^^^^
+  |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 210, in scenario
+  |     async with stdio_client(StdioServerParameters(command=sys.executable, args=["-c", command], cwd=ROOT, env={"PYTHONPATH": str(ROOT / "src")})) as streams:
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 211, in scenario
+    |     async with ClientSession(*streams) as session:
+    |                ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/mcp/shared/session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/healthcraft-nemo-gym-probe/runtime-venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 216, in scenario
+      |     found = payload(await session.call_tool("searchEncounters", {}))
+      |   File "/Users/kiteboard/healthcraft/tests/test_mcp/test_stdio.py", line 35, in payload
+      |     parsed = json.loads(result.content[0].text)
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/__init__.py", line 352, in loads
+      |     return _default_decoder.decode(s)
+      |            ~~~~~~~~~~~~~~~~~~~~~~~^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 345, in decode
+      |     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "/private/tmp/healthcraft-nemo-gym-probe/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/json/decoder.py", line 363, in raw_decode
+      |     raise JSONDecodeError("Expecting value", s, err.value) from None
+      | json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+      +------------------------------------
+=============================== warnings summary ===============================
+../../../private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434
+  /private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_mcp/test_stdio.py::test_discovery_config_mismatch_fails_before_seeding[invalid_schema]
+FAILED tests/test_mcp/test_stdio.py::test_real_sdk_initialize_and_exact_full_discovery
+FAILED tests/test_mcp/test_stdio.py::test_real_sdk_mutation_persisted_with_exact_audit_and_readback
+FAILED tests/test_mcp/test_stdio.py::test_real_sdk_child_stdio_initialize_list_call_and_persisted_readback
+4 failed, 11 passed, 1 warning in 0.93s

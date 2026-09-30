@@ -209,6 +209,21 @@ See [`docs/TOOL_MAPPING.md`](docs/TOOL_MAPPING.md) for the complete tool referen
 
 ## Evaluate Your Model
 
+The installed `healthcraft` command and `python -m healthcraft` share the same
+entry point. `evaluate` runs the actual model orchestrator; `list-tasks` only
+lists definitions. A local run can use an already installed tool-capable model:
+
+```bash
+healthcraft evaluate --agent-model ollama:counsel-nano-q5 \
+  --tasks IR-001 --trials 1 --rubric-channel v10 \
+  --results-dir results/new-local-run
+```
+
+Without an explicit local judge, judge-dependent criteria remain unverified.
+See [local models](docs/LOCAL_MODELS.md) for capability and runtime requirements.
+`healthcraft evaluate --help` exposes the same options as the module command
+below. Neither command substitutes a scripted agent when inference is requested.
+
 HEALTHCRAFT exposes MCP tools and provides native adapters for selected hosted
 providers and installed local Ollama models. See
 [Evaluate Your Model](docs/EVALUATE_YOUR_MODEL.md) for supported clients and
@@ -261,6 +276,42 @@ make docker-up
 
 # Run smoke test
 make smoke
+```
+
+To connect an MCP client to the full seeded tool environment over stdio:
+
+```bash
+python -m pip install -c constraints-security.txt -e ".[mcp]"
+healthcraft serve --config configs/world/mercy_point_v1.yaml --seed 42
+```
+
+Configure the client to launch that command and communicate over its stdin/stdout.
+The server stays running until the connection closes. `--transport http --port
+8000` instead starts the existing loopback HTTP tool API (`/tools`, `/tool`);
+that API is a separate transport and does not implement MCP JSON-RPC. Native
+stdio advertises the 24 canonical tool names and input schemas. It returns the
+actual JSON response in both MCP text and structured content; it does not
+advertise the currently mismatched authored return descriptions as an output
+schema. Source-checkout configuration files remain required.
+
+`healthcraft simulate`, `make simulate` (and its legacy alias `make eval`), and
+the default Docker task engine run **scripted, ungraded smoke checks**. They
+attempt a task's listed tools with empty parameters, preserve returned errors,
+and never call a model or award a clinical score. They only accept the model
+label `simulated`; use `healthcraft evaluate` for actual model inference.
+Each simulation gets a new output directory. Tool/setup errors produce a
+nonzero exit status; rejected smoke inputs are not clinical failures. The
+Docker task engine uses its own in-process world, rather than evaluating a
+model against the separately running HTTP service.
+
+The task-engine entrypoint consumes `HEALTHCRAFT_MODEL` (only `simulated`),
+`HEALTHCRAFT_TRIALS`, `HEALTHCRAFT_SEED`, and `HEALTHCRAFT_LOG_LEVEL`. An optional
+`HEALTHCRAFT_RESULTS_DIR` must name a new directory. It also accepts simulation
+flags directly, for example:
+
+```bash
+docker compose -f docker/docker-compose.yaml run --rm task-engine \
+  --tasks IR-001 --trials 1 --seed 42
 ```
 
 Run installation commands from the repository root. The security constraints

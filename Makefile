@@ -1,4 +1,4 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels check-lint
+.PHONY: test lint smoke install format docker-up docker-down clean eval simulate validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels check-lint
 
 # Prefer the repo-local .venv when present; fall back to the active
 # interpreter so `make install && make test` works in any setup.
@@ -41,8 +41,10 @@ docker-up:
 docker-down:
 	docker compose -f docker/docker-compose.yaml down
 
-eval:
-	$(PYTHON) -m healthcraft.eval_runner --tasks all --model simulated --trials 1 --seed 42
+eval: simulate  ## Compatibility alias for scripted, ungraded checks (no model inference)
+
+simulate:
+	$(PYTHON) -m healthcraft simulate --tasks all --model simulated --trials 1 --seed 42
 
 validate-tasks:
 	$(PYTHON) -c "from healthcraft.tasks.loader import load_tasks; from pathlib import Path; tasks = load_tasks(Path('configs/tasks')); print(f'{len(tasks)} tasks validated')"

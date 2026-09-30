@@ -198,7 +198,7 @@ def test_simulated_trajectory_records_appended_instructions(tmp_path, prompt_dir
         "run_task_locally",
         lambda *args, **kwargs: ({"reasoning": "complete"}, WorldState()),
     )
-    trajectory = eval_runner.evaluate_and_capture(task, "synthetic", 42, 1, tmp_path / "results")
+    trajectory = eval_runner.evaluate_and_capture(task, "simulated", 42, 1, tmp_path / "results")
     assert trajectory.system_prompt.endswith(APPEND)
     assert trajectory.turns[0].content == trajectory.system_prompt
 

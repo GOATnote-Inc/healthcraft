@@ -1,0 +1,42 @@
+...............F......................................                   [100%]
+=================================== FAILURES ===================================
+_______ test_known_entity_values_are_preserved_as_json_not_repr_strings ________
+
+    def test_known_entity_values_are_preserved_as_json_not_repr_strings():
+        sdk()
+        from mcp.shared.memory import create_connected_server_and_client_session
+    
+        adapter = stdio.create_stdio_server(CONFIG, seed=7)
+        world = adapter.dispatcher.world_state
+        encounter_id, encounter = next(iter(world.list_entities("encounter").items()))
+        patient = world.get_entity("patient", encounter.patient_id)
+    
+        async def scenario():
+            async with create_connected_server_and_client_session(adapter.server) as session:
+                details = payload(
+                    await session.call_tool("getEncounterDetails", {"encounter_id": encounter_id})
+                )["data"]
+                history = payload(
+                    await session.call_tool("getPatientHistory", {"patient_id": encounter.patient_id})
+                )["data"]
+                return details, history
+    
+        details, history = run_async(scenario)
+        assert details["entity_type"] == "encounter"
+        assert details["arrival_time"] == encounter.arrival_time.isoformat()
+        assert details["created_at"] == encounter.created_at.isoformat()
+>       assert history["date_of_birth"] == patient.date_of_birth.isoformat()
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'date_of_birth'
+
+tests/test_mcp/test_stdio.py:310: KeyError
+=============================== warnings summary ===============================
+../../../private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434
+  /private/tmp/healthcraft-check-py312/lib/python3.12/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_mcp/test_stdio.py::test_known_entity_values_are_preserved_as_json_not_repr_strings
+1 failed, 53 passed, 1 warning in 1.71s

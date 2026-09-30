@@ -1,0 +1,94 @@
+{
+  "schema_version": "public-cli-review-and-docker-repair/v1",
+  "scope": "Ordinary bounded development review and authorized Docker entrypoint repair. No formal red team, model/API/network calls, Docker builds, package installation, or remote actions.",
+  "reviewed_files_sha256": {
+    "src/healthcraft/cli.py": "157741724d14f8af16b961e2834269fe9dfc082437724e1a9804bfcfbace2f77",
+    "src/healthcraft/__main__.py": "8fb83f2658cd229990255b142289fe647486bd72bf7061debbfe871585537000",
+    "src/healthcraft/llm/orchestrator.py": "24649a7ac56e01e8f4de12eab205a5de5ba5451450b58aabd6b1769205e271f2",
+    "pyproject.toml": "f1e420a606eed330521d0e576330f09abbf690d359a68c5717696aac734492cb",
+    ".github/workflows/tests.yml": "279ed72dfd3299407b359b0353b2e12217a81f17756a8861b366652ba7f7a9d3",
+    "Makefile": "74d905a4d0a26c0e6fc36b5b28b1e8de4afcf421e082fd5220d350aa0589aee3",
+    "docs/LOCAL_MODELS.md": "e15b01c9b5360861f6402c5e23f84cdc0b3dcb717c4d3fe28e57f92c2429dbd3",
+    "tests/test_cli.py": "da0cc3abf78e8d3a6e702c2e943b417b59ac5cd9bc65dc1af07d9d58b3d2ea82"
+  },
+  "changed_files_sha256": {
+    "docker/task-engine/Dockerfile": "be9cf3cf5e16112fcdcf554fd55f95cf19bed18ef6d573e12bc32f6a1372bde0",
+    "docker/task-engine/run_eval.sh": "cc9da8cda31a5ebb929d7bbae650d9bd1092aa71192571834a4cd1d5c4fb21d2",
+    "docker/docker-compose.yaml": "44893b7446da1015171ab0ea389cac415869d8a03a58fb66bf9051724889ec4d",
+    "README.md": "1da350b728d968b26f48547e151b25bb5b8bab83353711d2a98030ad978b4304",
+    "tests/test_scripts/test_docker_task_engine.py": "e592f0e08d76b42d092785374c1b3f7f241dce756a5dc316c33e01ce7258e9c8"
+  },
+  "finding": {
+    "status": "fixed",
+    "description": "The declared task-engine image entrypoint bypassed run_eval.sh, silently ignoring compose trial/seed/log defaults and optional output path. The shell wrapper was not copied into the image.",
+    "reproduction": "Execute declared ENTRYPOINT with stub python, then parse recorded arguments through real eval_runner parser; env trials=7/seed=19/output path were not preserved and positional task was invalid.",
+    "red_log": "docker-red.log",
+    "red_failed": 3,
+    "red_passed": 4,
+    "fix": "Copy and execute run_eval.sh; consume environment defaults; accept positional task or direct simulation flags; preserve child status/streams; remove unused task-engine MCP_URL/SEED_CONFIG and misleading HTTP dependency comment."
+  },
+  "remaining_blockers": [],
+  "validation": {
+    "runtimes": {
+      "py310": "3.10.18",
+      "py312": "3.12.8",
+      "py314": "3.14.3"
+    },
+    "tests": [
+      {
+        "log": "docker-green.log",
+        "runtime": "py314",
+        "passed": 60
+      },
+      {
+        "log": "green-py310.log",
+        "runtime": "py310",
+        "passed": 60
+      },
+      {
+        "log": "green-py312.log",
+        "runtime": "py312",
+        "passed": 60
+      }
+    ],
+    "scoped_ruff": "pass",
+    "scoped_format": "pass",
+    "shell_syntax": "bash -n: pass",
+    "git_diff_check": "pass",
+    "full_make_lint": {
+      "exit_code": 2,
+      "known_archive_errors": 115,
+      "log": "make-lint.log"
+    }
+  },
+  "review_checks": [
+    "Installed entrypoint and module both resolve healthcraft.cli.main; actual evaluate forwards arguments to orchestrator; simulate remains explicit.",
+    "Argparse rejects nonpositive trials/max_tasks before model preflight.",
+    "stdio/HTTP distinction and HTTP loopback binding/child exit propagation match documentation.",
+    "Optional mcp floor is >=1.29.0; installed 1.29.0 metadata declares Python>=3.10. Existing runtime Python3.13.14 uses uvicorn0.37.0.",
+    "CI matrix requests core/dev on Python3.10 and dev,mcp on Python3.12 with shared constraints; no fresh resolution/install claimed.",
+    "README states source-checkout configuration requirement and ungraded/independent task-engine simulation scope."
+  ],
+  "commands": [
+    ".venv/bin/python -m pytest tests/test_scripts/test_docker_task_engine.py -q",
+    ".venv/bin/python -m pytest tests/test_scripts/test_docker_task_engine.py tests/test_cli.py tests/test_eval_runner.py -q",
+    "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. /private/tmp/healthcraft-check-py310/bin/python -m pytest tests/test_scripts/test_docker_task_engine.py tests/test_cli.py tests/test_eval_runner.py -q",
+    "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. /private/tmp/healthcraft-check-py312/bin/python -m pytest tests/test_scripts/test_docker_task_engine.py tests/test_cli.py tests/test_eval_runner.py -q",
+    ".venv/bin/ruff check tests/test_scripts/test_docker_task_engine.py",
+    ".venv/bin/ruff format --check tests/test_scripts/test_docker_task_engine.py",
+    "bash -n docker/task-engine/run_eval.sh",
+    "make lint"
+  ],
+  "limits": [
+    "Shell entrypoint tested on host using the literal Dockerfile ENTRYPOINT plus copied wrapper; container image was not built or launched.",
+    "Existing optional SDK was tested earlier in a separate bounded peer review; new CI installation/resolution was inspected, not executed.",
+    "Broad unchanged orchestrator task-selection and grading semantics are outside this patch review; this receipt is not benchmark or clinical validation."
+  ],
+  "logs_sha256": {
+    "docker-red.log": "1de8c3a110472c490db055cbaec17d084826b9dc6e7c18deb65a50b9d07494d5",
+    "docker-green.log": "cd65822eb96ebca8c6e692055d1e78378d3f1745e36ee27fd4518773f34af410",
+    "green-py310.log": "bcf3f5a8d17874c7a6890b7d5141d1c736419445250349cdba65c135043c9b7f",
+    "green-py312.log": "9b402811a5708baab3fc0edec5c3635b22b67d89da82554b9912c09388ce0d78",
+    "make-lint.log": "673867373a92440b623abbee475870a7487a5da0557fdac94c2f692153faa1e6"
+  }
+}

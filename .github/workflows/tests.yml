@@ -14,7 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.12"]
+        include:
+          - python-version: "3.10"
+            extras: dev
+          - python-version: "3.12"
+            extras: dev,mcp
       fail-fast: false
 
     steps:
@@ -29,12 +33,12 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'constraints-security.txt') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ matrix.extras }}-${{ hashFiles('pyproject.toml', 'constraints-security.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: pip install -c constraints-security.txt -e ".[dev]"
+        run: pip install -c constraints-security.txt -e ".[${{ matrix.extras }}]"
 
       - name: Run preflight
         run: python scripts/preflight.py

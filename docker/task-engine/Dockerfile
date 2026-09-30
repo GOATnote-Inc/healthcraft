@@ -7,6 +7,7 @@ COPY pyproject.toml README.md LICENSE constraints-security.txt ./
 COPY src/ ./src/
 COPY configs/ ./configs/
 COPY system-prompts/ ./system-prompts/
+COPY docker/task-engine/run_eval.sh /app/run_eval.sh
 
 # Install healthcraft with dev dependencies
 RUN pip install --no-cache-dir -c constraints-security.txt -e ".[dev]"
@@ -16,4 +17,4 @@ RUN mkdir -p /app/results/trajectories
 
 VOLUME ["/app/results"]
 
-ENTRYPOINT ["python", "-m", "healthcraft.eval_runner"]
+ENTRYPOINT ["bash", "/app/run_eval.sh"]

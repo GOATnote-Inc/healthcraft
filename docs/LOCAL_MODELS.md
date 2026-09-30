@@ -106,6 +106,11 @@ score. Existing output reports are never overwritten.
 
 ## Evaluate tasks
 
+Use `healthcraft evaluate` (or `python -m healthcraft evaluate`) for the same
+orchestrator and options shown below. The separate `simulate` command makes no
+model calls and refuses real model names; its ungraded smoke artifacts are not
+model evaluation results.
+
 ```bash
 .venv/bin/python -m healthcraft.llm.orchestrator \
   --agent-model ollama:counsel-nano-q5 \

@@ -1,0 +1,442 @@
+........................................................................ [ 75%]
+...............FFFFFFFF                                                  [100%]
+=================================== FAILURES ===================================
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria0-1-incomplete] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri0')
+execution_error = None
+criteria = [{'error': 'unavailable', 'evidence': 'Judge error: unavailable', 'id': 'C1', 'satisfied': False}]
+expected_criterion_error_trials = 1, expected_status = 'incomplete'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria1-1-incomplete] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri1')
+execution_error = None
+criteria = [{'evidence': 'Judge error: unavailable', 'id': 'C1', 'satisfied': False}, {'evidence': 'PARSE FAILURE (fail-closed): malformed', 'id': 'C2', 'satisfied': False}]
+expected_criterion_error_trials = 1, expected_status = 'incomplete'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[provider timeout-criteria2-0-error] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri2')
+execution_error = 'provider timeout'
+criteria = [{'evidence': 'Not graded', 'graded': False, 'id': 'C1', 'satisfied': False}]
+expected_criterion_error_trials = 0, expected_status = 'error'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[provider timeout-criteria3-1-error] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri3')
+execution_error = 'provider timeout'
+criteria = [{'evidence': 'Judge error: unavailable', 'id': 'C1', 'satisfied': False}]
+expected_criterion_error_trials = 1, expected_status = 'error'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria4-0-incomplete] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri4')
+execution_error = None
+criteria = [{'evidence': 'Not graded', 'graded': False, 'id': 'C1', 'satisfied': False}, {'abstained': True, 'evidence': 'Abstained', 'id': 'C2', 'satisfied': False}]
+expected_criterion_error_trials = 0, expected_status = 'incomplete'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+_ test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria5-0-incomplete] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_trajectory_and_unique_tri5')
+execution_error = None, criteria = [], expected_criterion_error_trials = 0
+expected_status = 'incomplete'
+
+    @pytest.mark.parametrize(
+        "execution_error,criteria,expected_criterion_error_trials,expected_status",
+        [
+            (
+                None,
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable", "error": "unavailable"}],
+                1,
+                "incomplete",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"},
+                    {"id": "C2", "satisfied": False, "evidence": "PARSE FAILURE (fail-closed): malformed"},
+                ],
+                1,
+                "incomplete",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False}],
+                0,
+                "error",
+            ),
+            (
+                "provider timeout",
+                [{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+                1,
+                "error",
+            ),
+            (
+                None,
+                [
+                    {"id": "C1", "satisfied": False, "evidence": "Not graded", "graded": False},
+                    {"id": "C2", "satisfied": False, "evidence": "Abstained", "abstained": True},
+                ],
+                0,
+                "incomplete",
+            ),
+            (None, [], 0, "incomplete"),
+        ],
+    )
+    def test_trajectory_and_unique_trial_criterion_errors_are_separate(
+        tmp_path, execution_error, criteria, expected_criterion_error_trials, expected_status
+    ):
+        save(
+            tmp_path,
+            "run.json",
+            trajectory(error=execution_error, passed=False, reward=0, criteria_results=criteria),
+        )
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["records"][0]["status"] == expected_status
+        assert report["counts"]["error"] == int(execution_error is not None)
+>       assert report["counts"]["trials_with_criterion_errors"] == expected_criterion_error_trials
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:797: KeyError
+________ test_criterion_error_trial_count_uses_selected_trajectory_only ________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_criterion_error_trial_cou0')
+
+    def test_criterion_error_trial_count_uses_selected_trajectory_only(tmp_path):
+        failed = trajectory(
+            passed=False,
+            criteria_results=[{"id": "C1", "satisfied": False, "evidence": "Judge error: unavailable"}],
+        )
+        save(tmp_path, "trajectories/IR-002_model_42_t1.json", failed)
+        save(tmp_path, "trajectories/IR-002_model_42_t1_attempt2.json", trajectory())
+        save(tmp_path, "diagnostic.json", {"kind": "diagnostic", "criteria_results": failed["criteria_results"]})
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 1
+        assert report["counts"]["raw_attempts"] == 2
+        assert report["counts"]["recorded_pass"] == 1
+        assert report["counts"]["diagnostic"] == 1
+>       assert report["counts"]["trials_with_criterion_errors"] == 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:819: KeyError
+_ test_empty_report_has_zero_observed_error_counts_without_clinical_inference __
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-408/test_empty_report_has_zero_obs0')
+
+    def test_empty_report_has_zero_observed_error_counts_without_clinical_inference(tmp_path):
+        report = collect_evidence(tmp_path)
+        assert report["counts"]["selected_trials"] == 0
+>       assert report["counts"]["trials_with_criterion_errors"] == 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'trials_with_criterion_errors'
+
+tests/test_reporting.py:825: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria0-1-incomplete]
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria1-1-incomplete]
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[provider timeout-criteria2-0-error]
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[provider timeout-criteria3-1-error]
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria4-0-incomplete]
+FAILED tests/test_reporting.py::test_trajectory_and_unique_trial_criterion_errors_are_separate[None-criteria5-0-incomplete]
+FAILED tests/test_reporting.py::test_criterion_error_trial_count_uses_selected_trajectory_only
+FAILED tests/test_reporting.py::test_empty_report_has_zero_observed_error_counts_without_clinical_inference
+8 failed, 87 passed in 0.25s

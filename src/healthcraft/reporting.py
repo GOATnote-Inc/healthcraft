@@ -331,7 +331,7 @@ def collect_evidence(source: Path) -> dict:
     }
     counts = Counter({s: 0 for s in _STATUSES})
     counts.update({"criterion_" + s: 0 for s in _CRITERION_STATUSES})
-    counts.update(selected_trials=0, raw_attempts=0)
+    counts.update(selected_trials=0, raw_attempts=0, trials_with_criterion_errors=0)
     for path in selected:
         original, attempt = trajectory_attempt(path)
         match = re.search(r"_t([0-9]+)$", original.stem)
@@ -375,6 +375,9 @@ def collect_evidence(source: Path) -> dict:
         if record["kind"] == "trajectory":
             counts["selected_trials"] += 1
             counts["raw_attempts"] += len(groups[original])
+            counts["trials_with_criterion_errors"] += any(
+                row["status"] == "error" for row in record["criteria"]
+            )
         counts[record["status"]] += 1
         counts.update("criterion_" + row["status"] for row in record["criteria"])
         report["records"].append(record)
@@ -519,13 +522,16 @@ def render_evidence(report: dict) -> str:
         ("raw_attempts", "Raw attempts"),
         ("recorded_pass", "Recorded passes"),
         ("rubric_fail", "Rubric failures"),
-        ("error", "Execution / grader errors"),
+        ("error", "Trajectory errors"),
+        ("trials_with_criterion_errors", "Trials with criterion errors"),
         ("incomplete", "Incomplete records"),
         ("invalid", "Malformed artifacts"),
     ):
         parts.append(f'<div class="metric"><b>{counts[key]}</b>{label}</div>')
     parts.append(
-        "</div><p>Observed criterion entries: "
+        "</div><p>Trajectory-error and criterion-error trial counts can overlap; "
+        "each selected trial is counted once in each error category.</p>"
+        "<p>Observed criterion entries: "
         + " · ".join(f"{s}: {counts['criterion_' + s]}" for s in _CRITERION_STATUSES)
         + ". Counts do not estimate missing criteria or clinical error rates.</p>"
     )
