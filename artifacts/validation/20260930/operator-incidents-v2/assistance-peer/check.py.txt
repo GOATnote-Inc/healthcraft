@@ -1,0 +1,30 @@
+import hashlib,json
+from copy import deepcopy
+from pathlib import Path
+from healthcraft.reconciliation.incident_evidence import describe_incident
+from healthcraft.operator_incidents import validate_incident_references
+root=Path('/Users/kiteboard/healthcraft');out=Path('/private/tmp/healthcraft-incident-evidence-peer')
+p=root/'artifacts/reconciliation/20260930/casebook-native-v2/run'
+case=json.loads((p/'REC2-001/case.json').read_text())
+docs={'task':{'target':case['scenario']['target'],'instruction':'Review captured reconciliation.'},'scenario':case['scenario'],'evidence':json.loads((p/'REC2-001/reference/execution.json').read_text()),'runtime':None}
+sourcepath=root/'src/healthcraft/reconciliation/incident_evidence.py'
+hash_before=hashlib.sha256(sourcepath.read_bytes()).hexdigest()
+def inspect(d):
+ r=describe_incident(d)
+ for claim in r['claims']:validate_incident_references(claim['refs'],d)
+ return {'readback':next(c['observed'] for c in r['claims'] if c['code']=='stored_text_readback_count'),'writes':next(c['observed'] for c in r['claims'] if c['code']=='write_acknowledgements'),'storage':next(c['observed'] for c in r['claims'] if c['code']=='new_note_count'),'readback_claims':[c for c in r['claims'] if c['category']=='readback'],'coverage':r['coverage']}
+results={'baseline':inspect(docs)}
+for mode in ['write_data_missing','write_notes_missing','read_owner_missing','final_store_owner_missing']:
+ d=deepcopy(docs)
+ if mode.startswith('write'):
+  for call in d['evidence']['calls']:
+   if call['name']=='updateEncounter':
+    if mode=='write_data_missing':call['response'].pop('data',None)
+    else:call['response']['data'].pop('clinical_notes',None)
+ elif mode=='read_owner_missing':d['evidence']['calls'][-1]['response']['data'].pop('patient_id')
+ else:next(iter(d['evidence']['after']['entities']['clinical_note'].values())).pop('patient_id')
+ results[mode]=inspect(d)
+ (out/(mode+'.json')).write_text(json.dumps(d,indent=2))
+receipt={'source_before':hash_before,'source_after':hashlib.sha256(sourcepath.read_bytes()).hexdigest(),'results':results,'no_models':True,'no_repo_edits':True}
+(out/'initial-probes.json').write_text(json.dumps(receipt,indent=2))
+print(json.dumps({k:{key:value for key,value in v.items() if key!='readback_claims'} for k,v in results.items()},indent=2))

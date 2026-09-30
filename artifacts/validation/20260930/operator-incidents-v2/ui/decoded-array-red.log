@@ -1,0 +1,46 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_adjudicator_strict_decoded_array_citation_matches_importer ________
+
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'array_text':...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-640/test_adjudicator_strict_decode0')
+
+    def test_adjudicator_strict_decoded_array_citation_matches_importer(adjudication, tmp_path):
+        from healthcraft.operator_adjudication import validate_adjudication_response
+    
+        adjudication[0]["cases"][0]["documents"]["evidence"]["array_text"] = '[{"x":null}]'
+        adjudication[1]["packet_sha256"] = digest(adjudication[0])
+        answer = values(adjudication[1])
+        answer["cases"][0]["checks"][0].update(
+            rationale="Draft citation of a captured value",
+            evidence_refs='[{"document":"evidence","pointer":"/array_text","decoded_json_pointer":"/0/x"}]',
+        )
+        exported = node_export(adjudication, answer, tmp_path, "adjudication")["result"]
+>       received = validate_adjudication_response(exported, adjudication[0])
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incident_report.py:804: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:200: in validate_adjudication_response
+    statuses[key] = _check(check, assigned[identifier]["documents"])
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:137: in _check
+    _source_refs(row["evidence_refs"], documents)
+src/healthcraft/operator_adjudication.py:118: in _source_refs
+    _resolve(_parse(value), ref["decoded_json_pointer"])
+             ^^^^^^^^^^^^^
+src/healthcraft/operator_review.py:136: in _parse
+    _require(type(value) is dict, "Expected a JSON object")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Expected a JSON object'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Expected a JSON object
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_incident_report.py::test_adjudicator_strict_decoded_array_citation_matches_importer
+1 failed, 36 deselected in 0.11s

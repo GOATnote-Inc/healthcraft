@@ -1,0 +1,37 @@
+....F....                                                                [100%]
+=================================== FAILURES ===================================
+__________ test_missing_coordinator_originals_cannot_disable_binding ___________
+
+source_backed = {'issued': PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-666/test_mis...q/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-666/test_missing_coordinator_origi0/response.json'), ...}
+
+    def test_missing_coordinator_originals_cannot_disable_binding(source_backed):
+        folder = source_backed["issued"]
+        manifest = json.loads((folder / "manifest.json").read_text())
+        manifest["source_bindings"]["coordinator_files"] = {}
+        manifest["files"] = {
+            name: digest
+            for name, digest in manifest["files"].items()
+            if not name.startswith("coordinator/")
+        }
+        shutil.rmtree(folder / "coordinator")
+        _write(folder / "manifest.json", manifest)
+        packet = source_backed["packet"]
+        packet["cases"][0]["documents"]["response"]["incident_assessment"]["summary"] = (
+            "Unbound replacement without original submission"
+        )
+        _rehash_presentation(folder, packet)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_adjudication_binding.py:131: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_operator_adjudication_binding.py::test_missing_coordinator_originals_cannot_disable_binding
+1 failed, 8 passed, 1 warning in 1.87s

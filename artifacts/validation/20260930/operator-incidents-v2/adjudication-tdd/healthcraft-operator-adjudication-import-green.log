@@ -1,0 +1,308 @@
+...................FFFF.FFFF                                             [100%]
+=================================== FAILURES ===================================
+______ test_import_retains_raw_bytes_and_all_assigned_case_opportunities _______
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_import_retains_raw_bytes_0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_import_retains_raw_bytes_0')
+
+    def test_import_retains_raw_bytes_and_all_assigned_case_opportunities(core, packet, issued, tmp_path):
+        value = completed_response(core, packet)
+        raw = json.dumps(value, indent=3).encode() + b"\n"
+>       result = submit(core, issued, tmp_path, value, raw=raw)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_adjudication.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+_ test_invalid_adjudication_retained_without_losing_assignments[duplicate_json] _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta0')
+fault = 'duplicate_json'
+
+    @pytest.mark.parametrize("fault", ["duplicate_json", "foreign_reviewer", "wrong_response_hash"])
+    def test_invalid_adjudication_retained_without_losing_assignments(core, packet, issued, tmp_path, fault):
+        value = completed_response(core, packet)
+        if fault == "duplicate_json":
+            raw = json.dumps(value).replace('"overall": "valid"', '"overall": "invalid", "overall": "valid"').encode()
+        elif fault == "foreign_reviewer":
+            value["adjudicator_id"] = "somebody-else"
+            raw = json.dumps(value).encode()
+        else:
+            value["packet_sha256"] = "c" * 64
+            raw = json.dumps(value).encode()
+>       result = submit(core, issued, tmp_path, value, raw=raw)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_adjudication.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+_ test_invalid_adjudication_retained_without_losing_assignments[foreign_reviewer] _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta1/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta1')
+fault = 'foreign_reviewer'
+
+    @pytest.mark.parametrize("fault", ["duplicate_json", "foreign_reviewer", "wrong_response_hash"])
+    def test_invalid_adjudication_retained_without_losing_assignments(core, packet, issued, tmp_path, fault):
+        value = completed_response(core, packet)
+        if fault == "duplicate_json":
+            raw = json.dumps(value).replace('"overall": "valid"', '"overall": "invalid", "overall": "valid"').encode()
+        elif fault == "foreign_reviewer":
+            value["adjudicator_id"] = "somebody-else"
+            raw = json.dumps(value).encode()
+        else:
+            value["packet_sha256"] = "c" * 64
+            raw = json.dumps(value).encode()
+>       result = submit(core, issued, tmp_path, value, raw=raw)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_adjudication.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+_ test_invalid_adjudication_retained_without_losing_assignments[wrong_response_hash] _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta2/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_invalid_adjudication_reta2')
+fault = 'wrong_response_hash'
+
+    @pytest.mark.parametrize("fault", ["duplicate_json", "foreign_reviewer", "wrong_response_hash"])
+    def test_invalid_adjudication_retained_without_losing_assignments(core, packet, issued, tmp_path, fault):
+        value = completed_response(core, packet)
+        if fault == "duplicate_json":
+            raw = json.dumps(value).replace('"overall": "valid"', '"overall": "invalid", "overall": "valid"').encode()
+        elif fault == "foreign_reviewer":
+            value["adjudicator_id"] = "somebody-else"
+            raw = json.dumps(value).encode()
+        else:
+            value["packet_sha256"] = "c" * 64
+            raw = json.dumps(value).encode()
+>       result = submit(core, issued, tmp_path, value, raw=raw)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_adjudication.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+_______________________ test_import_output_is_exclusive ________________________
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_import_output_is_exclusiv0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_import_output_is_exclusiv0')
+
+    def test_import_output_is_exclusive(core, packet, issued, tmp_path):
+        response = completed_response(core, packet)
+>       submit(core, issued, tmp_path, response)
+
+tests/test_operator_adjudication.py:252: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+_______ test_duplicate_record_does_not_manufacture_independent_agreement _______
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_duplicate_record_does_not0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_duplicate_record_does_not0')
+
+    def test_duplicate_record_does_not_manufacture_independent_agreement(core, packet, issued, tmp_path):
+>       submit(core, issued, tmp_path, completed_response(core, packet))
+
+tests/test_operator_adjudication.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+________________ test_missing_assigned_reviewer_remains_pending ________________
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_missing_assigned_reviewer0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_missing_assigned_reviewer0')
+
+    def test_missing_assigned_reviewer_remains_pending(core, packet, issued, tmp_path):
+>       submit(core, issued, tmp_path, completed_response(core, packet))
+
+tests/test_operator_adjudication.py:271: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+________ test_disagreeing_initial_judgments_are_retained_without_voting ________
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+issued = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_disagreeing_initial_judgm0/issued')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-604/test_disagreeing_initial_judgm0')
+
+    def test_disagreeing_initial_judgments_are_retained_without_voting(core, packet, issued, tmp_path):
+>       submit(core, issued, tmp_path, completed_response(core, packet))
+
+tests/test_operator_adjudication.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:211: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:356: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:319: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:308: in _packet_manifest
+    _require(_same(manifest["files"], {name: _sha(raw) for name, raw in payloads.items()}), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_adjudication.py::test_import_retains_raw_bytes_and_all_assigned_case_opportunities
+FAILED tests/test_operator_adjudication.py::test_invalid_adjudication_retained_without_losing_assignments[duplicate_json]
+FAILED tests/test_operator_adjudication.py::test_invalid_adjudication_retained_without_losing_assignments[foreign_reviewer]
+FAILED tests/test_operator_adjudication.py::test_invalid_adjudication_retained_without_losing_assignments[wrong_response_hash]
+FAILED tests/test_operator_adjudication.py::test_import_output_is_exclusive
+FAILED tests/test_operator_adjudication.py::test_duplicate_record_does_not_manufacture_independent_agreement
+FAILED tests/test_operator_adjudication.py::test_missing_assigned_reviewer_remains_pending
+FAILED tests/test_operator_adjudication.py::test_disagreeing_initial_judgments_are_retained_without_voting
+8 failed, 20 passed in 0.18s

@@ -1,0 +1,123 @@
+...........................FFFF.F                                        [100%]
+=================================== FAILURES ===================================
+_ test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements[None] _
+
+audit = None
+
+    @pytest.mark.parametrize("audit", [None, [{"tool_name": []}]])
+    def test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements(audit):
+        docs = documents()
+        docs["evidence"]["audit"] = audit
+        report = describe(docs)
+>       assert count(report, "write_acknowledgements", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'write_acknowledgements', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:278: AssertionError
+_ test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements[audit1] _
+
+audit = [{'tool_name': []}]
+
+    @pytest.mark.parametrize("audit", [None, [{"tool_name": []}]])
+    def test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements(audit):
+        docs = documents()
+        docs["evidence"]["audit"] = audit
+>       report = describe(docs)
+                 ^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_incident_evidence.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_reconciliation/test_incident_evidence.py:19: in describe
+    return describe_incident(documents)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/reconciliation/incident_evidence.py:431: in describe_incident
+    linked, complete, calls = _linked_calls(ledger, docs["evidence"])
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ledger = <healthcraft.reconciliation.incident_evidence._Ledger object at 0x10b61d0d0>
+evidence = {'after': {'entities': {'allergy': {}, 'clinical_knowledge': {}, 'clinical_note': {'NOTE-49F20AD6': {'author': 'attend...unterDetails', ...}, {'audit_end': 6, 'audit_start': 5, 'id': 'call-0006', 'name': 'searchEncounters', ...}, ...], ...}
+
+    def _linked_calls(ledger, evidence):
+        calls = evidence.get("calls") if type(evidence) is dict else None
+        audit = evidence.get("audit") if type(evidence) is dict else None
+        if type(calls) is not list or type(audit) is not list:
+            ledger.unavailable("writes", "call_capture_unavailable", "The call or audit capture is unavailable; it does not establish absence of actions.", {"calls_available": type(calls) is list, "audit_available": type(audit) is list}, "evidence")
+            return [], False, calls
+        linked, seen_ids, used_audits = [], set(), set()
+        previous_end = 0
+        complete = True
+        for index, call in enumerate(calls):
+            path = f"/calls/{index}"
+            good = type(call) is dict
+            if good:
+                start, end = call.get("audit_start"), call.get("audit_end")
+                response = call.get("response")
+                good = (type(call.get("id")) is str and bool(call["id"]) and call["id"] not in seen_ids
+                        and type(call.get("name")) is str and type(call.get("params")) is dict
+                        and type(start) is int and type(end) is int and start == previous_end
+                        and end == start + 1 and end <= len(audit) and start not in used_audits
+                        and type(response) is dict and call.get("error") is None)
+            if good:
+                entry = audit[start]
+                handler = TOOL_NAME_MAP.get(call["name"], call["name"])
+                status = response.get("status")
+                good = (type(entry) is dict
+>                       and TOOL_NAME_MAP.get(entry.get("tool_name"), entry.get("tool_name")) == handler
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        and _same(entry.get("params"), call["params"])
+                        and status in ("ok", "error") and entry.get("result_summary") == status
+                        and type(entry.get("timestamp")) is str and bool(entry["timestamp"])
+                        and type(entry.get("deduplicated")) is bool
+                        and type(response.get("deduplicated", False)) is bool
+                        and entry["deduplicated"] == response.get("deduplicated", False))
+E               TypeError: cannot use 'list' as a dict key (unhashable type: 'list')
+
+src/healthcraft/reconciliation/incident_evidence.py:161: TypeError
+_ test_note_header_identity_is_compared_to_public_target_and_stored_identity[patient_id-PAT-OTHER] _
+
+field = 'patient_id', value = 'PAT-OTHER'
+
+    @pytest.mark.parametrize("field,value", [("patient_id", "PAT-OTHER"), ("encounter_id", None)])
+    def test_note_header_identity_is_compared_to_public_target_and_stored_identity(field, value):
+        docs = documents()
+        mutate_note(docs, lambda n: n.update({field: value}))
+        report = describe(docs)
+>       assert claims(report, "note_target_difference")
+E       AssertionError: assert []
+E        +  where [] = claims({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'note_target_difference')
+
+tests/test_reconciliation/test_incident_evidence.py:289: AssertionError
+_ test_note_header_identity_is_compared_to_public_target_and_stored_identity[encounter_id-None] _
+
+field = 'encounter_id', value = None
+
+    @pytest.mark.parametrize("field,value", [("patient_id", "PAT-OTHER"), ("encounter_id", None)])
+    def test_note_header_identity_is_compared_to_public_target_and_stored_identity(field, value):
+        docs = documents()
+        mutate_note(docs, lambda n: n.update({field: value}))
+        report = describe(docs)
+>       assert claims(report, "note_target_difference")
+E       AssertionError: assert []
+E        +  where [] = claims({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'note_target_difference')
+
+tests/test_reconciliation/test_incident_evidence.py:289: AssertionError
+_______ test_failed_audit_code_cannot_back_a_successful_acknowledgement ________
+
+    def test_failed_audit_code_cannot_back_a_successful_acknowledgement():
+        docs = documents()
+        first = next(c for c in docs["evidence"]["calls"] if c["name"] == "updateEncounter")
+        docs["evidence"]["audit"][first["audit_start"]]["error_code"] = "permission_denied"
+        report = describe(docs)
+>       assert count(report, "write_acknowledgements", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'write_acknowledgements', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:305: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements[None]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_or_malformed_audit_cannot_claim_zero_write_acknowledgements[audit1]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_note_header_identity_is_compared_to_public_target_and_stored_identity[patient_id-PAT-OTHER]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_note_header_identity_is_compared_to_public_target_and_stored_identity[encounter_id-None]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_failed_audit_code_cannot_back_a_successful_acknowledgement
+5 failed, 28 passed in 0.39s

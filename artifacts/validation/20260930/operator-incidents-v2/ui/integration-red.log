@@ -1,0 +1,172 @@
+.............................FFF                                         [100%]
+=================================== FAILURES ===================================
+____________ test_pending_operator_report_cannot_be_declared_valid _____________
+
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-623/test_pending_operator_report_c0')
+
+    def test_pending_operator_report_cannot_be_declared_valid(adjudication, tmp_path):
+        answer = values(adjudication[1])
+        for check in answer["cases"][0]["checks"]:
+            check.update(judgment="supported", rationale="Proposed", evidence_refs='[{"document":"task","pointer":""}]', response_pointers='[""]')
+        answer["cases"][0].update(overall="valid", rationale="Attempted premature declaration")
+>       assert "error" in node_export(adjudication, answer, tmp_path, "adjudication")
+E       AssertionError: assert 'error' in {'result': {'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'checks': [{'check_id': 'targe... 'valid', 'rationale': 'Attempted premature declaration', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...}}
+E        +  where {'result': {'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'checks': [{'check_id': 'targe... 'valid', 'rationale': 'Attempted premature declaration', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...}} = node_export(({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...}), {'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'checks': [{'check_id': 'target_attributi...: 'valid', 'rationale': 'Attempted premature declaration', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...}, PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-623/test_pending_operator_report_c0'), 'adjudication')
+
+tests/test_operator_incident_report.py:382: AssertionError
+______ test_real_core_packet_html_javascript_import_and_adjudication[raw] ______
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-623/test_real_core_packet_html_jav0')
+presentation = 'raw'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_real_core_packet_html_javascript_import_and_adjudication(tmp_path, presentation):
+        from pathlib import Path
+        from healthcraft import operator_incidents as core
+        from healthcraft import operator_adjudication as adjudicator
+    
+        source = Path(__file__).resolve().parents[1] / "artifacts/reconciliation/20260930/casebook-native-v2/run/manifest.json"
+        source_before = source.read_bytes()
+        out = tmp_path / "operator"
+        packet = core.build_incident_packet(
+            source, out, expected_sha256=hashlib.sha256(source_before).hexdigest(),
+            selections={"case-a": "REC2-004/designated", "case-b": "REC2-008/designated"},
+            protocol={"protocol_id": "serializer-integration", "purpose": "engineering_development"},
+            assignment={"assignment_id": "a1", "operator_id": "synthetic-test-operator", "presentation": presentation})
+        template = core.incident_response_template(packet)
+        assert (out / "public/report.html").read_text() == render((packet, template))
+        answer = values(template)
+        row = answer["cases"][0]
+        target = packet["cases"][0]["documents"]["task"]["target"]
+        row["identified_target"].update(status="identified", **target, rationale="Synthetic test declaration from task", evidence_refs='[{"document":"task","pointer":"/target"}]')
+        row["axes"][0].update(judgment="unassessed", unassessed_reason="reviewer_abstention", rationale="Synthetic test abstention")
+        row["incident_assessment"]["findings"] = [draft_finding()]
+        row["timing"].update(method="self_reported", elapsed_seconds="12.5", note="Synthetic test declaration, not measured")
+        exported = node_export((packet, template), answer, tmp_path)["result"]
+        response_path = tmp_path / "operator-response.json"
+        response_path.write_text(json.dumps(exported, ensure_ascii=False) + "\n")
+        receipt = core.import_incident_response(out / "manifest.json", response_path, tmp_path / "operator-import")
+        assert receipt["status"] == "recorded", receipt["errors"]
+        assert receipt["adjudication_status"] == "pending"
+        assert all(case["status"] == "pending" for case in receipt["cases"])
+        assert receipt["cases"][0]["response"]["timing"]["active_seconds"] is None
+        assert receipt["cases"][0]["response"]["incident_assessment"]["findings"][0]["claim"] == ""
+        assert (tmp_path / "operator-import/submission.json").read_bytes() == response_path.read_bytes()
+    
+        adjudication_dir = tmp_path / "adjudication"
+        adjudication_packet = adjudicator.build_adjudication_packet(
+            out / "manifest.json", response_path, adjudication_dir,
+            assignment={"assignment_id": "adj", "adjudicator_id": "synthetic-test-adjudicator", "role": "initial"})
+        adjudication_template = adjudicator.adjudication_template(adjudication_packet)
+        assert (adjudication_dir / "public/report.html").read_text() == render((adjudication_packet, adjudication_template), "adjudication")
+        answer = values(adjudication_template)
+        for check in answer["cases"][0]["checks"]:
+            check.update(judgment="unsupported", rationale="Synthetic interface test declaration, not actual review", evidence_refs='[{"document":"task","pointer":"/target"}]', response_pointers='["/identified_target"]')
+        answer["cases"][0].update(overall="invalid", rationale="Synthetic interface test declaration only")
+        answer["reviewer_declaration"].update(independent_review="false", conflicts="Automated fixture")
+        exported = node_export((adjudication_packet, adjudication_template), answer, tmp_path, "adjudication")["result"]
+        adjudication_response = tmp_path / "adjudication-response.json"
+        adjudication_response.write_text(json.dumps(exported) + "\n")
+>       receipt = adjudicator.import_adjudication_response(adjudication_dir / "manifest.json", adjudication_response, tmp_path / "adjudication-import")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incident_report.py:433: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:433: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:335: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:324: in _packet_manifest
+    _require(_same(manifest["files"], expected), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+___ test_real_core_packet_html_javascript_import_and_adjudication[assisted] ____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-623/test_real_core_packet_html_jav1')
+presentation = 'assisted'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_real_core_packet_html_javascript_import_and_adjudication(tmp_path, presentation):
+        from pathlib import Path
+        from healthcraft import operator_incidents as core
+        from healthcraft import operator_adjudication as adjudicator
+    
+        source = Path(__file__).resolve().parents[1] / "artifacts/reconciliation/20260930/casebook-native-v2/run/manifest.json"
+        source_before = source.read_bytes()
+        out = tmp_path / "operator"
+        packet = core.build_incident_packet(
+            source, out, expected_sha256=hashlib.sha256(source_before).hexdigest(),
+            selections={"case-a": "REC2-004/designated", "case-b": "REC2-008/designated"},
+            protocol={"protocol_id": "serializer-integration", "purpose": "engineering_development"},
+            assignment={"assignment_id": "a1", "operator_id": "synthetic-test-operator", "presentation": presentation})
+        template = core.incident_response_template(packet)
+        assert (out / "public/report.html").read_text() == render((packet, template))
+        answer = values(template)
+        row = answer["cases"][0]
+        target = packet["cases"][0]["documents"]["task"]["target"]
+        row["identified_target"].update(status="identified", **target, rationale="Synthetic test declaration from task", evidence_refs='[{"document":"task","pointer":"/target"}]')
+        row["axes"][0].update(judgment="unassessed", unassessed_reason="reviewer_abstention", rationale="Synthetic test abstention")
+        row["incident_assessment"]["findings"] = [draft_finding()]
+        row["timing"].update(method="self_reported", elapsed_seconds="12.5", note="Synthetic test declaration, not measured")
+        exported = node_export((packet, template), answer, tmp_path)["result"]
+        response_path = tmp_path / "operator-response.json"
+        response_path.write_text(json.dumps(exported, ensure_ascii=False) + "\n")
+        receipt = core.import_incident_response(out / "manifest.json", response_path, tmp_path / "operator-import")
+        assert receipt["status"] == "recorded", receipt["errors"]
+        assert receipt["adjudication_status"] == "pending"
+        assert all(case["status"] == "pending" for case in receipt["cases"])
+        assert receipt["cases"][0]["response"]["timing"]["active_seconds"] is None
+        assert receipt["cases"][0]["response"]["incident_assessment"]["findings"][0]["claim"] == ""
+        assert (tmp_path / "operator-import/submission.json").read_bytes() == response_path.read_bytes()
+    
+        adjudication_dir = tmp_path / "adjudication"
+        adjudication_packet = adjudicator.build_adjudication_packet(
+            out / "manifest.json", response_path, adjudication_dir,
+            assignment={"assignment_id": "adj", "adjudicator_id": "synthetic-test-adjudicator", "role": "initial"})
+        adjudication_template = adjudicator.adjudication_template(adjudication_packet)
+        assert (adjudication_dir / "public/report.html").read_text() == render((adjudication_packet, adjudication_template), "adjudication")
+        answer = values(adjudication_template)
+        for check in answer["cases"][0]["checks"]:
+            check.update(judgment="unsupported", rationale="Synthetic interface test declaration, not actual review", evidence_refs='[{"document":"task","pointer":"/target"}]', response_pointers='["/identified_target"]')
+        answer["cases"][0].update(overall="invalid", rationale="Synthetic interface test declaration only")
+        answer["reviewer_declaration"].update(independent_review="false", conflicts="Automated fixture")
+        exported = node_export((adjudication_packet, adjudication_template), answer, tmp_path, "adjudication")["result"]
+        adjudication_response = tmp_path / "adjudication-response.json"
+        adjudication_response.write_text(json.dumps(exported) + "\n")
+>       receipt = adjudicator.import_adjudication_response(adjudication_dir / "manifest.json", adjudication_response, tmp_path / "adjudication-import")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incident_report.py:433: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:433: in import_adjudication_response
+    packet, _, raw_manifest = validate_adjudication_packet(manifest_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:335: in validate_adjudication_packet
+    _packet_manifest(packet, manifest)
+src/healthcraft/operator_adjudication.py:324: in _packet_manifest
+    _require(_same(manifest["files"], expected), "Issued presentation differs from packet")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Issued presentation differs from packet'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Issued presentation differs from packet
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_incident_report.py::test_pending_operator_report_cannot_be_declared_valid
+FAILED tests/test_operator_incident_report.py::test_real_core_packet_html_javascript_import_and_adjudication[raw]
+FAILED tests/test_operator_incident_report.py::test_real_core_packet_html_javascript_import_and_adjudication[assisted]
+3 failed, 29 passed in 2.08s

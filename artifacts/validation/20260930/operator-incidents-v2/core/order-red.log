@@ -1,0 +1,47 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_explicit_assignment_order_survives_canonical_manifest_serialization ___
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-612/test_explicit_assignment_order0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b076fd0>
+
+    def test_explicit_assignment_order_survives_canonical_manifest_serialization(tmp_path, monkeypatch):
+        m = api()
+        monkeypatch.setattr(m, "_render", lambda p, t: "html")
+        manifest = SCRIPTED / "manifest.json"
+        selection = {"review-z": "REC2-002/designated", "review-a": "REC2-001/reference"}
+        packet = m.build_incident_packet(
+            manifest,
+            tmp_path / "packet",
+            expected_sha256=sha(manifest),
+            selections=selection,
+            protocol=PROTOCOL,
+            assignment=ASSIGNMENT,
+        )
+>       loaded, _, _ = m.validate_incident_packet(tmp_path / "packet/manifest.json")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incidents.py:594: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_incidents.py:475: in validate_incident_packet
+    _require(_digest(packet) == manifest["packet_sha256"], "Packet identity changed")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Packet identity changed'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Packet identity changed
+
+src/healthcraft/operator_review.py:83: ValueError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_operator_incidents.py::test_explicit_assignment_order_survives_canonical_manifest_serialization
+1 failed, 41 deselected, 1 warning in 0.08s

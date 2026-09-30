@@ -1,0 +1,196 @@
+.......................................FF                                [100%]
+=================================== FAILURES ===================================
+_______ test_actual_missing_model_scenario_still_issues_both_forms[raw] ________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-657/test_actual_missing_model_scen0')
+presentation = 'raw'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_actual_missing_model_scenario_still_issues_both_forms(tmp_path, presentation):
+        from pathlib import Path
+    
+        from healthcraft import operator_adjudication as adjudicator
+        from healthcraft import operator_incidents as core
+    
+        original = (
+            Path(__file__).resolve().parents[1]
+            / "artifacts/reconciliation/20260930/local-casebook-pilot-v1/run"
+        )
+        original_manifest_bytes = (original / "manifest.json").read_bytes()
+        manifest = json.loads(original_manifest_bytes)
+        attempt = "REC2-001/medgemma"
+        selected = {
+            name: original / name
+            for name in manifest["files"]
+            if name in {"plan.json", "cases.json"}
+            or (name.startswith(attempt + "/") and name != attempt + "/case.json")
+        }
+        source = tmp_path / "source"
+        for name, path in selected.items():
+            destination = source / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(path.read_bytes())
+        (source / "cases.json").write_text("[]\n")
+        plan = json.loads((source / "plan.json").read_bytes())
+        plan["roster"] = [row for row in plan["roster"] if row["id"] == attempt]
+        (source / "plan.json").write_text(json.dumps(plan))
+        manifest["files"] = {
+            name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in selected
+        }
+        manifest["outcomes"] = [row for row in manifest["outcomes"] if row["id"] == attempt]
+        manifest_path = source / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+        packet = core.build_incident_packet(
+            manifest_path,
+            tmp_path / "operator",
+            expected_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            selections={"opaque-a": attempt},
+            protocol={"protocol_id": "missing-capture-test", "purpose": "engineering_development"},
+            assignment={
+                "assignment_id": "missing-a",
+                "operator_id": "synthetic-test-operator",
+                "presentation": presentation,
+            },
+        )
+        assert packet["cases"][0]["scenario_family_id"] is None
+        assert packet["cases"][0]["documents"]["scenario"] is None
+        assert packet["cases"][0]["availability"]["scenario"]["status"] == "unavailable"
+        template = core.incident_response_template(packet)
+        response_path = tmp_path / "operator-response.json"
+        response_path.write_text(json.dumps(template))
+        imported = core.import_incident_response(
+            tmp_path / "operator/manifest.json", response_path, tmp_path / "operator-import"
+        )
+        assert imported["status"] == "recorded"
+        assert len(imported["cases"]) == 1 and imported["cases"][0]["status"] == "pending"
+>       adjudication_packet = adjudicator.build_adjudication_packet(
+            tmp_path / "operator/manifest.json",
+            response_path,
+            tmp_path / "adjudication",
+            assignment={
+                "assignment_id": "missing-adj",
+                "adjudicator_id": "synthetic-test-adjudicator",
+                "role": "initial",
+            },
+        )
+
+tests/test_operator_incident_report.py:878: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:539: in build_adjudication_packet
+    return _issue_packet(packet, output, source_bindings=bindings, coordinator_files=attachments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:339: in _issue_packet
+    _packet_contract(packet)
+src/healthcraft/operator_adjudication.py:312: in _packet_contract
+    _text(case["scenario_family_id"], "Scenario family")
+src/healthcraft/operator_review.py:91: in _text
+    _require(type(value) is str and bool(value.strip()), f"{label} must be nonempty text")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Scenario family must be nonempty text'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Scenario family must be nonempty text
+
+src/healthcraft/operator_review.py:83: ValueError
+_____ test_actual_missing_model_scenario_still_issues_both_forms[assisted] _____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-657/test_actual_missing_model_scen1')
+presentation = 'assisted'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_actual_missing_model_scenario_still_issues_both_forms(tmp_path, presentation):
+        from pathlib import Path
+    
+        from healthcraft import operator_adjudication as adjudicator
+        from healthcraft import operator_incidents as core
+    
+        original = (
+            Path(__file__).resolve().parents[1]
+            / "artifacts/reconciliation/20260930/local-casebook-pilot-v1/run"
+        )
+        original_manifest_bytes = (original / "manifest.json").read_bytes()
+        manifest = json.loads(original_manifest_bytes)
+        attempt = "REC2-001/medgemma"
+        selected = {
+            name: original / name
+            for name in manifest["files"]
+            if name in {"plan.json", "cases.json"}
+            or (name.startswith(attempt + "/") and name != attempt + "/case.json")
+        }
+        source = tmp_path / "source"
+        for name, path in selected.items():
+            destination = source / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(path.read_bytes())
+        (source / "cases.json").write_text("[]\n")
+        plan = json.loads((source / "plan.json").read_bytes())
+        plan["roster"] = [row for row in plan["roster"] if row["id"] == attempt]
+        (source / "plan.json").write_text(json.dumps(plan))
+        manifest["files"] = {
+            name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in selected
+        }
+        manifest["outcomes"] = [row for row in manifest["outcomes"] if row["id"] == attempt]
+        manifest_path = source / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+        packet = core.build_incident_packet(
+            manifest_path,
+            tmp_path / "operator",
+            expected_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            selections={"opaque-a": attempt},
+            protocol={"protocol_id": "missing-capture-test", "purpose": "engineering_development"},
+            assignment={
+                "assignment_id": "missing-a",
+                "operator_id": "synthetic-test-operator",
+                "presentation": presentation,
+            },
+        )
+        assert packet["cases"][0]["scenario_family_id"] is None
+        assert packet["cases"][0]["documents"]["scenario"] is None
+        assert packet["cases"][0]["availability"]["scenario"]["status"] == "unavailable"
+        template = core.incident_response_template(packet)
+        response_path = tmp_path / "operator-response.json"
+        response_path.write_text(json.dumps(template))
+        imported = core.import_incident_response(
+            tmp_path / "operator/manifest.json", response_path, tmp_path / "operator-import"
+        )
+        assert imported["status"] == "recorded"
+        assert len(imported["cases"]) == 1 and imported["cases"][0]["status"] == "pending"
+>       adjudication_packet = adjudicator.build_adjudication_packet(
+            tmp_path / "operator/manifest.json",
+            response_path,
+            tmp_path / "adjudication",
+            assignment={
+                "assignment_id": "missing-adj",
+                "adjudicator_id": "synthetic-test-adjudicator",
+                "role": "initial",
+            },
+        )
+
+tests/test_operator_incident_report.py:878: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:539: in build_adjudication_packet
+    return _issue_packet(packet, output, source_bindings=bindings, coordinator_files=attachments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:339: in _issue_packet
+    _packet_contract(packet)
+src/healthcraft/operator_adjudication.py:312: in _packet_contract
+    _text(case["scenario_family_id"], "Scenario family")
+src/healthcraft/operator_review.py:91: in _text
+    _require(type(value) is str and bool(value.strip()), f"{label} must be nonempty text")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Scenario family must be nonempty text'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Scenario family must be nonempty text
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_incident_report.py::test_actual_missing_model_scenario_still_issues_both_forms[raw]
+FAILED tests/test_operator_incident_report.py::test_actual_missing_model_scenario_still_issues_both_forms[assisted]
+2 failed, 39 passed in 2.88s

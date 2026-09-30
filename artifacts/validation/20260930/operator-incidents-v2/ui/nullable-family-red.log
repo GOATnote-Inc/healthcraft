@@ -1,0 +1,266 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+__ test_unknown_family_is_explicit_and_does_not_infer_from_case_id[incident] ___
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+mode = 'incident'
+
+    @pytest.mark.parametrize("mode", ["incident", "adjudication"])
+    def test_unknown_family_is_explicit_and_does_not_infer_from_case_id(
+        incident, adjudication, mode
+    ):
+        pair = incident if mode == "incident" else adjudication
+        pair[0]["cases"][0]["scenario_family_id"] = None
+        pair[1]["packet_sha256"] = digest(pair[0])
+>       page = Page(render(pair, mode))
+                    ^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incident_report.py:816: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_incident_report.py:207: in render
+    return getattr(api, "render_" + mode + "_packet")(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1407: in render_incident_packet
+    return _render(packet, template, False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1348: in _render
+    content += "<p>Scenario family: <code>" + escape(case["scenario_family_id"]) + "</code></p>"
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = None, quote = True
+
+    def escape(s, quote=True):
+        """
+        Replace special characters "&", "<" and ">" to HTML-safe sequences.
+        If the optional flag quote is true (the default), the quotation mark
+        characters, both double quote (") and single quote (') characters are also
+        translated.
+        """
+>       s = s.replace("&", "&amp;") # Must be done first!
+            ^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'replace'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/html/__init__.py:19: AttributeError
+_ test_unknown_family_is_explicit_and_does_not_infer_from_case_id[adjudication] _
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+adjudication = ({'adjudicator_id': 'reviewer', 'assignment_id': 'adj-assignment', 'cases': [{'documents': {'evidence': {'bad_note': '...'rationale': '', ...}], 'overall': None, 'rationale': '', 'review_case_id': 'case-1', ...}], 'packet_id': 'adj1', ...})
+mode = 'adjudication'
+
+    @pytest.mark.parametrize("mode", ["incident", "adjudication"])
+    def test_unknown_family_is_explicit_and_does_not_infer_from_case_id(
+        incident, adjudication, mode
+    ):
+        pair = incident if mode == "incident" else adjudication
+        pair[0]["cases"][0]["scenario_family_id"] = None
+        pair[1]["packet_sha256"] = digest(pair[0])
+>       page = Page(render(pair, mode))
+                    ^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_incident_report.py:816: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_incident_report.py:207: in render
+    return getattr(api, "render_" + mode + "_packet")(*pair)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1412: in render_adjudication_packet
+    return _render(packet, template, True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1348: in _render
+    content += "<p>Scenario family: <code>" + escape(case["scenario_family_id"]) + "</code></p>"
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = None, quote = True
+
+    def escape(s, quote=True):
+        """
+        Replace special characters "&", "<" and ">" to HTML-safe sequences.
+        If the optional flag quote is true (the default), the quotation mark
+        characters, both double quote (") and single quote (') characters are also
+        translated.
+        """
+>       s = s.replace("&", "&amp;") # Must be done first!
+            ^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'replace'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/html/__init__.py:19: AttributeError
+_______ test_actual_missing_model_scenario_still_issues_both_forms[raw] ________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-655/test_actual_missing_model_scen0')
+presentation = 'raw'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_actual_missing_model_scenario_still_issues_both_forms(tmp_path, presentation):
+        from pathlib import Path
+    
+        from healthcraft import operator_adjudication as adjudicator
+        from healthcraft import operator_incidents as core
+    
+        original = (
+            Path(__file__).resolve().parents[1]
+            / "artifacts/reconciliation/20260930/local-casebook-pilot-v1/run"
+        )
+        original_manifest_bytes = (original / "manifest.json").read_bytes()
+        manifest = json.loads(original_manifest_bytes)
+        attempt = "REC2-001/medgemma"
+        selected = {
+            name: original / name
+            for name in manifest["files"]
+            if name in {"plan.json", "cases.json"}
+            or (name.startswith(attempt + "/") and name != attempt + "/case.json")
+        }
+        source = tmp_path / "source"
+        for name, path in selected.items():
+            destination = source / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(path.read_bytes())
+        (source / "cases.json").write_text("[]\n")
+        plan = json.loads((source / "plan.json").read_bytes())
+        plan["roster"] = [row for row in plan["roster"] if row["id"] == attempt]
+        (source / "plan.json").write_text(json.dumps(plan))
+        manifest["files"] = {
+            name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in selected
+        }
+        manifest["outcomes"] = [row for row in manifest["outcomes"] if row["id"] == attempt]
+        manifest_path = source / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+>       packet = core.build_incident_packet(
+            manifest_path,
+            tmp_path / "operator",
+            expected_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            selections={"opaque-a": attempt},
+            protocol={"protocol_id": "missing-capture-test", "purpose": "engineering_development"},
+            assignment={
+                "assignment_id": "missing-a",
+                "operator_id": "synthetic-test-operator",
+                "presentation": presentation,
+            },
+        )
+
+tests/test_operator_incident_report.py:857: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_incidents.py:422: in build_incident_packet
+    payloads = _payloads(packet)
+               ^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incidents.py:400: in _payloads
+    "public/report.html": _render(deepcopy(packet), deepcopy(template)).encode("utf-8"),
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incidents.py:381: in _render
+    return render_incident_packet(packet, template)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1407: in render_incident_packet
+    return _render(packet, template, False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1348: in _render
+    content += "<p>Scenario family: <code>" + escape(case["scenario_family_id"]) + "</code></p>"
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = None, quote = True
+
+    def escape(s, quote=True):
+        """
+        Replace special characters "&", "<" and ">" to HTML-safe sequences.
+        If the optional flag quote is true (the default), the quotation mark
+        characters, both double quote (") and single quote (') characters are also
+        translated.
+        """
+>       s = s.replace("&", "&amp;") # Must be done first!
+            ^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'replace'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/html/__init__.py:19: AttributeError
+_____ test_actual_missing_model_scenario_still_issues_both_forms[assisted] _____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-655/test_actual_missing_model_scen1')
+presentation = 'assisted'
+
+    @pytest.mark.parametrize("presentation", ["raw", "assisted"])
+    def test_actual_missing_model_scenario_still_issues_both_forms(tmp_path, presentation):
+        from pathlib import Path
+    
+        from healthcraft import operator_adjudication as adjudicator
+        from healthcraft import operator_incidents as core
+    
+        original = (
+            Path(__file__).resolve().parents[1]
+            / "artifacts/reconciliation/20260930/local-casebook-pilot-v1/run"
+        )
+        original_manifest_bytes = (original / "manifest.json").read_bytes()
+        manifest = json.loads(original_manifest_bytes)
+        attempt = "REC2-001/medgemma"
+        selected = {
+            name: original / name
+            for name in manifest["files"]
+            if name in {"plan.json", "cases.json"}
+            or (name.startswith(attempt + "/") and name != attempt + "/case.json")
+        }
+        source = tmp_path / "source"
+        for name, path in selected.items():
+            destination = source / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(path.read_bytes())
+        (source / "cases.json").write_text("[]\n")
+        plan = json.loads((source / "plan.json").read_bytes())
+        plan["roster"] = [row for row in plan["roster"] if row["id"] == attempt]
+        (source / "plan.json").write_text(json.dumps(plan))
+        manifest["files"] = {
+            name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in selected
+        }
+        manifest["outcomes"] = [row for row in manifest["outcomes"] if row["id"] == attempt]
+        manifest_path = source / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+>       packet = core.build_incident_packet(
+            manifest_path,
+            tmp_path / "operator",
+            expected_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            selections={"opaque-a": attempt},
+            protocol={"protocol_id": "missing-capture-test", "purpose": "engineering_development"},
+            assignment={
+                "assignment_id": "missing-a",
+                "operator_id": "synthetic-test-operator",
+                "presentation": presentation,
+            },
+        )
+
+tests/test_operator_incident_report.py:857: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_incidents.py:422: in build_incident_packet
+    payloads = _payloads(packet)
+               ^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incidents.py:400: in _payloads
+    "public/report.html": _render(deepcopy(packet), deepcopy(template)).encode("utf-8"),
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incidents.py:381: in _render
+    return render_incident_packet(packet, template)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1407: in render_incident_packet
+    return _render(packet, template, False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_incident_report.py:1348: in _render
+    content += "<p>Scenario family: <code>" + escape(case["scenario_family_id"]) + "</code></p>"
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = None, quote = True
+
+    def escape(s, quote=True):
+        """
+        Replace special characters "&", "<" and ">" to HTML-safe sequences.
+        If the optional flag quote is true (the default), the quotation mark
+        characters, both double quote (") and single quote (') characters are also
+        translated.
+        """
+>       s = s.replace("&", "&amp;") # Must be done first!
+            ^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'replace'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/html/__init__.py:19: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_operator_incident_report.py::test_unknown_family_is_explicit_and_does_not_infer_from_case_id[incident]
+FAILED tests/test_operator_incident_report.py::test_unknown_family_is_explicit_and_does_not_infer_from_case_id[adjudication]
+FAILED tests/test_operator_incident_report.py::test_actual_missing_model_scenario_still_issues_both_forms[raw]
+FAILED tests/test_operator_incident_report.py::test_actual_missing_model_scenario_still_issues_both_forms[assisted]
+4 failed, 37 deselected in 0.19s

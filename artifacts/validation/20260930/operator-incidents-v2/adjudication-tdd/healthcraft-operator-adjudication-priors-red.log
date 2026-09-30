@@ -1,0 +1,36 @@
+.....................................F                                   [100%]
+=================================== FAILURES ===================================
+_____ test_resolver_displayed_prior_judgments_must_match_original_imports ______
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+disputed = ({'reviewer-a': PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-664/tes...9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-664/test_resolver_displayed_prior_0/reviewer-b/manifest.json')})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-664/test_resolver_displayed_prior_0')
+
+    def test_resolver_displayed_prior_judgments_must_match_original_imports(core, disputed, tmp_path):
+        records, _ = disputed
+        root = tmp_path / 'resolver'
+        packet = core.build_adjudication_packet(
+            tmp_path/'source/manifest.json', tmp_path/'response.json', root,
+            assignment={'assignment_id':'test','adjudicator_id':'resolver-a','role':'resolver'},
+            prior_records=records,
+        )
+        packet['cases'][0]['documents']['prior_judgments'][0]['decision'] = 'invalid'
+        manifest = json.loads((root/'manifest.json').read_text())
+        payloads = {
+            'public/packet.json':core._canonical(packet)+b'\n',
+            'public/response-template.json':core._canonical(core.adjudication_template(packet))+b'\n',
+            'public/report.html':core._render(packet, core.adjudication_template(packet)).encode(),
+        }
+        for name, raw in payloads.items():
+            (root/name).write_bytes(raw)
+            manifest['files'][name] = core._sha(raw)
+        manifest['packet_sha256'] = core._digest(packet)
+        (root/'manifest.json').write_bytes(core._canonical(manifest)+b'\n')
+>       with pytest.raises(ValueError, match='prior|initial'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_adjudication.py:663: Failed
+=========================== short test summary info ============================
+FAILED tests/test_operator_adjudication.py::test_resolver_displayed_prior_judgments_must_match_original_imports
+1 failed, 37 passed in 0.26s

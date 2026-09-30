@@ -273,6 +273,12 @@ citations and offline JSON export. Its importer preserves every assigned
 question, including pending answers and invalid submissions, for later
 adjudication. Tutorial responses do not establish operator or clinical value.
 
+The [v2 incident workflow](docs/OPERATOR_INCIDENTS.md) adds source-linked findings,
+requested versus observed record identities, and separate human validity forms
+for the native casebook and saved local-model attempts. It preserves conflicting
+reviewer judgments and bound resolver decisions. Independent user validation is
+still pending.
+
 The [authored observation contract](docs/AUTHORED_OBSERVATIONS.md) explains
 source-linked vitals/labs, explicit timing, and unknown values in new runs.
 The [care and imaging contract](docs/CARE_IMAGING_FIDELITY.md) keeps authored
