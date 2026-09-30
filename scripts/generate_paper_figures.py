@@ -5,7 +5,7 @@ Figure 4: pilot progression v2-v8 (Pass@1 and avg reward, two lines per model).
 Figure 5: safety-gate dominance scatter (per-task avg reward vs criterion-satisfaction rate).
 
 Read-only over results/. Writes to docs/whitepaper/figures/.
-Deterministic. No network. Matplotlib only.
+Deterministic. No network. Requires Matplotlib and the installed HealthCraft package.
 """
 
 from __future__ import annotations
@@ -285,6 +285,12 @@ def main() -> None:
     )
     for pilot in sorted(pilots):
         load_entries(RESULTS / pilot)
+    for pilot, _ in V8_MODELS:
+        if not load_entries(RESULTS / pilot):
+            raise ValueError(
+                f"Cannot regenerate paper figures without historical V8 experiments: {pilot}. "
+                "Use the tracked figure snapshots when original inputs are unavailable."
+            )
     FIGURES.mkdir(parents=True, exist_ok=True)
     paths = [figure_3_per_category(), figure_4_pilot_progression(), figure_5_safety_gate_scatter()]
     for p in paths:

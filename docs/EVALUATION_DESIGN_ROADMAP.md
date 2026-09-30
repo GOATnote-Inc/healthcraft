@@ -5,7 +5,10 @@ roadmap, not a list of shipped capabilities or evidence of superiority.
 The current result accounting remains in
 [FRONTIER_ACCOUNTING_OPUS48_GPT55.md](FRONTIER_ACCOUNTING_OPUS48_GPT55.md).
 The training/clinical-readiness boundary remains in
-[RL_COUPLING.md](RL_COUPLING.md).
+[RL_COUPLING.md](RL_COUPLING.md). Engineering and paper releases use the
+[automated evidence workflow](RELEASE_EVIDENCE_PLAN.md). Clinical review,
+operator studies and formal red-team campaigns are future research activities,
+not prerequisites for publishing the repository or its documented findings.
 
 ## Objective and evidence standard
 
@@ -19,9 +22,10 @@ and versioned experiments around them.
 
 The desired differentiator is inspectable evidence: every score can be
 traced to a task version, initial state, agent action, tool result,
-verification rule, and adjudication. A superiority claim requires a
-predeclared, comparable evaluation and independent clinical review. No
-such claim follows from this roadmap or a local smoke test.
+verification rule, and recorded outcome. A superiority claim needs a
+predeclared, comparable evaluation that measures the claimed benefit. Clinical
+claims additionally need clinical evidence. Neither follows from this roadmap
+or a local smoke test.
 
 ## Comparable work and lessons
 
@@ -34,7 +38,7 @@ reference and is listed separately until that name is confirmed.
 |---|---|---|
 | [Corecraft, v5](https://arxiv.org/html/2602.16179v5) | Stateful enterprise world, MCP tools, atomic rubric reward, and held-out/external transfer evaluation. Its design explicitly prioritizes task diversity over entity/tool counts. | Demonstrate valid task difficulty and transferable skills; more entities and tools are insufficient. |
 | [Baseten clinical scribe work](https://www.baseten.co/blog/fine-tuning-small-open-source-llms-to-outperform-large-closed-source-models-by-60/) | Expert-aligned, granular evaluation drives specialist-model optimization; separates source fidelity, salience, safety, and formatting. Reported gains concern its own scribe distribution. | Check source-grounded omissions and unsupported claims separately; publish judge agreement and a fixed held-out comparison. Do not compare its relative scribe improvement with HealthCraft pass rates. |
-| [Archangel Health products](https://www.archangelhealth.ai/products) | Describes sandboxed EHR tool use with step grading, multi-visit tasks evaluated against subsequent events, physician-authored training data/rubrics, and verifier-based RL. Its Medical Guideline Benchmark is marked **coming soon**. | Add replayable step evidence, longitudinal checkpoints, and guideline provenance. Its physician contribution is a substantive validation bar, not something model consensus replaces. Public product descriptions do not establish a reproducible numerical baseline. |
+| [Archangel Health products](https://www.archangelhealth.ai/products) | Describes sandboxed EHR tool use with step grading, multi-visit tasks evaluated against subsequent events, physician-authored training data/rubrics, and verifier-based RL. Its Medical Guideline Benchmark is marked **coming soon**. | Add replayable step evidence, longitudinal checkpoints, and guideline provenance. Its physician contribution is a distinct evidence source; model consensus does not establish equivalent clinical validation. Public product descriptions do not establish a reproducible numerical baseline. |
 | [Bastion Clinical AI Evaluation](https://bastionintelligence.com/research) | Reports 40 synthetic cases across four workflow families, separated author/candidate/judge roles, code-enforced critical failures, and human-review flags. | Separate evaluation roles and surface review queues; report critical failures and judge disagreements instead of hiding them in an average. |
 | [Stanford MedAgentBench](https://stanfordmlgroup.github.io/projects/medagentbench/) | 300 physician-written tasks in a FHIR-compatible EHR, with retrieval and action tasks over longitudinal records. | Compare against an actual clinical tool benchmark; evaluate state mutations, not just answer plausibility. Its patient-derived data is outside HealthCraft's synthetic-only corpus policy. |
 | [MedAgentGym](https://wshi83.github.io/MedAgentGym-Page/) | Code-based medical reasoning with execution-grounded answers and separate internal/external validation scenarios. | Borrow the execution-verification and transfer protocol; keep clinical workflow evaluation distinct from biomedical coding. |
@@ -89,9 +93,10 @@ configuration and a spend decision, separate from offline engineering.
 
 ## Ranked acceptance criteria
 
-The thresholds below are proposed release gates. Existing tests and
-implementation may satisfy pieces; each gate needs an attached report
-before it is marked complete.
+These are development and research priorities, not a cumulative release
+checklist. Attach evidence to each implemented capability and state its
+coverage. A release may publish useful engineering results while clinical
+calibration, training studies and comparative trials remain unperformed.
 
 | Priority | Deliverable | Acceptance evidence |
 |---|---|---|
@@ -99,8 +104,8 @@ before it is marked complete.
 | P0 | Versioned run identity | Manifest captures code revision/dirty state, task content hash, overlays, prompts, tool schemas, world/episode seed, actual model endpoint identity, and generation settings. Resume rejects incompatible configuration; corrupt artifacts are surfaced. Changed configuration cannot silently reuse old scores. |
 | P0 | Offline evaluator challenge suite | Deterministic probes include no action, text-only success claims, failed mutations, wrong-patient actions, stale/duplicate calls, and out-of-order workflows. All intentionally invalid affirmative checks fail; every safety violation probe gates reward to zero. Publish per-criterion failures and probe coverage. |
 | P0 | Local end-to-end baseline | MedGemma and Nemotron each complete a real local request and a bounded tool trajectory with captured raw response, parser outcome, and tool result. No remote fallback. Non-tool-capable adapters are labeled. A refused/malformed response is recorded, not repaired into apparent success. |
-| P1 | Task validity certificates | Each new task has an executable successful reference trajectory, an omission/unsafe counterexample, and evidence that required facts and actions are reachable. Cover 100% of deterministic criteria; flag remaining judged criteria for human review. Static tool-name reachability is not a successful reference trajectory. |
-| P1 | Calibrated judging | Freeze a physician-adjudicated set before optimization, with safe/unsafe and omission/commission examples. Report sensitivity, specificity, abstention, agreement, sample counts, and intervals by safety status/category. Require zero observed safety false passes on the release gold set, while publishing the uncertainty bound; zero observed errors is not proof of zero risk. |
+| P1 | Task validity certificates | Each new task has an executable successful reference trajectory, an omission/unsafe counterexample, and evidence that required facts and actions are reachable. Measure coverage of deterministic criteria and explicitly retain unsupported or unassessed criteria. Static tool-name reachability is not a successful reference trajectory. |
+| Research | Clinical calibration | A future independently adjudicated set can assess safe/unsafe and omission/commission examples. Report sensitivity, specificity, abstention, agreement, sample counts and intervals by safety status/category. Until such evidence exists, engineering fixtures and model consensus must not be described as clinical calibration. |
 | P1 | Stable grounding under benign changes | IDs, irrelevant-record order, harmless note formatting, and equivalent units do not change reference verdicts. Counterfactual critical changes must flip the intended verdict. Every perturbation documents which facts and expected outcomes remain invariant. |
 | P1 | Longitudinal and fault recovery | Seeded delayed results, unavailable resources, retries, and multi-visit updates have explicit event times and expected state transitions. Correctly recovered runs preserve state invariants; failed/duplicate mutations cannot create extra orders. Run replay twice and compare state/evidence hashes. |
 | P1 | Leakage-resistant development | Disjoint episode seeds, patients, task templates, and clinical scenario families are declared where feasible. Record overlap checks and known public-data exposure. Freeze held-out families before reward tuning; do not call a seed-only split out-of-distribution validation. |
@@ -164,17 +169,15 @@ Any external code adoption needs a pinned revision, license/notice record,
 and tests of the integration boundary. No external source code or dataset
 was copied into HealthCraft as part of this research document.
 
-## Paper and documentation gaps to resolve
+## Publication consistency checks
 
-- The paper abstract still leads with V8, while README now identifies v10
-  as canonical. Preserve historical figures but align version labels and
-  the current evidence narrative in a dedicated, verified paper revision.
-- The paper's related work should include MedAgentBench, MedAgentGym, and
-  subsequent healthcare agent benchmarks. Review any “first” claim against
-  exact release chronology and its emergency-medicine/RL/safety scope;
-  broad clinical-agent novelty is not established by the current section.
-- Audit architecture prose against runtime: README now says in-memory,
-  FHIR-R4-shaped state, while paper describes a PostgreSQL FHIR world.
+- Align the abstract, README and evidence tables on version labels: v10 is
+  the canonical historical grading channel; V8 remains a superseded historical
+  result. Preserve original figures and label new engineering diagnostics separately.
+- Cite relevant clinical-agent benchmarks and verify any novelty claim against
+  release chronology and its precise emergency-medicine/RL scope. Broad
+  clinical-agent novelty is not established by architectural similarity or task count.
+- Match architecture prose to the implemented in-memory, FHIR-R4-shaped state.
   A representation shaped like FHIR is not independently validated FHIR
   conformance, and container scaffolding is not proof of a persisted DB.
 - Keep ensemble consensus, prospective physician validation, and training
@@ -183,9 +186,9 @@ was copied into HealthCraft as part of this research document.
   limitation.
 - Corecraft author names in README, the attribution document, and the
   bibliography were corrected against the [versioned primary paper](https://arxiv.org/abs/2602.16179v5).
-- The repository's passive-maintenance banner conflicts with a renewed
-  development program. Update maintenance status only with the actual
-  program state, and link shipped releases to their validation evidence.
+- Keep maintenance status current and link software and manuscript releases
+  to exact source identities, validation receipts and immutable evidence.
+  Operator-review tools remain optional developer diagnostics.
 
 Issue references: [live training #8](https://github.com/GOATnote-Inc/healthcraft/issues/8),
 [reward ablations #9](https://github.com/GOATnote-Inc/healthcraft/issues/9),

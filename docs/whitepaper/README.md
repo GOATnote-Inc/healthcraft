@@ -1,7 +1,12 @@
 # HealthCraft Whitepaper
 
-NeurIPS 2026 Datasets & Benchmarks Track submission, dual build
-(named public release + anonymous blind review).
+Research preprint by Brandon Dent, MD, a single physician-engineer using
+automated development and evaluation tools. The named paper is the public
+release; an anonymous build is available for review venues that require it.
+
+The [2026-09-30 publication](https://github.com/GOATnote-Inc/healthcraft/releases/tag/healthcraft-2026-09-30)
+provides the paper PDF, arXiv source archive, checksums and submission metadata.
+See [arXiv replacement instructions](ARXIV_SUBMISSION.md).
 
 ## Build
 
@@ -12,11 +17,21 @@ make named           # public release (author visible)
 make anonymous       # blind review (author redacted)
 make verify          # CI gate: size, validity, identity leak, canonical numbers
 make ci              # clean + all + verify
-make arxiv           # package for arXiv upload
+make arxiv           # rebuild named PDF and create fresh output/arxiv/
+# A repeat package needs a fresh destination:
+make arxiv ARXIV_OUT=output/arxiv-next
 ```
 
-Requirements: TeX Live 2023+ with `pdflatex`, `bibtex`. Optional:
-`pdftotext` (poppler-utils) for content checks during `verify`.
+Requirements: Python 3.10+, TeX Live 2023+ with `pdflatex`, `bibtex`, and
+Poppler (`pdftotext` for identity checks). Install the repository with
+`pip install -c constraints-security.txt -e .` from its root before running
+repository scripts. `make verify` reports when Poppler is absent and skips
+identity checks; publication validation uses Poppler and does not skip them.
+
+Builds stop on LaTeX or BibTeX failures. Packaging refuses an existing output
+directory and includes only required sources, the compiled `ms.bbl`, style
+and referenced figures. The source manifest records each archived file's
+SHA-256 digest. CI also compiles the extracted archive in an isolated directory.
 
 ## File layout
 
@@ -49,9 +64,14 @@ Claude Opus 4.6 achieves Pass@1 of 24.8\%  % CN:v8_claude_pass1
 
 ## Figures
 
-Figures 3, 4, 5 are auto-generated from pilot `summary.json` files via
-`scripts/generate_paper_figures.py`. Figures 1 and 2 are authored in-tree
-as TikZ inside `content.tex`.
+Figures 3, 4 and 5 are tracked historical snapshots generated from pilot
+aggregates by `scripts/generate_paper_figures.py`. Their hashes are recorded in
+`figures/SHA256SUMS`; CI verifies and compiles these snapshots. The complete
+historical aggregate inputs are not distributed in the checkout, so a fresh
+clone cannot independently regenerate these historical plots or statistics.
+Do not regenerate them from an incomplete results directory. The current
+engineering and local-model evidence has separate tracked artifacts cited in
+the manuscript. Figures 1 and 2 are authored as TikZ in `content.tex`.
 
 ## Attribution
 

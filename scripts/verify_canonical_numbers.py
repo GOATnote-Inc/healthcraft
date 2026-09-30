@@ -41,7 +41,16 @@ TAG_DEF_RE = re.compile(r"\|\s*`CN:([A-Za-z0-9_]+)`\s*\|")
 
 # In-repo roots a Source cell may cite; anything else (e.g. "OpenEM v0.5.1")
 # is prose and not checked.
-SOURCE_ROOTS = ("configs/", "docs/", "evals/", "results/", "scripts/", "src/", "tests/")
+SOURCE_ROOTS = (
+    "artifacts/",
+    "configs/",
+    "docs/",
+    "evals/",
+    "results/",
+    "scripts/",
+    "src/",
+    "tests/",
+)
 SOURCE_TOKEN_RE = re.compile(r"`([^`]+)`")
 DEFERRED_HEADING = "## Deferred artifacts"
 

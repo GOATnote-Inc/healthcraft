@@ -135,6 +135,27 @@ def test_legacy_paper_metrics_remain_unchanged_and_read_only(tmp_path, paper):
     assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before
 
 
+@pytest.mark.parametrize("empty_log", [False, True])
+def test_paper_main_rejects_missing_historical_v8_inputs_before_overwriting_figures(
+    tmp_path, paper, monkeypatch, empty_log
+):
+    results = tmp_path / "results"
+    if empty_log:
+        pilot = results / "pilot-v8-claude-opus"
+        pilot.mkdir(parents=True)
+        (pilot / "experiments.jsonl").write_text("")
+    figures = tmp_path / "figures"
+    figures.mkdir()
+    original = figures / "fig3_per_category_results.pdf"
+    original.write_bytes(b"frozen historical figure")
+    monkeypatch.setattr(paper, "RESULTS", results)
+    monkeypatch.setattr(paper, "FIGURES", figures)
+    with pytest.raises(ValueError, match="historical V8"):
+        paper.main()
+    assert original.read_bytes() == b"frozen historical figure"
+    assert list(figures.iterdir()) == [original]
+
+
 def test_paper_main_checks_all_pilots_before_any_figure_work(tmp_path, paper, monkeypatch):
     results = tmp_path / "input"
     later_pilot = results / "pilot-v3-gpt54"

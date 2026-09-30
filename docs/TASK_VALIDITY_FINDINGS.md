@@ -3,6 +3,9 @@
 This is an engineering audit of supplied synthetic facts, tool behavior,
 and verifier evidence. It is not a clinical adjudication or a replacement
 for the published benchmark. Historical tasks and results remain unchanged.
+Known limitations are published with the engineering evidence; external clinical
+review and operator participation are not prerequisites for repository or paper
+release. See the [automated release workflow](RELEASE_EVIDENCE_PLAN.md).
 
 ## Action and grading fidelity: 2026-09-30 development follow-up
 
@@ -36,7 +39,9 @@ The following issues remain open and block stronger validity claims:
 - SCJ-012-C02's v9/v10 overlay accepts any medication order, including
   acetaminophen, for an assertion requiring broad-spectrum antibiotics
   within an hour. Fixing tool spelling does not repair that semantic and
-  temporal mismatch. It requires a separately reviewed rubric revision.
+  temporal mismatch. A repair needs a separate rubric version with explicit
+  medication, patient and recognition-time evidence; a broader tool-name match
+  cannot establish the assertion.
 - Temporal source replacement was subsequently repaired in local development;
   see [authored observation fidelity](AUTHORED_OBSERVATIONS.md). The earlier
   capture remains unchanged. The repair preserves direct vitals/labs and
@@ -79,7 +84,7 @@ only when explicit, and raw observations with provenance. Eight reviewed
 conditional guidance fields stay withheld. Source roles and pending status
 do not establish performed studies. These changes repair future executions;
 they neither regrade the unchanged historical results nor adjudicate the
-clinical content. Independent review and comparative-value gates remain open.
+clinical content. Clinical validity and comparative benefit remain unmeasured.
 
 ## IR-002: prior encounter retrieval
 
@@ -120,22 +125,23 @@ check accepts `checkResourceAvailability`, a bed/staff/equipment tool.
 The saved replay counterexample supplies only a bed response and receives
 credit. The local diagnostic also found no matching cephalexin reference
 through the available knowledge/reference searches. A source-backed
-knowledge repair requires separate review; a resource lookup is not
-substitute evidence.
+knowledge repair needs a versioned source and retrieval contract; a resource
+lookup is not substitute evidence.
 
 The [2026-09-30 primary-source review](IR001_REFERENCE_REVIEW.md) identifies
-public references and a concrete retrieval/documentation revision for clinical
-review. Their label, population and side-chain scopes differ; they do not
-justify the task's blanket estimate or an automatic patient-specific verdict.
-Source selection and a new clinical scoring contract remain unapproved.
+public references and a concrete retrieval/documentation revision. Their
+label, population and side-chain scopes differ; they do not justify the task's
+blanket estimate or an automatic patient-specific verdict. Source-backed
+mechanical checks can be developed separately from clinical interpretation;
+no new clinical scoring contract is implemented.
 
 ## Required versioned repair and certificate
 
 An opt-in `linked-history/v1` profile and actual-execution mechanical witness
 now implement the first experimental slice, documented in
 [Reference certificates](REFERENCE_CERTIFICATES.md). They preserve the original
-task and default injection. Promotion into a benchmark task revision still
-requires the validity and clinical review below.
+task and default injection. Any benchmark task revision must declare its
+changed evidence contract and retain unassessed clinical criteria explicitly.
 
 The next task revision should retain the historical version and declare
 the revised task, injection profile, tool schema, and verification contract
@@ -159,8 +165,9 @@ in its run identity. The following acceptance conditions are concrete:
    unassessed clinical reasoning criteria C04/C05/C06/C08. Do not present
    the certificate as physician validation or a revised full-task score.
 
-Broader clinical claims still require the independent review and held-out
-evaluation described in the [design roadmap](EVALUATION_DESIGN_ROADMAP.md).
+Broader clinical claims are not supported by these mechanical checks. The
+[design roadmap](EVALUATION_DESIGN_ROADMAP.md) separates future clinical and
+held-out evaluation from current engineering releases.
 
 ## Versioned roster observations and a content-review finding
 
@@ -184,7 +191,8 @@ or cardiac compromise; the task does not supply age or a specific
 contraindication. Pediatric guidance and infusion compatibility require
 separate interpretation. The [review and primary sources](ROSTER_PROFILES.md#bounded-ir-018-content-review)
 preserve these limits. The original task and historical outcomes are unchanged;
-a clinical-content correction needs a separately reviewed task version.
+a clinical-content correction needs a separately versioned task with its
+source basis and remaining uncertainty documented.
 
 ## RL task preparation
 

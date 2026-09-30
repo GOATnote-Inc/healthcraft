@@ -1,0 +1,64 @@
+...............................F                                         [100%]
+=================================== FAILURES ===================================
+___________ test_make_verify_propagates_canonical_audit_failure[17] ____________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-722/test_make_verify_propagates_ca1')
+verifier_exit = 17
+
+    @pytest.mark.parametrize("verifier_exit", [0, 17])
+    def test_make_verify_propagates_canonical_audit_failure(tmp_path, verifier_exit):
+        paper = tmp_path / "docs/whitepaper"
+        paper.mkdir(parents=True)
+        shutil.copyfile(ROOT / "docs/whitepaper/Makefile", paper / "Makefile")
+        (paper / "output").mkdir()
+        for label in ("named", "anonymous"):
+            (paper / f"output/whitepaper_{label}.pdf").write_bytes(b"%PDF-" + b"x" * 100001)
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        (scripts / "verify_canonical_numbers.py").write_text(f"raise SystemExit({verifier_exit})\n")
+        binaries = tmp_path / "bin"
+        binaries.mkdir()
+        pdf_text = binaries / "pdftotext"
+        pdf_text.write_text(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            "if sys.argv[1].endswith('whitepaper_named.pdf'): print('b@thegoatnote.com')\n"
+        )
+        pdf_text.chmod(0o755)
+        env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ["PATH"])
+        result = subprocess.run(
+            ["make", "verify", f"PYTHON={sys.executable}"],
+            cwd=paper,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if verifier_exit:
+>           assert result.returncode != 0, result.stdout
+E           AssertionError: 
+E             Verifying builds...
+E             ------------------------------------------------------------
+E             PASS: Both PDFs exist
+E             PASS: Both PDFs have valid headers
+E             PASS: Both PDFs have valid size (>100KB)
+E             PASS: Content verification (pdftotext)
+E             FAIL: canonical numbers mismatch
+E             PASS: Canonical numbers audit
+E             ------------------------------------------------------------
+E             PASS: All verification checks passed
+E             
+E           assert 0 != 0
+E            +  where 0 = CompletedProcess(args=['make', 'verify', 'PYTHON=/Users/kiteboard/healthcraft/.venv/bin/python'], returncode=0, stdout...udit\n------------------------------------------------------------\nPASS: All verification checks passed\n', stderr='').returncode
+
+tests/test_scripts/test_arxiv_submission.py:240: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_arxiv_submission.py::test_make_verify_propagates_canonical_audit_failure[17]
+1 failed, 31 passed, 1 warning in 1.30s

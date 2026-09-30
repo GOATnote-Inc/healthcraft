@@ -7,9 +7,11 @@ GRPO/DAPO training run.
 > **research artifact**. The `research_artifact.json` metadata that ships
 > alongside every checkpoint enforces this at the API level
 > (`healthcraft.rl.artifact.ResearchArtifactMetadata` refuses to construct
-> with `deployment_status` set to anything else). Held-out prospective
-> physician-blind validation is required before any deployment
-> conversation. See [`docs/RL_COUPLING.md`](RL_COUPLING.md).
+> with `deployment_status` set to anything else). Independent, prospective
+> clinical validation is optional future research; clinical readiness remains
+> unproven. Research and paper releases do not require human review and follow
+> the [automated release workflow](RELEASE_EVIDENCE_PLAN.md). See
+> [`docs/RL_COUPLING.md`](RL_COUPLING.md).
 
 ## 1. Compute provisioning
 

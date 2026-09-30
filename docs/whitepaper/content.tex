@@ -8,50 +8,37 @@
 % ============================================================
 
 \begin{abstract}
-Frontier large language models are being deployed into clinical
-workflows faster than the infrastructure to evaluate them safely.
-Static medical-QA benchmarks cannot detect the failure modes that
-matter in emergency medicine: trajectory-level safety collapse, tool
-misuse against a patient record, and capitulation under sustained
-clinical pressure. We present \textbf{HealthCraft}, a public
-reinforcement-learning environment that rewards trajectory-level safety
-behavior under realistic emergency-medicine conditions, adapted from
-the Corecraft architecture. It uses a synthetic, FHIR-R4-shaped world state with
-14 entity types and 4{,}075 entities in the base seed, exposes 24 MCP tools for % CN:entities_seeded
-read/compute/mutate/workflow interaction, and defines a dual-layer
-rubric that gates reward to zero whenever any safety-critical criterion
-is violated. We release a benchmark of 195 tasks across six categories,
-graded against 2{,}255 binary criteria of which 515 are safety-critical;
-a post-hoc 10-task negative-class slate is included in the current inventory of
-$205$ tasks % CN:post_neg_tasks
-and $2{,}323$ criteria % CN:post_neg_criteria
-(\S\ref{sec:limits}, Appendix~F.5).
-V8 results on two frontier models show Claude Opus~4.6 achieves Pass@1
-of 24.8\% [21.5--28.4] and GPT-5.4 achieves 12.6\% [10.2--15.6], with
-safety-failure rates of 27.5\% and 34.0\% respectively---numbers produced
-under a grader since found to fail \emph{open} on safety-critical criteria
-(\S\ref{sec:grader-superseded}), hence presented as pre-audit and biased
-toward \emph{under}-reporting safety failures. On multi-step
-workflows---the closest proxy to real emergency care---performance
-collapses to near zero (Claude 1.0\%, GPT-5.4 0.0\%) despite partial
-competence on individual steps. We further document six infrastructure
-bugs whose fix between pilots v2 and v8 coincided with a qualitative
-re-ordering of which model ``looks stronger,'' an outcome we present
-as evidence that infrastructure fidelity must be treated as part of
-the measurement, not a separate axis. HealthCraft is released as an evaluation benchmark. A deterministic
-LLM-judge audit overlay (Appendix~\ref{app:v9-overlay}) surfaced a judge
-fail-\emph{open} tendency that a subsequent grader-fidelity audit
-(\S\ref{sec:grader-superseded}) confirmed on the published grading path and
-fixed (the judge now fails closed; a curated 55-case regression set finds
-zero safety-critical false-\textsc{pass}), and a
-negative-class task slate with 60-run smoke pilot
-(\S\ref{sec:limits}) motivates studying the evaluation-to-training boundary:
-overall NEG criteria pass at $0.929$ prevalence % CN:neg_smoke_crit_prev
-on the smoke pilot. This identifies a possible reward-design concern,
-not an observed training outcome. We scaffold the coupling to a Megatron+SGLang+GRPO
-loop per Corecraft~\S5.2 and leave training-reward ablations as
-future work. Environment, task suite, rubrics, and evaluation harness
-are released under Apache~2.0.
+HealthCraft is an open environment for evaluating clinical tool-using agents
+in synthetic emergency-medicine workflows, adapted from Corecraft. It
+combines an in-memory world, a Model Context Protocol tool surface, saved
+execution traces, and binary task criteria with an authored safety gate.
+The current inventory contains $205$ tasks % CN:post_neg_tasks
+and $2{,}323$ criteria. % CN:post_neg_criteria
+We distinguish historical benchmark measurements from a subsequent automated
+engineering programme focused on preserving evidence and exposing incomplete
+execution. Frozen V8 Pass@1 was $24.8\%$ for Claude Opus~4.6 % CN:v8_claude_pass1
+and $12.6\%$ for GPT-5.4; % CN:v8_gpt_pass1
+these results used a grader subsequently found to fail open and are retained
+as superseded measurements, not estimates under the repaired implementation.
+The newer engineering work adds source-faithful projections, strict execution
+and grading boundaries, immutable attempts, and separately reported completion,
+physical storage, readback, and content verification. A source-bound local
+development cohort schedules $16$ attempts % CN:local_attempts
+across Nemotron Nano and MedGemma on $8$ exposed synthetic reconciliation cases. % CN:local_cases
+Of these, $15$ executions completed, % CN:local_completed
+$15$ notes were physically stored, % CN:local_stored_notes
+and $2$ stored texts were retrieved again; % CN:local_literal_readbacks
+none met the full mechanical source-reconciliation contract. % CN:local_mechanical_passed
+Clinical criteria were unassessed. The associated engineering checkpoint
+records $4{,}588$ passing tests % CN:engineering_tests_passed
+and $58$ skipped tests. % CN:engineering_tests_skipped
+This is a single-author physician-engineer project using automated development,
+verification, and local evaluation. It reports no independent clinical labels,
+measured operator benefit, product superiority, or deployment readiness.
+Optional offline inspection tools support debugging without introducing a
+human-review requirement into execution or publication. The release provides
+inspectable negative results and reproducible engineering evidence; prospective
+clinical validation and comparative user studies remain future research.
 \end{abstract}
 
 % ============================================================
@@ -88,22 +75,22 @@ with three substantive changes:
 \begin{enumerate}
   \item The world state contains synthetic clinical entities with
   FHIR-R4-shaped representations and optional OpenEM clinical knowledge.
-  Formal FHIR profile validation and production interoperability have
-  not been established.
+  A bounded source export has structural/FHIRPath validation evidence;
+  complete FHIR conformance and production interoperability remain unestablished.
   \item The reward function is Eq.~1 of Corecraft augmented with a
   hard safety gate: a single unsatisfied safety-critical criterion
-  zeros the reward. This matches the non-negotiable structure of
-  real clinical safety.
+  zeros the reward. This is an evaluation convention over authored
+  criteria, not a guarantee of clinical safety.
   \item The task suite is grounded in OpenEM's 152 confusion pairs,
-  45 decision rules, and 44 evaluation properties, giving the
-  benchmark traceability back to peer-reviewed clinical sources
-  rather than author intuition.
+  45 decision rules, and 44 evaluation properties, providing
+  a documented authoring basis. That provenance does not by itself
+  validate every task assertion, clinical inference, or grading rule.
 \end{enumerate}
 
 Our contributions are: (a)~a public RL environment for
 emergency medicine with a synthetic world state and a 24-tool MCP
 surface; (b)~a dual-layer rubric with a hard safety gate, together
-with the reward formula (Eq.~\ref{eq:reward}); (c)~a benchmark of
+with the reward formula (Eq.~\ref{eq:reward}); (c)~a frozen V8 evaluation subset of
 195 tasks, 2{,}255 binary criteria, and 515 safety-critical criteria
 across six categories; (d)~V8 results on two frontier models,
 together with a transparent account of the six infrastructure bugs
@@ -119,7 +106,9 @@ tendency that a subsequent grader-fidelity audit
 (\S\ref{sec:grader-superseded}) confirmed was live on the published grading
 path and remediated (fail-closed judge, drug-\emph{class} gates, restored
 temporal gates), now guarded by three verdict-locks and a gold-set FP/FN
-harness (\S\ref{sec:repro-infra}). We release the
+harness (\S\ref{sec:repro-infra}); and (f)~a separately scoped, automated
+source-fidelity development cohort and evidence-inspection workflow
+(\S\ref{sec:engineering}). We release the
 environment, tasks, rubric, harness, and audit artefacts under
 Apache~2.0.
 
@@ -141,12 +130,12 @@ domain-specific task suite. \textsc{$\tau$-Bench}
 Pass@k and Pass$^k$ methodology we adopt for tool-use reliability.
 
 \paragraph{Healthcare LLM benchmarks.}
-MedQA \citep{medqa2021} and HealthBench \citep{healthbench2025}
-measure static-QA performance. They do not measure tool use, state
-mutation, or safety gating against an audit log; a model that would
-fail every HealthCraft task can still top a static QA benchmark by
-memorizing guideline text. Our environment is complementary to those
-benchmarks, not a replacement.
+MedQA \citep{medqa2021} evaluates medical question answering, while
+HealthBench \citep{healthbench2025} evaluates health-related conversations
+with detailed rubrics. HealthCraft adds a simulated stateful tool surface
+and execution records. These are different evaluation settings; the work
+reported here contains no controlled comparison establishing an advantage
+over either benchmark or over commercial evaluation platforms.
 
 \paragraph{Constrained RL and AI safety.}
 The hard safety gate corresponds to a constrained-MDP formulation
@@ -160,10 +149,11 @@ that must not occur; the hard gate is the exploration constraint.
 \paragraph{Clinical interoperability.}
 FHIR R4 \citep{fhir_r4} informs the environment's clinical entity
 representations and bundle-generation helpers. Runtime entities are
-Python dataclasses and dictionaries; the release does not run a formal
-FHIR profile validator or demonstrate interoperability with a production
-EHR. Terminology coverage and resource conformance therefore require
-separate validation before any integration claim.
+Python dataclasses and dictionaries. A separate frozen roster-source
+export was checked with the official HL7 validator, with warnings and
+terminology limitations retained (\S\ref{sec:engineering}). That bounded
+result neither validates the entire world nor demonstrates interoperability
+with a production EHR.
 
 % ============================================================
 \section{Environment Design}
@@ -351,11 +341,14 @@ task authorship using OpenEM metadata and from validated EHR integration.
 
 \subsection{Determinism}
 \label{sec:determinism}
-The environment is deterministic; the model is stochastic. Entity
-generation, noise injection, and task-engine scheduling share a single
+Entity generation and noise injection use a configured
 seed (seed=42)  % CN:seed
-set in \texttt{src/healthcraft/world/seed.py}, so the world a model
-faces is byte-reproducible. Model \emph{sampling} is a separate matter:
+in \texttt{src/healthcraft/world/seed.py}. Repeated seeding preserves
+entity identities and seeded attributes, but some creation/update timestamps
+and clinical-task due-times still use the wall clock. Fresh worlds are
+therefore not byte-identical; saved source snapshots and execution traces
+are needed to bind a reproduction to its actual inputs. Model \emph{sampling}
+is a separate matter:
 the V8 models (Claude Opus 4.6, GPT-5.4) ran at temperature=0,  % CN:temperature
 but neither current frontier model supports it---Opus 4.7+ deprecated
 the parameter (the API returns 400) and gpt-5.5-class reasoning models
@@ -364,10 +357,10 @@ The orchestrator self-heals (it omits the parameter for those models),
 which means their sampling falls back to the provider default and is
 \emph{not} reproducible run-to-run. We also send no provider-side
 sampling seed. Reproducibility for such models therefore rests on the
-fixed environment plus multi-trial Pass@$k$ with confidence intervals,
+recorded environment configuration plus multi-trial Pass@$k$ with confidence intervals,
 not on bit-identical trajectories; the $\text{Pass@3} > \text{Pass@1}$
-gap in \S\ref{sec:results} is genuine sampling variance, not residual
-provider noise.
+gap in \S\ref{sec:results} reflects observed run variation. These measurements
+do not separate model sampling variation from provider-side nondeterminism.
 
 % ============================================================
 \section{Reward Function}
@@ -707,18 +700,15 @@ gpt-5.5 reaches Pass@1 13.7\%  % CN:v2_gpt55_pass1
 ([11.2, 16.6]) with Pass\textsuperscript{3} 7.3\%,  % CN:v2_gpt55_passk3
 reward 0.570,  % CN:v2_gpt55_reward
 and safety-failure 32.0\%.  % CN:v2_gpt55_safety_fail
-Both land within the confidence interval of their V8 predecessors (Claude
-Opus 4.6 at 24.8\%, GPT-5.4 at 12.6\%): no detectable generational shift on
-this benchmark, and the Claude $>$ GPT ordering is preserved under a
-\emph{neutral} judge---which is notable because the single-category pilot
-that preceded this run had the ordering reversed, an artefact of category
-skew. The \texttt{multi\_step\_workflows} collapse persists for both. These
-numbers are \emph{not} comparable to the V8 table (different judge, channel,
-and corpus), the grok-4 judge's clinical agreement is unmeasured, and gpt-5.5
-ran at the provider-default temperature (it rejects \texttt{temperature=0}),
-so its trajectories are not reproducible run-to-run. We report them as a
-durability check under a stricter, neutral apparatus, not as a controlled
-successor to V8.
+Within this run, the recorded Claude Pass@1 exceeds the recorded GPT Pass@1,
+and \texttt{multi\_step\_workflows} performance remains low for both. These
+numbers are \emph{not} comparable to the V8 table: judge, channel and corpus
+changed, so neither confidence-interval overlap nor ordering establishes a
+generational effect. The grok-4 judge's clinical agreement is unmeasured, and
+gpt-5.5 ran at the provider-default temperature (the recorded adapter rejected
+\texttt{temperature=0}), so the trajectories are not guaranteed to repeat.
+These are historical recorded outcomes, not a controlled successor study;
+later runtime repairs do not retroactively validate their judgments.
 
 \subsection{Methodological transparency: superseded V7}
 \label{sec:v7-superseded}
@@ -843,11 +833,158 @@ any silent shift in an overlay, the vocabulary, or the matcher turns CI red
 (12 of 88 v10 verdicts already differ from V8, behavior the V8 lock could not
 see); and the structural check-linter. These guard \emph{reproducibility and
 non-drift}, which is complementary to---not a substitute for---correctness: a
-locked verdict that is wrong stays wrong until the gold set or physician
-review catches it. We report all metrics at the \texttt{v10} channel (the
+locked verdict that is wrong stays wrong until additional evidence or
+review exposes it. Historical metrics retain their recorded rubric channel;
+the post-audit frontier comparison uses the \texttt{v10} channel (the
 strictest populated, regression-locked channel); a \texttt{v11} consensus
 channel exists but is empty by design and its proposer is unaudited, so we do
 not rely on it.
+
+% ============================================================
+\section{Automated Engineering Evidence}
+\label{sec:engineering}
+% ============================================================
+
+\subsection{Method and separation of evidence}
+The current project is conducted by one physician-engineer author with
+AI-assisted development and automated tests, execution capture, verification,
+and report generation. Synthetic scenarios and their expected source ledgers
+share the project's authoring process. Separately implemented verifiers and
+agent-based development reviews are engineering checks, not independent
+physician adjudication. The automated workflow can run and publish without a
+human-in-the-loop step. External clinical review is a possible future study,
+not a completed result or a condition of this software release.
+
+Historical benchmark trajectories are immutable. New task profiles, local
+model cohorts, and diagnostic reports carry their own source and configuration
+identities; they do not silently replace earlier scores. The development
+cohort below has no clinical benchmark score and does not modify the primary
+evaluation reward in Eq.~\ref{eq:reward}. Its mechanical verification asks
+whether recorded source facts and identities survived retrieval and storage,
+not whether those source assertions constitute medical truth.
+
+\subsection{Source fidelity and execution integrity}
+The current native projections retain authored care and imaging assertions,
+raw source fields, explicit temporal precision, and missing information.
+An order, a reported administration, and a pending study remain distinct;
+a documentation timestamp is not silently promoted to a measurement time.
+Linked-history and roster profiles expose selected task facts through real
+tools without manufacturing absent clinical observations. Their witnesses
+establish bounded task reachability and source conservation, not that every
+historical task is clinically valid or solvable.
+
+Execution now preserves partial traces on provider and tool failures,
+validates finite JSON before dispatch, and distinguishes a failed response
+from a known world-state outcome. Retry keys bind the request, while changed
+requests conflict instead of silently reusing a previous mutation. Resumption
+retains earlier attempts. Assessment entry points reject empty rubrics;
+standalone grading refuses to replace existing outputs. The explicit
+simulation entry point produces unassessed smoke evidence rather than
+model-labelled benchmark scores. Reports keep errors, unknown completion,
+ungraded criteria, and recorded verdicts separate. These are software
+contracts demonstrated by regression tests, not clinical outcome findings.
+
+Semantic task validity remains incomplete. Documented replay counterexamples
+show that IR-001-C03 credits a bed/resource lookup for a drug cross-reactivity
+assertion, that IR-002 tool-name checks can credit another patient's or empty
+history, and that SCJ-012-C02's historical overlay accepts an unrelated
+medication order for an antibiotic-and-timing assertion. The historical task
+contracts remain unchanged; the isolated linked-history profile is a new
+engineering experiment, not a correction to old scores. These cases, recorded
+in \texttt{docs/TASK\_VALIDITY\_FINDINGS.md}, show why a passing curated grader
+regression set does not establish rubric-wide semantic validity. Task-authoring
+metadata also retains schema mismatches; syntactic reachability and execution
+tests are not claims of full task-schema conformance.
+
+The frozen engineering checkpoint reports $4{,}588$ passed % CN:engineering_tests_passed
+and $58$ skipped tests. % CN:engineering_tests_skipped
+Its inventoried candidate passes lint; the wider working tree still contains
+$115$ unrelated archive lint findings. % CN:engineering_archive_lint
+The receipt binds those outcomes to source inputs and commands
+\citep{healthcraft_engineering2026}. A passing test suite cannot certify
+unrepresented clinical cases, source correctness, or deployment safety.
+
+A separate source-preserving FHIR export comprises $6$ bundles % CN:fhir_source_bundles
+with $99$ resources. % CN:fhir_source_resources
+The official validator reported $0$ errors/fatals, % CN:fhir_source_errors
+$99$ warnings and $33$ information issues % CN:fhir_source_notices
+with external terminology and HTTP access disabled. Warnings concerned
+missing optional narrative; information issues retained unavailable MIME-type
+terminology validation. This is structural/FHIRPath evidence for the exact
+exported bytes, not complete FHIR conformance or validation of the entire
+clinical entity graph \citep{healthcraft_fhir2026}.
+
+\subsection{Local source-reconciliation cohort}
+The development casebook contains $8$ exposed synthetic cases, % CN:local_cases
+not a held-out clinical evaluation set. They vary identity, encounter scope,
+source multiplicity, conflicting assertions and unknown values. A public
+instruction asks the agent to discover records, preserve their literal
+source values and pointers, record exclusions and unresolved conflicts,
+write a reconciliation note, and retrieve it again. Private expected source
+ledgers are withheld from model inputs, but their shared authoring provenance
+precludes a claim of independently adjudicated ground truth.
+
+The frozen plan assigns one attempt to each case/model pair, for
+$16$ scheduled attempts, with no retries or output repair. % CN:local_attempts
+Both local models use the same text-JSON command interface and initial public
+messages for a given case; MedGemma is not credited with native tool-calling
+support. Native Ollama requests use a pinned command schema, installed weight
+digests and runtime identity. Context and output limits are
+$32{,}768$ and $4{,}096$ tokens; % CN:local_token_limits
+the seed is $42$ with temperature zero and thinking disabled. % CN:local_sampling
+The limits are $16$ responses, a $240$-second request timeout and a % CN:local_execution_limits
+$900$-second outer attempt deadline. No hosted judge, paid fallback or
+additional weight download is used in this cohort. Exact aliases, digests,
+settings and the fixed order are recorded in the frozen plan
+\citep{healthcraft_local2026}.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Model & Complete/scheduled & Tool calls & Stored notes & Read back & Full contract \\
+\midrule
+Nemotron Nano & 8/8 & 44 & 8 & 0 & 0 \\ % CN:local_nano_summary
+MedGemma & 7/8 & 57 & 7 & 2 & 0 \\ % CN:local_medgemma_summary
+\bottomrule
+\end{tabular}
+\caption{Frozen local development cohort. ``Read back'' counts actual retrieval
+of stored note text, irrespective of content correctness. ``Full contract''
+requires source-faithful content as well as execution, persistence and readback.
+These counts are not clinical scores or evidence of a model ranking.}
+\label{tab:local-engineering}
+\end{table}
+
+All scheduled attempts are retained. There are $15$ completed executions % CN:local_completed
+and $1$ tool-error termination, % CN:local_failed
+with $116$ recorded model request attempts % CN:local_requests
+and $101$ native tool calls. % CN:local_tool_calls
+The cohort contains $15$ physically stored notes % CN:local_stored_notes
+and $2$ actual stored-text readbacks, % CN:local_literal_readbacks
+but $0$ full mechanical passes. % CN:local_mechanical_passed
+The failed execution passed a patient identifier where an encounter identifier
+was required and stopped after the native lookup error. Completed runs include
+incorrect source pointers, omitted or misattributed records, and malformed
+note content. Some runs preserve a conflict group or source values while
+failing other requirements. The recorded strict persistence/readback checks
+include content correctness, so a false check must not be read as absence of
+physical storage or retrieval. Appendix~\ref{app:engineering-reproduction}
+identifies the source-bound evidence and diagnostic distinction.
+
+\subsection{Optional developer inspection}
+Offline reports and the optional workbench expose completion, acknowledged
+writes, stored records, readback and source differences separately. Raw and
+assisted views retain the same original documents; assisted observations link
+to exact captured values rather than prefilled judgments. On-demand source
+inspection preserves numeric lexemes and distinguishes missing values from
+JSON null. Explicit draft import and export retain unfinished work without
+autosave, network services or invented timing. These interfaces support
+engineering investigation; they are neither a required human approval step
+nor evidence that human review occurred. The demonstration uses exposed
+captures and software-authored reviewer fixtures. No browser visual QA,
+participant study, measured time saving, or report-validity outcome from an
+independent reviewer is claimed \citep{healthcraft_workbench2026}.
 
 % ============================================================
 \section{Limitations and Future Work}
@@ -868,10 +1005,10 @@ rubric in a seeded synthetic clinical tool-use environment; it does not
 measure clinical reasoning under uncertainty, calibrated risk
 judgement, or deployment-time behaviour. Safety is operationalized as
 binary criterion satisfaction with a hard gate, not as dynamic risk
-tradeoff management. Determinism here is \emph{environmental}---a fixed seed
-(seed=42) over entities, noise, and scheduling, plus static patient
-state---a methodological requirement for reproducible evaluation, distinct
-from the stochastic variability that deployment confronts. Model
+tradeoff management. Seeded generation controls selected environmental
+variation but does not eliminate wall-clock metadata or due-time differences
+(\S\ref{sec:determinism}). Stored inputs are necessary for exact replay;
+seed equality alone does not establish it. Model
 \emph{sampling} is not deterministic for current frontier models: Opus 4.7+
 and gpt-5.5 no longer support \texttt{temperature=0}
 (\S\ref{sec:determinism}), so their runs reproduce only up to the fixed
@@ -937,9 +1074,10 @@ pending further review. These tiers are analytical recommendations:
 the runtime loader applies all configured channel entries without a
 tier filter. The partial mitigation
 is to prefer \texttt{world\_state} at authoring time and to apply
-Tier~1 overlays where available; the full mitigation is
-physician-in-the-loop adjudication, which is underway on a related
-corpus and will be ported to HealthCraft criteria in a follow-up.
+Tier~1 overlays where available. Further automated counterexamples and
+source-bound checks can improve engineering validity. An independent clinical
+adjudication study could assess agreement with physicians; none is reported
+here, and no such study is required to run or publish this engineering workflow.
 Most consequentially, the 2026-05-31 grader-fidelity audit
 (\S\ref{sec:grader-superseded}) found the production-default judge failed
 \emph{open}---on unparseable or truncated output it returned
@@ -955,7 +1093,7 @@ protocol are not included in the released case artifact. This measures
 grader \emph{mechanics} on curated cases, not a population clinical-error
 rate; clinical agreement with physicians remains the open item.
 
-\paragraph{Residual grader gaps and the deployment gate.}
+\paragraph{Residual grader gaps and claim limits.}
 Three residuals we state plainly. (i)~The corrected drug gates match curated
 \texttt{em\_vocab} \emph{classes}, but those classes are hand-maintained
 allowlists with known omissions (\texttt{thrombolytic} lacks
@@ -963,13 +1101,16 @@ reteplase/streptokinase; \texttt{anticoagulant} lacks dalteparin/tinzaparin),
 so the member-not-class failure mode is \emph{narrowed, not eliminated}---an
 external drug ontology (RxNorm/ATC) is the durable fix. (ii)~The neutral judge
 used for the frontier run (grok-4) has \emph{unmeasured} clinical agreement
-(no $\kappa$); fail-closed grading makes its error direction conservative
-(Pass@1 biased low, safety-failure high) but the magnitude is unknown.
+(no $\kappa$). Fail-closed parsing assigns a failed criterion to an
+unparseable response, preventing that parser failure from creating a pass.
+This does not establish the direction of aggregate grading error: semantic
+false passes and false failures remain possible, and their combined magnitude
+and direction are unknown.
 (iii)~No deployment-readiness claim follows from any HealthCraft result: a
-held-out, prospective, physician-blind validation is a hard prerequisite
-(tracked as issue~\#10), and a model trained against this reward is a research
-artifact behind a \texttt{ResearchArtifactMetadata} firewall, not a deployable
-system.
+held-out, prospective clinical validation has not been performed, and
+a model trained against this reward is a research artifact behind a
+\texttt{ResearchArtifactMetadata} firewall. This lack limits the claims; it
+does not block publication of the automated engineering evidence.
 
 \paragraph{Infrastructure-bug isolation.}
 The V7-to-V8 delta (\S\ref{sec:v7-superseded}) is reported as a bundle
@@ -1001,7 +1142,7 @@ under-samples action-negative ones where the correct
 behaviour is restraint. As a shipped structural fix we
 committed a $10$-task % CN:neg_tasks
 negative-class slate (NEG-001 through NEG-010,
-Appendix~\ref{app:v9-overlay}) adding $82$ criteria, % CN:neg_criteria
+Appendix~\ref{app:v9-overlay}). Its current inventory contains $68$ criteria, % CN:neg_criteria
 of which $14$ are safety-critical. % CN:neg_safety_critical
 The current live inventory contains $205$ tasks % CN:post_neg_tasks
 and $2{,}323$ criteria, measured independently of the frozen V8 counts. % CN:post_neg_criteria
@@ -1022,8 +1163,9 @@ observed NEG-criterion prevalence is $0.929$. % CN:neg_smoke_crit_prev
 Restraint criteria are trivially satisfied whenever the
 agent has been trained against the specific over-action the
 criterion forbids, so the kappa-paradox mitigation that
-remains open is physician adjudication of the Tier~2 subset
-(Appendix~\ref{app:v9-overlay}), not further task authoring.
+requires additional evidence about reference-label validity and task
+prevalence (Appendix~\ref{app:v9-overlay}); independent clinical adjudication
+is one possible future study, not an ongoing or required release step.
 
 \paragraph{Evaluation-to-training boundary.}
 Equation~\ref{eq:reward} remains the evaluation reward. The implemented
@@ -1041,7 +1183,7 @@ boundary requires a soft-gate/hard-gate ablation, restraint-criterion
 reweighting, and reward-hacking probes that we leave as future work.
 
 \paragraph{Underpowered for scaling-law claims.}
-Two-model main results (Gemini~3.1~Pro pending) are diagnostic but
+The historical two-model main results are diagnostic but
 underpowered for scaling-law claims. Corecraft Table~1 reports six
 frontier configurations; we cite it where broader context is needed
 and defer our own scaling analysis.
@@ -1051,8 +1193,8 @@ Clinical validation of the optional dynamic-state model; live external
 RL training runs (Megatron + SGLang + GRPO per Corecraft \S5.2);
 training-reward ablations; task-set scaling to a
 $\sim\!1000$-task training split kept disjoint from the
-evaluation split; physician-adjudication data on HealthCraft
-criteria; further controlled evaluation on the
+evaluation split; optional independent clinical assessment of HealthCraft
+criteria; comparative developer/operator studies; further controlled evaluation on the
 post-NEG $205$-task corpus.
 
 % ============================================================
@@ -1060,35 +1202,29 @@ post-NEG $205$-task corpus.
 \label{sec:conclusion}
 % ============================================================
 
-HealthCraft is a reinforcement-learning environment for emergency
-medicine built to be honest about what it measures. Its synthetic
-in-memory world state, FHIR-R4-shaped representations, and 24-tool MCP
-surface support clinical workflow experiments; the dual-layer rubric
-with its hard safety gate reflects the way emergency medicine
-actually weighs tradeoffs; and the 195-task benchmark is traceable
-back to OpenEM's peer-reviewed clinical sources.
+HealthCraft provides a synthetic clinical tool-use environment and an
+automated engineering workflow for inspecting agent execution. Its current
+contribution is measurable evidence preservation: source assertions remain
+attributable, interrupted attempts remain visible, and physical actions are
+reported separately from strict content verdicts. The primary rubric remains
+an authored research measure, not a clinical-safety certificate.
 
-The V8 results are not triumphant. Frontier models pass
-one task in four (Claude) or one in eight (GPT-5.4) at
-Pass@1. One trial in three contains a safety-critical violation.
-Multi-step workflows collapse almost completely. These are not the
-numbers a deployment decision would be based on, and that is the
-point: the environment's job is to make those numbers visible, with
-confidence intervals, so that the deployment conversation can be
-honest.
+Historical benchmark results are preserved under their original grading
+conditions, including the documented defects. The newer local development
+cohort demonstrates why successful termination and a persisted note do not
+establish faithful reconciliation. It does not establish clinical performance,
+reliable model ordering, operator benefit or superiority to competing systems.
 
-The harness, the world-state seed, the 24-tool server, the 195 tasks
-and their 2{,}255 criteria, the rubric, the cross-vendor judge rules,
-and the Docker bundle are all released under Apache~2.0
+The single-author workflow publishes source, tests, immutable traces and
+limitations without requiring a human approval stage. Optional review tools
+provide additional inspection paths; prospective clinical and comparative
+user validation remain research opportunities. The environment, task suite
+and evaluation code are available under Apache~2.0
 \ifanon at a URL redacted for blind review\else at
-\url{https://github.com/GOATnote-Inc/healthcraft}\fi. The environment
-scaffolds coupling to a Megatron+SGLang+GRPO training loop per
-Corecraft~\S5.2; training-reward ablations are future work given
-the restraint-prevalence finding in Appendix~\ref{app:v9-overlay}
-and the Evaluation-to-training boundary in \S\ref{sec:limits}. We encourage
-others to break the environment, extend the task suite, and report
-results.
+\url{https://github.com/GOATnote-Inc/healthcraft}\fi;
+third-party integrations retain their own notices. The external RL coupling
+and experimental training reward require separate empirical evaluation.
 
 % Figures 1 and 2 are defined inline in Section 3 where they are
-% first referenced; figures 3-5 (auto-generated by
+% first referenced; figures 3-5 (frozen historical outputs of
 % scripts/generate_paper_figures.py) are included inline in Section 7.

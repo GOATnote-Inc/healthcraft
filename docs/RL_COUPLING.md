@@ -8,10 +8,11 @@ Implementation lives under `src/healthcraft/rl/`.
 
 > **Score ≠ clinical readiness.** A policy trained against HealthCraft is a
 > research artifact. A strong HealthCraft training score does NOT constitute
-> evidence of clinical readiness. Held-out prospective validation by a
-> physician reviewer blind to model identity is required before any
-> deployment conversation. This is non-negotiable; the rest of this doc
-> assumes it.
+> evidence of clinical readiness. Independent, held-out prospective clinical
+> validation is optional future research; clinical readiness remains unproven.
+> Human review is not required for a research-software or paper release. The
+> [automated release workflow](RELEASE_EVIDENCE_PLAN.md) preserves the
+> research-artifact boundary and separates publication from clinical use.
 
 > **Empirical training-safety remains future work.** The whitepaper names
 > three items still open: soft-gate/hard-gate ablation, restraint-criterion

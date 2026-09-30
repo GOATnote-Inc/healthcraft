@@ -1,9 +1,11 @@
 # Execution and report integrity
 
 These local repairs address reproducible software defects at `5cd2955`.
-They are ordinary development work, not the gated formal red team, independent
-clinical calibration or evidence of superiority. Historical results, task
-YAML, rubric overlays and verdict fixtures are unchanged.
+They are ordinary development work, not a formal red-team campaign, clinical
+calibration or evidence of superiority. Historical results, task YAML, rubric
+overlays and verdict fixtures are unchanged. Publication follows the
+[automated release workflow](RELEASE_EVIDENCE_PLAN.md); external human review
+is not an engineering-release dependency.
 
 ## Execution evidence survives interrupted work
 

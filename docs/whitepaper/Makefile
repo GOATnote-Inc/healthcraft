@@ -6,7 +6,7 @@
 #   - output/whitepaper_anonymous.pdf (blind review)
 #
 # Aligned with:
-#   - NeurIPS 2026 Datasets & Benchmarks Track submission
+#   - Named research preprint and optional anonymous review copy
 #   - arXiv preprint requirements
 #   - GitHub Actions CI compatibility
 #
@@ -22,13 +22,15 @@
 # Tools (override for CI if needed)
 PDFLATEX ?= pdflatex
 BIBTEX ?= bibtex
+PYTHON ?= python3
+ARXIV_OUT ?= output/arxiv
 
 # Directories
 OUT = output
 SRC = .
 
 # CI-safe flags (no interactive prompts, fail fast)
-PDFLATEX_FLAGS = -interaction=nonstopmode -halt-on-error -file-line-error
+PDFLATEX_FLAGS = -interaction=nonstopmode -halt-on-error -file-line-error -no-shell-escape -recorder
 RM = rm -f
 
 # Expected outputs
@@ -63,8 +65,8 @@ setup:
 named: setup
 	@echo "Building named version..."
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_named.tex > /dev/null
-	@-cp references.bib $(OUT)/ 2>/dev/null || true
-	@-cd $(OUT) && BIBINPUTS=".:.." $(BIBTEX) build_named > /dev/null 2>&1 || true
+	@cp references.bib $(OUT)/
+	@cd $(OUT) && BIBINPUTS=".:.." $(BIBTEX) build_named > build_named.bibtex.log 2>&1
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_named.tex > /dev/null
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_named.tex > /dev/null
 	@cp $(OUT)/build_named.pdf $(NAMED_PDF)
@@ -77,8 +79,8 @@ named: setup
 anonymous: setup
 	@echo "Building anonymous version..."
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_anonymous.tex > /dev/null
-	@-cp references.bib $(OUT)/ 2>/dev/null || true
-	@-cd $(OUT) && BIBINPUTS=".:.." $(BIBTEX) build_anonymous > /dev/null 2>&1 || true
+	@cp references.bib $(OUT)/
+	@cd $(OUT) && BIBINPUTS=".:.." $(BIBTEX) build_anonymous > build_anonymous.bibtex.log 2>&1
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_anonymous.tex > /dev/null
 	@$(PDFLATEX) $(PDFLATEX_FLAGS) -output-directory=$(OUT) build_anonymous.tex > /dev/null
 	@cp $(OUT)/build_anonymous.pdf $(ANON_PDF)
@@ -117,7 +119,7 @@ verify:
 	fi
 	@# Canonical numbers audit (if verify script present)
 	@if [ -f ../../scripts/verify_canonical_numbers.py ]; then \
-		python3 ../../scripts/verify_canonical_numbers.py || (echo "FAIL: canonical numbers mismatch" && exit 1); \
+		$(PYTHON) ../../scripts/verify_canonical_numbers.py || { echo "FAIL: canonical numbers mismatch"; exit 1; }; \
 		echo "PASS: Canonical numbers audit"; \
 	else \
 		echo "WARN: scripts/verify_canonical_numbers.py not found - skipping audit"; \
@@ -154,18 +156,8 @@ distclean: clean
 # ============================================================
 
 arxiv: named
-	@echo ""
-	@echo "Preparing arXiv submission..."
-	@mkdir -p arxiv_submission
-	@cp content.tex arxiv_submission/
-	@cp appendix.tex arxiv_submission/
-	@cp metadata.tex arxiv_submission/
-	@cp build_named.tex arxiv_submission/ms.tex
-	@cp references.bib arxiv_submission/ 2>/dev/null || true
-	@cp -r figures arxiv_submission/ 2>/dev/null || true
-	@cp -r sty arxiv_submission/ 2>/dev/null || true
-	@echo "arXiv submission prepared in arxiv_submission/"
-	@echo "   Upload arxiv_submission/ directory to arXiv"
+	@$(PYTHON) ../../scripts/build_arxiv_submission.py --output-dir "$(ARXIV_OUT)"
+	@echo "Upload $(ARXIV_OUT)/healthcraft-arxiv-source.tar.gz with top-level file ms.tex"
 
 # ============================================================
 # Help
@@ -182,5 +174,5 @@ help:
 	@echo "  make ci         Full CI pipeline (clean + all + verify)"
 	@echo "  make clean      Remove build artifacts"
 	@echo "  make distclean  Remove all PDFs"
-	@echo "  make arxiv      Prepare arXiv submission package"
+	@echo "  make arxiv      Prepare a fresh archive (override ARXIV_OUT to use another destination)"
 	@echo "  make help       Show this help"

@@ -10,6 +10,10 @@ on:
       - "docs/whitepaper/**"
       - "scripts/generate_paper_figures.py"
       - "scripts/verify_canonical_numbers.py"
+      - "scripts/build_arxiv_submission.py"
+      - "src/healthcraft/trajectory.py"
+      - "pyproject.toml"
+      - "constraints-security.txt"
       - "results/pilot-v*/**"
       - ".github/workflows/whitepaper.yml"
   pull_request:
@@ -18,6 +22,10 @@ on:
       - "docs/whitepaper/**"
       - "scripts/generate_paper_figures.py"
       - "scripts/verify_canonical_numbers.py"
+      - "scripts/build_arxiv_submission.py"
+      - "src/healthcraft/trajectory.py"
+      - "pyproject.toml"
+      - "constraints-security.txt"
       - "results/pilot-v*/**"
       - ".github/workflows/whitepaper.yml"
 
@@ -39,17 +47,9 @@ jobs:
       - name: Install Python deps for figure generation
         run: |
           python -m pip install --upgrade pip
-          pip install matplotlib
+          pip install -c constraints-security.txt -e . matplotlib
 
-      - name: Cache TeX Live
-        id: cache-texlive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: /usr/local/texlive
-          key: texlive-2024-${{ runner.os }}
-
-      - name: Install TeX Live (if cache miss)
-        if: steps.cache-texlive.outputs.cache-hit != 'true'
+      - name: Install TeX Live and Poppler
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -64,11 +64,12 @@ jobs:
             biber \
             poppler-utils
 
-      - name: Install poppler-utils (always, for pdftotext)
-        run: sudo apt-get install -y poppler-utils
-
-      - name: Generate figures
-        run: python scripts/generate_paper_figures.py
+      # Historical pilot aggregates are not all distributed in Git. Compile
+      # the reviewed, tracked figure snapshots; regenerating with missing
+      # inputs would silently replace them with empty charts.
+      - name: Verify frozen figure snapshots
+        working-directory: docs/whitepaper
+        run: shasum -a 256 -c figures/SHA256SUMS
 
       - name: Verify canonical numbers
         run: python scripts/verify_canonical_numbers.py
@@ -76,6 +77,28 @@ jobs:
       - name: Build whitepaper (named + anonymous)
         working-directory: docs/whitepaper
         run: make ci
+
+      - name: Build and compile arXiv source archive
+        run: |
+          python scripts/build_arxiv_submission.py --output-dir docs/whitepaper/output/arxiv
+          mkdir -p "$RUNNER_TEMP/healthcraft-arxiv"
+          tar -xzf docs/whitepaper/output/arxiv/healthcraft-arxiv-source.tar.gz -C "$RUNNER_TEMP/healthcraft-arxiv"
+          cd "$RUNNER_TEMP/healthcraft-arxiv"
+          pdflatex -interaction=nonstopmode -halt-on-error -no-shell-escape ms.tex
+          bibtex ms
+          pdflatex -interaction=nonstopmode -halt-on-error -no-shell-escape ms.tex
+          pdflatex -interaction=nonstopmode -halt-on-error -no-shell-escape ms.tex
+          if grep -E 'undefined|multiply defined' ms.log; then
+            echo "Unresolved arXiv references"
+            exit 1
+          fi
+
+      - name: Upload arXiv sources and manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: whitepaper-arxiv-source
+          path: docs/whitepaper/output/arxiv/*
+          if-no-files-found: error
 
       - name: Upload named PDF
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -139,13 +139,12 @@ and specify the next versioned reference-execution certificate.
 
 ## Subsequent local development checkpoint
 
-The user subsequently required demonstrated comparative end-user and
-healthcare value before formal red-team review, remote-main publication,
-and further manuscript updates. The [release evidence plan](RELEASE_EVIDENCE_PLAN.md)
-records that order and proposed measurements. This checkpoint is local
-engineering work; it does not satisfy the comparative-value gate. The
-earlier draft PR remains a prior engineering checkpoint, and the paper has
-not received additional edits during this phase.
+At this historical checkpoint, work remained local under an earlier
+comparative-value and formal-red-team publication sequence; the paper was not
+updated during that phase. The subsequent 2026-09-30 user direction supersedes
+that sequence with the [automated release workflow](RELEASE_EVIDENCE_PLAN.md).
+Human review and operator studies are future research, not publication
+prerequisites. The findings and evidence below retain their original scope.
 
 Additional TDD repairs:
 

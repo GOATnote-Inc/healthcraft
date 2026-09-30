@@ -131,7 +131,8 @@ incomplete new directory without a completion manifest; retain it and use a new
 directory for another attempt. Hashes identify content and detect accidental
 changes; they do not authenticate authorship or execution.
 
-The next evidence step remains a registered study with fresh cases, independent
-outcome adjudication and all assigned opportunities retained. Clinical claims
-also require independent clinical validation. The release order remains
-[value evidence, then formal red team, then remote main and manuscript](RELEASE_EVIDENCE_PLAN.md).
+This tutorial is an optional developer diagnostic, not a required evaluation or
+release step. A future operator study would need fresh cases, defined outcome
+assessment and all assignments retained; clinical claims need separate clinical
+evidence. Repository and paper publication follow the
+[automated release workflow](RELEASE_EVIDENCE_PLAN.md).

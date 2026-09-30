@@ -323,8 +323,9 @@ overlay entries is assigned one of three analytical recommendation tiers:
   Disagreement labels are a subset of $\{$\texttt{judge\_hallucination},
   \texttt{infrastructure\_error}$\}$. The overlay is
   plausibly correct and the judge is plausibly at fault,
-  but the recommendation is to withhold it from reward until physician
-  adjudication has confirmed the direction.
+  but agreement with either grader does not resolve correctness. The
+  historical research-only designation calls for additional validation;
+  it is not a human-approval condition on software execution or publication.
   \item \textbf{Tier 3 (keep \texttt{llm\_judge}):
   $8$ entries.} % CN:v9_tier3_count
   At least one disagreement carries a label outside the
@@ -343,26 +344,23 @@ not automatically restrict reward computation to the recommended
 Tier~1 subset.
 
 \paragraph{Why $\kappa \ge 0.80$ is the wrong gate here.}
-Cohen's $\kappa$ treats the reference grader as ground
-truth. The disagreement taxonomy shows that treatment is
-unsafe for this audit: $73\%$ of observed disagreements
-trace to judge false positives, not overlay faults. A
-perfect overlay audited against a judge with
-$\sim 23\%$ false-positive rate on the audited subset
-cannot reach $\kappa \ge 0.80$. This is an instance of the
-kappa paradox in the high-prevalence regime (V8 PASS
-prevalence
+Cohen's $\kappa$ measures agreement, not correctness. Treating the
+reference grader as ground truth would be unsupported here: the audit
+classified $73\%$ of observed disagreements % CN:v9_judge_halluc_pct
+as judge false positives rather than overlay faults. A
+comparison against an erroneous reference does not by itself identify
+which grader is correct. Kappa is also sensitive to class prevalence;
+a threshold alone cannot establish semantic validity. The V8 PASS
+prevalence was
 $79.5\%$ % CN:v9_v8_prev_overall
-on the audited subset): agreement is dominated by the
-shared positive class, and the chance-agreement
-denominator grows faster than the observed-agreement
-numerator. The honest statistic for
+on the audited subset. Raw agreement and the classified disagreements
+therefore supply necessary context for kappa. A descriptive statistic for
 \emph{reliability-of-overlay-given-noisy-judge} is raw
 agreement paired with the disagreement taxonomy; the
 honest statistic for
 \emph{reliability-of-judge-given-physician-adjudicated-truth}
-is $\kappa$ against an adjudicated subset, which is
-underway in a follow-up.
+would require independently adjudicated reference labels. Such labels
+are not available in this release; no adjudication study is claimed to be underway.
 
 \paragraph{Prevalence correction: negative-class task slate.}
 \label{app:v9-neg}
@@ -370,9 +368,8 @@ The kappa paradox in Table~\ref{tab:v9_cat_agreement}
 is driven by a structural imbalance, not a measurement
 artefact: the audited subset has a V8-PASS prevalence of
 $79.5\%$, % CN:v9_v8_prev_overall
-so even a well-calibrated overlay cannot reach
-$\kappa\ge 0.80$ without first re-balancing what the
-benchmark measures. The V8 task slate is dominated by
+which motivates examining reference validity and class balance separately;
+it does not establish a universal upper bound on kappa. The V8 task slate is dominated by
 scenarios where the correct behaviour is to \emph{act}
 (order the CT, start the antibiotic, escalate the
 disposition); it under-samples scenarios where the
@@ -382,10 +379,8 @@ syncope with clean workup, no opioid for acute
 mechanical back pain). The structural fix, shipped in
 this release, is a $10$-task % CN:neg_tasks
 negative-class slate committed to the task corpus in
-which every criterion tests for restraint and is graded
-by a \texttt{world\_state} predicate of the form
-\texttt{audit\_log does NOT contain \ldots}. The slate
-adds $82$ criteria % CN:neg_criteria
+which adds restraint scenarios alongside positive action and documentation
+criteria. Its current inventory contains $68$ criteria % CN:neg_criteria
 ($14$ safety-critical), % CN:neg_safety_critical
 distributed across four categories: four
 safety-critical-judgment tasks (NEG-001 low-risk chest
@@ -439,22 +434,19 @@ PASS-rate regime, which neither pure-restraint nor
 pure-action tasks reliably produce. The Appendix F target
 band is therefore a task-level Pass@1 target, not a
 criterion-level prevalence target; the kappa-paradox
-mitigation that remains open is physician adjudication of
-the Tier~2 subset, not further task authoring.
+question remains the validity of the reference labels and the sampling
+distribution. Independent clinical adjudication could provide additional
+evidence; it has not been performed and is not required for this release.
 
-\paragraph{Safety yield: two exposed iatrogenic patterns.}
-The pilot caught two clinically significant restraint
-failures that the V8 corpus does not surface. On NEG-007
+\paragraph{Recorded departures from authored restraint criteria.}
+On NEG-007
 (alcoholic ketoacidosis with normal glucose), $4$ of $6$ % CN:neg_smoke_aka_insulin
-trials across both models started an insulin infusion---a
-pattern that produces iatrogenic hypoglycaemia because the
-underlying acidosis is driven by starvation, not
-hyperglycaemia. On NEG-005 (hypoglycaemic aphasia as a
-stroke mimic), $2$ of $6$ % CN:neg_smoke_tpa_hypoglycemic
-trials ordered tPA/alteplase before resolving the
-hypoglycaemia---tPA in a hypoglycaemic patient is a
-well-known wrong-answer pattern. These two failures are
-the slate's primary safety yield. Three tasks (NEG-001,
+historical trials across both models started an insulin infusion.
+On NEG-005 (hypoglycaemic aphasia as a stroke mimic), $2$ of $6$ % CN:neg_smoke_tpa_hypoglycemic
+trials ordered tPA/alteplase before the task's required resolution of
+hypoglycaemia. These are recorded departures from the authored scenario
+criteria. The synthetic pilot did not observe patient harm or independently
+adjudicate the clinical appropriateness of these actions. Three tasks (NEG-001,
 NEG-003, NEG-006) were too easy, with Pass@1~$=1.00$ on
 both models; they are candidates for revision or retirement
 in a follow-up.
@@ -497,10 +489,66 @@ validator script (\texttt{scripts/kappa\_validation.py})
 takes no API dependencies and re-derives every number in
 this appendix from the V8 trajectories at
 \texttt{results/pilot-v8-\{claude-opus,gpt54\}/trajectories/}
-and the overlay YAML. Running the validator against a clean
-checkout reproduces \texttt{docs/V9\_OVERLAY\_AUDIT.json}.
+and the overlay YAML. Reproduction requires the corresponding historical
+trajectory inputs, which are not fully distributed in the checkout.
 The negative-class task files are at
-\texttt{configs/tasks/*/task\_neg\_\{001..010\}\_*.yaml} and
-pass the repository's preflight check
-(\texttt{make preflight}) against the full schema and
-runtime evaluator.
+\texttt{configs/tasks/*/task\_neg\_\{001..010\}\_*.yaml}.
+The repository's preflight checks verifier syntax reachability; it does
+not establish clinical validity, task solvability, or full task-schema
+conformance.
+
+
+% ============================================================
+\section{Reproducing the Automated Development Evidence}
+\label{app:engineering-reproduction}
+
+The local-model cohort is separate from the historical benchmark tables.
+Its plan and casebook identities were frozen before inference; the archived
+run retains the complete scheduled denominator and later inspection does not
+rewrite those captures. The following source artifacts identify the evidence
+used in Section~\ref{sec:engineering}:
+\begin{itemize}
+  \item \texttt{configs/evaluation/reconciliation\_model\_v2/local-pilot-plan.json}
+  records model aliases, full weight digests, runtime, native decoding settings,
+  public initial-message identities and execution order.
+  \item Under \texttt{artifacts/reconciliation/20260930/local-casebook-pilot-v1/},
+  \texttt{capture-summary.json} contains aggregate and per-attempt counts;
+  \texttt{run/manifest.json} binds the captured payloads and source identities.
+  Each attempt retains its execution trace, verification, controller journal
+  and model identity receipts.
+  \item The same archive's \texttt{independent-review/} directory contains a
+  separate automated development check. ``Independent'' in that artifact name
+  denotes a separate implementation/review process, not a separate clinician,
+  independent authoring cohort, or prospective human assessment.
+  \item \texttt{artifacts/validation/20260930/operator-workbench-v1/}
+  records the engineering test checkpoint and candidate lint inputs.
+  \texttt{artifacts/operator-review/20260930/workbench-v1/} retains optional
+  views of unchanged assignments, with their issuer identities and measured
+  static HTML size. Those measurements do not establish rendering latency or
+  operator performance.
+\end{itemize}
+
+Historical figure PDFs are frozen snapshots with hashes recorded in
+\texttt{docs/whitepaper/figures/SHA256SUMS}. The checkout does not include
+all historical result aggregates and trajectories needed to regenerate the
+older figures, statistics and overlay audit. Publication builds compile the
+tracked figures; they do not reconstruct missing observations. The newer
+engineering artifacts cited above are distributed separately with their
+captured inputs and integrity manifests.
+
+The aggregate outcomes are descriptive counts from one attempt per
+model/case pair. The attempt roster, source facts and expectations are exposed
+development material. No confidence interval or significance test is used to
+imply generalization from this cohort. Model request counts denote recorded
+dispatch attempts, not independent attestation of daemon inference. Source
+hashes establish consistency, not authenticity or clinical validity.
+
+A full mechanical pass requires conjunction of execution completion,
+source fidelity, provenance, correct persisted content and its readback.
+Literal action counters answer different questions: whether a write created
+any note and whether later tool output contained that stored text. The
+strict checks can therefore remain false even when a note was written and
+retrieved. Clinical and safety criteria stay unassessed, with a null benchmark
+score. A tool error is retained as an execution failure, not relabelled a
+clinical error. This distinction prevents the observed negative engineering
+outcomes from being overstated as evidence of patient harm or model safety.

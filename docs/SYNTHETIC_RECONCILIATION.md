@@ -179,9 +179,9 @@ rerun. Static source/pointer checks pass, while browser visual QA and independen
 usability testing remain unperformed.
 
 Operator-value measurement, independent clinical review and held-out
-evaluation remain unperformed. Ordinary TDD and peer
-review here are not the final formal red team. The release gate remains
-[value evidence → formal red team → remote main and manuscript](RELEASE_EVIDENCE_PLAN.md).
+evaluation remain unperformed. Ordinary TDD and peer review here are not a
+formal red-team campaign. These future research activities are separate from
+the [automated repository and paper release workflow](RELEASE_EVIDENCE_PLAN.md).
 
 The separate [operator review tutorial](OPERATOR_REVIEW.md) packages these
 recorded attempts into an offline response form with source citations. It

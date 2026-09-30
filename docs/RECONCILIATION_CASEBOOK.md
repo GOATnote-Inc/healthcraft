@@ -115,5 +115,6 @@ browser interface or visually verified workflow.
 The [v2 local-model runner](RECONCILIATION_LOCAL_MODELS.md) uses a separately
 frozen eight-case, two-model plan. Earlier v1 attempts remain unchanged.
 Independent clinical review, registered assignments, instrumented operator timing
-and held-out comparative outcomes remain separate work. The release sequence stays
-[value evidence → formal red team → main and paper](RELEASE_EVIDENCE_PLAN.md).
+and held-out comparative outcomes remain future research. They do not block
+publication of these engineering results under the
+[automated release workflow](RELEASE_EVIDENCE_PLAN.md).

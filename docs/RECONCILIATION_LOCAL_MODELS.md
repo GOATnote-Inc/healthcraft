@@ -92,5 +92,6 @@ Cases and expectations share an engineering authoring ledger. Independent human
 label review, operator timing, valid-report adjudication and registered comparison
 remain pending. One exposed attempt per model/case cannot establish reliability
 or superiority. Earlier v1 pilots remain immutable under their issuing version.
-The release order remains
-[value evidence, then formal red team, then main and paper](RELEASE_EVIDENCE_PLAN.md).
+Repository and paper publication follow the
+[automated release workflow](RELEASE_EVIDENCE_PLAN.md). Human label review and
+operator studies remain future research, not release prerequisites.

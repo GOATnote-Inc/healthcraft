@@ -5,17 +5,21 @@
 
 **Emergency Medicine RL Training Environment**
 
+[Paper PDF](https://github.com/GOATnote-Inc/healthcraft/releases/download/healthcraft-2026-09-30/healthcraft-paper.pdf)
+· [Source and evidence release](https://github.com/GOATnote-Inc/healthcraft/releases/tag/healthcraft-2026-09-30)
+· [arXiv replacement package](docs/whitepaper/ARXIV_SUBMISSION.md)
 
 > **Development status (2026-09-30):** evaluation integrity and reproducible
 > local-model testing are under active development. See the
 > [evaluation design roadmap](docs/EVALUATION_DESIGN_ROADMAP.md) for the
-> evidence required for further capability and validation claims.
+> engineering priorities and the limits of current capability claims. Repository
+> and paper releases follow the [automated evidence workflow](docs/RELEASE_EVIDENCE_PLAN.md).
 
 > **Research artifact — synthetic data only.** HEALTHCRAFT is a research
 > benchmark and RL environment, not a medical device, and must not be used
-> for clinical decision-making. Physician-blind validation
-> ([#10](https://github.com/GOATnote-Inc/healthcraft/issues/10)) is required
-> before any deployment conversation.
+> for clinical decision-making. Prospective clinical validation
+> ([#10](https://github.com/GOATnote-Inc/healthcraft/issues/10)) remains future
+> research; publishing the software or paper does not establish clinical readiness.
 
 An open-source reinforcement learning environment for training and evaluating AI agents in synthetic emergency medicine workflows. Built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with 24 tools, 14 entity types, and 6 task categories representing selected workflows of a Level I Trauma Center ED.
 
@@ -41,7 +45,8 @@ Experimental [NVIDIA NeMo Gym adapters](integrations/nemo_gym/README.md) reuse
 the local Ollama transport and source-retrieval tools. The additive
 [FHIR source export](docs/FHIR_SOURCE_EXPORT.md) preserves 33 reviewed roster
 members as linked identity resources and source documents. Both are engineering
-capabilities; the [comparative value gate](docs/RELEASE_EVIDENCE_PLAN.md) remains open.
+capabilities documented in the [release evidence plan](docs/RELEASE_EVIDENCE_PLAN.md);
+numerical superiority over other platforms is not established.
 
 The [synthetic reconciliation workflow](docs/SYNTHETIC_RECONCILIATION.md) retrieves
 eight original source rows, preserves unknowns and opposing assertions, and
@@ -51,8 +56,10 @@ no clinical criteria or benchmark performance are assessed.
 
 The opt-in [v2 development casebook](docs/RECONCILIATION_CASEBOOK.md) adds eight
 original cases with 50 source records and explicit ownership, persistence and
-capture controls. Its expectations remain engineering-authored; independent
-review and comparative operator outcomes are pending.
+capture controls. Its expectations remain engineering-authored. The
+[local casebook pilot](docs/RECONCILIATION_LOCAL_MODELS.md) preserves every
+scheduled attempt and source-linked failure; it does not establish clinical
+validity or comparative operator benefit.
 
 **Canonical: v10 grading channel** (2026-06). 205 tasks, 2,323 binary criteria
 (529 safety-critical), 3 trials per model, seed 42, one common neutral judge
@@ -69,12 +76,13 @@ collapse persists for both models (1–2% Pass@1), and that single category
 produces 79 of each model's safety failures.
 
 **Caveats** ([Red Team 2026-06](docs/RED_TEAM_2026-06.md)): grok-4 is
-unvalidated as a clinical judge (no measured kappa); fail-closed grading plus an
-unmeasured judge error rate biases Pass@1 low and safety-fail high; gpt-5.5 ran
-at temperature=1 with no provider seed, so its trajectories are not reproducible
-run-to-run. Neither model supports `temperature=0` (Opus 4.7+ deprecated the
-param; gpt-5.5 mandates the default), so reproducibility rests on seed +
-multi-trial aggregation. Methodology and full accounting:
+unvalidated as a clinical judge (no measured kappa). Fail-closed parsing withholds
+credit when a judge response cannot be parsed; it does not establish the overall
+direction of grading error, especially with the task-level false passes disclosed
+below. gpt-5.5 ran at temperature=1 with no provider seed. The world seed and
+repeated trials do not make model responses deterministic. Saved configurations
+and trajectories support inspection and replay of the recorded attempts, not
+identical future inference. Methodology and full accounting:
 [Frontier Accounting](docs/FRONTIER_ACCOUNTING_OPUS48_GPT55.md).
 
 ### Per-Category Pass@1 (v10; safety-fail counts in parentheses)
@@ -129,7 +137,7 @@ Task Engine (rubrics)     Entity Generator (OpenEM-powered)
 ```
 
 **Key properties:**
-- **Deterministic seeding** -- identical world states from identical seeds
+- **Seeded generation** -- reproducible entity identities and seeded attributes; some entity timestamps and task due-times still use the wall clock, so fresh worlds are not byte-identical
 - **Temporal spine** -- the world has an explicit simulation clock; sparse
   source profiles retain unknown arrival times as unknown
 - **Stateful mutations** -- tool calls persist across a session
@@ -156,9 +164,9 @@ evaluation-reward formula separate and unchanged.
 > **Empirical training-safety validation — soft-gate/hard-gate ablation,
 > restraint-criterion reweighting study, reward-hacking probes — remains
 > future work** per the whitepaper's Limitations §. A model trained against
-> HealthCraft is a research artifact, not deployment-ready; held-out
-> prospective physician-blind validation is required before any deployment
-> conversation.
+> HealthCraft is a research artifact, not deployment-ready. Held-out
+> prospective clinical validation remains a research objective, separate
+> from the automated software and manuscript release workflow.
 
 ## Entity Types (14)
 
@@ -257,27 +265,28 @@ python scripts/build_evidence_report.py results/<run-name> \
 ```
 
 The report preserves recorded scores and their limitations; it does not
-regrade results or establish clinical readiness. Comparative-value evidence
-and publication requirements are tracked in the
-[release evidence plan](docs/RELEASE_EVIDENCE_PLAN.md).
+regrade results or establish clinical readiness. The
+[release evidence plan](docs/RELEASE_EVIDENCE_PLAN.md) describes automated
+validation, immutable evidence and publication checks. Human review or operator
+participation is not required to run evaluations or publish engineering results.
 
-For independent criterion review, the [offline review workflow](docs/CLINICAL_REVIEW.md)
+For optional criterion review, the [offline review workflow](docs/CLINICAL_REVIEW.md)
 creates separate masked reviewer packets and private coordinator records from
 new execution-time captures. It retains every supplied attempt and pending or
 unassessed response. Imported submissions are not authenticated expert labels,
 clinical calibration, or a release approval.
 
-For captured reconciliation attempts, the [operator review tutorial](docs/OPERATOR_REVIEW.md)
+For optional inspection of captured reconciliation attempts, the [operator review tutorial](docs/OPERATOR_REVIEW.md)
 provides raw and assisted evidence views, six response questions, source
 citations and offline JSON export. Its importer preserves every assigned
 question, including pending answers and invalid submissions, for later
 adjudication. Tutorial responses do not establish operator or clinical value.
 
 The [v2 incident workflow](docs/OPERATOR_INCIDENTS.md) adds source-linked findings,
-requested versus observed record identities, and separate human validity forms
+requested versus observed record identities, and optional reviewer forms
 for the native casebook and saved local-model attempts. It preserves conflicting
-reviewer judgments and bound resolver decisions. Independent user validation is
-still pending.
+judgments and bound resolver decisions. These developer diagnostics are not a
+required production or release step, and no user-study benefit is claimed.
 The optional [offline workbench](docs/OPERATOR_WORKBENCH.md) adds on-demand
 source navigation and saved-response loading for those same assignments.
 
@@ -393,13 +402,25 @@ bug discovery, and correction. See
 - 57% of criteria use LLM judge (non-deterministic). Judge context overload
   on long trajectories is a known failure mode.
 - 3 trials per model. Confidence intervals are wide.
+- Current semantic counterexamples remain: SCJ-012-C02 accepts an arbitrary
+  medication order for timed broad-spectrum treatment; IR-001-C03 credits a
+  resource lookup as cross-reactivity evidence; IR-002 checks generic tool
+  existence rather than the complete scoped visit history. Historical tasks,
+  channels and results are retained unchanged. See
+  [Task-validity findings](docs/TASK_VALIDITY_FINDINGS.md); passing curated
+  regression cases does not establish validity of all authored criteria.
+- The declared task JSON Schema and historical YAML corpus are not fully
+  aligned: a direct schema check reports 81 violations across 64 of 205 tasks,
+  also present on the remote baseline. Most concern metadata enum values;
+  others concern literal clinical-field shapes. The loader, `healthcraft validate`
+  and structural preflight do not establish full task-schema conformance.
 - V8-era cross-vendor judging was asymmetric (each model judged by a
   different vendor). The 2026-06 frontier accounting (the canonical v10
   result above) addressed this with a common neutral third-vendor judge
   (grok-4), whose own clinical-judge reliability is unmeasured.
-- Frontier reasoning models are dropping `temperature=0` support (Opus 4.7+
-  deprecated the param; gpt-5.5 mandates the default). For those models,
-  determinism comes from seed + multi-trial aggregation, not temp=0.
+- Seeded world generation and saved-trace replay are separate from provider
+  sampling. Repeated trials measure observed variation; they do not guarantee
+  deterministic model responses or future provider behavior.
 - See [Evaluation Integrity](docs/EVALUATION_INTEGRITY.md) for the full
   audit trail and known limitations.
 

@@ -10,9 +10,10 @@ historical results remain unchanged.
 This is an engineering development workflow. Form acceptance is not evidence
 that a report is correct. The software does not authenticate reviewers, establish
 independence, or produce a clinical score, product ranking or performance estimate.
-Actual intended-user feasibility, independent validity review and a registered
-comparison remain necessary. Formal red team and publication remain behind the
-user-value gate.
+User feasibility and comparative benefit remain unmeasured. The forms and
+adjudication workflow are optional developer diagnostics; neither human review
+nor an operator study is required for the
+[automated repository and paper release workflow](RELEASE_EVIDENCE_PLAN.md).
 
 ## Issue an operator packet
 
