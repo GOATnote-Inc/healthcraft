@@ -18,6 +18,8 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 
+from healthcraft.trajectory import is_unassessed_experiment
+
 matplotlib.use("Agg")
 
 REPO = Path(__file__).resolve().parents[1]
@@ -56,8 +58,33 @@ def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (max(0.0, center - halfwidth), min(1.0, center + halfwidth))
 
 
+def _require_assessed(evidence: dict, source: str) -> None:
+    if not isinstance(evidence, dict):
+        raise ValueError(f"Paper metrics require an evidence object: {source}")
+    if is_unassessed_experiment(evidence):
+        raise ValueError(f"Paper metrics cannot use unassessed evidence: {source}")
+
+
+def _check_summaries(pilot_dir: Path) -> None:
+    # Reject mixed/ungraded evidence even when another summary has numeric
+    # metrics. Do not remove trials from the paper denominator to hide it.
+    for path in sorted(pilot_dir.glob("*.json")):
+        suffix = path.stem.removeprefix("summary-")
+        if path.name in {"summary.json", "evaluation_summary.json"} or (
+            path.stem.startswith("summary-") and suffix.isdigit()
+        ):
+            _require_assessed(json.loads(path.read_text(encoding="utf-8")), str(path))
+
+
+def _numeric_metric(value, name: str) -> float:
+    if type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value):
+        raise ValueError(f"Paper metric {name} must be a known finite number in [0, 1]")
+    return float(value)
+
+
 def load_entries(pilot_dir: Path) -> list[dict]:
     """Load experiments.jsonl; attach derived category from trajectory_path."""
+    _check_summaries(pilot_dir)
     jsonl = pilot_dir / "experiments.jsonl"
     if not jsonl.exists():
         return []
@@ -66,6 +93,11 @@ def load_entries(pilot_dir: Path) -> list[dict]:
         if not line.strip():
             continue
         entry = json.loads(line)
+        _require_assessed(entry, str(jsonl))
+        if type(entry.get("passed")) is not bool:
+            raise ValueError(f"Paper metric passed must be a known boolean: {jsonl}")
+        if "reward" in entry:
+            _numeric_metric(entry["reward"], "reward")
         if "category" not in entry and entry.get("trajectory_path"):
             parts = entry["trajectory_path"].split("/")
             if len(parts) >= 2:
@@ -78,6 +110,7 @@ def per_category_pass_rate(entries: list[dict]) -> dict[str, tuple[int, int]]:
     """Return {category: (passes, trials)} aggregated across all trials."""
     agg: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for entry in entries:
+        _require_assessed(entry, "per-category entries")
         cat = entry.get("category", "unknown")
         agg[cat][1] += 1
         if entry.get("passed", False):
@@ -87,10 +120,10 @@ def per_category_pass_rate(entries: list[dict]) -> dict[str, tuple[int, int]]:
 
 def overall_pass_rate(pilot_dir: Path) -> float:
     """Read pass_rate from summary.json if present, else compute from entries."""
+    entries = load_entries(pilot_dir)
     summary = pilot_dir / "summary.json"
     if summary.exists():
-        return float(json.loads(summary.read_text())["pass_rate"])
-    entries = load_entries(pilot_dir)
+        return _numeric_metric(json.loads(summary.read_text()).get("pass_rate"), "pass_rate")
     if not entries:
         return float("nan")
     passes = sum(1 for e in entries if e.get("passed", False))
@@ -98,10 +131,10 @@ def overall_pass_rate(pilot_dir: Path) -> float:
 
 
 def overall_avg_reward(pilot_dir: Path) -> float:
+    entries = load_entries(pilot_dir)
     summary = pilot_dir / "summary.json"
     if summary.exists():
-        return float(json.loads(summary.read_text())["avg_reward"])
-    entries = load_entries(pilot_dir)
+        return _numeric_metric(json.loads(summary.read_text()).get("avg_reward"), "avg_reward")
     if not entries:
         return float("nan")
     return sum(e.get("reward", 0.0) for e in entries) / len(entries)
@@ -244,6 +277,14 @@ def figure_5_safety_gate_scatter() -> Path:
 
 
 def main() -> None:
+    # Validate the entire planned cohort before any plotting or output creation;
+    # a later progression pilot must not leave earlier figures partially written.
+    pilots = {name for name, _ in V8_MODELS}
+    pilots.update(
+        f"pilot-{series}-{suffix}" for series in PILOT_SERIES for suffix in ("claude-opus", "gpt54")
+    )
+    for pilot in sorted(pilots):
+        load_entries(RESULTS / pilot)
     FIGURES.mkdir(parents=True, exist_ok=True)
     paths = [figure_3_per_category(), figure_4_pilot_progression(), figure_5_safety_gate_scatter()]
     for p in paths:

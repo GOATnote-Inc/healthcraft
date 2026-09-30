@@ -15,6 +15,96 @@ from pathlib import Path
 from typing import Any
 
 
+def is_unassessed_experiment(entry: dict) -> bool:
+    """Recognize explicit ungraded markers in logs, trajectories, or summaries.
+
+    Missing legacy provenance remains unknown rather than being retroactively
+    relabeled. A false marker at either level wins over any optimistic marker.
+    """
+    metadata = entry.get("metadata", {})
+    for data in (entry, metadata):
+        if not isinstance(data, dict):
+            continue
+        scenario = data.get("scenario_context", {})
+        if (
+            data.get("scenario_profile")
+            or (isinstance(scenario, dict) and scenario.get("profile_version"))
+            or data.get("evaluation_mode") == "profile_diagnostic"
+            or data.get("benchmark_comparable") is False
+            or data.get("grading_complete") is False
+            or ("benchmark_score" in data and data["benchmark_score"] is None)
+        ):
+            return True
+        ungraded = data.get("ungraded_criteria")
+        if type(ungraded) is int and ungraded > 0:
+            return True
+    return False
+
+
+def trajectory_completion(turns: Any, metadata: dict, error: Any) -> tuple[str, str]:
+    """Check explicit termination and complete tool-response linkage."""
+    if error is not None:
+        return "incomplete", "Execution interrupted by a recorded error"
+    stop = metadata.get("stop_reason")
+    if not isinstance(stop, str) or stop not in {"stop", "end_turn", "stop_sequence"}:
+        if isinstance(stop, str) and stop in {
+            "tool_round_limit",
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "error",
+            "content_filter",
+            "refusal",
+            "pause_turn",
+            "tool_calls",
+            "tool_use",
+        }:
+            return "incomplete", f"Execution did not complete normally: {stop}"
+        return (
+            "unknown",
+            "Completion provenance missing or unknown; recorded scores remain unverified",
+        )
+    if "termination_kind" in metadata and metadata["termination_kind"] != "complete":
+        return "unknown", "Final stop conflicts with termination_kind; completion is unverified"
+    if metadata.get("provider_refusal") not in (None, "", False):
+        return "unknown", "Final stop conflicts with recorded provider refusal"
+    if not isinstance(turns, list) or not turns or any(not isinstance(t, dict) for t in turns):
+        return "unknown", "Completion cannot be checked against malformed or missing turns"
+    final = turns[-1]
+    if (
+        final.get("role") != "assistant"
+        or final.get("tool_calls")
+        or not isinstance(final.get("content"), str)
+    ):
+        return "incomplete", "No terminal assistant response without tool calls"
+    pending = set()
+    for turn in turns:
+        calls = turn.get("tool_calls", [])
+        if not isinstance(calls, list):
+            return "unknown", "Malformed tool-call list prevents completion verification"
+        for call in calls:
+            call_id = call.get("id") if isinstance(call, dict) else None
+            if (
+                turn.get("role") != "assistant"
+                or not isinstance(call_id, str)
+                or not call_id
+                or call_id in pending
+            ):
+                return (
+                    "unknown",
+                    "Missing or ambiguous tool-call identity prevents response linkage",
+                )
+            pending.add(call_id)
+        if turn.get("role") == "tool":
+            call_id = turn.get("tool_call_id")
+            if not isinstance(call_id, str) or call_id not in pending:
+                return "unknown", "Tool response cannot be linked to a preceding unanswered call"
+            pending.remove(call_id)
+    if pending:
+        return "incomplete", "Unanswered tool calls remain in the recorded conversation"
+    return "complete", ""
+
+
 @dataclass
 class TrajectoryTurn:
     """A single turn in an agent interaction."""
@@ -154,6 +244,12 @@ class ExperimentEntry:
     trajectory_path: str
     timestamp: str = ""
     error: str | None = None
+    # None preserves the unknown provenance of legacy experiment rows.
+    scenario_profile: str | None = None
+    grading_complete: bool | None = None
+    benchmark_comparable: bool | None = None
+    execution_completed: bool | None = None
+    failure_stage: str | None = None
 
     def __post_init__(self) -> None:
         if not self.timestamp:
@@ -166,6 +262,16 @@ class ExperimentEntry:
     @classmethod
     def from_trajectory(cls, traj: Trajectory, trajectory_path: str) -> ExperimentEntry:
         """Create an experiment entry from a completed trajectory."""
+        metadata = traj.metadata
+        scenario = metadata.get("scenario_context", {})
+        profile = metadata.get("scenario_profile") or (
+            scenario.get("profile_version") if isinstance(scenario, dict) else None
+        )
+        unassessed = is_unassessed_experiment({"metadata": metadata})
+        completion, _ = trajectory_completion(
+            [asdict(turn) for turn in traj.turns], metadata, traj.error
+        )
+        completed = None if completion == "unknown" else completion == "complete"
         return cls(
             task_id=traj.task_id,
             model=traj.model,
@@ -178,6 +284,11 @@ class ExperimentEntry:
             trajectory_path=trajectory_path,
             timestamp=traj.timestamp,
             error=traj.error,
+            scenario_profile=profile,
+            grading_complete=False if unassessed else metadata.get("grading_complete"),
+            benchmark_comparable=False if unassessed else metadata.get("benchmark_comparable"),
+            execution_completed=completed,
+            failure_stage=metadata.get("failure_stage"),
         )
 
 

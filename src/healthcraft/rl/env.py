@@ -23,6 +23,7 @@ PR-A leaves them off and ships the contract.
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from healthcraft.mcp.faults import FaultInjector, FaultProfile
 from healthcraft.mcp.server import HealthcraftServer, create_server
 from healthcraft.rl.loss_mask import role_loss_mask
 from healthcraft.rl.types import RolloutResult
+from healthcraft.tasks.environment import prepare_task_environment
 from healthcraft.tasks.loader import Task
 from healthcraft.world.seed import WorldSeeder
 from healthcraft.world.state import WorldState
@@ -63,10 +65,10 @@ class HealthCraftEnv:
     ) -> None:
         """Args:
         world_config_path: World-seeding config (YAML/JSON). When
-            ``None``, :meth:`reset` builds an *empty* WorldState — no
-            entities, no encounters. The audit log still records tool
-            calls, so verifiable criteria over the audit log fire
-            normally. This is the form the CPU dry-run uses.
+            ``None``, :meth:`reset` starts with an empty WorldState,
+            then injects the task patient or explicit observation profile.
+            The audit log records tool calls in both configurations.
+            This is the form the CPU dry-run uses.
         dynamic_state_enabled: Forwarded to :class:`WorldState`. PR-C
             lands the closed-loop physiology that consumes it.
         fault_injection_enabled: Back-compat alias from PR-A. Now a
@@ -88,6 +90,7 @@ class HealthCraftEnv:
         self._fault_injector: FaultInjector | None = None
         self._system_prompt: str = ""
         self._episode_seed: int | None = None
+        self._scenario_context: dict = {}
 
     def reset(
         self,
@@ -96,9 +99,19 @@ class HealthCraftEnv:
         system_prompt: str,
         *,
         start_time: datetime | None = None,
+        scenario_profile: str | None = None,
     ) -> None:
         """Initialise a fresh seeded world for a new episode."""
-        self._task = task
+        # A failed reset must never leave a previous episode available under
+        # the new task, seed, or prompt.
+        self._task = None
+        self._world = None
+        self._server = None
+        self._fault_injector = None
+        self._scenario_context = {}
+        self._episode_seed = None
+        if scenario_profile is not None and self._dynamic_state_enabled:
+            raise ValueError("Unvalidated scenario profiles cannot enable dynamic state")
         self._episode_seed = int(episode_seed)
         self._system_prompt = system_prompt
 
@@ -114,6 +127,9 @@ class HealthCraftEnv:
                 dynamic_state_enabled=self._dynamic_state_enabled,
             )
 
+        self._task, self._scenario_context = prepare_task_environment(
+            world, task, profile=scenario_profile
+        )
         self._world = world
         self._server = create_server(world)
 
@@ -161,6 +177,7 @@ class HealthCraftEnv:
         # both are corrected here.
         trajectory.seed = self._episode_seed
         trajectory.model = getattr(policy_client, "_model", "unknown")
+        trajectory.metadata["scenario_context"] = deepcopy(self._scenario_context)
 
         turn_mask = role_loss_mask(trajectory)
 

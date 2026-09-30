@@ -1,4 +1,6 @@
-# IR-002 reference execution
+# Task-validity execution records
+
+## IR-002 reference execution
 
 `ir002-linked-history-v1.json` was created by:
 
@@ -32,3 +34,30 @@ not a full-task pass or model-performance result.
 
 See [the certificate contract](../../../docs/REFERENCE_CERTIFICATES.md) and
 [the original validity findings](../../../docs/TASK_VALIDITY_FINDINGS.md).
+
+## Six-task roster reference execution
+
+`roster-observations-v1.json` was created with:
+
+```bash
+.venv/bin/python scripts/certify_roster_tasks.py \
+  --output artifacts/task-validity/20260930/roster-observations-v1.json
+```
+
+Six fresh seed-42 Mercy Point worlds exposed 33 authored roster members.
+The reference controller received only patient/encounter IDs and made 66
+actual in-process MCP calls: a detail lookup and patient-history lookup for
+each member. All six independent source-concordance verifications passed.
+Source and runtime hashes captured before and after the cohort matched.
+
+All 63 original clinical criteria remain unassessed; clinical and safety
+coverage are zero and the benchmark score is null. This is a source transport
+witness, with no model, prioritization, treatment, or clinical-readiness claim.
+See the [profile contract](../../../docs/ROSTER_PROFILES.md).
+
+## IR-018-C05 content review
+
+`ir018-c05-content-review.json` preserves a bounded review of one disputed
+clinical assertion, primary-source URLs, the original task hash, and population
+limits. It does not modify the task, historical scores, or paper. Its clinical
+implications require a separately reviewed task revision.

@@ -468,11 +468,17 @@ class GeminiClient:
         # Extract system instruction
         system_text = None
         contents = []
+        # Generic IDs correlate our saved messages; Gemini's function response
+        # name must instead match FunctionCall.name. Consume IDs per roundtrip
+        # because legacy Gemini-generated IDs can recur on later turns.
+        pending_calls: dict[str, dict[str, Any]] = {}
         for msg in messages:
             role = msg["role"]
             if role == "system":
                 system_text = msg["content"]
                 continue
+            if role != "tool" and pending_calls:
+                raise ValueError("Gemini tool calls have no matching responses before next turn")
 
             # Map roles: assistant -> model, tool -> function response
             if role == "assistant":
@@ -480,16 +486,24 @@ class GeminiClient:
                 if msg.get("content"):
                     parts.append(types.Part.from_text(text=msg["content"]))
                 for tc in msg.get("tool_calls", []):
+                    tc_id = tc.get("id")
+                    if not isinstance(tc_id, str) or not tc_id:
+                        raise ValueError("Gemini tool call requires a nonempty correlation ID")
+                    if tc_id in pending_calls:
+                        raise ValueError(f"Gemini tool call ID is already pending: {tc_id}")
+                    pending_calls[tc_id] = tc
                     ts = tc.get("thought_signature")
-                    if ts:
+                    provider_id = tc.get("provider_call_id")
+                    if ts or provider_id:
                         fc = types.FunctionCall(
+                            id=provider_id,
                             name=tc["name"],
                             args=tc.get("arguments", {}),
                         )
                         parts.append(
                             types.Part(
                                 function_call=fc,
-                                thought_signature=base64.b64decode(ts),
+                                thought_signature=base64.b64decode(ts) if ts else None,
                             )
                         )
                     else:
@@ -501,23 +515,32 @@ class GeminiClient:
                         )
                 contents.append(types.Content(role="model", parts=parts))
             elif role == "tool":
-                tc_id = msg.get("tool_call_id", "")
+                tc_id = msg.get("tool_call_id")
+                if not isinstance(tc_id, str) or tc_id not in pending_calls:
+                    raise ValueError("Gemini tool response has no matching pending function call")
+                tc = pending_calls.pop(tc_id)
                 result_str = msg.get("content", "{}")
                 try:
                     result_data = json.loads(result_str)
                 except (json.JSONDecodeError, TypeError):
                     result_data = {"result": result_str}
-                contents.append(
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_function_response(
-                                name=tc_id,
-                                response=result_data,
-                            )
-                        ],
+                response_part = types.Part(
+                    function_response=types.FunctionResponse(
+                        id=tc.get("provider_call_id"),
+                        name=tc["name"],
+                        response=result_data,
                     )
                 )
+                # Parallel results belong in one user Content, in source order.
+                # Do not merge them with an ordinary user message.
+                if (
+                    contents
+                    and contents[-1].role == "user"
+                    and all(part.function_response for part in contents[-1].parts)
+                ):
+                    contents[-1].parts.append(response_part)
+                else:
+                    contents.append(types.Content(role="user", parts=[response_part]))
             else:
                 contents.append(
                     types.Content(
@@ -525,6 +548,9 @@ class GeminiClient:
                         parts=[types.Part.from_text(text=msg.get("content", ""))],
                     )
                 )
+
+        if pending_calls:
+            raise ValueError("Gemini tool calls have no matching responses")
 
         # Build tool declarations
         tool_declarations = None
@@ -585,6 +611,8 @@ class GeminiClient:
                             dict(part.function_call.args) if part.function_call.args else {}
                         ),
                     }
+                    if getattr(part.function_call, "id", None):
+                        tc_entry["provider_call_id"] = part.function_call.id
                     if getattr(part, "thought_signature", None):
                         tc_entry["thought_signature"] = base64.b64encode(
                             part.thought_signature

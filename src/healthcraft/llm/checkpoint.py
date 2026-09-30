@@ -83,6 +83,7 @@ def checkpoint_identity(
     environment: str,
     agent_settings: dict,
     judge_settings: dict,
+    scenario_profile: str | None = None,
 ) -> str:
     return content_digest(
         {
@@ -99,6 +100,7 @@ def checkpoint_identity(
             "environment": environment,
             "agent_settings": agent_settings,
             "judge_settings": judge_settings,
+            "scenario_profile": scenario_profile,
         }
     )
 

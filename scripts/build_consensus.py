@@ -58,6 +58,7 @@ from healthcraft.llm.checkpoint import selected_trajectory_paths  # noqa: E402
 from healthcraft.llm.ensemble_judge import EnsembleJudge  # noqa: E402
 from healthcraft.tasks.loader import Task, load_tasks  # noqa: E402
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod  # noqa: E402
+from healthcraft.trajectory import is_unassessed_experiment  # noqa: E402
 
 _TASKS_DIR = _PROJECT_ROOT / "configs" / "tasks"
 _DEFAULT_CACHE_DIR = _PROJECT_ROOT / "results" / "ensemble_cache"
@@ -163,12 +164,14 @@ def _iter_trajectory_files(results_dirs: Iterable[Path]) -> list[Path]:
 
 
 def _load_trajectory(path: Path) -> dict | None:
-    """Load a trajectory JSON; return None for errors/unreadable files."""
+    """Load JSON, rejecting unassessed experiments before normal error filtering."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
         print(f"[warn] skipping {path}: {e}", file=sys.stderr)
         return None
+    if is_unassessed_experiment(data):
+        raise ValueError(f"{path}: unassessed experimental trajectory cannot define consensus")
     if data.get("error"):
         return None
     if data.get("reward") is None:
@@ -263,6 +266,11 @@ def _collect_verdicts(
     }
     judge_pool: list[str] = []
 
+    # Preflight every selected immutable input, including those beyond a cost
+    # limit, before constructing any judges. Keep only paths so large raw
+    # transcripts do not all need to remain in memory at once.
+    usable_paths = {path for path in trajectory_paths if _load_trajectory(path) is not None}
+
     ensembles: dict[str, EnsembleJudge] = {}
     used = 0
 
@@ -270,7 +278,7 @@ def _collect_verdicts(
         if limit_trajectories is not None and used >= limit_trajectories:
             break
         stats["trajectories_seen"] += 1
-        traj = _load_trajectory(path)
+        traj = _load_trajectory(path) if path in usable_paths else None
         if traj is None:
             stats["trajectories_skipped_error"] += 1
             continue
@@ -656,13 +664,17 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: no trajectories found under --results", file=sys.stderr)
         return 2
 
-    verdicts, stats, judge_pool = _collect_verdicts(
-        trajectory_paths=trajectory_paths,
-        task_map=task_map,
-        cache_dir=args.cache_dir,
-        dry_run=dry_run,
-        limit_trajectories=args.limit_trajectories,
-    )
+    try:
+        verdicts, stats, judge_pool = _collect_verdicts(
+            trajectory_paths=trajectory_paths,
+            task_map=task_map,
+            cache_dir=args.cache_dir,
+            dry_run=dry_run,
+            limit_trajectories=args.limit_trajectories,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     if not verdicts:
         print(

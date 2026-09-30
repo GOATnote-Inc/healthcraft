@@ -17,6 +17,7 @@ from healthcraft.llm.checkpoint import (
     selected_trajectory_paths,
     trajectory_attempt,
 )
+from healthcraft.trajectory import trajectory_completion as _completion
 
 _ROOT = Path(__file__).resolve().parents[2]
 _STATUSES = (
@@ -105,69 +106,6 @@ def _criterion(row: Any, interrupted: bool) -> dict:
     }
 
 
-def _completion(turns: Any, metadata: dict, error: Any) -> tuple[str, str]:
-    if error is not None:
-        return "incomplete", "Execution interrupted by a recorded error"
-    stop = metadata.get("stop_reason")
-    if not isinstance(stop, str) or stop not in {"stop", "end_turn", "stop_sequence"}:
-        if isinstance(stop, str) and stop in {
-            "tool_round_limit",
-            "length",
-            "max_tokens",
-            "max_output_tokens",
-            "error",
-            "content_filter",
-            "refusal",
-            "pause_turn",
-            "tool_calls",
-            "tool_use",
-        }:
-            return "incomplete", f"Execution did not complete normally: {stop}"
-        return (
-            "unknown",
-            "Completion provenance missing or unknown; recorded scores remain unverified",
-        )
-    if "termination_kind" in metadata and metadata["termination_kind"] != "complete":
-        return "unknown", "Final stop conflicts with termination_kind; completion is unverified"
-    if metadata.get("provider_refusal") not in (None, "", False):
-        return "unknown", "Final stop conflicts with recorded provider refusal"
-    if not isinstance(turns, list) or not turns or any(not isinstance(t, dict) for t in turns):
-        return "unknown", "Completion cannot be checked against malformed or missing turns"
-    final = turns[-1]
-    if (
-        final.get("role") != "assistant"
-        or final.get("tool_calls")
-        or not isinstance(final.get("content"), str)
-    ):
-        return "incomplete", "No terminal assistant response without tool calls"
-    pending = set()
-    for turn in turns:
-        calls = turn.get("tool_calls", [])
-        if not isinstance(calls, list):
-            return "unknown", "Malformed tool-call list prevents completion verification"
-        for call in calls:
-            call_id = call.get("id") if isinstance(call, dict) else None
-            if (
-                turn.get("role") != "assistant"
-                or not isinstance(call_id, str)
-                or not call_id
-                or call_id in pending
-            ):
-                return (
-                    "unknown",
-                    "Missing or ambiguous tool-call identity prevents response linkage",
-                )
-            pending.add(call_id)
-        if turn.get("role") == "tool":
-            call_id = turn.get("tool_call_id")
-            if not isinstance(call_id, str) or call_id not in pending:
-                return "unknown", "Tool response cannot be linked to a preceding unanswered call"
-            pending.remove(call_id)
-    if pending:
-        return "incomplete", "Unanswered tool calls remain in the recorded conversation"
-    return "complete", ""
-
-
 def _trajectory(record: dict, data: dict) -> None:
     issues = record["issues"]
     metadata = data.get("metadata", {})
@@ -183,6 +121,14 @@ def _trajectory(record: dict, data: dict) -> None:
         seed=data.get("seed"),
         failure_stage=metadata.get("failure_stage", "not recorded"),
     )
+    scenario = metadata.get("scenario_context", {})
+    profile = scenario.get("profile_version") if isinstance(scenario, dict) else None
+    record["unvalidated_profile"] = bool(profile) or metadata.get("benchmark_comparable") is False
+    if record["unvalidated_profile"]:
+        issues.append(
+            f"Experimental scenario profile: {profile or 'unspecified'}. "
+            "Benchmark and safety outcomes: not assessed"
+        )
     for key in ("passed", "safety_gate_passed"):
         if type(data.get(key)) is not bool:
             issues.append(f"Missing or non-boolean {key}")
@@ -205,7 +151,9 @@ def _trajectory(record: dict, data: dict) -> None:
     if not isinstance(entries, list) or not entries:
         issues.append("No usable criterion results; expected criterion coverage unavailable")
         entries = []
-    record["criteria"] = [_criterion(row, interrupted) for row in entries]
+    record["criteria"] = [
+        _criterion(row, interrupted or record["unvalidated_profile"]) for row in entries
+    ]
     if data.get("grading_complete") is False or metadata.get("grading_complete") is False:
         issues.append("Saved metadata explicitly marks grading incomplete")
     identifiers = [row["id"] for row in record["criteria"] if isinstance(row["id"], str)]
@@ -534,11 +482,18 @@ def render_evidence(report: dict) -> str:
                 f"Failure stage: {_escape(record.get('failure_stage', 'not recorded'))}.</p>"
             )
             saved = record["data"] if isinstance(record["data"], dict) else {}
+            score_text = (
+                "Benchmark and safety outcomes: not assessed. "
+                "Stored reward, pass and gate fields are compatibility placeholders."
+                if record.get("unvalidated_profile")
+                else (
+                    f"Recorded reward: {_escape(saved.get('reward', 'missing'))}; "
+                    f"recorded pass: {_escape(saved.get('passed', 'missing'))}. "
+                    "These saved values are not revalidated benchmark scores."
+                )
+            )
             parts.append(
-                f"<p>Completion: {_escape(record.get('completion', 'unknown'))}. "
-                f"Recorded reward: {_escape(saved.get('reward', 'missing'))}; "
-                f"recorded pass: {_escape(saved.get('passed', 'missing'))}. "
-                "These saved values are not revalidated benchmark scores.</p>"
+                f"<p>Completion: {_escape(record.get('completion', 'unknown'))}. {score_text}</p>"
             )
             expected = record["expected_criteria"]
             coverage = (

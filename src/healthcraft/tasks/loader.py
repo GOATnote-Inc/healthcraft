@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,9 @@ class Task:
     rubric: dict[str, Any] | None = None
     # Literal task instructions appended after the selected default/override.
     system_prompt_append: str | None = None
+    # Private authored input for explicit observation profiles. Never appended
+    # wholesale to an agent prompt: it also contains answers and rubric data.
+    source_data: dict[str, Any] = field(default_factory=dict)
 
 
 # --- Schema validation ---
@@ -155,6 +159,7 @@ def load_task(path: Path) -> Task:
         system_prompt_override=data.get("system_prompt_override"),
         rubric=data.get("rubric"),
         system_prompt_append=data.get("system_prompt_append"),
+        source_data=deepcopy(data),
     )
 
 

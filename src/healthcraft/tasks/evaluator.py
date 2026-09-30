@@ -821,6 +821,10 @@ def replay_from_trajectory(
     Returns:
         A TaskResult re-derived from the trajectory + saved llm_judge verdicts.
     """
+    from healthcraft.trajectory import is_unassessed_experiment
+
+    if is_unassessed_experiment(trajectory):
+        raise ValueError("Unassessed trajectories have no validated benchmark replay contract")
     validate_rubric_channel(rubric_channel)
     if trajectory.get("error") is not None:
         # A partial rollout is evidence of execution failure, not a completed

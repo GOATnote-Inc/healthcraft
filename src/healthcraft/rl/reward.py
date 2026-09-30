@@ -205,6 +205,9 @@ def compute_training_reward(
         A :class:`TrainingRewardResult` with the scalar ``reward`` and the
         decomposition the anti-Goodhart canaries read.
     """
+    scenario = trajectory.metadata.get("scenario_context", {})
+    if isinstance(scenario, dict) and scenario.get("profile_version"):
+        raise ValueError("Scenario profile has no validated training reward contract")
     cfg = config or RewardConfig()
     # Apply the requested rubric overlay before classification. "v8" leaves
     # task.criteria untouched (byte-identical to evaluate_task's default);

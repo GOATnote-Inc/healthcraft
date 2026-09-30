@@ -76,6 +76,11 @@ LLM judge remain unverified; their resulting scores are incomplete diagnostics.
 The provider refuses a cloud judge for a local agent even when paid API keys
 are present in the environment.
 
+For experimental multi-patient source retrieval, use the separate
+[roster observation profile](ROSTER_PROFILES.md). Its runs are entirely
+ungraded, and summary score/safety metrics are null. This prevents an altered
+observation contract from inheriting unvalidated clinical benchmark scores.
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `HC_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Loopback Ollama origin |

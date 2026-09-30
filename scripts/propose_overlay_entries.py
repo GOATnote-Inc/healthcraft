@@ -69,6 +69,7 @@ from healthcraft.tasks.evaluator import (  # noqa: E402
 )
 from healthcraft.tasks.loader import Task, load_tasks  # noqa: E402
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod  # noqa: E402
+from healthcraft.trajectory import is_unassessed_experiment  # noqa: E402
 
 logger = logging.getLogger("healthcraft.propose_overlay")
 
@@ -258,6 +259,10 @@ def _collect_trajectories(results_dirs: list[Path]) -> list[tuple[Path, dict[str
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("skipping %s: %s", path, exc)
                 continue
+            if is_unassessed_experiment(data):
+                raise ValueError(
+                    f"{path}: unassessed experimental trajectory cannot validate overlay entries"
+                )
             if data.get("error"):
                 continue
             pairs.append((path, data))
@@ -656,6 +661,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit_criteria is not None:
         candidates = candidates[: args.limit_criteria]
 
+    # Validate the supplied evidence before any output, including the empty
+    # candidate shortcut, or proposer calls. Never silently drop profile trials.
+    try:
+        trajectories = _collect_trajectories(list(args.results))
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
     if not candidates:
         print("No candidate criteria after filtering. Nothing to do.")
         _emit_v11_overlay(args.output, ProposerOutcome(), "none", args.oracle, 0)
@@ -665,8 +678,7 @@ def main(argv: list[str] | None = None) -> int:
     tasks = load_tasks(args.tasks_dir)
     task_map = {t.id: t for t in tasks}
 
-    # Load trajectories once, index by task.
-    trajectories = _collect_trajectories(list(args.results))
+    # Index the preflighted trajectories by task.
     by_task = _index_trajectories_by_task(trajectories)
     logger.info("loaded %d trajectories across %d tasks", len(trajectories), len(by_task))
 

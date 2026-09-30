@@ -58,7 +58,7 @@ existing [research-artifact boundary](RL_COUPLING.md) continues to apply.
 |---|---|---|
 | [MedAgentBench](https://github.com/stanfordmlgroup/MedAgentBench) | EHR retrieval/action workflows through a reviewed common synthetic adapter. | Feasibility and permissions not established. Published patient-derived scores are not a baseline for new synthetic cases. |
 | [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Feasibility not established; pin repository, adapter, dependencies, and task license before use. |
-| [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | Feasibility not established; infrastructure comparison alone cannot establish clinical value. |
+| [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | A pinned local counter probe ran: five deterministic checks passed and one Nemotron trajectory remained incomplete. A completed model/tool roundtrip and a common clinical workflow remain unproven. |
 | Corecraft, Archangel Health, Baseten | Equivalent executable workflows and review procedures where accessible. | Numerical superiority is not demonstrated. Product descriptions and unrelated published scores cannot fill missing comparisons. |
 
 Adapted comparisons must be labeled as adapted. An unavailable alternative
@@ -118,12 +118,20 @@ prevent an operator from bypassing the required publication procedure.
   diagnostic labels; longer task trials remain incomplete diagnostics.
 - The opt-in IR-002 certificate proves four mechanical checks for one
   profile. It measures zero safety criteria and no clinical interpretation.
+- The [roster profile](ROSTER_PROFILES.md) makes 33 selected source records
+  reachable across six tasks, while withholding designated answer fields.
+  Its execution diagnostics remain ungraded pending clinical-content review.
+- The [pinned NeMo Gym feasibility record](../artifacts/comparators/20260930/nemo-gym-feasibility/README.md)
+  preserves the single incomplete counter trial and exact request settings.
+  Thinking, context, seed, and output settings differ from HealthCraft's;
+  it is not a matched performance comparison or healthcare-value evidence.
 - Three historical rubric false passes remain explicitly documented.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.
 
-The next implementation work improves installation reliability, honors
-task-specific policy additions, and makes run evidence easier to inspect.
-Those capabilities can support a comparative pilot; they cannot by themselves
-clear this release gate.
+Installation constraints, task-specific policies, and offline evidence review
+are implemented locally. Current work improves authored-record reachability,
+preserves unassessed outcomes throughout analysis/export paths, and establishes
+executable comparator feasibility. These capabilities can support a future
+comparative pilot; they cannot by themselves clear this release gate.

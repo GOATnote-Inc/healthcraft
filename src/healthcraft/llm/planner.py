@@ -37,6 +37,7 @@ from healthcraft.llm.checkpoint import selected_experiment_entries
 from healthcraft.llm.judge import select_judge_model
 from healthcraft.llm.sprint_contract import SprintContract
 from healthcraft.tasks.loader import Task, load_task, load_tasks
+from healthcraft.trajectory import is_unassessed_experiment
 
 logger = logging.getLogger("healthcraft.planner")
 
@@ -133,6 +134,13 @@ def _load_historical_pass_rates(results_dir: Path) -> dict[str, float]:
     task_results: dict[str, list[bool]] = {}
     for entry in selected_experiment_entries(entries):
         tid = entry.get("task_id", "")
+        if is_unassessed_experiment(entry):
+            logger.warning(
+                "Excluding unassessed experiment for %s from historical pass rates (%s)",
+                tid or "unknown task",
+                entry.get("trajectory_path", "path not recorded"),
+            )
+            continue
         if tid:
             task_results.setdefault(tid, []).append(entry.get("passed", False))
 

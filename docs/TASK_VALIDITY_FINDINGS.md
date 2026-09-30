@@ -79,6 +79,40 @@ in its run identity. The following acceptance conditions are concrete:
 Broader clinical claims still require the independent review and held-out
 evaluation described in the [design roadmap](EVALUATION_DESIGN_ROADMAP.md).
 
+## Versioned roster observations and a content-review finding
+
+The opt-in [roster profile](ROSTER_PROFILES.md) exposes selected observations
+from the six tasks whose root-level patient collections were omitted by the
+loader. The 33 records have distinct patient/encounter identities and retain
+source attribution. Recommendations and answer labels are withheld using
+explicit per-collection field selectors. These sparse projections are
+experimental, non-FHIR records; missing clinical facts remain unknown.
+
+Profile diagnostics bypass the historical graders and report no benchmark
+or safety outcome. An independent verifier checks retrieved observations
+against the source and counts member coverage, without crediting clinical
+criteria. Neither record reachability nor agreement with an authored answer
+establishes clinical correctness.
+
+A bounded content review flagged IR-018-C05's categorical exclusion of
+lactated Ringer's in DKA due to acidosis. The relevant adult consensus permits
+balanced crystalloids, including lactated Ringer's, in adults without renal
+or cardiac compromise; the task does not supply age or a specific
+contraindication. Pediatric guidance and infusion compatibility require
+separate interpretation. The [review and primary sources](ROSTER_PROFILES.md#bounded-ir-018-content-review)
+preserve these limits. The original task and historical outcomes are unchanged;
+a clinical-content correction needs a separately reviewed task version.
+
+## RL task preparation
+
+The RL environment previously reset the synthetic world without injecting
+the task's supplied patient. Native evaluation and RL now share task
+preparation, so an RL rollout can retrieve that patient and encounter through
+the same tools. A failed reset clears the previous episode before preparing
+the next one. Experimental roster profiles are available for tool diagnostics,
+but are rejected by training-reward computation and cannot enable physiology.
+These repairs affect future executions and do not regrade historical runs.
+
 ## Broader development inventory: 2026-09-30
 
 A read-only development inventory exercised default injection and the real

@@ -31,6 +31,10 @@ grader-challenges:  ## Offline counterexamples; nonzero means a mismatch or harn
 certify-history:  ## Opt-in IR-002 reference execution; no models or benchmark score
 	$(PYTHON) scripts/certify_history_task.py
 
+.PHONY: certify-rosters
+certify-rosters:  ## Opt-in roster retrieval evidence; no models or clinical score
+	$(PYTHON) scripts/certify_roster_tasks.py
+
 docker-up:
 	docker compose -f docker/docker-compose.yaml up -d --build
 

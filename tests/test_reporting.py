@@ -71,6 +71,32 @@ def test_latest_retry_is_one_trial_with_all_attempts_available(tmp_path):
     assert {p: p.read_bytes() for p in tmp_path.rglob("*.json")} == before
 
 
+@pytest.mark.parametrize("grading_complete", [True, False])
+def test_experimental_profile_does_not_display_placeholders_as_scores(tmp_path, grading_complete):
+    save(
+        tmp_path,
+        "run.json",
+        trajectory(
+            metadata={
+                "stop_reason": "stop",
+                "grading_complete": grading_complete,
+                "scenario_context": {"profile_version": "roster-observations/v1"},
+            }
+        ),
+    )
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["completion"] == "complete"
+    assert record["status"] == "incomplete"
+    assert record["criteria"][0]["status"] == "ungraded"
+    assert report["counts"]["recorded_pass"] == 0
+    html = render_evidence(report)
+    assert "roster-observations/v1" in html
+    assert "Benchmark and safety outcomes: not assessed" in html
+    assert "compatibility placeholders" in html
+    assert "Recorded reward:" not in html
+
+
 def test_corrupt_latest_never_resurrects_a_success(tmp_path):
     base = save(tmp_path, "IR-002_m_42_t1.json", trajectory())
     latest = base.with_stem(base.stem + "_attempt2")
