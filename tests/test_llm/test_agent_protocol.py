@@ -250,7 +250,7 @@ def test_real_orchestrator_saves_partial_execution_as_ungraded_and_resumes_immut
         server.call_tool = lose_response
     model = client(tool_response(call), None)
     monkeypatch.setattr(orch, "create_client", lambda *a, **kw: model)
-    monkeypatch.setattr(orch, "load_tasks", lambda _: [task])
+    monkeypatch.setattr(orch, "load_tasks", lambda _, **kwargs: [task])
     monkeypatch.setattr(orch, "_load_system_prompt", lambda _: "system")
     monkeypatch.setattr(orch, "environment_digest", lambda _: "synthetic-protocol-test")
     monkeypatch.setattr(orch.WorldSeeder, "seed_world", lambda *a: world)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -163,33 +164,64 @@ def load_task(path: Path) -> Task:
     )
 
 
-def load_tasks(directory: Path) -> list[Task]:
+def load_tasks(directory: Path, *, strict: bool = False) -> list[Task]:
     """Load all tasks from a directory (recursively).
 
     Searches for .yaml and .yml files and loads each as a Task.
 
     Args:
         directory: Root directory to search.
+        strict: Reject load/parse errors, empty criteria, and duplicate or unsafe
+            identities. This adds cohort integrity checks, not full JSON Schema
+            validation. Legacy callers retain warning-and-skip behavior by default.
 
     Returns:
         List of Task instances, sorted by id.
 
     Raises:
         FileNotFoundError: If the directory does not exist.
+        ValueError: If strict cohort validation fails.
     """
+    if strict and not directory.is_dir():
+        raise ValueError(f"Task directory not found or not a directory: {directory}")
     if not directory.exists():
         raise FileNotFoundError(f"Task directory not found: {directory}")
 
     tasks: list[Task] = []
     errors: list[str] = []
+    identifiers: set[str] = set()
+    folded_identifiers: dict[str, str] = {}
 
     for path in sorted(directory.rglob("*.y*ml")):
         if path.suffix not in (".yaml", ".yml"):
             continue
         try:
             task = load_task(path)
+            if strict:
+                if not task.criteria:
+                    raise ValueError("Evaluation tasks require nonempty criteria")
+                for field_name in ("id", "category"):
+                    value = getattr(task, field_name)
+                    if type(value) is not str or not re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9_-]*", value
+                    ):
+                        raise ValueError(f"Task {field_name} is not a safe output path component")
+                if task.id in identifiers:
+                    raise ValueError(f"Duplicate task ID: {task.id}")
+                folded = task.id.casefold()
+                if folded in folded_identifiers:
+                    raise ValueError(
+                        "Task IDs collide on case-insensitive output filesystems: "
+                        f"{folded_identifiers[folded]}, {task.id}"
+                    )
+                identifiers.add(task.id)
+                folded_identifiers[folded] = task.id
             tasks.append(task)
-        except (ValueError, FileNotFoundError) as e:
+        except (ValueError, OSError, TypeError, yaml.YAMLError) as e:
+            if strict:
+                raise ValueError(f"Invalid task file {path}: {e}") from e
+            if not isinstance(e, (ValueError, FileNotFoundError)):
+                raise
             errors.append(str(e))
 
     if errors:

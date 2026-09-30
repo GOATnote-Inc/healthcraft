@@ -1,0 +1,59 @@
+{
+  "schema_version": "ordinary-cohort-boundary-review/v1",
+  "scope": "Independent bounded development review of strict cohort selection, existing-output preservation, max_tasks semantics and checkpoint resume/retry. No model/provider/network calls, no repository edits, not formal red team or clinical validation.",
+  "status": "no_remaining_blocker_found",
+  "findings": [],
+  "resolved_boundary": "Case-insensitive task ID output collision was raised during static review; owner added a narrow tested rejection. Final independent casefold check passes.",
+  "owner_frozen_hashes_confirmed": {
+    "src/healthcraft/llm/orchestrator.py": "35d674e7548e31ff5b6632d585e35d664c373dcd774cfdc22cb86853c5ff5e94",
+    "src/healthcraft/tasks/loader.py": "296885e842918fd0d4d6d8ff1fa9405aeadb32aa6782fdc4a2cf2870b3cb2699",
+    "tests/test_llm/test_cohort_selection.py": "ef3d838ddbf87163323ac3f65c45fc7499a92e14213e4318819fd285aa5566a1"
+  },
+  "production_before": {
+    "src/healthcraft/llm/orchestrator.py": "35d674e7548e31ff5b6632d585e35d664c373dcd774cfdc22cb86853c5ff5e94",
+    "src/healthcraft/tasks/loader.py": "296885e842918fd0d4d6d8ff1fa9405aeadb32aa6782fdc4a2cf2870b3cb2699",
+    "src/healthcraft/cli.py": "157741724d14f8af16b961e2834269fe9dfc082437724e1a9804bfcfbace2f77",
+    "src/healthcraft/llm/checkpoint.py": "746045065aaebf66bcaeb4210aabc3e8df84297d78d90bf2d6574132dc218ce8"
+  },
+  "production_after": {
+    "src/healthcraft/llm/orchestrator.py": "35d674e7548e31ff5b6632d585e35d664c373dcd774cfdc22cb86853c5ff5e94",
+    "src/healthcraft/tasks/loader.py": "296885e842918fd0d4d6d8ff1fa9405aeadb32aa6782fdc4a2cf2870b3cb2699",
+    "src/healthcraft/cli.py": "157741724d14f8af16b961e2834269fe9dfc082437724e1a9804bfcfbace2f77",
+    "src/healthcraft/llm/checkpoint.py": "746045065aaebf66bcaeb4210aabc3e8df84297d78d90bf2d6574132dc218ce8"
+  },
+  "checks": {
+    "independent_boundary_checks": 80,
+    "failed": 0,
+    "focused_pytest_passed": 95,
+    "python": "3.14.3"
+  },
+  "semantics_confirmed": [
+    "Complete YAML/YML catalog and all requested IDs validated before provider/output, including malformed/duplicate/unsafe rows outside cap.",
+    "Exact positive integer counts reject booleans/floats; empty/repeated/missing selections fail.",
+    "Invalid requests preserve an existing artifact tree byte-for-byte and create no new output.",
+    "All and explicit selections use task-ID sorting; max_tasks applies after full validation and may exceed selected count.",
+    "max1 to max2 to max1 retains prior immutable trajectories, executes only newly selected tasks, and uses current selected denominator.",
+    "Identical resume leaves output bytes unchanged; altered selected task is refused by checkpoint provenance checks.",
+    "Error trials remain cached unless explicitly retried; retries append new trajectory/log evidence without replacing originals."
+  ],
+  "commands": [
+    "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. .venv/bin/python /private/tmp/healthcraft-cohort-selection-peer/boundary_probes.py",
+    "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. .venv/bin/python -m pytest tests/test_llm/test_cohort_selection.py tests/test_llm/test_checkpoint_provenance.py tests/test_cli.py -q"
+  ],
+  "artifact_sha256": {
+    "boundary_probes.py": "fb4c60342b94ccde6c78f84cd1fd3050e6fa83f7ce1c58a17e92786a61121f1b",
+    "boundary-results.json": "4ab5366f24c0f5706bec693c0e96908b410b03f92e3d90618ae8c5412cb03e03",
+    "boundary-probes.log": "3cd0a49d1eb17beb0306791d6b59982a5c878b1ab033d20f7aeb2fa193a629fe",
+    "focused-tests.log": "a632e970dd90c64f04c3dfcf569b33b1ce00e4359aa0e432d366dca7d0aeabca",
+    "boundary_probes_pre_casefold.py.txt": "ccb614fca2c8dccd5c5804a0286ee2096be6fe5778d641a99606c8c6162a37ab",
+    "boundary-results-pre-casefold.json": "34be6049be5004feaeaa3a2b446c3727b556e777ddce9c2c9815ceeac63578fa",
+    "boundary-probes-pre-casefold.log": "8603dfae8398dd65569529d5712f49a800df76d7be9919fd468d972ec0a359f1",
+    "focused-tests-pre-casefold.log": "a4567aaeb31419425e3404b523b8bb8911099e6a98a1a34b8b003711c824bf2f"
+  },
+  "limits": [
+    "Execution uses offline client/agent stubs and empty in-memory worlds; it verifies orchestration/selection semantics, not inference or clinical correctness.",
+    "Environment digest was held constant in resume probes to isolate cohort changes from normal source-version checkpoint invalidation.",
+    "Strict loading provides stated cohort integrity checks, not full authored-task JSON Schema or clinical satisfiability validation.",
+    "No filesystem mutation races or process/crash durability claims were tested."
+  ]
+}

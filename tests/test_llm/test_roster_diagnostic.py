@@ -18,7 +18,7 @@ ROOT = Path(__file__).parents[2]
 def harness(monkeypatch, tmp_path):
     task = load_task(ROOT / "configs/tasks/clinical_communication/task_022_nurse_delegation.yaml")
     state = {"calls": 0, "task": task}
-    monkeypatch.setattr(orch, "load_tasks", lambda _: [state["task"]])
+    monkeypatch.setattr(orch, "load_tasks", lambda _, **kwargs: [state["task"]])
     monkeypatch.setattr(orch, "create_client", lambda *args: SimpleNamespace(_model="test"))
     monkeypatch.setattr(orch.WorldSeeder, "seed_world", lambda *args: WorldState())
     monkeypatch.setattr(orch, "environment_digest", lambda _: "test-environment")

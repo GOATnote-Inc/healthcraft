@@ -1,0 +1,63 @@
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+.........F.............................................F................ [ 34%]
+........................................................................ [ 45%]
+........................................................................ [ 56%]
+........................................................................ [ 68%]
+........................................................................ [ 79%]
+........................................................................ [ 90%]
+.........................................................                [100%]
+=================================== FAILURES ===================================
+______________________ test_same_vendor_judge_is_refused _______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107599c50>
+
+    def test_same_vendor_judge_is_refused(monkeypatch) -> None:
+        # Never self-judge: an explicit judge model of the same vendor as the agent
+        # must be refused (the guard fires before any judge client is built).
+        monkeypatch.setattr(orchestrator_mod, "create_client", lambda *a, **k: object())
+        out = run_frontier_evaluation(
+            agent_model="claude-opus-4-6",
+            agent_key="x",
+            judge_model="claude-opus-4-7",
+            judge_key="y",
+            task_filter="__none__",
+            trials=1,
+        )
+>       assert isinstance(out, dict) and "error" in out and "self-judge" in out["error"]
+E       AssertionError: assert (True and 'error' in {'error': 'Requested task IDs not found: __none__'} and 'self-judge' in 'Requested task IDs not found: __none__')
+E        +  where True = isinstance({'error': 'Requested task IDs not found: __none__'}, dict)
+
+tests/test_llm/test_orchestrator_merge.py:167: AssertionError
+________ test_cloud_agent_cannot_self_judge_through_local_vendor_alias _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108260e50>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-451/test_cloud_agent_cannot_self_j0')
+
+    def test_cloud_agent_cannot_self_judge_through_local_vendor_alias(monkeypatch, tmp_path):
+        from types import SimpleNamespace
+    
+        from healthcraft.llm import orchestrator
+    
+        medgemma, _ = _client(monkeypatch, family="gemma3")
+        monkeypatch.setattr(
+            orchestrator,
+            "create_client",
+            lambda model, key: medgemma if model.startswith("ollama:") else SimpleNamespace(),
+        )
+        result = orchestrator.run_frontier_evaluation(
+            "gemini-3.1-pro",
+            "dummy-key",
+            "ollama:medgemma",
+            "",
+            tasks_dir=tmp_path,
+            results_dir=tmp_path / "out",
+        )
+>       assert "self-judge" in result["error"]
+E       AssertionError: assert 'self-judge' in 'No tasks found: all'
+
+tests/test_llm/test_local_models.py:440: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_llm/test_orchestrator_merge.py::test_same_vendor_judge_is_refused
+FAILED tests/test_llm/test_local_models.py::test_cloud_agent_cannot_self_judge_through_local_vendor_alias
+2 failed, 631 passed in 28.66s

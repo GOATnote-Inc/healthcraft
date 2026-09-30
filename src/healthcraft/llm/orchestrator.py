@@ -46,7 +46,7 @@ from healthcraft.llm.review_context import freeze_review_context, seal_review_co
 from healthcraft.mcp.server import create_server
 from healthcraft.tasks.environment import prepare_task_environment
 from healthcraft.tasks.evaluator import evaluate_task
-from healthcraft.tasks.loader import Task, load_task, load_tasks
+from healthcraft.tasks.loader import Task, load_tasks
 from healthcraft.tasks.prompts import compose_system_prompt
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod
 from healthcraft.trajectory import (
@@ -222,6 +222,40 @@ def _merge_judge_verdicts(eval_task, base_result, judge, turns):
     )
 
 
+def _select_evaluation_tasks(
+    task_filter: str, trials: int, max_tasks: int | None, tasks_dir: Path
+) -> list[Task]:
+    """Validate the complete declared cohort before output or provider access."""
+    if type(trials) is not int or trials <= 0:
+        raise ValueError("trials must be a positive integer")
+    if max_tasks is not None and (type(max_tasks) is not int or max_tasks <= 0):
+        raise ValueError("max_tasks must be a positive integer when supplied")
+    if type(task_filter) is not str:
+        raise ValueError("Task selection must be a string: 'all' or comma-separated task IDs")
+    selection = task_filter.strip()
+    wanted_ids = None
+    if selection != "all":
+        tokens = [token.strip() for token in selection.split(",")]
+        if not all(tokens):
+            raise ValueError("Task selection contains an empty task ID")
+        if len(set(tokens)) != len(tokens):
+            raise ValueError("Repeated task IDs in explicit selection are not allowed")
+        wanted_ids = set(tokens)
+
+    # Validate the entire supplied directory, including files after a match and
+    # tasks outside an intentional cap. A malformed file cannot disappear from
+    # the roster or hide a duplicate identity behind an early search exit.
+    tasks = load_tasks(tasks_dir, strict=True)
+    if wanted_ids is not None:
+        missing = wanted_ids - {task.id for task in tasks}
+        if missing:
+            raise ValueError("Requested task IDs not found: " + ", ".join(sorted(missing)))
+        tasks = [task for task in tasks if task.id in wanted_ids]
+    if not tasks:
+        raise ValueError(f"No tasks found: {task_filter}")
+    return tasks if max_tasks is None else tasks[:max_tasks]
+
+
 def run_frontier_evaluation(
     agent_model: str,
     agent_key: str,
@@ -245,7 +279,7 @@ def run_frontier_evaluation(
         agent_key: API key for the agent model.
         judge_model: Model identifier for the judge (auto-selected if None).
         judge_key: API key for the judge model.
-        task_filter: "all" or a specific task ID.
+        task_filter: "all" or comma-separated unique task IDs.
         trials: Number of trials per task.
         seed: Base random seed.
         results_dir: Where to save results.
@@ -279,6 +313,10 @@ def run_frontier_evaluation(
             return {"error": "Unvalidated scenario profiles require no judge and no dynamic state"}
     results_dir = results_dir or _RESULTS_DIR
     tasks_dir = tasks_dir or _TASKS_DIR
+    try:
+        tasks = _select_evaluation_tasks(task_filter, trials, max_tasks, tasks_dir)
+    except (ValueError, OSError) as exc:
+        return {"error": str(exc)}
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # A local run never selects a paid/cloud judge implicitly or explicitly.
@@ -342,29 +380,6 @@ def run_frontier_evaluation(
         # never re-calls the live judge, so v8/channel/gold-set locks are
         # unaffected.
         judge = LLMJudge(judge_client, judge_model=judge_model, prompt_version="v2")
-
-    # Load tasks
-    if task_filter == "all":
-        tasks = load_tasks(tasks_dir)
-    else:
-        # Support comma-separated task IDs
-        wanted_ids = {tid.strip() for tid in task_filter.split(",")}
-        tasks = []
-        for path in sorted(tasks_dir.rglob("*.yaml")):
-            try:
-                t = load_task(path)
-                if t.id in wanted_ids:
-                    tasks.append(t)
-                    if len(tasks) == len(wanted_ids):
-                        break
-            except (ValueError, FileNotFoundError):
-                continue
-
-    if not tasks:
-        return {"error": f"No tasks found: {task_filter}"}
-
-    if max_tasks:
-        tasks = tasks[:max_tasks]
 
     if scenario_profile is not None:
         from healthcraft.tasks.roster_profile import build_roster_profile
@@ -1014,7 +1029,7 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> None:
         default=None,
         help="Judge API key (auto-detected from env if not set)",
     )
-    parser.add_argument("--tasks", default="all", help="Task ID or 'all'")
+    parser.add_argument("--tasks", default="all", help="Comma-separated unique task IDs or 'all'")
     parser.add_argument("--trials", type=_positive_count, default=5, help="Trials per task")
     parser.add_argument("--seed", type=int, default=42, help="Base seed")
     parser.add_argument("--max-tasks", type=_positive_count, default=None, help="Limit tasks")
@@ -1055,6 +1070,16 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> None:
     use_dynamic_state = args.dynamic_state or os.environ.get("HC_DYNAMIC_STATE", "0") == "1"
     if args.scenario_profile and (args.judge_model or use_dynamic_state):
         parser.error("Scenario profiles require no judge and no dynamic state")
+
+    try:
+        _select_evaluation_tasks(
+            args.tasks,
+            args.trials,
+            args.max_tasks,
+            Path(args.tasks_dir) if args.tasks_dir else _TASKS_DIR,
+        )
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
 
     # Resolve API keys from env if not provided
     agent_key = args.agent_key
@@ -1099,10 +1124,9 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> None:
         scenario_profile=args.scenario_profile,
     )
 
-    if "error" in summary:
-        sys.exit(1)
-
     print(json.dumps(summary, indent=2))
+    if "error" in summary or summary.get("error_runs", 0) > 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

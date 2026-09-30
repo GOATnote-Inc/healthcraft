@@ -208,7 +208,7 @@ def test_live_resume_rejects_changed_append_before_reusing_scores(
 ):
     state = {"task": _load(tmp_path, system_prompt_append="First appended instruction")}
     client = CaptureClient()
-    monkeypatch.setattr(orchestrator, "load_tasks", lambda _: [state["task"]])
+    monkeypatch.setattr(orchestrator, "load_tasks", lambda _, **kwargs: [state["task"]])
     monkeypatch.setattr(orchestrator, "create_client", lambda *args, **kwargs: client)
     monkeypatch.setattr(orchestrator.WorldSeeder, "seed_world", lambda *args: WorldState())
     monkeypatch.setattr(orchestrator, "environment_digest", lambda _: "fixed-test-environment")

@@ -232,8 +232,14 @@ protocol, and [local testing](docs/LOCAL_MODELS.md) for free diagnostic runs.
 ```bash
 python -m healthcraft.llm.orchestrator \
   --agent-model <your-model> --trials 3 \
+  --tasks IR-001 --rubric-channel v10 \
   --results-dir results/<run-name>
 ```
+
+Task selection is validated before provider access or run output. Execution
+errors produce a nonzero exit; completed rubric failures and intentionally
+ungraded diagnostics can return `0`. See the
+[selection and exit-status contract](docs/EVALUATE_YOUR_MODEL.md#task-selection-and-exit-status).
 
 Results welcome. Open a PR or issue with your summary.json.
 

@@ -434,7 +434,7 @@ def test_cloud_agent_cannot_self_judge_through_local_vendor_alias(monkeypatch, t
         "dummy-key",
         "ollama:medgemma",
         "",
-        tasks_dir=tmp_path,
+        task_filter="CR-001",
         results_dir=tmp_path / "out",
     )
     assert "self-judge" in result["error"]

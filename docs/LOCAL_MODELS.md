@@ -119,6 +119,13 @@ model evaluation results.
   --results-dir results/local-nano-medgemma-01
 ```
 
+The runner validates the entire task directory and requested IDs before
+contacting Ollama or creating run output. See the
+[task selection and exit-status contract](EVALUATE_YOUR_MODEL.md#task-selection-and-exit-status).
+A summary with `error_runs > 0` produces a nonzero exit while retaining saved
+evidence. Completed rubric failures and intentionally ungraded local diagnostics
+can return `0`; this does not establish complete grading or clinical validity.
+
 Use a fresh directory for changed weights, decoding settings, tasks, prompts,
 or grading configuration. Check `evaluation_mode`, `grading_complete`,
 `ungraded_criteria`, infrastructure errors, judge errors, and trajectory evidence

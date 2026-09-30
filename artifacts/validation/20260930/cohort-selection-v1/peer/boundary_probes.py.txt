@@ -1,0 +1,179 @@
+"""Offline cohort/resume boundaries. Execute only after the owner freezes source."""
+from contextlib import ExitStack, redirect_stdout, redirect_stderr
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import hashlib
+import io
+import json
+import tempfile
+import yaml
+
+from healthcraft import cli
+from healthcraft.llm import orchestrator as orch
+from healthcraft.trajectory import Trajectory
+from healthcraft.world.state import WorldState
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-cohort-selection-peer')
+WORK = Path(tempfile.mkdtemp(prefix='probes-', dir=OUT))
+FILES = ['src/healthcraft/llm/orchestrator.py', 'src/healthcraft/tasks/loader.py', 'src/healthcraft/cli.py', 'src/healthcraft/llm/checkpoint.py']
+CHECKS = []
+
+def source_hashes():
+    return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in FILES}
+
+def check(name, value, detail=None):
+    CHECKS.append({'name': name, 'passed': bool(value), 'detail': detail})
+
+def task(identifier, *, category='clinical_reasoning'):
+    return {'id': identifier, 'category': category, 'level': 1, 'title': 'Synthetic cohort fixture',
+            'description': 'Return fixture complete.', 'initial_state': {}, 'expected_tools': [],
+            'criteria': [{'id': identifier + '-C1', 'assertion': 'Fixture text',
+                          'dimension': 'documentation_quality', 'verification': 'pattern', 'check': 'fixture complete'}],
+            'metadata': {}}
+
+def catalog(name, files):
+    directory = WORK / name / 'tasks'
+    directory.mkdir(parents=True)
+    for filename, data in files.items():
+        path = directory / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(data if isinstance(data, str) else yaml.safe_dump(data))
+    return directory
+
+def snapshot(root):
+    return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+EVENTS = []
+AGENT_FAILURES = set()
+
+def create_client(model, key):
+    EVENTS.append({'kind': 'client', 'model': model})
+    return SimpleNamespace(_model=model, _base_url='http://offline.invalid/no-network')
+
+def agent(client, selected, server, prompt):
+    EVENTS.append({'kind': 'agent', 'task_id': selected.id})
+    if selected.id in AGENT_FAILURES:
+        raise RuntimeError('Offline controlled execution failure; no model called')
+    trajectory = Trajectory(task_id=selected.id, model=client._model, seed=42,
+                            system_prompt=prompt,
+                            metadata={'stop_reason': 'stop', 'termination_kind': 'complete', 'agent_tool_definitions': []})
+    trajectory.add_turn('system', prompt)
+    trajectory.add_turn('user', selected.description)
+    trajectory.add_turn('assistant', 'fixture complete')
+    return trajectory
+
+def run(directory, output, **options):
+    args = dict(agent_model='ollama:offline-peer', agent_key='', judge_model=None, judge_key=None,
+                trials=1, tasks_dir=directory, results_dir=output, rubric_channel='v8')
+    args.update(options)
+    try:
+        return orch.run_frontier_evaluation(**args)
+    except Exception as exc:
+        return {'error': str(exc), 'exception_type': type(exc).__name__}
+
+BEFORE = source_hashes()
+with ExitStack() as stack:
+    stack.enter_context(patch.object(orch, 'create_client', create_client))
+    stack.enter_context(patch.object(orch, 'run_agent_task', agent))
+    stack.enter_context(patch.object(orch, 'environment_digest', return_value='fixed-offline-cohort-review'))
+    stack.enter_context(patch.object(orch.WorldSeeder, 'seed_world', lambda *a: WorldState()))
+    stack.enter_context(patch.object(orch, '_load_system_prompt', return_value='Synthetic cohort boundary fixture.'))
+    stack.enter_context(patch.object(orch, '_api_preflight', side_effect=lambda **kwargs: EVENTS.append({'kind': 'preflight'})))
+    stack.enter_context(patch.object(orch, '_resolve_api_key', return_value=''))
+    base = {'a.yaml': task('A-001'), 'b.yml': task('B-001')}
+    invalid_cases = [
+        ('missing-before-limit', base, {'task_filter': 'A-001,MISSING', 'max_tasks': 1}),
+        ('empty-token', base, {'task_filter': 'A-001,'}),
+        ('repeat-token', base, {'task_filter': 'A-001, A-001'}),
+        ('empty-selection', base, {'task_filter': ''}),
+        ('malformed-outside-limit', {**base, 'z.yaml': 'id: BROKEN\n'}, {'task_filter': 'A-001', 'max_tasks': 1}),
+        ('duplicate-outside-limit', {**base, 'z.yaml': task('B-001')}, {'task_filter': 'A-001', 'max_tasks': 1}),
+        ('unsafe-id-outside-limit', {**base, 'z.yaml': task('../unsafe')}, {'task_filter': 'A-001', 'max_tasks': 1}),
+        ('unsafe-category', {'a.yaml': task('A-001', category='../unsafe')}, {}),
+        ('casefold-identity', {'a.yaml': task('A-001'), 'b.yml': task('a-001')}, {}),
+    ]
+    for key in ('trials', 'max_tasks'):
+        for value in (0, -1, True, 1.0):
+            invalid_cases.append((f'invalid-{key}-{type(value).__name__}-{value}', base, {key: value}))
+    for name, files, options in invalid_cases:
+        directory = catalog(name, files)
+        output = directory.parent / 'new-output'
+        start = len(EVENTS)
+        result = run(directory, output, **options)
+        check(name + ':error', 'error' in result, result)
+        check(name + ':no-provider', len(EVENTS) == start, EVENTS[start:])
+        check(name + ':no-output', not output.exists())
+    # Existing artifact trees are equally protected on invalid requests.
+    directory = catalog('invalid-existing', base)
+    output = directory.parent / 'existing-output'; output.mkdir()
+    (output / 'summary.json').write_text('{"sentinel":true}\n')
+    initial = snapshot(output); start = len(EVENTS)
+    result = run(directory, output, task_filter='A-001,MISSING', max_tasks=1)
+    check('invalid-existing:error', 'error' in result, result)
+    check('invalid-existing:no-provider', len(EVENTS) == start)
+    check('invalid-existing:byte-identical', snapshot(output) == initial)
+    # CLI validation must precede even the preflight boundary.
+    directory = catalog('cli-missing', base); output = directory.parent / 'output'
+    start = len(EVENTS)
+    stdout=io.StringIO(); stderr=io.StringIO()
+    try:
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = cli.main(['evaluate', '--agent-model', 'ollama:offline-peer', '--tasks', 'A-001,MISSING', '--max-tasks', '1', '--tasks-dir', str(directory), '--results-dir', str(output)])
+    except SystemExit as exc:
+        status = exc.code
+    check('cli-missing:nonzero', status != 0, status)
+    check('cli-missing:no-provider', len(EVENTS) == start, EVENTS[start:])
+    check('cli-missing:no-output', not output.exists())
+    # Limit/resume retains exact earlier files; two trials per task account for seed/trial mapping.
+    directory = catalog('resume', {'z.yaml': task('A-001'), 'a.yml': task('B-001')})
+    output = directory.parent / 'output'; start = len(EVENTS)
+    first = run(directory, output, trials=2, max_tasks=1)
+    first_files = snapshot(output)
+    repeat = run(directory, output, trials=2, max_tasks=1)
+    check('resume:identical-summary', first == repeat, {'first': first, 'repeat': repeat})
+    check('resume:byte-identical', snapshot(output) == first_files)
+    check('resume:first-agent-count', len([e for e in EVENTS[start:] if e['kind']=='agent']) == 2)
+    extended = run(directory, output, trials=2, max_tasks=2)
+    second_files = snapshot(output)
+    check('resume:extended-denominator', extended.get('total_tasks') == 2 and extended.get('total_runs') == 4, extended)
+    check('resume:only-new-task-executed', len([e for e in EVENTS[start:] if e['kind']=='agent']) == 4)
+    check('resume:earlier-files-preserved', all(second_files.get(p)==content for p,content in first_files.items() if p!='experiments.jsonl'))
+    check('resume:log-append-only', second_files.get('experiments.jsonl', b'').startswith(first_files.get('experiments.jsonl', b'')))
+    reduced = run(directory, output, trials=2, max_tasks=1)
+    check('resume:reduced-denominator', reduced.get('total_tasks') == 1 and reduced.get('total_runs') == 2, reduced)
+    check('resume:reduction-no-agent', len([e for e in EVENTS[start:] if e['kind']=='agent']) == 4)
+    above = run(directory, output, trials=2, max_tasks=99, task_filter='B-001,A-001')
+    check('limit-above:allowed', above.get('total_tasks') == 2 and above.get('total_runs') == 4, above)
+    check('limit-above:cached', len([e for e in EVENTS[start:] if e['kind']=='agent']) == 4)
+    trajectories = [json.loads(p.read_text()) for p in (output/'trajectories').rglob('*.json')]
+    check('resume:one-per-task-trial', sorted((t['task_id'],t['seed']) for t in trajectories)==[('A-001',42),('A-001',43),('B-001',42),('B-001',43)])
+    # A changed selected task is rejected by unchanged checkpoint identity checks.
+    changed=task('A-001'); changed['description']='Changed synthetic input'
+    (directory/'z.yaml').write_text(yaml.safe_dump(changed))
+    before=snapshot(output); before_events=len(EVENTS)
+    incompatible=run(directory,output,trials=2,max_tasks=1)
+    check('checkpoint:changed-task-refused', 'checkpoint' in incompatible.get('error','').lower(), incompatible)
+    check('checkpoint:preserved', snapshot(output)==before)
+    check('checkpoint:no-agent', not any(e['kind']=='agent' for e in EVENTS[before_events:]))
+    # Error resume must retain its failed denominator; retry appends one new attempt.
+    directory=catalog('error-retry',{'a.yaml':task('A-001')}); output=directory.parent/'output'
+    AGENT_FAILURES.add('A-001'); start=len(EVENTS)
+    failed=run(directory,output); first_files=snapshot(output)
+    AGENT_FAILURES.clear(); cached=run(directory,output)
+    check('error-resume:same-summary',failed==cached)
+    check('error-resume:one-attempt',len([e for e in EVENTS[start:] if e['kind']=='agent'])==1)
+    check('error-resume:preserved',snapshot(output)==first_files)
+    retried=run(directory,output,retry_errors=True)
+    after=snapshot(output)
+    check('retry:cleared-execution-error',retried.get('error_runs')==0,retried)
+    check('retry:one-new-attempt',len([e for e in EVENTS[start:] if e['kind']=='agent'])==2)
+    check('retry:original-files-preserved',all(after.get(p)==data for p,data in first_files.items() if p!='experiments.jsonl'))
+    check('retry:log-append-only',after.get('experiments.jsonl',b'').startswith(first_files.get('experiments.jsonl',b'')))
+AFTER=source_hashes()
+check('source-stable', BEFORE==AFTER)
+receipt={'scope':'Ordinary bounded cohort selection/checkpoint development review; stubbed provider boundaries; no model or network calls.', 'source_before':BEFORE,'source_after':AFTER,'work_dir':str(WORK),'model_calls':0,'checks':CHECKS,'passed':sum(c['passed'] for c in CHECKS),'failed':sum(not c['passed'] for c in CHECKS),'events':EVENTS}
+(OUT/'boundary-results.json').write_text(json.dumps(receipt,indent=2,allow_nan=False)+'\n')
+print(json.dumps({'passed':receipt['passed'],'failed':receipt['failed'],'failures':[c for c in CHECKS if not c['passed']]}))
+raise SystemExit(1 if receipt['failed'] else 0)

@@ -186,7 +186,7 @@ def test_real_agent_orchestrator_capture_uses_actual_interface_and_frozen_overla
             return {"content": "done", "tool_calls": [], "stop_reason": "stop"}
 
     monkeypatch.setattr(orch, "create_client", lambda *a, **kw: Client())
-    monkeypatch.setattr(orch, "load_tasks", lambda _: [task])
+    monkeypatch.setattr(orch, "load_tasks", lambda _, **kwargs: [task])
     monkeypatch.setattr(orch, "_load_system_prompt", lambda _: "Actual system")
     monkeypatch.setattr(orch, "environment_digest", lambda _: "fixed-test-environment")
     monkeypatch.setattr(orch.WorldSeeder, "seed_world", lambda *a: WorldState())
@@ -248,7 +248,7 @@ def test_profile_capture_never_enables_clinical_grading(monkeypatch, tmp_path, s
             return {"content": "Synthetic completion", "tool_calls": [], "stop_reason": "stop"}
 
     monkeypatch.setattr(orch, "create_client", lambda *a, **kw: Client())
-    monkeypatch.setattr(orch, "load_tasks", lambda _: [task])
+    monkeypatch.setattr(orch, "load_tasks", lambda _, **kwargs: [task])
     monkeypatch.setattr(orch, "_load_system_prompt", lambda _: "Synthetic profile test")
     monkeypatch.setattr(orch, "environment_digest", lambda _: "fixed-test-environment")
     monkeypatch.setattr(orch.WorldSeeder, "seed_world", lambda *a: WorldState())

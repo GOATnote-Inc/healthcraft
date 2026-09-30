@@ -152,7 +152,7 @@ def test_production_judge_v2_downgrades_low_confidence_safety_pass() -> None:
     assert m2[0].satisfied is True and r2 == 1.0 and s2 is True
 
 
-def test_same_vendor_judge_is_refused(monkeypatch) -> None:
+def test_same_vendor_judge_is_refused(monkeypatch, tmp_path) -> None:
     # Never self-judge: an explicit judge model of the same vendor as the agent
     # must be refused (the guard fires before any judge client is built).
     monkeypatch.setattr(orchestrator_mod, "create_client", lambda *a, **k: object())
@@ -161,7 +161,8 @@ def test_same_vendor_judge_is_refused(monkeypatch) -> None:
         agent_key="x",
         judge_model="claude-opus-4-7",
         judge_key="y",
-        task_filter="__none__",
+        task_filter="CR-001",
         trials=1,
+        results_dir=tmp_path / "out",
     )
     assert isinstance(out, dict) and "error" in out and "self-judge" in out["error"]

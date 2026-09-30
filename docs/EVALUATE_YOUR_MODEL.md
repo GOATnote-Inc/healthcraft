@@ -54,6 +54,29 @@ Replace the placeholders with supported, exact model identifiers. Remove
 `--tasks IR-001` only when ready to run the full corpus. A short development
 run is not a comparable leaderboard evaluation.
 
+### Task selection and exit status
+
+Before provider access or run-directory creation, the runner validates the
+entire supplied task directory, including unselected files. It accepts `.yaml`
+and `.yml` files and uses the existing task parser plus strict cohort checks:
+nonempty criteria and safe, unique task IDs, including rejection of IDs that
+differ only by case. Missing directories, malformed definitions and invalid
+identities stop the run. This is not full JSON Schema or clinical validation.
+
+Use `--tasks all` or a comma-separated list such as `--tasks IR-001,IR-002`.
+Unknown IDs, repeated IDs and empty tokens are rejected. `--trials` and
+`--max-tasks` must be positive integers. Every requested ID is checked before
+applying `--max-tasks`; a cap cannot hide a missing ID. Execution order is
+sorted by task ID, not by the order of the comma-separated list.
+
+Exit status reports execution health, not clinical success. Completed rubric
+failures and deliberately ungraded diagnostics return `0` when there are no
+execution errors. A returned summary is printed as JSON before exit `1` if it
+contains `error` or `error_runs > 0`; per-trial error evidence and the saved
+summary remain available. Parser rejections return nonzero and may emit only
+stderr, without creating run output. Check grading coverage and judge errors
+separately: exit `0` does not establish complete grading or clinical validity.
+
 ### Supported providers
 
 The orchestrator auto-detects the provider from the model name:

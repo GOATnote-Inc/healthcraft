@@ -34,7 +34,7 @@ def harness(monkeypatch, tmp_path):
         metadata={},
     )
     state = {"task": task, "prompt": "Synthetic test only", "calls": 0, "error": False}
-    monkeypatch.setattr(orch, "load_tasks", lambda _: [state["task"]])
+    monkeypatch.setattr(orch, "load_tasks", lambda _, **kwargs: [state["task"]])
     state["endpoint"] = "http://localhost:30000/v1"
     monkeypatch.setattr(
         orch,
