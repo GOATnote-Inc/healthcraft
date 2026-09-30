@@ -9,7 +9,10 @@ import json
 from pathlib import Path
 
 from healthcraft.reconciliation.diagnostics import explain_reconciliation
-from healthcraft.reconciliation.explanation_report import render_reconciliation_explanation
+from healthcraft.reconciliation.explanation_report import (
+    SOURCE_CONTEXT_VERSION,
+    render_reconciliation_explanation,
+)
 from healthcraft.reconciliation.oracle import verify_reconciliation
 from healthcraft.reconciliation.terminal import _json_object
 
@@ -34,6 +37,7 @@ def write_explanation_bundle(
     output_dir: Path,
     verification: Path | None = None,
     title: str = "Reconciliation evidence report",
+    source_context: bool = False,
 ) -> dict:
     """Preserve exact inputs and render a new report, without re-running a model.
 
@@ -43,6 +47,8 @@ def write_explanation_bundle(
     Filesystem failure after output creation leaves an incomplete directory
     without a completion manifest; it is never silently replaced on retry.
     """
+    if type(source_context) is not bool:
+        raise ValueError("source_context must be a boolean")
     paths = {"scenario": scenario, "expectations": expectations, "evidence": evidence}
     if verification is not None:
         paths["verification"] = verification
@@ -69,7 +75,16 @@ def write_explanation_bundle(
     # Both consumers must agree before an output directory is created.
     if explanation["oracle_checks"] != oracle["checks"]:
         raise ValueError("Explanation and verification disagree")
-    html = render_reconciliation_explanation(explanation, title=title)
+    render_options = {}
+    if source_context:
+        render_options = {
+            "source_context": True,
+            "source_documents": {
+                **{key: values[key] for key in ("scenario", "expectations", "evidence")},
+                "oracle": oracle,
+            },
+        }
+    html = render_reconciliation_explanation(explanation, title=title, **render_options)
     payloads = {
         **{f"inputs/{name}.json": content for name, content in raw.items()},
         "explanation.json": _json_bytes(explanation),
@@ -96,6 +111,8 @@ def write_explanation_bundle(
             "The report explains selected checks; it is not clinical validation.",
         ],
     }
+    if source_context:
+        manifest["source_context"] = {"enabled": True, "schema_version": SOURCE_CONTEXT_VERSION}
     output_dir.mkdir(parents=True, exist_ok=False)
     (output_dir / "inputs").mkdir()
     for name, content in payloads.items():
@@ -120,6 +137,11 @@ def main(argv: list[str] | None = None) -> int:
         "--verification", type=Path, help="Optional earlier oracle result to verify"
     )
     parser.add_argument("--title", default="Reconciliation evidence report")
+    parser.add_argument(
+        "--source-context",
+        action="store_true",
+        help="Link source references to captured values and context within the report",
+    )
     args = parser.parse_args(argv)
     try:
         summary = write_explanation_bundle(**vars(args))

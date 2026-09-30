@@ -1,0 +1,392 @@
+"""Independent static source-context checks using unchanged saved v3 evidence.
+
+Ordinary engineering review; no browser, model, tool, network or patient data.
+"""
+import copy
+import hashlib
+import importlib.util
+import json
+import re
+import socket
+import ssl  # Define SSLSocket before the no-network constructor guard.
+from collections import Counter
+from html import unescape
+from html.parser import HTMLParser
+from pathlib import Path
+
+import pytest
+from healthcraft.reconciliation.explanation_report import render_reconciliation_explanation
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+BUNDLES = ROOT / 'artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1'
+NAMES = ['nano-direct-01', 'nano-harbor-01', 'medgemma-harbor-01', 'medgemma-direct-01']
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+
+
+def digest(value):
+    return hashlib.sha256(canonical(value).encode('utf-8')).hexdigest()
+
+
+def captured(name='nano-direct-01'):
+    p = BUNDLES / name
+    docs = {key: json.loads((p / 'inputs' / (key + '.json')).read_text())
+            for key in ['scenario', 'expectations', 'evidence']}
+    docs['oracle'] = json.loads((p / 'verification.json').read_text())
+    return json.loads((p / 'explanation.json').read_text()), docs
+
+
+def references(value):
+    if type(value) is dict:
+        if set(value) >= {'document', 'pointer'}:
+            yield value
+        for child in value.values():
+            yield from references(child)
+    elif type(value) is list:
+        for child in value:
+            yield from references(child)
+
+
+def pointer_value(value, pointer):
+    """Independent character-wise RFC6901 decoder; never invokes render helpers."""
+    if not pointer:
+        return value
+    assert pointer.startswith('/')
+    for segment in pointer[1:].split('/'):
+        chars, i = [], 0
+        while i < len(segment):
+            if segment[i] == '~':
+                assert segment[i+1] in '01'
+                chars.append('~' if segment[i+1] == '0' else '/')
+                i += 2
+            else:
+                chars.append(segment[i])
+                i += 1
+        key = ''.join(chars)
+        if type(value) is list:
+            assert re.fullmatch('0|[1-9][0-9]*', key)
+            value = value[int(key)]
+        else:
+            assert type(value) is dict
+            value = value[key]
+    return value
+
+
+class StaticPage(HTMLParser):
+    def __init__(self, raw):
+        super().__init__(convert_charrefs=True)
+        self.tags = []
+        self.text = []
+        self.cards = {}
+        self.card = None
+        self.details_depth = 0
+        self.pre = None
+        self.feed(raw)
+        self.close()
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        self.tags.append((tag, attrs))
+        if tag == 'details':
+            self.details_depth += 1
+        if attrs.get('data-source-card'):
+            assert self.card is None
+            assert self.details_depth == 0, 'Source card concealed in details'
+            assert attrs['id'] not in self.cards, 'Duplicate source card'
+            self.card = attrs['id']
+            self.cards[self.card] = {'attrs': attrs, 'text': [], 'pres': []}
+        if tag == 'pre' and self.card:
+            self.pre = {'hidden': self.details_depth > 0, 'text': []}
+
+    def handle_data(self, data):
+        self.text.append(data)
+        if self.card:
+            self.cards[self.card]['text'].append(data)
+        if self.pre is not None:
+            self.pre['text'].append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'pre' and self.pre is not None:
+            self.pre['text'] = ''.join(self.pre['text'])
+            self.cards[self.card]['pres'].append(self.pre)
+            self.pre = None
+        if tag == 'details':
+            self.details_depth -= 1
+        if tag == 'article' and self.card:
+            self.card = None
+
+    def card_for(self, ref):
+        selected = [c for c in self.cards.values()
+                    if c['attrs']['data-document'] == ref['document']
+                    and c['attrs']['data-pointer'] == ref['pointer']
+                    and c['attrs'].get('data-decoded-pointer') == ref.get('decoded_json_pointer')]
+        assert len(selected) == 1
+        return selected[0]
+
+    def require_inert(self):
+        forbidden = {'script','img','iframe','object','embed','link','form','input','button','svg','math','base','video','audio'}
+        ids = [attrs['id'] for _, attrs in self.tags if 'id' in attrs]
+        assert len(ids) == len(set(ids))
+        for tag, attrs in self.tags:
+            assert tag not in forbidden
+            assert all(not k.lower().startswith('on') for k in attrs)
+            assert not {'src', 'srcdoc', 'action', 'formaction'} & set(attrs)
+            if 'href' in attrs:
+                assert tag == 'a' and attrs['href'].startswith('#')
+                assert attrs['href'][1:] in self.cards
+        assert self.details_depth == 0
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Network access forbidden by peer review')
+    monkeypatch.setattr(socket, 'socket', forbidden)
+    monkeypatch.setattr(socket, 'create_connection', forbidden)
+
+
+def render(explanation, documents):
+    return render_reconciliation_explanation(explanation, source_context=True, source_documents=documents)
+
+
+def mutate_reference(explanation, ref):
+    explanation['observed_execution']['successful_write_calls'][0]['reference'] = ref
+
+
+def extend(explanation, documents, document='evidence', extra=None):
+    documents[document]['peer_fixture'] = extra
+    explanation['bindings'][document + '_sha256'] = digest(documents[document])
+
+
+@pytest.mark.parametrize('name', NAMES)
+def test_saved_default_report_bytes_unchanged_and_real_source_cards_exact(name):
+    explanation, docs = captured(name)
+    before = canonical([explanation, docs])
+    original = (BUNDLES / name / 'report.html').read_text()
+    title = unescape(re.search(r'<title>(.*?)</title>', original).group(1))
+    default = render_reconciliation_explanation(explanation, title=title)
+    assert default == original
+    assert default == render_reconciliation_explanation(explanation, title=title, source_context=False)
+    assert not [x for x in StaticPage(default).tags if x[0] == 'a']
+    page = StaticPage(render(explanation, docs))
+    page.require_inert()
+    refs = {canonical(ref): ref for ref in references(explanation)}
+    assert len(page.cards) == len(refs)
+    hrefs = Counter(attrs['href'][1:] for tag, attrs in page.tags if tag == 'a')
+    assert set(hrefs) == set(page.cards)
+    for ref in refs.values():
+        value = pointer_value(docs[ref['document']], ref['pointer'])
+        if 'decoded_json_pointer' in ref:
+            value = pointer_value(json.loads(value), ref['decoded_json_pointer'])
+        card = page.card_for(ref)
+        assert card['attrs']['data-resolution'] == 'available'
+        pres = [p for p in card['pres'] if not p['hidden']]
+        assert pres and canonical(json.loads(pres[0]['text'])) == canonical(value)
+        assert 'Exact captured value' in ''.join(card['text'])
+    text = ''.join(page.text)
+    assert 'Write acknowledgements1' in text
+    assert 'New stored notes1' in text
+    if name.startswith('nano'):
+        assert 'Actual post-write target reads0' in text
+        assert 'No post-write target read recorded.' in text
+    else:
+        assert 'Actual post-write target reads1' in text
+        assert 'Stored text was returned in a later target read.' in text
+    assert 'No clinical assessment or benchmark score.' in text
+    assert canonical([explanation, docs]) == before
+
+
+@pytest.mark.parametrize('document', ['scenario','expectations','evidence','oracle'])
+def test_each_bound_document_drift_rejected(document):
+    explanation, docs = captured()
+    docs[document]['peer_change'] = 'different content'
+    before = canonical([explanation, docs])
+    with pytest.raises(ValueError, match='binding'):
+        render(explanation, docs)
+    assert canonical([explanation, docs]) == before
+
+
+@pytest.mark.parametrize('change', ['missing', 'extra', 'nondict'])
+def test_document_inventory_must_match_exactly(change):
+    explanation, docs = captured()
+    if change == 'missing':
+        del docs['oracle']
+    elif change == 'extra':
+        docs['unexpected'] = {}
+    else:
+        docs['oracle'] = []
+    with pytest.raises(ValueError):
+        render(explanation, docs)
+
+
+@pytest.mark.parametrize('pointer,expected', [
+    ('/peer_fixture/a~1b/~0key/1', 'second'),
+    ('/peer_fixture/~01', 'literal tilde-one'),
+    ('/peer_fixture/', 'empty key'),
+    ('/peer_fixture/null', None),
+    ('/peer_fixture/zero', 0),
+    ('/peer_fixture/false', False),
+    ('/peer_fixture/unicode', 'é🧪'),
+])
+def test_independent_pointer_exact_values_and_json_types(pointer, expected):
+    explanation, docs = captured()
+    extra = {'a/b': {'~key':['first','second']}, '~1':'literal tilde-one', '':'empty key',
+             'null':None, 'zero':0, 'false':False, 'unicode':'é🧪'}
+    extend(explanation, docs, extra=extra)
+    ref = {'document':'evidence','pointer':pointer}
+    mutate_reference(explanation, ref)
+    card = StaticPage(render(explanation, docs)).card_for(ref)
+    assert card['attrs']['data-resolution'] == 'available'
+    value = json.loads([p for p in card['pres'] if not p['hidden']][0]['text'])
+    assert type(value) is type(expected) and value == expected
+
+
+@pytest.mark.parametrize('pointer', ['/peer_fixture/missing', '/peer_fixture/list/01',
+                                     '/peer_fixture/list/-', '/peer_fixture/list/8',
+                                     '/peer_fixture/null/next'])
+def test_unavailable_locations_are_not_exact_null(pointer):
+    explanation, docs = captured()
+    extend(explanation, docs, extra={'list':['value'], 'null':None})
+    ref = {'document':'evidence','pointer':pointer}
+    mutate_reference(explanation, ref)
+    card = StaticPage(render(explanation, docs)).card_for(ref)
+    assert card['attrs']['data-resolution'] == 'unavailable'
+    assert 'Exact captured value' not in ''.join(card['text'])
+    assert 'Source value unavailable.' in ''.join(card['text'])
+    assert 'Nearest existing context' in ''.join(card['text'])
+    assert not [p for p in card['pres'] if not p['hidden']]
+
+
+@pytest.mark.parametrize('raw', ['not JSON<script>alert(1)</script>', '{"a":1,"a":2}', '{"a":1e400}', 'NaN', '[1,2]'])
+def test_malformed_decoded_note_keeps_raw_and_is_unavailable(raw):
+    explanation, docs = captured()
+    extend(explanation, docs, extra={'note':raw})
+    ref = {'document':'evidence','pointer':'/peer_fixture/note', 'decoded_json_pointer':'/a'}
+    mutate_reference(explanation, ref)
+    page = StaticPage(render(explanation, docs))
+    page.require_inert()
+    card = page.card_for(ref)
+    assert card['attrs']['data-resolution'] == 'unavailable'
+    assert card['attrs']['data-note-resolution'] == 'unavailable'
+    assert raw in [p['text'] for p in card['pres'] if not p['hidden']]
+    assert 'Exact captured value' not in ''.join(card['text'])
+
+
+def test_decoded_note_pointer_and_duplicate_refs_share_exact_visible_card():
+    explanation, docs = captured()
+    extend(explanation, docs, extra={'note':json.dumps({'a/b':{'~key':[None,'verbatim']}})})
+    ref = {'document':'evidence','pointer':'/peer_fixture/note','decoded_json_pointer':'/a~1b/~0key/1'}
+    mutate_reference(explanation, ref)
+    issue = explanation['notes'][0]['scope_exclusions']['issues'][0]
+    issue['evidence_refs'] = [copy.deepcopy(ref), copy.deepcopy(ref)]
+    page = StaticPage(render(explanation, docs))
+    page.require_inert()
+    card = page.card_for(ref)
+    assert card['attrs']['data-resolution'] == 'available'
+    assert json.loads([p for p in card['pres'] if not p['hidden']][0]['text']) == 'verbatim'
+
+
+@pytest.mark.parametrize('document', ['scenario','expectations','evidence'])
+def test_hostile_source_and_title_remain_inert_exact_captured_text(document):
+    explanation, docs = captured()
+    raw = '</pre><script src="https://bad.invalid/a">bad</script><img src=x onerror=alert(1)><svg onload=alert(1)>&\"'
+    extend(explanation, docs, document=document, extra={'<b title="x">':raw})
+    ref = {'document':document,'pointer':'/peer_fixture/<b title="x">'}
+    mutate_reference(explanation, ref)
+    html = render_reconciliation_explanation(explanation, title=raw, source_context=True, source_documents=docs)
+    page = StaticPage(html)
+    page.require_inert()
+    card = page.card_for(ref)
+    assert json.loads([p for p in card['pres'] if not p['hidden']][0]['text']) == raw
+    assert raw in ''.join(page.text)
+
+
+def test_unavailable_explanation_keeps_unknown_counts_and_requires_bindings():
+    explanation, docs = captured()
+    explanation.update(status='unavailable', observed_execution=None, notes=[], errors=[{'message':'Unavailable input'}])
+    page = StaticPage(render(explanation, docs))
+    assert not page.cards
+    assert not [attrs for _, attrs in page.tags if 'data-count' in attrs]
+    assert 'Event counts unavailable.' in ''.join(page.text)
+    docs['scenario']['drift'] = True
+    with pytest.raises(ValueError, match='binding'):
+        render(explanation, docs)
+
+
+@pytest.mark.parametrize('name', ['nano-direct-01', 'medgemma-harbor-01'])
+def test_real_bundle_optin_preserves_oracle_explanation_inputs_and_manifest(name, tmp_path):
+    spec = importlib.util.spec_from_file_location('source_context_peer_cli', ROOT / 'scripts/explain_reconciliation.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    base = BUNDLES / name
+    paths = {key:base/'inputs'/(key+'.json') for key in ['scenario','expectations','evidence']}
+    paths['verification'] = base/'verification.json'
+    original = {key:p.read_bytes() for key,p in paths.items()}
+    for mode in [False, True]:
+        dest = tmp_path / str(mode)
+        argv = [item for key,path in paths.items() for item in ['--'+key,str(path)]]
+        argv += ['--output-dir',str(dest)] + (['--source-context'] if mode else [])
+        assert module.main(argv) == 0
+        manifest = json.loads((dest/'manifest.json').read_text())
+        assert manifest['model_calls'] == 0 and manifest['status'] == 'complete'
+        assert ('source_context' in manifest) is mode
+        for rel,h in manifest['files'].items():
+            assert hashlib.sha256((dest/rel).read_bytes()).hexdigest() == h
+        for key,raw in original.items():
+            assert (dest/'inputs'/(key+'.json')).read_bytes() == raw
+        for key,p in paths.items():
+            assert p.read_bytes() == original[key]
+        StaticPage((dest/'report.html').read_text()).require_inert()
+    for name in ['explanation.json','verification.json']:
+        assert (tmp_path/'False'/name).read_bytes() == (tmp_path/'True'/name).read_bytes()
+    sentinel = tmp_path/'existing'
+    sentinel.mkdir()
+    (sentinel/'keep').write_bytes(b'preserve me')
+    with pytest.raises(FileExistsError):
+        module.write_explanation_bundle(**paths, output_dir=sentinel, source_context=True)
+    assert sorted(p.name for p in sentinel.iterdir()) == ['keep']
+    assert (sentinel/'keep').read_bytes() == b'preserve me'
+
+
+def test_primary_valid_note_card_preserves_literal_multiline_raw_note():
+    explanation, docs = captured('medgemma-direct-01')
+    ref = explanation['notes'][0]['reference']
+    captured_raw = pointer_value(docs[ref['document']], ref['pointer'])
+    raw = json.dumps(json.loads(captured_raw), indent=2, ensure_ascii=False)
+    parent_pointer, leaf = ref['pointer'].rsplit('/', 1)
+    pointer_value(docs[ref['document']], parent_pointer)[leaf] = raw
+    explanation['bindings'][ref['document'] + '_sha256'] = digest(docs[ref['document']])
+    assert type(raw) is str and '\n' in raw
+    card = StaticPage(render(explanation, docs)).card_for(ref)
+    visible = [p['text'] for p in card['pres'] if not p['hidden']]
+    assert json.loads(visible[0]) == raw
+    assert raw in visible
+    assert 'Raw captured JSON note' in ''.join(card['text'])
+    assert card['attrs']['data-resolution'] == 'available'
+    assert card['attrs']['data-note-resolution'] == 'available'
+
+
+@pytest.mark.parametrize('decoded', [False, True])
+def test_newline_only_pointer_cannot_resolve_empty_member(decoded):
+    explanation, docs = captured()
+    docs['evidence'][''] = 'not the requested RFC6901 location'
+    docs['evidence']['peer_raw'] = json.dumps({'': 'not the requested decoded location'})
+    explanation['bindings']['evidence_sha256'] = digest(docs['evidence'])
+    ref = {'document':'evidence', 'pointer':'/peer_raw' if decoded else '\n'}
+    if decoded:
+        ref['decoded_json_pointer'] = '\n'
+    mutate_reference(explanation, ref)
+    with pytest.raises(ValueError):
+        render(explanation, docs)
+
+
+def test_legitimate_newline_in_member_name_remains_exact():
+    explanation, docs = captured()
+    extend(explanation, docs, extra={'line\n': 'legitimate line-ending key'})
+    ref = {'document':'evidence', 'pointer':'/peer_fixture/line\n'}
+    mutate_reference(explanation, ref)
+    card = StaticPage(render(explanation, docs)).card_for(ref)
+    assert card['attrs']['data-resolution'] == 'available'
+    assert json.loads([p for p in card['pres'] if not p['hidden']][0]['text']) == 'legitimate line-ending key'

@@ -1,0 +1,105 @@
+"""Run source-bound independent static probes only; never model/browser/network."""
+import argparse
+import datetime
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+HERE = Path(__file__).resolve().parent
+FILES = [
+    'src/healthcraft/reconciliation/explanation_report.py',
+    'scripts/explain_reconciliation.py',
+    'tests/test_reconciliation/test_explanation_sources.py',
+    'tests/test_scripts/test_explanation_source_bundle.py',
+    'src/healthcraft/reconciliation/diagnostics.py',
+    'src/healthcraft/reconciliation/oracle.py',
+]
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def source():
+    return {f:sha(ROOT/f) for f in FILES}
+
+p = argparse.ArgumentParser()
+p.add_argument('--renderer-sha', required=True)
+p.add_argument('--renderer-test-sha', required=True)
+a = p.parse_args()
+expected = {
+    FILES[0]:a.renderer_sha,
+    FILES[1]:'a1f9a89d9773dc537b42e42e7845f0cc289ccd85970e1cf35d50faa332687432',
+    FILES[2]:a.renderer_test_sha,
+    FILES[3]:'d92847674adee750c39f28f03285615c1f9cbcb2789c0b5ac969a57b05c05644',
+}
+before = source()
+assert all(before[k] == v for k,v in expected.items())
+initial = json.loads((HERE/'source-before.json').read_text())
+runs = []
+for version, python in [
+    ('3.10','/private/tmp/healthcraft-check-py310/bin/python'),
+    ('3.12','/private/tmp/healthcraft-check-py312/bin/python'),
+    ('3.14',str(ROOT/'.venv/bin/python')),
+]:
+    cmd = [python,'-m','pytest',str(HERE/'test_source_context_peer.py'),'-q']
+    env = {'PATH':'/bin:/usr/bin','PYTHONPATH':str(ROOT/'src'),'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1'}
+    result = subprocess.run(cmd,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+    log = HERE/('final-py'+version.replace('.','')+'.log')
+    with log.open('x') as f:
+        f.write(result.stdout)
+    runs.append({'python':version,'command':cmd,'environment':env,'exit_code':result.returncode,
+                 'log':log.name,'log_sha256':sha(log)})
+    print(version,result.stdout.strip())
+    assert result.returncode == 0
+
+after = source()
+assert before == after
+unchanged = all(sha(ROOT/k) == v for k,v in initial['saved_bundle_files'].items())
+assert unchanged
+report = {
+    'recorded_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    'scope':'Independent ordinary regression review of opt-in reconciliation source context; static HTML parsing only, not formal red team.',
+    'source_before':before,'source_after':after,'source_stable':before==after,
+    'owner_frozen_hashes_match':True,
+    'saved_bundle_files_checked':len(initial['saved_bundle_files']),
+    'saved_bundle_bytes_unchanged':unchanged,
+    'runs':runs,'cases_per_runtime':39,
+    'overlap_note':'Same 39 independent cases repeated on three Python versions; not 117 distinct cases. Owner tests overlap and are not added to these counts.',
+    'real_saved_attempts':['nano-direct-01','nano-harbor-01','medgemma-harbor-01','medgemma-direct-01'],
+    'real_reference_occurrences':50,'real_unique_cards':46,
+    'findings':[],
+    'resolved_finding':{
+        'description':'A newline-only pointer was accepted by the schema $ anchor and resolved as an empty object key. Both direct and decoded pointers were affected.',
+        'red_log':'pointer-red.log','red_result':'2 failed, 37 passed',
+        'resolution':'The source owner added strict source-context pointer validation; peer controls now reject newline-only pointers while accepting valid slash-prefixed keys containing newline.',
+    },
+    'review_fixture_corrections':[{
+        'log':'first-peer.log','result':'1 failed, 35 passed',
+        'description':'Peer test incorrectly assumed a saved compact raw note had physical newlines. The test now independently reserializes a copied note to multiline JSON, updates its copied evidence binding, and verifies literal display; no production failure or saved evidence change.',
+    }, {
+        'log':'initial-py310-socket-guard.log','result':'2 failed, 37 passed',
+        'description':'The peer network guard replaced socket.socket before Python 3.10 lazily defined SSLSocket during CLI import. Importing stdlib ssl before installing the guard corrected the test setup without opening sockets or changing production.',
+    }],
+    'verified':[
+        'Four default reports remain byte-identical to saved v3 reports with matching titles.',
+        'Every actual source reference resolves via an independent character-wise RFC6901 decoder to the exact visible source value, deduplicated into 46 cards across 50 references.',
+        'Exact null/false/zero and escaped Unicode/member keys remain typed source values; absent/invalid locations remain visibly unavailable.',
+        'All four document bindings required; content drift, inventory mismatch and malformed embedded notes are rejected or visibly unavailable as appropriate.',
+        'Literal raw multiline primary-note content is visible separately from its JSON-string value.',
+        'Source/title/expected text cannot introduce tested active markup; all links are internal fragments targeting existing source cards.',
+        'Actual Nano and MedGemma source-context CLI bundles preserve exact inputs, diagnostics and oracle bytes, retain clinical-unassessed language, and refuse existing output directories.',
+        'Actual write/readback observations retain content-qualified oracle distinction, including MedGemma observed readback despite false oracle readback.',
+    ],
+    'limits':[
+        'No browser rendering or accessibility evaluation; browser QA remains policy-blocked and was not bypassed.',
+        'No model, provider, daemon, tool or network call; in-process socket entrypoints fail during tests.',
+        'No clinical assessment, comparative-value claim, ranking, or formal red team.',
+        'Hash matching establishes content identity, not execution authenticity or proof that supplied explanations were faithfully derived.',
+        'No original repository source, tests, saved model artifacts, oracle files or result files modified by this reviewer.',
+    ],
+    'peer_source_sha256':sha(HERE/'test_source_context_peer.py'),
+    'runner_sha256':sha(Path(__file__)),
+}
+with (HERE/'peer-review.json').open('x') as f:
+    f.write(json.dumps(report,indent=2)+'\n')

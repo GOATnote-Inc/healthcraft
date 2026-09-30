@@ -1,0 +1,113 @@
+"""Derive navigable reports from frozen tutorial evidence, without inference."""
+import hashlib
+from html.parser import HTMLParser
+import json
+from pathlib import Path
+import subprocess
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+BASE = ROOT / 'artifacts/reconciliation/20260930'
+PRIOR = BASE / 'local-model-pilot-v3-explanations-v1'
+DEST = BASE / 'local-model-pilot-v3-source-context-v1'
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def verify(directory):
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    for name, expected in manifest['files'].items():
+        assert digest(directory / name) == expected, (directory, name)
+    return {'manifest_sha256': digest(directory / 'manifest.json'), 'payloads': len(manifest['files'])}
+
+class Structure(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.ids, self.links = [], []
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        assert tag not in {'script', 'iframe', 'object', 'embed', 'base', 'form'}
+        assert not any(key.startswith('on') for key in attrs)
+        if 'id' in attrs:
+            self.ids.append(attrs['id'])
+        if 'href' in attrs:
+            assert tag == 'a' and attrs['href'].startswith('#')
+            self.links.append(attrs['href'][1:])
+        assert 'src' not in attrs
+
+previous = {name: verify(BASE / name) for name in ['local-model-pilot-v3', 'local-model-pilot-v3-explanations-v1']}
+assert not DEST.exists()
+DEST.mkdir()
+attempts = []
+for name in ['nano-direct-01', 'nano-harbor-01', 'medgemma-direct-01', 'medgemma-harbor-01']:
+    old = PRIOR / name
+    output = DEST / name
+    command = [str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/explain_reconciliation.py'),
+               '--scenario', str(old / 'inputs/scenario.json'), '--expectations', str(old / 'inputs/expectations.json'),
+               '--evidence', str(old / 'inputs/evidence.json'), '--verification', str(old / 'verification.json'),
+               '--output-dir', str(output), '--source-context']
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, (name, result.stderr)
+    summary = json.loads(result.stdout)
+    assert summary['status'] == 'available'
+    for relative in ['inputs/scenario.json', 'inputs/expectations.json', 'inputs/evidence.json', 'explanation.json', 'verification.json']:
+        assert (output / relative).read_bytes() == (old / relative).read_bytes(), (name, relative)
+    verify(output)
+    document = Structure((output / 'report.html').read_text())
+    assert document.links and len(document.ids) == len(set(document.ids))
+    assert all(fragment in document.ids for fragment in document.links)
+    attempts.append({'attempt': name, 'command': command, 'exit_code': result.returncode,
+                     'stdout': summary, 'stderr': result.stderr, 'report_sha256': digest(output / 'report.html'),
+                     'report_bytes': (output / 'report.html').stat().st_size,
+                     'internal_links': len(document.links), 'unique_target_count': len(set(document.links)),
+                     'inputs_explanation_oracle_unchanged': True})
+assert previous == {name: verify(BASE / name) for name in previous}
+receipt = {'schema_version': 'healthcraft-source-context-derivation/v1', 'parent_artifacts': previous,
+           'attempts': attempts, 'model_calls': 0, 'tool_executions': 0,
+           'static_html_checks': 'Every href is an internal fragment that resolves; unique IDs; no script/iframe/object/embed/base/form tags, inline event attributes or src attributes. This parser does not inspect stylesheet URLs/imports or meta refresh.',
+           'browser_visual_qa': 'Not performed; browser policy block remains in force.',
+           'clinical_or_comparative_claim': False}
+(DEST / 'derivation.json').write_text(json.dumps(receipt, indent=2) + '\n')
+(DEST / 'README.md').write_text('''# Source context for the four saved tutorial attempts
+
+These offline reports add internal navigation from each evidence reference to
+the exact captured value and labeled surrounding context. They derive from the
+frozen v3 pilot and its existing explanations; no new model or tool calls ran.
+
+| Attempt | Navigable report |
+|---|---|
+| Nano, direct | [Open report](nano-direct-01/report.html) |
+| Nano, Harbor | [Open report](nano-harbor-01/report.html) |
+| MedGemma, direct | [Open report](medgemma-direct-01/report.html) |
+| MedGemma, Harbor | [Open report](medgemma-harbor-01/report.html) |
+
+Follow a finding's source link to its visible excerpt. Captured evidence and
+expected values have separate labels. Surrounding context is available in a
+native disclosure. Missing paths or undecodable note content are shown as
+unavailable, distinct from explicit null values. No JavaScript or network is
+required. The manifest records the opt-in rendering mode and source bindings.
+
+Every input, explanation and oracle result matches the earlier bundle byte for
+byte. All four attempts still fail reconciliation; stored notes and actual
+readback remain separate from correctness. No clinical assessment or new reward
+is added. Original artifact hashes were checked before and after derivation.
+
+Automated structure and source-binding tests passed. Browser visual QA remains
+unperformed because of the earlier browser policy block; independent usability
+testing has not occurred. These exposed tutorial attempts are not held-out
+cases, operator outcomes, clinical validation or comparative superiority.
+
+The broader incident-review workspace still needs a structured response/export
+contract, equivalent baseline surface, fresh cases, independent casebook review
+and actual participant outcomes. The value → formal red team → remote main and
+paper release gate remains open.
+
+Use `scripts/explain_reconciliation.py --source-context` with the same inputs
+and a fresh output directory to reproduce. Exact commands and original hashes
+are recorded in [derivation.json](derivation.json).
+''')
+manifest = {'schema_version': 'healthcraft-derived-evidence-files/v1', 'excluded': ['manifest.json'],
+            'new_model_calls': 0, 'files': {str(p.relative_to(DEST)): digest(p) for p in sorted(DEST.rglob('*')) if p.is_file()}}
+(DEST / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+print(json.dumps({'directory': str(DEST), 'manifest_sha256': digest(DEST / 'manifest.json'), 'payloads': len(manifest['files']), 'attempts': len(attempts)}, indent=2))

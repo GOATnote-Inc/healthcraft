@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_natural_bare_note_reference_keeps_raw_malformed_text_and_parse_reason __
+
+captured = ({'bindings': {'evidence_sha256': 'f6d3403b263e14ffcca72e6a56826b2336b0bde63ffb32a04258986dc10a535b', 'expectations_sh...'persisted_action': False, 'provenance': True, 'readback': False, ...}}, 'scenario': {'authored': 'Source assertion'}})
+
+    def test_natural_bare_note_reference_keeps_raw_malformed_text_and_parse_reason(captured):
+        explanation, documents = captured
+        raw = "not-json<script>untrusted</script>"
+        documents["evidence"]["calls"][0]["params"]["notes"] = raw
+        explanation["bindings"]["evidence_sha256"] = digest(documents["evidence"])
+        explanation["notes"][0]["scope_exclusions"] = {
+            "status": "malformed", "issues": [{
+                "code": "exclusions_not_parseable", "message": "Recorded parse error",
+                "evidence_refs": [reference("/calls/0/params/notes")],
+            }],
+        }
+        attrs, text = card(captured, "/calls/0/params/notes")
+>       assert attrs["data-resolution"] == "unavailable"
+E       AssertionError: assert 'available' == 'unavailable'
+E         
+E         - unavailable
+E         ? --
+E         + available
+
+tests/test_reconciliation/test_explanation_sources.py:213: AssertionError
+_________ test_oracle_checks_reject_python_boolean_integer_equivalence _________
+
+captured = ({'bindings': {'evidence_sha256': '526e8de7b8307c56bc4373a65506a5017976eeedcddf7b1cde294718a559f352', 'expectations_sh...e, 'persisted_action': False, 'provenance': 1, 'readback': False, ...}}, 'scenario': {'authored': 'Source assertion'}})
+
+    def test_oracle_checks_reject_python_boolean_integer_equivalence(captured):
+        explanation, documents = captured
+        documents["oracle"] = deepcopy(documents["oracle"])
+        documents["oracle"]["checks"]["provenance"] = 1
+        explanation["bindings"]["oracle_sha256"] = digest(documents["oracle"])
+>       with pytest.raises(ValueError, match="oracle checks"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_reconciliation/test_explanation_sources.py:223: Failed
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_explanation_sources.py::test_natural_bare_note_reference_keeps_raw_malformed_text_and_parse_reason
+FAILED tests/test_reconciliation/test_explanation_sources.py::test_oracle_checks_reject_python_boolean_integer_equivalence
+2 failed, 27 deselected in 0.06s

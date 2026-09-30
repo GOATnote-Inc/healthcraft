@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import re
 from html import escape
 
 from jsonschema import Draft202012Validator
@@ -278,12 +280,226 @@ def _validate(value: dict) -> None:
         raise ValueError(f"Malformed reconciliation explanation: {type(exc).__name__}") from exc
 
 
-def _references(items: list[dict]) -> str:
+SOURCE_CONTEXT_VERSION = "healthcraft-reconciliation-source-context/v1"
+_SOURCE_LABELS = {
+    "evidence": "Observed evidence",
+    "expectations": "Expected contract — engineering expectations, not clinical truth",
+    "scenario": "Authored scenario — source assertions",
+    "oracle": "Original oracle output",
+}
+
+
+def _canonical_source(value) -> str:
+    _finite_json(value)
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+
+
+def _resolve_pointer(value, pointer: str) -> dict:
+    """Resolve RFC6901 without conflating a missing location with JSON null."""
+    if pointer == "":
+        return {"available": True, "value": value, "context": value, "context_pointer": ""}
+    segments = pointer[1:].split("/")
+    context, context_pointer = value, ""
+    for index, segment in enumerate(segments):
+        token = segment.replace("~1", "/").replace("~0", "~")
+        context, context_pointer = value, "/" + "/".join(segments[:index]) if index else ""
+        reason = None
+        if type(value) is dict:
+            if token not in value:
+                reason = f"Missing object member: {token}"
+            else:
+                value = value[token]
+        elif type(value) is list:
+            if not re.fullmatch(r"0|[1-9][0-9]*", token):
+                reason = f"Invalid array index: {token}"
+            elif len(token) > len(str(len(value))) or int(token) >= len(value):
+                reason = f"Array index out of range: {token}"
+            else:
+                value = value[int(token)]
+        else:
+            reason = "Cannot descend into a scalar"
+        if reason:
+            return {
+                "available": False,
+                "reason": reason,
+                "context": context,
+                "context_pointer": context_pointer,
+            }
+    return {
+        "available": True,
+        "value": value,
+        "context": context,
+        "context_pointer": context_pointer,
+    }
+
+
+def _embedded_note(raw) -> dict:
+    if type(raw) is not str:
+        raise ValueError("Embedded JSON note must be a string")
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    def constant(value):
+        raise ValueError(f"Non-finite JSON constant: {value}")
+
+    value = json.loads(raw, object_pairs_hook=pairs, parse_constant=constant)
+    _canonical_source(value).encode("utf-8")
+    if type(value) is not dict:
+        raise ValueError("Embedded JSON note must contain an object")
+    return value
+
+
+def _source_value(value) -> str:
+    return (
+        "<pre>"
+        + escape(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False))
+        + "</pre>"
+    )
+
+
+class _SourceContext:
+    """One render's bound source documents and deduplicated fragment targets."""
+
+    def __init__(self, explanation: dict, documents: dict | None):
+        _require(
+            type(documents) is dict and set(documents) == set(_SOURCE_LABELS),
+            "source-context documents must contain scenario, expectations, evidence and oracle",
+        )
+        try:
+            bindings = {}
+            for name, value in documents.items():
+                _require(type(value) is dict, "source-context documents must be JSON objects")
+                bindings[name + "_sha256"] = hashlib.sha256(
+                    _canonical_source(value).encode("utf-8")
+                ).hexdigest()
+            _require(explanation["bindings"] == bindings, "source-context binding mismatch")
+            _require(
+                _canonical_source(documents["oracle"].get("checks"))
+                == _canonical_source(explanation["oracle_checks"]),
+                "source-context oracle checks mismatch",
+            )
+        except (TypeError, RecursionError, UnicodeError) as exc:
+            raise ValueError(f"Invalid source-context documents: {type(exc).__name__}") from exc
+        self.documents = documents
+        self.references: dict[str, dict] = {}
+        self.note_references: set[str] = set()
+
+    def anchor(self, ref: dict) -> str:
+        for key in ("pointer", "decoded_json_pointer"):
+            if key in ref:
+                # JSON Schema's search-based `$` can stop before a final newline.
+                # Match the whole pointer before indexing or parsing a note.
+                _require(
+                    re.fullmatch(r"(?:/(?:[^~]|~[01])*)?", ref[key]) is not None,
+                    f"Invalid RFC6901 source-context {key}",
+                )
+        identifier = "source-" + hashlib.sha256(_canonical_source(ref).encode("utf-8")).hexdigest()
+        self.references.setdefault(identifier, ref)
+        return identifier
+
+    def render(self) -> str:
+        cards = []
+        for identifier, ref in self.references.items():
+            resolved = _resolve_pointer(self.documents[ref["document"]], ref["pointer"])
+            raw_note = ""
+            decoded = ref.get("decoded_json_pointer")
+            context_label = "Original document"
+            note_status = None
+            if (decoded is not None or identifier in self.note_references) and resolved[
+                "available"
+            ]:
+                raw = resolved["value"]
+                raw_html = "<h4>Raw captured JSON note</h4>" + (
+                    "<pre>" + escape(raw) + "</pre>" if type(raw) is str else _source_value(raw)
+                )
+                raw_note = raw_html
+                try:
+                    parsed = _embedded_note(raw)
+                    note_status = "available"
+                    if decoded is not None:
+                        resolved = _resolve_pointer(parsed, decoded)
+                        context_label = "Decoded JSON note"
+                except (ValueError, TypeError, RecursionError, UnicodeError) as exc:
+                    note_status = "unavailable"
+                    reason = f"Embedded JSON unavailable: {type(exc).__name__}: {exc}"
+                    raw_note = (
+                        '<p role="status"><strong>Decoded JSON note unavailable.</strong> '
+                        + escape(reason)
+                        + "</p>"
+                        + raw_html
+                    )
+                    if decoded is not None:
+                        resolved = {
+                            "available": False,
+                            "reason": reason,
+                            "context": resolved["context"],
+                            "context_pointer": resolved["context_pointer"],
+                        }
+            status = "available" if resolved["available"] else "unavailable"
+            value_html = (
+                "<h4>Exact captured value</h4>" + _source_value(resolved["value"])
+                if resolved["available"]
+                else '<p role="status"><strong>Source value unavailable.</strong> '
+                + escape(resolved["reason"])
+                + "</p>"
+            )
+            context_heading = (
+                "Parent context" if resolved["available"] else "Nearest existing context"
+            )
+            context_pointer = resolved["context_pointer"] or "(document root)"
+            decoded_attr = (
+                f' data-decoded-pointer="{escape(decoded, quote=True)}"'
+                if decoded is not None
+                else ""
+            )
+            note_attr = f' data-note-resolution="{note_status}"' if note_status else ""
+            decoded_text = (
+                f"<p>Inside the JSON note: <code>{escape(decoded or '(root)')}</code></p>"
+                if decoded is not None
+                else ""
+            )
+            cards.append(
+                f'<article id="{identifier}" data-source-card="true" '
+                f'data-document="{escape(ref["document"], quote=True)}" '
+                f'data-pointer="{escape(ref["pointer"], quote=True)}"{decoded_attr} '
+                f'data-resolution="{status}"{note_attr}><h3>{_SOURCE_LABELS[ref["document"]]}</h3>'
+                f"<p>Original pointer: <code>{escape(ref['pointer'] or '(root)')}</code></p>"
+                f"{decoded_text}{value_html}{raw_note}<details><summary>{context_heading} "
+                f"— {context_label}: <code>{escape(context_pointer)}</code></summary>"
+                f"{_source_value(resolved['context'])}</details></article>"
+            )
+        return (
+            "<section><h2>Captured source context</h2><p>Values below are captured inputs, "
+            "not new verification or clinical judgments. Missing locations remain unavailable. "
+            "Hash matching establishes input identity, not execution authenticity or proof that "
+            "this explanation was faithfully derived.</p>"
+            + ("".join(cards) or "<p>No source references available in this explanation.</p>")
+            + "</section>"
+        )
+
+
+def _references(items: list[dict], sources: _SourceContext | None = None) -> str:
     rows = []
+    seen = set()
     for ref in items:
+        if sources is not None:
+            identifier = sources.anchor(ref)
+            if identifier in seen:
+                continue
+            seen.add(identifier)
         text = f"<strong>{escape(ref['document'])}</strong>: <code>{escape(ref['pointer'])}</code>"
         if "decoded_json_pointer" in ref:
             text += f"<br>Inside the JSON note: <code>{escape(ref['decoded_json_pointer'])}</code>"
+        if sources is not None:
+            text = f'<a href="#{identifier}">{text}</a>'
         rows.append(f"<li>{text}</li>")
     return '<ul class="sources">' + "".join(rows) + "</ul>" if rows else ""
 
@@ -304,7 +520,9 @@ def _value(issue: dict, key: str) -> str:
     )
 
 
-def _note_html(note: dict) -> str:
+def _note_html(note: dict, sources: _SourceContext | None = None) -> str:
+    if sources is not None:
+        sources.note_references.add(sources.anchor(note["reference"]))
     rb = note["readback"]
     if not rb["attempted_call_ids"]:
         read_summary = "No post-write target read recorded."
@@ -329,10 +547,12 @@ def _note_html(note: dict) -> str:
                 f"</tr></thead><tbody><tr><td>{_value(issue, 'observed')}</td>"
                 f"<td>{_value(issue, 'expected')}</td></tr></tbody></table>"
             )
-        sources = _references(issue["evidence_refs"] + issue.get("expectation_refs", []))
+        references = _references(
+            issue["evidence_refs"] + issue.get("expectation_refs", []), sources
+        )
         issues.append(
             f'<article class="issue"><h4>{escape(label)}'
-            f"{': ' + identity if identity else ''}</h4>{details}{sources}</article>"
+            f"{': ' + identity if identity else ''}</h4>{details}{references}</article>"
         )
     exclusion_summary = (
         "Exclusion records match supplied expectations."
@@ -342,24 +562,30 @@ def _note_html(note: dict) -> str:
     return f"""<article class="note"><h3>Write call {escape(note["call_id"])}</h3>
 <p>Matching final stored note IDs: {_ids(note["matching_stored_note_ids"])}.</p>
 <p class="muted">These are final-state text matches, not unique call attribution.</p>
-{_references([note["reference"]])}<h4>Observed readback</h4><p>{read_summary}</p>
+{_references([note["reference"]], sources)}<h4>Observed readback</h4><p>{read_summary}</p>
 <dl><dt>Attempted target reads</dt><dd>{_ids(rb["attempted_call_ids"])}</dd>
 <dt>Successful target reads</dt><dd>{_ids(rb["successful_target_call_ids"])}</dd>
 <dt>Reads containing matching stored text</dt><dd>{_ids(rb["stored_text_seen_call_ids"])}</dd></dl>
-{_references(rb["references"])}<h4>Scope exclusions</h4>
+{_references(rb["references"], sources)}<h4>Scope exclusions</h4>
 <p>{exclusion_summary}</p>{"".join(issues)}</article>"""
 
 
 def render_reconciliation_explanation(
-    explanation: dict, *, title: str = "Reconciliation evidence report"
+    explanation: dict,
+    *,
+    title: str = "Reconciliation evidence report",
+    source_context: bool = False,
+    source_documents: dict | None = None,
 ) -> str:
-    """Render supported v1 evidence without scripts, active links, or new verdicts.
+    """Render v1 evidence; opt into internal links to hash-bound source context.
 
-    Unsupported or malformed input raises ValueError. The renderer checks shape
-    and consistency only; source hashes/pointers require the original documents.
+    The default remains inert. Source context requires all four original parsed
+    documents, including the oracle, and does not create or alter verdicts.
     """
+    _require(type(source_context) is bool, "source_context must be a boolean")
     _require(type(title) is str, "title must be text")
     _validate(explanation)
+    sources = _SourceContext(explanation, source_documents) if source_context else None
     title_text = escape(title)
     if explanation["status"] == "unavailable":
         events = (
@@ -409,7 +635,7 @@ def render_reconciliation_explanation(
                 events += (
                     f"<p><code>{escape(identity)}</code> · encounter "
                     f"<code>{escape(str(record['encounter_id']))}</code></p>"
-                    f"{_references([record['reference']])}"
+                    f"{_references([record['reference']], sources)}"
                 )
             events += "</details>"
         events += "</section>"
@@ -435,8 +661,14 @@ def render_reconciliation_explanation(
         or "<p>No input bindings available.</p>"
     )
     limits = "".join(f"<li>{escape(value)}</li>" for value in explanation["limitations"])
-    notes = "".join(_note_html(note) for note in explanation["notes"])
+    notes = "".join(_note_html(note, sources) for note in explanation["notes"])
     notes = notes or "<p>No per-write diagnosis available.</p>"
+    source_html = sources.render() if sources is not None else ""
+    pointer_notice = (
+        "Source links open captured values and their context on this page."
+        if sources is not None
+        else "Source pointers are inert text to locate the original evidence."
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -466,10 +698,10 @@ A false readback check can coexist with a real read of an incorrect note.</p>
 <table><caption>Content-qualified verification</caption><thead><tr>
 <th scope="col">Check</th><th scope="col">Recorded result</th></tr></thead>
 <tbody>{check_rows}</tbody></table></section>
-<section><h2>Write and exclusion details</h2>{notes}</section>{scope}
+<section><h2>Write and exclusion details</h2>{notes}</section>{scope}{source_html}
 <section><h2>Input bindings</h2><p>Hashes bind this sidecar to its inputs and oracle output;
 this page does not independently authenticate them.
-Source pointers are inert text to locate the original evidence.</p><dl>{bindings}</dl></section>
+{pointer_notice}</p><dl>{bindings}</dl></section>
 <section><h2>Interpretation limits</h2><ul>{limits}</ul></section>
 <footer>Offline explanation only. No clinical validity, comparative value,
 or superiority is established.</footer></main></body></html>"""

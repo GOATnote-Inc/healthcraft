@@ -119,9 +119,66 @@ class GradingResult:
         return json.dumps(self.to_dict(), indent=indent, default=str)
 
     def save(self, path: Path) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.to_json(), encoding="utf-8")
+        _require_new_output(path)
+        _write_new_output(path, self.to_json())
         return path
+
+
+def _grading_path(trajectory_path: Path, output_dir: Path | None) -> Path:
+    return (output_dir or trajectory_path.parent) / f"{trajectory_path.stem}_grading.json"
+
+
+def _require_new_output(path: Path) -> None:
+    """Check a planned destination without creating any directory or file."""
+    try:
+        path.lstat()  # Unlike exists(), this also detects dangling symlinks.
+    except FileNotFoundError:
+        pass
+    else:
+        raise FileExistsError(f"Output already exists: {path}. Choose a fresh --output-dir.")
+    for parent in path.parents:
+        try:
+            parent.lstat()
+        except FileNotFoundError:
+            continue
+        if not parent.is_dir():
+            raise NotADirectoryError(
+                f"Output parent is not a directory: {parent}. Choose a fresh --output-dir."
+            )
+        break
+
+
+def _preflight_outputs(
+    trajectory_paths: list[Path], output_dir: Path | None, summary_path: Path
+) -> None:
+    """Reject all known collisions before judging or writing the first grade."""
+    destinations = [_grading_path(path, output_dir) for path in trajectory_paths]
+    destinations.append(summary_path)
+    seen: dict[str, Path] = {}
+    for path in destinations:
+        # Resolve directory symlinks and lexical aliases; casefold additionally
+        # rejects collisions on case-insensitive filesystems before any write.
+        identity = str(path.resolve()).casefold()
+        if identity in seen:
+            raise ValueError(
+                f"Output destinations alias (canonical, case-insensitive comparison): "
+                f"{seen[identity]} and {path}. Choose a fresh --output-dir with unique "
+                "input filenames, or grade these inputs separately."
+            )
+        seen[identity] = path
+        _require_new_output(path)
+
+
+def _write_new_output(path: Path, payload: str) -> None:
+    """Exclusive creation is the final guard against post-preflight races."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(payload)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"Output already exists: {path}. Choose a fresh --output-dir."
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +345,8 @@ def evaluate_trajectory_file(
         GradingResult, or None if the trajectory could not be evaluated.
     """
     tasks_dir = tasks_dir or _TASKS_DIR
+    grading_path = _grading_path(trajectory_path, output_dir)
+    _require_new_output(grading_path)
 
     # Load trajectory
     try:
@@ -312,10 +371,6 @@ def evaluate_trajectory_file(
     result.trajectory_path = str(trajectory_path)
 
     # Save grading result
-    if output_dir:
-        grading_path = output_dir / f"{trajectory_path.stem}_grading.json"
-    else:
-        grading_path = trajectory_path.parent / f"{trajectory_path.stem}_grading.json"
     result.save(grading_path)
 
     logger.info(
@@ -483,7 +538,12 @@ def main() -> None:
 
     try:
         _preflight_task_rubrics(traj_paths, tasks_dir)
-    except ValueError as exc:
+        summary_dir = output_dir or (
+            Path(args.trajectory).parent if args.trajectory else Path(args.trajectory_dir)
+        )
+        summary_path = summary_dir / "evaluation_summary.json"
+        _preflight_outputs(traj_paths, output_dir, summary_path)
+    except (ValueError, OSError) as exc:
         parser.error(str(exc))
 
     # Resolve/create a judge only after every selected known rubric validates.
@@ -504,13 +564,18 @@ def main() -> None:
     # Evaluate
     results: list[GradingResult] = []
     for traj_path in traj_paths:
-        result = evaluate_trajectory_file(
-            traj_path,
-            judge,
-            tasks_dir=tasks_dir,
-            skepticism=args.skepticism,
-            output_dir=output_dir,
-        )
+        try:
+            result = evaluate_trajectory_file(
+                traj_path,
+                judge,
+                tasks_dir=tasks_dir,
+                skepticism=args.skepticism,
+                output_dir=output_dir,
+            )
+        except OSError as exc:
+            # Earlier newly created grades remain evidence; a batch is not a
+            # transaction, and no previous output is removed or replaced.
+            parser.error(f"Could not save grading output: {exc}")
         if result:
             results.append(result)
 
@@ -525,6 +590,26 @@ def main() -> None:
 
         # Compute reward delta
         changed = sum(1 for r in results if abs(r.reward - r.original_reward) > 0.001)
+
+        # Write summary
+        summary = {
+            "judge_model": judge_model,
+            "skepticism": args.skepticism,
+            "total_evaluated": total,
+            "passed": passed,
+            "pass_rate": round(passed / total, 4),
+            "avg_reward": round(avg_reward, 4),
+            "original_passed": orig_passed,
+            "original_pass_rate": round(orig_passed / total, 4),
+            "original_avg_reward": round(orig_avg_reward, 4),
+            "safety_failures": safety_fails,
+            "reward_changed_count": changed,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            _write_new_output(summary_path, json.dumps(summary, indent=2))
+        except OSError as exc:
+            parser.error(f"Could not save grading summary: {exc}")
 
         logger.info("=" * 60)
         logger.info("STANDALONE EVALUATION COMPLETE")
@@ -543,27 +628,6 @@ def main() -> None:
         logger.info("  Safety failures: %d", safety_fails)
         logger.info("  Reward changed: %d/%d trajectories", changed, total)
         logger.info("=" * 60)
-
-        # Write summary
-        summary = {
-            "judge_model": judge_model,
-            "skepticism": args.skepticism,
-            "total_evaluated": total,
-            "passed": passed,
-            "pass_rate": round(passed / total, 4),
-            "avg_reward": round(avg_reward, 4),
-            "original_passed": orig_passed,
-            "original_pass_rate": round(orig_passed / total, 4),
-            "original_avg_reward": round(orig_avg_reward, 4),
-            "safety_failures": safety_fails,
-            "reward_changed_count": changed,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        summary_dir = output_dir or (
-            Path(args.trajectory).parent if args.trajectory else Path(args.trajectory_dir)
-        )
-        summary_path = Path(summary_dir) / "evaluation_summary.json"
-        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         logger.info("Summary written to %s", summary_path)
 
         print(json.dumps(summary, indent=2))

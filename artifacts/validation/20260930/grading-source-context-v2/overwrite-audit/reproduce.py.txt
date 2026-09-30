@@ -1,0 +1,155 @@
+"""Read-only source audit; all mutable fixtures live beside this script."""
+
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import io
+import json
+import platform
+import sys
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
+import yaml
+
+from healthcraft.llm import evaluator
+from healthcraft.tasks.loader import load_task
+from healthcraft.trajectory import CriterionEvalResult, Trajectory
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path(__file__).resolve().parent
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+class NoCallJudge:
+    def __init__(self, name):
+        self._judge_model = name
+
+    def evaluate_criterion(self, *_args, **_kwargs):
+        raise AssertionError('No judge calls permitted in this audit')
+
+
+def fixture(name):
+    case = OUT / name
+    case.mkdir()
+    tasks = case / 'tasks'
+    tasks.mkdir()
+    path = tasks / 'TEST-001.yaml'
+    path.write_text(yaml.safe_dump({
+        'id': 'TEST-001', 'category': 'clinical_reasoning', 'level': 1,
+        'title': 'Synthetic output preservation fixture',
+        'description': 'Return done.',
+        'criteria': [{'id': 'TEST-001-C01', 'assertion': 'Return done.',
+                      'verification': 'pattern', 'dimension': 'documentation_quality',
+                      'check': 'done'}],
+    }), encoding='utf-8')
+    task = load_task(path)
+    trajectory = Trajectory('TEST-001', 'offline-fixture', 42, 'Synthetic prompt')
+    trajectory.add_turn('assistant', 'done')
+    trajectory.criteria_results = [CriterionEvalResult('TEST-001-C01', True, 'Synthetic saved result')]
+    trajectory.reward = 1.0
+    trajectory.passed = True
+    original = case / 'originals' / 'TEST-001_offline_42_t1.json'
+    trajectory.save(original)
+    return case, tasks, task, trajectory, original
+
+
+def record_replacement(case, path, before, original, original_sha):
+    after = path.read_bytes()
+    (case / (path.name + '.before.txt')).write_bytes(before)
+    (case / (path.name + '.after.txt')).write_bytes(after)
+    return {
+        'path': str(path.relative_to(OUT)),
+        'before_sha256': hashlib.sha256(before).hexdigest(),
+        'after_sha256': hashlib.sha256(after).hexdigest(),
+        'replaced': before != after,
+        'original_trajectory_unchanged': sha(original) == original_sha,
+    }
+
+
+source = ROOT / 'src/healthcraft/llm/evaluator.py'
+before_source = sha(source)
+results = []
+
+with patch.object(evaluator, 'create_client', side_effect=AssertionError('No provider access')):
+    with patch('socket.create_connection', side_effect=AssertionError('No network access')):
+        case, tasks, task, trajectory, original = fixture('direct-save')
+        original_sha = sha(original)
+        grade = evaluator.evaluate_trajectory(trajectory, task, NoCallJudge('first-offline-stub'))
+        target = case / 'grading.json'
+        grade.save(target)
+        prior = target.read_bytes()
+        replace(grade, judge_model='second-offline-stub', skepticism='high').save(target)
+        item = record_replacement(case, target, prior, original, original_sha)
+        item.update(entrypoint='GradingResult.save', exception=None)
+        results.append(item)
+
+        for mode in ('alongside', 'explicit-output'):
+            case, tasks, task, trajectory, original = fixture('file-' + mode)
+            original_sha = sha(original)
+            destination = None if mode == 'alongside' else case / 'grading'
+            evaluator.evaluate_trajectory_file(
+                original, NoCallJudge('first-offline-stub'), tasks, output_dir=destination,
+            )
+            target = (destination or original.parent) / (original.stem + '_grading.json')
+            prior = target.read_bytes()
+            evaluator.evaluate_trajectory_file(
+                original, NoCallJudge('second-offline-stub'), tasks,
+                skepticism='high', output_dir=destination,
+            )
+            item = record_replacement(case, target, prior, original, original_sha)
+            item.update(entrypoint='evaluate_trajectory_file', output_mode=mode, exception=None)
+            results.append(item)
+
+        case, tasks, task, trajectory, original = fixture('cli-existing-output')
+        original_sha = sha(original)
+        destination = case / 'grading'
+        args = ['evaluator', '--trajectory', str(original), '--tasks-dir', str(tasks),
+                '--output-dir', str(destination), '--judge-key', 'offline-placeholder-not-a-key']
+        factory_calls = []
+
+        def factory(model, *_args):
+            factory_calls.append(model)
+            return NoCallJudge(model)
+
+        stdout = io.StringIO()
+        with patch.object(evaluator, 'create_skeptical_judge', side_effect=factory):
+            with patch.object(sys, 'argv', args + ['--judge-model', 'first-offline-stub']):
+                with contextlib.redirect_stdout(stdout):
+                    evaluator.main()
+            grade_path = destination / (original.stem + '_grading.json')
+            summary_path = destination / 'evaluation_summary.json'
+            old_grade, old_summary = grade_path.read_bytes(), summary_path.read_bytes()
+            with patch.object(sys, 'argv', args + ['--judge-model', 'second-offline-stub',
+                                                  '--skepticism', 'high']):
+                with contextlib.redirect_stdout(stdout):
+                    evaluator.main()
+        for target, prior in ((grade_path, old_grade), (summary_path, old_summary)):
+            item = record_replacement(case, target, prior, original, original_sha)
+            item.update(entrypoint='CLI main', judge_factory_calls=factory_calls,
+                        exception=None, successful_return=True)
+            results.append(item)
+        (case / 'stdout.txt').write_text(stdout.getvalue(), encoding='utf-8')
+
+assert len(results) == 5
+assert all(item['replaced'] and item['original_trajectory_unchanged'] for item in results)
+report = {
+    'scope': 'Ordinary correctness audit; synthetic temporary grading outputs only.',
+    'python_version': platform.python_version(),
+    'source_sha256_before': before_source,
+    'source_sha256_after': sha(source),
+    'source_unchanged': sha(source) == before_source,
+    'reproduced_replacements': results,
+    'models_or_provider_calls': 0,
+    'network_calls': 0,
+    'repository_files_written': [],
+}
+with (OUT / 'reproduction.json').open('x', encoding='utf-8') as handle:
+    json.dump(report, handle, indent=2, sort_keys=True)
+    handle.write('\n')
+print(json.dumps(report, indent=2, sort_keys=True))

@@ -148,10 +148,30 @@ identity, not authenticated execution. The HTML uses no scripts or external
 assets; automated structure/escaping checks are distinct from browser visual
 QA and human usability testing.
 
+Add `--source-context` to create a report with navigable evidence excerpts in a
+new output directory. Each source reference opens a section in the same HTML
+file showing the exact captured value and its labeled surrounding context.
+Expected values remain labeled as expectations, separate from recorded evidence.
+Embedded JSON notes are decoded only for navigation; their raw text is retained.
+Missing fields and undecodable note content are marked unavailable, distinct
+from an explicit JSON `null`; captured raw text stays visible.
+
+This opt-in mode verifies all four content bindings before rendering excerpts.
+Incomplete or changed bindings stop report creation. Internal links and native
+disclosures require no scripts, external assets or network access. The manifest
+records the rendering mode/version; input bytes, explanation and oracle verdicts
+are unchanged. The default report keeps its original inert pointer display.
+
 The [four saved-attempt reports](../artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1/README.md)
 show the distinction directly: all four attempts stored a note; the two MedGemma
 attempts also read it back. All four still failed the required source exclusions.
 These reports preserve the original verdicts and inputs.
+
+The [source-context versions](../artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1/README.md)
+add navigable excerpts to those same four tutorial attempts. Their captured
+inputs, explanations and oracle results remain byte-identical; no models were
+rerun. Static source/pointer checks pass, while browser visual QA and independent
+usability testing remain unperformed.
 
 Operator-value measurement, independent clinical review and held-out
 evaluation remain unperformed. Ordinary TDD and peer

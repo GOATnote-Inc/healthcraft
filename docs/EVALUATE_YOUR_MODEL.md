@@ -145,6 +145,33 @@ python -m healthcraft.llm.orchestrator \
   --retry-errors
 ```
 
+### Regrading saved trajectories
+
+The standalone evaluator re-runs judge criteria and preserves the saved
+deterministic verdicts. Choose a judge from a different vendor than the agent
+and a fresh output directory for each judge or skepticism setting:
+
+```bash
+python -m healthcraft.llm.evaluator \
+  --trajectory-dir results/<run-name>/trajectories \
+  --judge-model <different-vendor-judge> \
+  --output-dir results/<new-grading-run> \
+  --skepticism default
+```
+
+The command checks all planned grade destinations and `evaluation_summary.json`
+before constructing a judge or writing a grade. An occupied destination,
+including a dangling symlink, or two inputs mapping to the same output stops
+the run. Existing unrelated files in an output directory are allowed. Individual
+file grading also checks its destination before judging. Final writes use
+exclusive creation to preserve a file created after the initial check.
+
+If a later write fails, the command exits nonzero and retains any new grades
+already written. The batch is not transactional; inspect those files and use a
+fresh directory for another run. Original trajectories and previous grades are
+preserved. Without `--output-dir`, grades are written beside their trajectories,
+so repeating the command requires an explicit new destination.
+
 ## Interpreting Results
 
 ### summary.json
