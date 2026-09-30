@@ -1,0 +1,160 @@
+{
+  "path": "/api/chat",
+  "request": {
+    "messages": [
+      {
+        "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+        "role": "system"
+      },
+      {
+        "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+        "role": "user"
+      },
+      {
+        "content": "\n",
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": {
+                "limit": 100
+              },
+              "name": "searchEncounters"
+            }
+          }
+        ]
+      },
+      {
+        "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+        "role": "tool",
+        "tool_name": "searchEncounters"
+      }
+    ],
+    "model": "counsel-nano-q5:latest",
+    "options": {
+      "num_ctx": 32768,
+      "num_predict": 2048,
+      "seed": 42,
+      "temperature": 0.0
+    },
+    "stream": false,
+    "think": false,
+    "tools": [
+      {
+        "function": {
+          "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+          "name": "searchEncounters",
+          "parameters": {
+            "properties": {
+              "chief_complaint": {
+                "type": "string"
+              },
+              "date_from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "date_to": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "disposition": {
+                "enum": [
+                  "admitted",
+                  "discharged",
+                  "transferred",
+                  "ama",
+                  "expired",
+                  "lwbs"
+                ],
+                "type": "string"
+              },
+              "esi_level": {
+                "maximum": 5,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "limit": {
+                "default": 10,
+                "maximum": 50,
+                "type": "integer"
+              },
+              "patient_id": {
+                "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+          "name": "getEncounterDetails",
+          "parameters": {
+            "properties": {
+              "encounter_id": {
+                "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "encounter_id"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      },
+      {
+        "function": {
+          "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+          "name": "getPatientHistory",
+          "parameters": {
+            "properties": {
+              "patient_id": {
+                "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "patient_id"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "function"
+      }
+    ]
+  },
+  "response": {
+    "created_at": "2026-09-30T08:13:52.752819Z",
+    "done": true,
+    "done_reason": "stop",
+    "eval_count": 42,
+    "eval_duration": 472765000,
+    "load_duration": 847750,
+    "message": {
+      "content": "\n",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": {
+              "encounter_id": "ENC-181E9F91635E"
+            },
+            "index": 0,
+            "name": "getEncounterDetails"
+          },
+          "id": "call_dhqlbn9r"
+        }
+      ]
+    },
+    "model": "counsel-nano-q5:latest",
+    "prompt_eval_cached_count": 673,
+    "prompt_eval_count": 930,
+    "prompt_eval_duration": 250893000,
+    "total_duration": 730184000
+  }
+}

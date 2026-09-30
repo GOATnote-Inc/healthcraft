@@ -1,0 +1,103 @@
+{
+  "body": {
+    "input": [
+      {
+        "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+        "role": "user",
+        "type": "message"
+      }
+    ],
+    "instructions": "You are a tool-using assistant performing a source-record retrieval exercise.",
+    "max_output_tokens": 2048,
+    "model": "counsel-nano-q5:latest",
+    "parallel_tool_calls": true,
+    "temperature": 0.0,
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+        "name": "searchEncounters",
+        "parameters": {
+          "properties": {
+            "chief_complaint": {
+              "type": "string"
+            },
+            "date_from": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "date_to": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "disposition": {
+              "enum": [
+                "admitted",
+                "discharged",
+                "transferred",
+                "ama",
+                "expired",
+                "lwbs"
+              ],
+              "type": "string"
+            },
+            "esi_level": {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "limit": {
+              "default": 10,
+              "maximum": 50,
+              "type": "integer"
+            },
+            "patient_id": {
+              "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "strict": false,
+        "type": "function"
+      },
+      {
+        "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+        "name": "getEncounterDetails",
+        "parameters": {
+          "properties": {
+            "encounter_id": {
+              "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "encounter_id"
+          ],
+          "type": "object"
+        },
+        "strict": false,
+        "type": "function"
+      },
+      {
+        "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+        "name": "getPatientHistory",
+        "parameters": {
+          "properties": {
+            "patient_id": {
+              "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "patient_id"
+          ],
+          "type": "object"
+        },
+        "strict": false,
+        "type": "function"
+      }
+    ]
+  },
+  "dialect": "responses"
+}

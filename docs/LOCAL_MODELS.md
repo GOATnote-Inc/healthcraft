@@ -7,6 +7,13 @@ rejected. Evaluation never downloads weights or switches providers. A local
 agent defaults to deterministic grading only; use an explicit local judge to
 evaluate the remaining `llm_judge` criteria.
 
+The [optional NeMo Gym integration](../integrations/nemo_gym/README.md) uses
+the same native local-model transport. In the separate
+[four-record feasibility exercise](../artifacts/comparators/20260930/nemo-roster-local-v1/README.md),
+Nemotron completed one attempt in each framework, with all four members
+retrieved through five tool calls and six model responses per arm. This is
+ungraded source retrieval, not a clinical benchmark or performance comparison.
+
 ## Choose roles from runtime capabilities
 
 The provider checks `/api/tags` and `/api/show` before evaluation. Tool agents
@@ -115,3 +122,13 @@ agent never articulated that reasoning. Separately, IR-001-C03 currently checks
 `checkResourceAvailability` although its assertion and expected sequence concern
 cross-reactivity lookup. Those task/grading issues require a separately
 versioned rubric audit; this local integration did not alter benchmark tasks.
+
+The immutable [CC-022 native roster diagnostic](../artifacts/local-models/20260930/cc022-roster-nano/README.md)
+also predates an interface correction: its tool schemas advertised exactly
+8 hexadecimal characters in patient/encounter IDs, while the roster supplied
+12-character IDs. Its incomplete execution is therefore confounded by an
+inconsistent interface and cannot be attributed solely to the model or policy.
+The three retrieval schemas now accept exactly 8 or 12 uppercase hexadecimal
+characters. The historical artifacts and task/profile IDs remain unchanged;
+new trials require a new output directory and checkpoint identity under the
+corrected schemas.

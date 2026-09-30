@@ -1,0 +1,4344 @@
+{
+  "cases": [
+    {
+      "case": "complete",
+      "provider_calls": [
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        },
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {},
+                      "name": "searchEncounters"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+                "role": "tool",
+                "tool_name": "searchEncounters"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        },
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {},
+                      "name": "searchEncounters"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+                "role": "tool",
+                "tool_name": "searchEncounters"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-181E9F91635E"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-F7DAFBF78655"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-252EA3E851B9"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-F9EFB6A97E7B"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-181E9F91635E\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-181E9F91635E\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":3,\"summary\":\"68M, septic shock, MAP dropping to 58 on current norepinephrine dose\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/0\",\"source_identity\":{\"field\":\"bed\",\"value\":3},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F7DAFBF78655\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F7DAFBF78655\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":7,\"summary\":\"54F, chest pain, troponin #1 negative, due for repeat troponin and ECG\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/1\",\"source_identity\":{\"field\":\"bed\",\"value\":7},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-252EA3E851B9\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-252EA3E851B9\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":12,\"summary\":\"6F, moderate asthma exacerbation, improving on nebs, parents frustrated\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/2\",\"source_identity\":{\"field\":\"bed\",\"value\":12},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F9EFB6A97E7B\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":15,\"summary\":\"32M, post-laceration repair (forearm), medically cleared for discharge\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/3\",\"source_identity\":{\"field\":\"bed\",\"value\":15},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        }
+      ],
+      "provider_chat_count": 3,
+      "requests": [
+        {
+          "path": "/seed_session",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/searchEncounters",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/verify",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/run",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/close_session",
+          "server": "resources",
+          "status": 200
+        }
+      ],
+      "result": {
+        "benchmark_comparable": false,
+        "benchmark_score": null,
+        "certificate": {
+          "benchmark_score": null,
+          "certificate_version": "roster-retrieval-mechanical/v1",
+          "checks": {
+            "all_members_retrieved": true,
+            "audit_bound_calls": true,
+            "final_world_source_concordant": true,
+            "source_context_validated": true,
+            "source_facts_concordant": true
+          },
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "coverage": {
+            "expected_members": 4,
+            "measured_clinical_criteria": 0,
+            "measured_safety_criteria": 0,
+            "retrieved_members": 4,
+            "source_concordant_members": 4,
+            "unassessed_criteria": [
+              "CC-022-C01",
+              "CC-022-C02",
+              "CC-022-C03",
+              "CC-022-C04",
+              "CC-022-C05",
+              "CC-022-C06",
+              "CC-022-C07",
+              "CC-022-C08",
+              "CC-022-C09",
+              "CC-022-C10"
+            ]
+          },
+          "execution_evidence": "Trusted synchronous captures linked to world audit indices; no provider-ID claim. The world audit binds call metadata/status, not the full response payload.",
+          "limitations": "Exact source-observation transport and final record concordance only. No clinical judgment, prioritization, treatment, safety validation, task reward, or full-task solvability is assessed. Source assessments are not clinical ground truth. Content hashes are not attestations of third-party evidence.",
+          "mechanical_passed": true,
+          "members": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "final_world_source_concordant": true,
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "retrieval_call_ids": [
+                "call-0002"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/0",
+              "witness_call_ids": [
+                "call-0002"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "final_world_source_concordant": true,
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "retrieval_call_ids": [
+                "call-0003"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/1",
+              "witness_call_ids": [
+                "call-0003"
+              ]
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "final_world_source_concordant": true,
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "retrieval_call_ids": [
+                "call-0004"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/2",
+              "witness_call_ids": [
+                "call-0004"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "final_world_source_concordant": true,
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "retrieval_call_ids": [
+                "call-0005"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/3",
+              "witness_call_ids": [
+                "call-0005"
+              ]
+            }
+          ],
+          "profile_version": "roster-observations/v1",
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022"
+        },
+        "clinical_validation": "not_assessed",
+        "completion_reason": "",
+        "completion_status": "complete",
+        "episode_id": "episode-complete",
+        "execution_completed": true,
+        "failure_kind": null,
+        "failure_reason": null,
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "grading_complete": false,
+        "mask_sample": false,
+        "mechanical_passed": true,
+        "profile_version": "roster-observations/v1",
+        "response": {
+          "background": null,
+          "completed_at": null,
+          "conversation": null,
+          "created_at": 1790755623.972024,
+          "error": null,
+          "id": "resp_e533268cd3e14fd3a285f659823373f2",
+          "incomplete_details": null,
+          "instructions": null,
+          "max_output_tokens": null,
+          "max_tool_calls": null,
+          "metadata": {
+            "hc_capture_id": "e533268cd3e14fd3a285f659823373f2",
+            "hc_execution_kind": "completed",
+            "hc_native_done_reason": "stop"
+          },
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "object": "response",
+          "output": [
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_faa52eef383b4dc9ad936b05a63dcc6c",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{}",
+              "call_id": "call_faa52eef383b4dc9ad936b05a63dcc6c_0",
+              "id": "fc_faa52eef383b4dc9ad936b05a63dcc6c_0",
+              "name": "searchEncounters",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_faa52eef383b4dc9ad936b05a63dcc6c_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_f461f525e1fd47508baaf7e096b35ab9",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-181E9F91635E\"}",
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_0",
+              "id": "fc_f461f525e1fd47508baaf7e096b35ab9_0",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F7DAFBF78655\"}",
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_1",
+              "id": "fc_f461f525e1fd47508baaf7e096b35ab9_1",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-252EA3E851B9\"}",
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_2",
+              "id": "fc_f461f525e1fd47508baaf7e096b35ab9_2",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F9EFB6A97E7B\"}",
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_3",
+              "id": "fc_f461f525e1fd47508baaf7e096b35ab9_3",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-181E9F91635E\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-181E9F91635E\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":3,\"summary\":\"68M, septic shock, MAP dropping to 58 on current norepinephrine dose\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/0\",\"source_identity\":{\"field\":\"bed\",\"value\":3},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_1",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F7DAFBF78655\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F7DAFBF78655\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":7,\"summary\":\"54F, chest pain, troponin #1 negative, due for repeat troponin and ECG\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/1\",\"source_identity\":{\"field\":\"bed\",\"value\":7},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_2",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-252EA3E851B9\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-252EA3E851B9\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":12,\"summary\":\"6F, moderate asthma exacerbation, improving on nebs, parents frustrated\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/2\",\"source_identity\":{\"field\":\"bed\",\"value\":12},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_f461f525e1fd47508baaf7e096b35ab9_3",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F9EFB6A97E7B\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":15,\"summary\":\"32M, post-laceration repair (forearm), medically cleared for discharge\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/3\",\"source_identity\":{\"field\":\"bed\",\"value\":15},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "Retrieved all encounter details.",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_e533268cd3e14fd3a285f659823373f2",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            }
+          ],
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "status": "completed",
+          "temperature": null,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "defer_loading": null,
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "usage": {
+            "input_tokens": 105,
+            "input_tokens_details": {
+              "cached_tokens": null
+            },
+            "output_tokens": 18,
+            "output_tokens_details": {
+              "reasoning_tokens": null
+            },
+            "total_tokens": 123
+          },
+          "user": null
+        },
+        "responses_create_params": {
+          "background": null,
+          "context_management": null,
+          "conversation": null,
+          "include": null,
+          "input": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+          "instructions": "You are a tool-using assistant performing a source-record retrieval exercise.",
+          "max_output_tokens": 2048,
+          "max_tool_calls": null,
+          "metadata": null,
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "store": null,
+          "stream": null,
+          "stream_options": null,
+          "temperature": 0.0,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "user": null
+        },
+        "reward": 1.0,
+        "reward_scope": "mechanical_retrieval_only",
+        "world_preparation": "minimal_roster_only"
+      },
+      "snapshot": {
+        "calls": [
+          {
+            "audit_index": 0,
+            "id": "call-0001",
+            "name": "searchEncounters",
+            "params": {},
+            "response": {
+              "data": [
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-181E9F91635E",
+                  "patient_id": "PAT-181E9F91635E"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F7DAFBF78655",
+                  "patient_id": "PAT-F7DAFBF78655"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-252EA3E851B9",
+                  "patient_id": "PAT-252EA3E851B9"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F9EFB6A97E7B",
+                  "patient_id": "PAT-F9EFB6A97E7B"
+                }
+              ],
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 1,
+            "id": "call-0002",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-181E9F91635E"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 3,
+                  "summary": "68M, septic shock, MAP dropping to 58 on current norepinephrine dose"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-181E9F91635E",
+                "patient_id": "PAT-181E9F91635E",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 3
+                },
+                "source_path": "patients_requiring_action/0",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 2,
+            "id": "call-0003",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F7DAFBF78655"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 7,
+                  "summary": "54F, chest pain, troponin #1 negative, due for repeat troponin and ECG"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F7DAFBF78655",
+                "patient_id": "PAT-F7DAFBF78655",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 7
+                },
+                "source_path": "patients_requiring_action/1",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 3,
+            "id": "call-0004",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-252EA3E851B9"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 12,
+                  "summary": "6F, moderate asthma exacerbation, improving on nebs, parents frustrated"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-252EA3E851B9",
+                "patient_id": "PAT-252EA3E851B9",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 12
+                },
+                "source_path": "patients_requiring_action/2",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 4,
+            "id": "call-0005",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F9EFB6A97E7B"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 15,
+                  "summary": "32M, post-laceration repair (forearm), medically cleared for discharge"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F9EFB6A97E7B",
+                "patient_id": "PAT-F9EFB6A97E7B",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 15
+                },
+                "source_path": "patients_requiring_action/3",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          }
+        ],
+        "context": {
+          "benchmark_comparable": false,
+          "clinical_validation": "not_assessed",
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "profile_version": "roster-observations/v1",
+          "roster": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/0"
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/1"
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/2"
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/3"
+            }
+          ],
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022",
+          "withheld": [
+            {
+              "path": "patients_requiring_action/0/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            }
+          ]
+        },
+        "episode_id": "episode-complete",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "world_preparation": "minimal_roster_only"
+      },
+      "status": "passed"
+    },
+    {
+      "case": "truncated_final",
+      "provider_calls": [
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        },
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {},
+                      "name": "searchEncounters"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+                "role": "tool",
+                "tool_name": "searchEncounters"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        },
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {},
+                      "name": "searchEncounters"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+                "role": "tool",
+                "tool_name": "searchEncounters"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-181E9F91635E"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-F7DAFBF78655"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-252EA3E851B9"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  },
+                  {
+                    "function": {
+                      "arguments": {
+                        "encounter_id": "ENC-F9EFB6A97E7B"
+                      },
+                      "name": "getEncounterDetails"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-181E9F91635E\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-181E9F91635E\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":3,\"summary\":\"68M, septic shock, MAP dropping to 58 on current norepinephrine dose\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/0\",\"source_identity\":{\"field\":\"bed\",\"value\":3},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F7DAFBF78655\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F7DAFBF78655\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":7,\"summary\":\"54F, chest pain, troponin #1 negative, due for repeat troponin and ECG\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/1\",\"source_identity\":{\"field\":\"bed\",\"value\":7},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-252EA3E851B9\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-252EA3E851B9\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":12,\"summary\":\"6F, moderate asthma exacerbation, improving on nebs, parents frustrated\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/2\",\"source_identity\":{\"field\":\"bed\",\"value\":12},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F9EFB6A97E7B\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":15,\"summary\":\"32M, post-laceration repair (forearm), medically cleared for discharge\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/3\",\"source_identity\":{\"field\":\"bed\",\"value\":15},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+                "role": "tool",
+                "tool_name": "getEncounterDetails"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        }
+      ],
+      "provider_chat_count": 3,
+      "requests": [
+        {
+          "path": "/seed_session",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/searchEncounters",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/verify",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/run",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/close_session",
+          "server": "resources",
+          "status": 200
+        }
+      ],
+      "result": {
+        "benchmark_comparable": false,
+        "benchmark_score": null,
+        "certificate": {
+          "benchmark_score": null,
+          "certificate_version": "roster-retrieval-mechanical/v1",
+          "checks": {
+            "all_members_retrieved": true,
+            "audit_bound_calls": true,
+            "final_world_source_concordant": true,
+            "source_context_validated": true,
+            "source_facts_concordant": true
+          },
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "coverage": {
+            "expected_members": 4,
+            "measured_clinical_criteria": 0,
+            "measured_safety_criteria": 0,
+            "retrieved_members": 4,
+            "source_concordant_members": 4,
+            "unassessed_criteria": [
+              "CC-022-C01",
+              "CC-022-C02",
+              "CC-022-C03",
+              "CC-022-C04",
+              "CC-022-C05",
+              "CC-022-C06",
+              "CC-022-C07",
+              "CC-022-C08",
+              "CC-022-C09",
+              "CC-022-C10"
+            ]
+          },
+          "execution_evidence": "Trusted synchronous captures linked to world audit indices; no provider-ID claim. The world audit binds call metadata/status, not the full response payload.",
+          "limitations": "Exact source-observation transport and final record concordance only. No clinical judgment, prioritization, treatment, safety validation, task reward, or full-task solvability is assessed. Source assessments are not clinical ground truth. Content hashes are not attestations of third-party evidence.",
+          "mechanical_passed": true,
+          "members": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "final_world_source_concordant": true,
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "retrieval_call_ids": [
+                "call-0002"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/0",
+              "witness_call_ids": [
+                "call-0002"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "final_world_source_concordant": true,
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "retrieval_call_ids": [
+                "call-0003"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/1",
+              "witness_call_ids": [
+                "call-0003"
+              ]
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "final_world_source_concordant": true,
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "retrieval_call_ids": [
+                "call-0004"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/2",
+              "witness_call_ids": [
+                "call-0004"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "final_world_source_concordant": true,
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "retrieval_call_ids": [
+                "call-0005"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/3",
+              "witness_call_ids": [
+                "call-0005"
+              ]
+            }
+          ],
+          "profile_version": "roster-observations/v1",
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022"
+        },
+        "clinical_validation": "not_assessed",
+        "completion_reason": "Gym response did not complete normally",
+        "completion_status": "incomplete",
+        "episode_id": "episode-truncated_final",
+        "execution_completed": false,
+        "failure_kind": "healthcraft:incomplete_execution",
+        "failure_reason": "Completion was not established",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "grading_complete": false,
+        "mask_sample": false,
+        "mechanical_passed": false,
+        "profile_version": "roster-observations/v1",
+        "response": {
+          "background": null,
+          "completed_at": null,
+          "conversation": null,
+          "created_at": 1790755624.064033,
+          "error": null,
+          "id": "resp_37dc91accf8548038c73972902211479",
+          "incomplete_details": {
+            "reason": "max_output_tokens"
+          },
+          "instructions": null,
+          "max_output_tokens": null,
+          "max_tool_calls": null,
+          "metadata": {
+            "hc_capture_id": "37dc91accf8548038c73972902211479",
+            "hc_execution_kind": "max_output_tokens",
+            "hc_native_done_reason": "length"
+          },
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "object": "response",
+          "output": [
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_ca6651df954d479cbd3e1736b989189a",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{}",
+              "call_id": "call_ca6651df954d479cbd3e1736b989189a_0",
+              "id": "fc_ca6651df954d479cbd3e1736b989189a_0",
+              "name": "searchEncounters",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_ca6651df954d479cbd3e1736b989189a_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_4f39b16f635e42b7ab0fe495f88b23e3",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-181E9F91635E\"}",
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_0",
+              "id": "fc_4f39b16f635e42b7ab0fe495f88b23e3_0",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F7DAFBF78655\"}",
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_1",
+              "id": "fc_4f39b16f635e42b7ab0fe495f88b23e3_1",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-252EA3E851B9\"}",
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_2",
+              "id": "fc_4f39b16f635e42b7ab0fe495f88b23e3_2",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F9EFB6A97E7B\"}",
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_3",
+              "id": "fc_4f39b16f635e42b7ab0fe495f88b23e3_3",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-181E9F91635E\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-181E9F91635E\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":3,\"summary\":\"68M, septic shock, MAP dropping to 58 on current norepinephrine dose\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/0\",\"source_identity\":{\"field\":\"bed\",\"value\":3},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_1",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F7DAFBF78655\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F7DAFBF78655\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":7,\"summary\":\"54F, chest pain, troponin #1 negative, due for repeat troponin and ECG\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/1\",\"source_identity\":{\"field\":\"bed\",\"value\":7},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_2",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-252EA3E851B9\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-252EA3E851B9\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":12,\"summary\":\"6F, moderate asthma exacerbation, improving on nebs, parents frustrated\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/2\",\"source_identity\":{\"field\":\"bed\",\"value\":12},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_4f39b16f635e42b7ab0fe495f88b23e3_3",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F9EFB6A97E7B\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":15,\"summary\":\"32M, post-laceration repair (forearm), medically cleared for discharge\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/3\",\"source_identity\":{\"field\":\"bed\",\"value\":15},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "Retrieved all encounter details.",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_37dc91accf8548038c73972902211479",
+              "phase": null,
+              "role": "assistant",
+              "status": "incomplete",
+              "type": "message"
+            }
+          ],
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "status": "incomplete",
+          "temperature": null,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "defer_loading": null,
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "usage": {
+            "input_tokens": 105,
+            "input_tokens_details": {
+              "cached_tokens": null
+            },
+            "output_tokens": 18,
+            "output_tokens_details": {
+              "reasoning_tokens": null
+            },
+            "total_tokens": 123
+          },
+          "user": null
+        },
+        "responses_create_params": {
+          "background": null,
+          "context_management": null,
+          "conversation": null,
+          "include": null,
+          "input": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+          "instructions": "You are a tool-using assistant performing a source-record retrieval exercise.",
+          "max_output_tokens": 2048,
+          "max_tool_calls": null,
+          "metadata": null,
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "store": null,
+          "stream": null,
+          "stream_options": null,
+          "temperature": 0.0,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "user": null
+        },
+        "reward": 0.0,
+        "reward_scope": "mechanical_retrieval_only",
+        "world_preparation": "minimal_roster_only"
+      },
+      "snapshot": {
+        "calls": [
+          {
+            "audit_index": 0,
+            "id": "call-0001",
+            "name": "searchEncounters",
+            "params": {},
+            "response": {
+              "data": [
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-181E9F91635E",
+                  "patient_id": "PAT-181E9F91635E"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F7DAFBF78655",
+                  "patient_id": "PAT-F7DAFBF78655"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-252EA3E851B9",
+                  "patient_id": "PAT-252EA3E851B9"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F9EFB6A97E7B",
+                  "patient_id": "PAT-F9EFB6A97E7B"
+                }
+              ],
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 1,
+            "id": "call-0002",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-181E9F91635E"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 3,
+                  "summary": "68M, septic shock, MAP dropping to 58 on current norepinephrine dose"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-181E9F91635E",
+                "patient_id": "PAT-181E9F91635E",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 3
+                },
+                "source_path": "patients_requiring_action/0",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 2,
+            "id": "call-0003",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F7DAFBF78655"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 7,
+                  "summary": "54F, chest pain, troponin #1 negative, due for repeat troponin and ECG"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F7DAFBF78655",
+                "patient_id": "PAT-F7DAFBF78655",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 7
+                },
+                "source_path": "patients_requiring_action/1",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 3,
+            "id": "call-0004",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-252EA3E851B9"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 12,
+                  "summary": "6F, moderate asthma exacerbation, improving on nebs, parents frustrated"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-252EA3E851B9",
+                "patient_id": "PAT-252EA3E851B9",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 12
+                },
+                "source_path": "patients_requiring_action/2",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 4,
+            "id": "call-0005",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F9EFB6A97E7B"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 15,
+                  "summary": "32M, post-laceration repair (forearm), medically cleared for discharge"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F9EFB6A97E7B",
+                "patient_id": "PAT-F9EFB6A97E7B",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 15
+                },
+                "source_path": "patients_requiring_action/3",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          }
+        ],
+        "context": {
+          "benchmark_comparable": false,
+          "clinical_validation": "not_assessed",
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "profile_version": "roster-observations/v1",
+          "roster": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/0"
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/1"
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/2"
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/3"
+            }
+          ],
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022",
+          "withheld": [
+            {
+              "path": "patients_requiring_action/0/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            }
+          ]
+        },
+        "episode_id": "episode-truncated_final",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "world_preparation": "minimal_roster_only"
+      },
+      "status": "passed"
+    },
+    {
+      "case": "truncated_tool",
+      "provider_calls": [
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        }
+      ],
+      "provider_chat_count": 1,
+      "requests": [
+        {
+          "path": "/seed_session",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/verify",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/run",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/close_session",
+          "server": "resources",
+          "status": 200
+        }
+      ],
+      "result": {
+        "benchmark_comparable": false,
+        "benchmark_score": null,
+        "certificate": {
+          "benchmark_score": null,
+          "certificate_version": "roster-retrieval-mechanical/v1",
+          "checks": {
+            "all_members_retrieved": false,
+            "audit_bound_calls": true,
+            "final_world_source_concordant": true,
+            "source_context_validated": true,
+            "source_facts_concordant": false
+          },
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "coverage": {
+            "expected_members": 4,
+            "measured_clinical_criteria": 0,
+            "measured_safety_criteria": 0,
+            "retrieved_members": 0,
+            "source_concordant_members": 0,
+            "unassessed_criteria": [
+              "CC-022-C01",
+              "CC-022-C02",
+              "CC-022-C03",
+              "CC-022-C04",
+              "CC-022-C05",
+              "CC-022-C06",
+              "CC-022-C07",
+              "CC-022-C08",
+              "CC-022-C09",
+              "CC-022-C10"
+            ]
+          },
+          "execution_evidence": "Trusted synchronous captures linked to world audit indices; no provider-ID claim. The world audit binds call metadata/status, not the full response payload.",
+          "limitations": "Exact source-observation transport and final record concordance only. No clinical judgment, prioritization, treatment, safety validation, task reward, or full-task solvability is assessed. Source assessments are not clinical ground truth. Content hashes are not attestations of third-party evidence.",
+          "mechanical_passed": false,
+          "members": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "final_world_source_concordant": true,
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "retrieval_call_ids": [],
+              "retrieved": false,
+              "source_concordant": false,
+              "source_path": "patients_requiring_action/0",
+              "witness_call_ids": []
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "final_world_source_concordant": true,
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "retrieval_call_ids": [],
+              "retrieved": false,
+              "source_concordant": false,
+              "source_path": "patients_requiring_action/1",
+              "witness_call_ids": []
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "final_world_source_concordant": true,
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "retrieval_call_ids": [],
+              "retrieved": false,
+              "source_concordant": false,
+              "source_path": "patients_requiring_action/2",
+              "witness_call_ids": []
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "final_world_source_concordant": true,
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "retrieval_call_ids": [],
+              "retrieved": false,
+              "source_concordant": false,
+              "source_path": "patients_requiring_action/3",
+              "witness_call_ids": []
+            }
+          ],
+          "profile_version": "roster-observations/v1",
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022"
+        },
+        "clinical_validation": "not_assessed",
+        "completion_reason": "Gym response did not complete normally",
+        "completion_status": "incomplete",
+        "episode_id": "episode-truncated_tool",
+        "execution_completed": false,
+        "failure_kind": "healthcraft:incomplete_execution",
+        "failure_reason": "Completion was not established",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "grading_complete": false,
+        "mask_sample": false,
+        "mechanical_passed": false,
+        "profile_version": "roster-observations/v1",
+        "response": {
+          "background": null,
+          "completed_at": null,
+          "conversation": null,
+          "created_at": 1790755624.1284218,
+          "error": null,
+          "id": "resp_410024579d4540faa02750970e0a35be",
+          "incomplete_details": {
+            "reason": "max_output_tokens"
+          },
+          "instructions": null,
+          "max_output_tokens": null,
+          "max_tool_calls": null,
+          "metadata": {
+            "hc_capture_id": "410024579d4540faa02750970e0a35be",
+            "hc_execution_kind": "max_output_tokens",
+            "hc_native_done_reason": "length"
+          },
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "object": "response",
+          "output": [
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_410024579d4540faa02750970e0a35be",
+              "phase": null,
+              "role": "assistant",
+              "status": "incomplete",
+              "type": "message"
+            },
+            {
+              "arguments": "{}",
+              "call_id": "call_410024579d4540faa02750970e0a35be_0",
+              "id": "fc_410024579d4540faa02750970e0a35be_0",
+              "name": "searchEncounters",
+              "namespace": null,
+              "status": "incomplete",
+              "type": "function_call"
+            }
+          ],
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "status": "incomplete",
+          "temperature": null,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "defer_loading": null,
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "usage": {
+            "input_tokens": 35,
+            "input_tokens_details": {
+              "cached_tokens": null
+            },
+            "output_tokens": 6,
+            "output_tokens_details": {
+              "reasoning_tokens": null
+            },
+            "total_tokens": 41
+          },
+          "user": null
+        },
+        "responses_create_params": {
+          "background": null,
+          "context_management": null,
+          "conversation": null,
+          "include": null,
+          "input": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+          "instructions": "You are a tool-using assistant performing a source-record retrieval exercise.",
+          "max_output_tokens": 2048,
+          "max_tool_calls": null,
+          "metadata": null,
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "store": null,
+          "stream": null,
+          "stream_options": null,
+          "temperature": 0.0,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "user": null
+        },
+        "reward": 0.0,
+        "reward_scope": "mechanical_retrieval_only",
+        "world_preparation": "minimal_roster_only"
+      },
+      "snapshot": {
+        "calls": [],
+        "context": {
+          "benchmark_comparable": false,
+          "clinical_validation": "not_assessed",
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "profile_version": "roster-observations/v1",
+          "roster": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/0"
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/1"
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/2"
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/3"
+            }
+          ],
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022",
+          "withheld": [
+            {
+              "path": "patients_requiring_action/0/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            }
+          ]
+        },
+        "episode_id": "episode-truncated_tool",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "world_preparation": "minimal_roster_only"
+      },
+      "status": "passed"
+    },
+    {
+      "case": "max_steps",
+      "provider_calls": [
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        },
+        {
+          "path": "/api/tags",
+          "payload": null
+        },
+        {
+          "path": "/api/show",
+          "payload": {
+            "model": "counsel-nano-q5:latest"
+          }
+        },
+        {
+          "path": "/api/version",
+          "payload": null
+        },
+        {
+          "path": "/api/chat",
+          "payload": {
+            "messages": [
+              {
+                "content": "You are a tool-using assistant performing a source-record retrieval exercise.",
+                "role": "system"
+              },
+              {
+                "content": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": {},
+                      "name": "searchEncounters"
+                    }
+                  }
+                ]
+              },
+              {
+                "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+                "role": "tool",
+                "tool_name": "searchEncounters"
+              }
+            ],
+            "model": "counsel-nano-q5:latest",
+            "options": {
+              "num_ctx": 32768,
+              "num_predict": 2048,
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "stream": false,
+            "think": false,
+            "tools": [
+              {
+                "function": {
+                  "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+                  "name": "searchEncounters",
+                  "parameters": {
+                    "properties": {
+                      "chief_complaint": {
+                        "type": "string"
+                      },
+                      "date_from": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "date_to": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "disposition": {
+                        "enum": [
+                          "admitted",
+                          "discharged",
+                          "transferred",
+                          "ama",
+                          "expired",
+                          "lwbs"
+                        ],
+                        "type": "string"
+                      },
+                      "esi_level": {
+                        "maximum": 5,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "default": 10,
+                        "maximum": 50,
+                        "type": "integer"
+                      },
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+                  "name": "getEncounterDetails",
+                  "parameters": {
+                    "properties": {
+                      "encounter_id": {
+                        "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "encounter_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              },
+              {
+                "function": {
+                  "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+                  "name": "getPatientHistory",
+                  "parameters": {
+                    "properties": {
+                      "patient_id": {
+                        "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "patient_id"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "function"
+              }
+            ]
+          }
+        }
+      ],
+      "provider_chat_count": 2,
+      "requests": [
+        {
+          "path": "/seed_session",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/searchEncounters",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "model",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/getEncounterDetails",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/v1/responses",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/verify",
+          "server": "resources",
+          "status": 200
+        },
+        {
+          "path": "/run",
+          "server": "agent",
+          "status": 200
+        },
+        {
+          "path": "/close_session",
+          "server": "resources",
+          "status": 200
+        }
+      ],
+      "result": {
+        "benchmark_comparable": false,
+        "benchmark_score": null,
+        "certificate": {
+          "benchmark_score": null,
+          "certificate_version": "roster-retrieval-mechanical/v1",
+          "checks": {
+            "all_members_retrieved": true,
+            "audit_bound_calls": true,
+            "final_world_source_concordant": true,
+            "source_context_validated": true,
+            "source_facts_concordant": true
+          },
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "coverage": {
+            "expected_members": 4,
+            "measured_clinical_criteria": 0,
+            "measured_safety_criteria": 0,
+            "retrieved_members": 4,
+            "source_concordant_members": 4,
+            "unassessed_criteria": [
+              "CC-022-C01",
+              "CC-022-C02",
+              "CC-022-C03",
+              "CC-022-C04",
+              "CC-022-C05",
+              "CC-022-C06",
+              "CC-022-C07",
+              "CC-022-C08",
+              "CC-022-C09",
+              "CC-022-C10"
+            ]
+          },
+          "execution_evidence": "Trusted synchronous captures linked to world audit indices; no provider-ID claim. The world audit binds call metadata/status, not the full response payload.",
+          "limitations": "Exact source-observation transport and final record concordance only. No clinical judgment, prioritization, treatment, safety validation, task reward, or full-task solvability is assessed. Source assessments are not clinical ground truth. Content hashes are not attestations of third-party evidence.",
+          "mechanical_passed": true,
+          "members": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "final_world_source_concordant": true,
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "retrieval_call_ids": [
+                "call-0002"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/0",
+              "witness_call_ids": [
+                "call-0002"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "final_world_source_concordant": true,
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "retrieval_call_ids": [
+                "call-0003"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/1",
+              "witness_call_ids": [
+                "call-0003"
+              ]
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "final_world_source_concordant": true,
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "retrieval_call_ids": [
+                "call-0004"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/2",
+              "witness_call_ids": [
+                "call-0004"
+              ]
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "final_world_source_concordant": true,
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "retrieval_call_ids": [
+                "call-0005"
+              ],
+              "retrieved": true,
+              "source_concordant": true,
+              "source_path": "patients_requiring_action/3",
+              "witness_call_ids": [
+                "call-0005"
+              ]
+            }
+          ],
+          "profile_version": "roster-observations/v1",
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022"
+        },
+        "clinical_validation": "not_assessed",
+        "completion_reason": "No terminal assistant response without tool calls",
+        "completion_status": "incomplete",
+        "episode_id": "episode-max_steps",
+        "execution_completed": false,
+        "failure_kind": "healthcraft:incomplete_execution",
+        "failure_reason": "Completion was not established",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "grading_complete": false,
+        "mask_sample": false,
+        "mechanical_passed": false,
+        "profile_version": "roster-observations/v1",
+        "response": {
+          "background": null,
+          "completed_at": null,
+          "conversation": null,
+          "created_at": 1790755624.212239,
+          "error": null,
+          "id": "resp_0b56b05da05c4fda85bcab8105a5a501",
+          "incomplete_details": null,
+          "instructions": null,
+          "max_output_tokens": null,
+          "max_tool_calls": null,
+          "metadata": {
+            "hc_capture_id": "0b56b05da05c4fda85bcab8105a5a501",
+            "hc_execution_kind": "tool_calls",
+            "hc_native_done_reason": "stop"
+          },
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "object": "response",
+          "output": [
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_88448ddc7e614221a691e892c013fd3f",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{}",
+              "call_id": "call_88448ddc7e614221a691e892c013fd3f_0",
+              "id": "fc_88448ddc7e614221a691e892c013fd3f_0",
+              "name": "searchEncounters",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_88448ddc7e614221a691e892c013fd3f_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-181E9F91635E\",\"patient_id\":\"PAT-181E9F91635E\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F7DAFBF78655\",\"patient_id\":\"PAT-F7DAFBF78655\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-252EA3E851B9\",\"patient_id\":\"PAT-252EA3E851B9\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null},{\"id\":\"ENC-F9EFB6A97E7B\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"chief_complaint\":null,\"esi_level\":null,\"arrival_time\":null,\"disposition\":null}]}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "content": [
+                {
+                  "annotations": [],
+                  "logprobs": null,
+                  "text": "",
+                  "type": "output_text"
+                }
+              ],
+              "id": "msg_0b56b05da05c4fda85bcab8105a5a501",
+              "phase": null,
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-181E9F91635E\"}",
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_0",
+              "id": "fc_0b56b05da05c4fda85bcab8105a5a501_0",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F7DAFBF78655\"}",
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_1",
+              "id": "fc_0b56b05da05c4fda85bcab8105a5a501_1",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-252EA3E851B9\"}",
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_2",
+              "id": "fc_0b56b05da05c4fda85bcab8105a5a501_2",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "arguments": "{\"encounter_id\": \"ENC-F9EFB6A97E7B\"}",
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_3",
+              "id": "fc_0b56b05da05c4fda85bcab8105a5a501_3",
+              "name": "getEncounterDetails",
+              "namespace": null,
+              "status": "completed",
+              "type": "function_call"
+            },
+            {
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_0",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-181E9F91635E\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-181E9F91635E\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":3,\"summary\":\"68M, septic shock, MAP dropping to 58 on current norepinephrine dose\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/0\",\"source_identity\":{\"field\":\"bed\",\"value\":3},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_1",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F7DAFBF78655\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F7DAFBF78655\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":7,\"summary\":\"54F, chest pain, troponin #1 negative, due for repeat troponin and ECG\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/1\",\"source_identity\":{\"field\":\"bed\",\"value\":7},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_2",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-252EA3E851B9\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-252EA3E851B9\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":12,\"summary\":\"6F, moderate asthma exacerbation, improving on nebs, parents frustrated\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/2\",\"source_identity\":{\"field\":\"bed\",\"value\":12},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            },
+            {
+              "call_id": "call_0b56b05da05c4fda85bcab8105a5a501_3",
+              "id": null,
+              "output": "{\"status\":\"ok\",\"data\":{\"id\":\"ENC-F9EFB6A97E7B\",\"entity_type\":\"encounter\",\"patient_id\":\"PAT-F9EFB6A97E7B\",\"arrival_time\":null,\"clinical_notes\":[],\"authored_observations\":{\"bed\":15,\"summary\":\"32M, post-laceration repair (forearm), medically cleared for discharge\"},\"task_id\":\"CC-022\",\"source_path\":\"patients_requiring_action/3\",\"source_identity\":{\"field\":\"bed\",\"value\":15},\"source_context\":\"Current ED patient\",\"profile_version\":\"roster-observations/v1\"}}",
+              "status": null,
+              "type": "function_call_output"
+            }
+          ],
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "status": "completed",
+          "temperature": null,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "defer_loading": null,
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "defer_loading": null,
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "usage": {
+            "input_tokens": 70,
+            "input_tokens_details": {
+              "cached_tokens": null
+            },
+            "output_tokens": 12,
+            "output_tokens_details": {
+              "reasoning_tokens": null
+            },
+            "total_tokens": 82
+          },
+          "user": null
+        },
+        "responses_create_params": {
+          "background": null,
+          "context_management": null,
+          "conversation": null,
+          "include": null,
+          "input": "Retrieve the full encounter details for every encounter in this episode using the available tools. Discover the records through search. Finish with a short completion message. This is a source-retrieval exercise, not a clinical decision task.",
+          "instructions": "You are a tool-using assistant performing a source-record retrieval exercise.",
+          "max_output_tokens": 2048,
+          "max_tool_calls": null,
+          "metadata": null,
+          "model": "counsel-nano-q5:latest",
+          "moderation": null,
+          "parallel_tool_calls": true,
+          "previous_response_id": null,
+          "prompt": null,
+          "prompt_cache_key": null,
+          "prompt_cache_retention": null,
+          "reasoning": null,
+          "safety_identifier": null,
+          "service_tier": null,
+          "store": null,
+          "stream": null,
+          "stream_options": null,
+          "temperature": 0.0,
+          "text": null,
+          "tool_choice": "auto",
+          "tools": [
+            {
+              "description": "Search ED encounters by patient, date range, chief complaint, ESI level, or disposition",
+              "name": "searchEncounters",
+              "parameters": {
+                "properties": {
+                  "chief_complaint": {
+                    "type": "string"
+                  },
+                  "date_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "date_to": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "disposition": {
+                    "enum": [
+                      "admitted",
+                      "discharged",
+                      "transferred",
+                      "ama",
+                      "expired",
+                      "lwbs"
+                    ],
+                    "type": "string"
+                  },
+                  "esi_level": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "default": 10,
+                    "maximum": 50,
+                    "type": "integer"
+                  },
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+              "name": "getEncounterDetails",
+              "parameters": {
+                "properties": {
+                  "encounter_id": {
+                    "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "encounter_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            },
+            {
+              "description": "Get patient history including PMH, allergies, medications, prior visits, advance directives, and insurance",
+              "name": "getPatientHistory",
+              "parameters": {
+                "properties": {
+                  "patient_id": {
+                    "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "patient_id"
+                ],
+                "type": "object"
+              },
+              "strict": false,
+              "type": "function"
+            }
+          ],
+          "top_logprobs": null,
+          "top_p": null,
+          "truncation": null,
+          "user": null
+        },
+        "reward": 0.0,
+        "reward_scope": "mechanical_retrieval_only",
+        "world_preparation": "minimal_roster_only"
+      },
+      "snapshot": {
+        "calls": [
+          {
+            "audit_index": 0,
+            "id": "call-0001",
+            "name": "searchEncounters",
+            "params": {},
+            "response": {
+              "data": [
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-181E9F91635E",
+                  "patient_id": "PAT-181E9F91635E"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F7DAFBF78655",
+                  "patient_id": "PAT-F7DAFBF78655"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-252EA3E851B9",
+                  "patient_id": "PAT-252EA3E851B9"
+                },
+                {
+                  "arrival_time": null,
+                  "chief_complaint": null,
+                  "disposition": null,
+                  "esi_level": null,
+                  "id": "ENC-F9EFB6A97E7B",
+                  "patient_id": "PAT-F9EFB6A97E7B"
+                }
+              ],
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 1,
+            "id": "call-0002",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-181E9F91635E"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 3,
+                  "summary": "68M, septic shock, MAP dropping to 58 on current norepinephrine dose"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-181E9F91635E",
+                "patient_id": "PAT-181E9F91635E",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 3
+                },
+                "source_path": "patients_requiring_action/0",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 2,
+            "id": "call-0003",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F7DAFBF78655"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 7,
+                  "summary": "54F, chest pain, troponin #1 negative, due for repeat troponin and ECG"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F7DAFBF78655",
+                "patient_id": "PAT-F7DAFBF78655",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 7
+                },
+                "source_path": "patients_requiring_action/1",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 3,
+            "id": "call-0004",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-252EA3E851B9"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 12,
+                  "summary": "6F, moderate asthma exacerbation, improving on nebs, parents frustrated"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-252EA3E851B9",
+                "patient_id": "PAT-252EA3E851B9",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 12
+                },
+                "source_path": "patients_requiring_action/2",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          },
+          {
+            "audit_index": 4,
+            "id": "call-0005",
+            "name": "getEncounterDetails",
+            "params": {
+              "encounter_id": "ENC-F9EFB6A97E7B"
+            },
+            "response": {
+              "data": {
+                "arrival_time": null,
+                "authored_observations": {
+                  "bed": 15,
+                  "summary": "32M, post-laceration repair (forearm), medically cleared for discharge"
+                },
+                "clinical_notes": [],
+                "entity_type": "encounter",
+                "id": "ENC-F9EFB6A97E7B",
+                "patient_id": "PAT-F9EFB6A97E7B",
+                "profile_version": "roster-observations/v1",
+                "source_context": "Current ED patient",
+                "source_identity": {
+                  "field": "bed",
+                  "value": 15
+                },
+                "source_path": "patients_requiring_action/3",
+                "task_id": "CC-022"
+              },
+              "status": "ok"
+            }
+          }
+        ],
+        "context": {
+          "benchmark_comparable": false,
+          "clinical_validation": "not_assessed",
+          "contract_sha256": "86f19a0f827416dbfb7789641e2bb2a00a22e7187e7b856a1af7a3d7f3f37c95",
+          "profile_version": "roster-observations/v1",
+          "roster": [
+            {
+              "encounter_id": "ENC-181E9F91635E",
+              "label": "Bed 3",
+              "patient_id": "PAT-181E9F91635E",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/0"
+            },
+            {
+              "encounter_id": "ENC-F7DAFBF78655",
+              "label": "Bed 7",
+              "patient_id": "PAT-F7DAFBF78655",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/1"
+            },
+            {
+              "encounter_id": "ENC-252EA3E851B9",
+              "label": "Bed 12",
+              "patient_id": "PAT-252EA3E851B9",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/2"
+            },
+            {
+              "encounter_id": "ENC-F9EFB6A97E7B",
+              "label": "Bed 15",
+              "patient_id": "PAT-F9EFB6A97E7B",
+              "source_context": "Current ED patient",
+              "source_path": "patients_requiring_action/3"
+            }
+          ],
+          "source_sha256": "91dfcc7fff081442cc62af05b56d7a164de0394a58c832c36b0566d9a85bf1e0",
+          "task_id": "CC-022",
+          "withheld": [
+            {
+              "path": "patients_requiring_action/0/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/0/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/1/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/2/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/acuity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/needed_actions",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            },
+            {
+              "path": "patients_requiring_action/3/time_sensitivity",
+              "reason": "Answer-bearing, mixed, or unattributed assessment; requires source-role review"
+            }
+          ]
+        },
+        "episode_id": "episode-max_steps",
+        "fixture_key": "cc022-roster-source-retrieval/v1",
+        "fixture_sha256": "14e3e2fe7ba53b26b3590b3deec9d03c02b5c0242ff7d49f39dd84ab85390fbf",
+        "world_preparation": "minimal_roster_only"
+      },
+      "status": "passed"
+    }
+  ],
+  "finished_at": "2026-09-30T08:07:04.220652+00:00",
+  "output_dir": "/private/tmp/healthcraft-nemo-fake-fullstack-wo6p2oim",
+  "planned_cases": [
+    "complete",
+    "truncated_final",
+    "truncated_tool",
+    "max_steps"
+  ],
+  "scope": "offline scripted actual-SDK integration; no model inference",
+  "source_hashes": {
+    "configs/mcp-tools.json": "b76910ee5a8169e89c6f3fa38e6557ddf49837b026567f4be69470dfffee4555",
+    "integrations/nemo_gym/native_ollama.py": "3ddc4eff189efef625ecacd342cfada5cf77f84836b657918a8bbd3b760b694e",
+    "integrations/nemo_gym/roster_resources.py": "45785d54ea45bfc014cf7978fcd1e88ca507ebb6b4d3dcc44d22daee03bec16e",
+    "src/healthcraft/integrations/nemo_native.py": "a8c36e96d6f022d326391a5ca15fda551d3df9d4ce39e66dc33eb871c52ee39c",
+    "src/healthcraft/integrations/nemo_roster.py": "3fc1446089f009370822cf59d9a556279867d12911dd1ff60488da52c9c48b50"
+  },
+  "started_at": "2026-09-30T08:07:03.844147+00:00"
+}

@@ -58,7 +58,7 @@ existing [research-artifact boundary](RL_COUPLING.md) continues to apply.
 |---|---|---|
 | [MedAgentBench](https://github.com/stanfordmlgroup/MedAgentBench) | EHR retrieval/action workflows through a reviewed common synthetic adapter. | Feasibility and permissions not established. Published patient-derived scores are not a baseline for new synthetic cases. |
 | [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Feasibility not established; pin repository, adapter, dependencies, and task license before use. |
-| [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | A pinned local counter probe ran: five deterministic checks passed and one Nemotron trajectory remained incomplete. A completed model/tool roundtrip and a common clinical workflow remain unproven. |
+| [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | A pinned counter probe remained incomplete. A later adapted four-record retrieval attempt completed once in each framework under shared native settings. This establishes local interoperability, not a clinical workflow or comparative performance margin. |
 | Corecraft, Archangel Health, Baseten | Equivalent executable workflows and review procedures where accessible. | Numerical superiority is not demonstrated. Product descriptions and unrelated published scores cannot fill missing comparisons. |
 
 Adapted comparisons must be labeled as adapted. An unavailable alternative
@@ -115,12 +115,26 @@ prevent an operator from bypassing the required publication procedure.
 - Engineering checkpoint `82d1685`: 1,757 local tests passed, two skipped;
   all six remote checks passed. This does not pass the value gate.
 - Local Nemotron/MedGemma smoke tests establish a tool round trip and two
-  diagnostic labels; longer task trials remain incomplete diagnostics.
+  diagnostic labels; the original full clinical-task trials remain incomplete
+  diagnostics. A later simplified retrieval exercise completed in both frameworks.
 - The opt-in IR-002 certificate proves four mechanical checks for one
   profile. It measures zero safety criteria and no clinical interpretation.
 - The [roster profile](ROSTER_PROFILES.md) makes 33 selected source records
   reachable across six tasks, while withholding designated answer fields.
   Its execution diagnostics remain ungraded pending clinical-content review.
+- The [source-preserving FHIR export](FHIR_SOURCE_EXPORT.md) represents those
+  33 members as 99 linked resources. A pinned offline R4 validator reported
+  zero errors, 99 optional-narrative warnings and 33 unassessed MIME terminology
+  checks. This does not validate source clinical claims or all entity types.
+- The [optional NeMo Gym adapters](../integrations/nemo_gym/README.md) share
+  native local-model settings and canonical tool schemas with HealthCraft.
+  SDK/session/conversion tests establish bounded integration contracts; they
+  do not measure clinical benefit or establish a comparative performance margin.
+- The [two local retrieval attempts](../artifacts/comparators/20260930/nemo-roster-local-v1/README.md)
+  each completed with all four members retrieved through five tool calls and
+  six Nemotron responses. Sources remained unchanged and tool outputs replayed
+  exactly. Later tool-result encoding differs between frameworks, both runs
+  are ungraded clinically, and no performance or superiority claim follows.
 - The [pinned NeMo Gym feasibility record](../artifacts/comparators/20260930/nemo-gym-feasibility/README.md)
   preserves the single incomplete counter trial and exact request settings.
   Thinking, context, seed, and output settings differ from HealthCraft's;

@@ -37,6 +37,12 @@ For testing without hosted-model API charges, see
 are integration diagnostics and do not establish benchmark or clinical
 performance. Historical scores below have not been recomputed by these fixes.
 
+Experimental [NVIDIA NeMo Gym adapters](integrations/nemo_gym/README.md) reuse
+the local Ollama transport and source-retrieval tools. The additive
+[FHIR source export](docs/FHIR_SOURCE_EXPORT.md) preserves 33 reviewed roster
+members as linked identity resources and source documents. Both are engineering
+capabilities; the [comparative value gate](docs/RELEASE_EVIDENCE_PLAN.md) remains open.
+
 **Canonical: v10 grading channel** (2026-06). 205 tasks, 2,323 binary criteria
 (529 safety-critical), 3 trials per model, seed 42, one common neutral judge
 (grok-4) for both models — an apples-to-apples cross-model comparison on the
@@ -113,10 +119,12 @@ Task Engine (rubrics)     Entity Generator (OpenEM-powered)
 
 **Key properties:**
 - **Deterministic seeding** -- identical world states from identical seeds
-- **Temporal spine** -- every entity has timestamps; world state represents a specific moment
+- **Temporal spine** -- the world has an explicit simulation clock; sparse
+  source profiles retain unknown arrival times as unknown
 - **Stateful mutations** -- tool calls persist across a session
 - **FHIR-R4-shaped** -- entities mirror FHIR R4 resource structure (no formal
-  profile validation is run)
+  profile validation covers the full entity graph). The separate source exporter
+  has [bounded R4 structural evidence](docs/FHIR_SOURCE_EXPORT.md)
 - **In-memory persistence only** -- the docker-compose PostgreSQL service is
   provisioned for a future backend; no code path connects to it
   (`src/healthcraft/world/fhir_store.py`)

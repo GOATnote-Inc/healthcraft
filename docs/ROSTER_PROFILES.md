@@ -65,10 +65,15 @@ does not establish that every original criterion can be satisfied.
 The builder creates sparse dictionary records with `authored_observations`,
 task/source identity, and profile version. Each encounter links to its own
 patient, has `arrival_time: null`, and starts with empty `clinical_notes`.
-These are experimental, non-FHIR projections, not complete clinical records.
+These internal records are experimental, non-FHIR projections, not complete clinical records.
 No name, birth date, triage level, vital signs, treatment, arrival instant,
 bed allocation, or other absent fact is fabricated. Incoming people are not
 marked as having arrived, and ICU requests are not converted into ED arrivals.
+
+An additive [source-preserving FHIR export](FHIR_SOURCE_EXPORT.md) provides
+linked Patient/Encounter identity shells and DocumentReference attachments.
+It preserves the selected observations without changing these internal records
+or treating the source claims as verified clinical facts.
 
 IDs are deterministic from profile version, task ID, collection, and source
 identity. Duplicate labels, malformed records, wrong counts, unsupported task
@@ -145,6 +150,9 @@ provenance. All 63 original criteria remain unassessed. A separate
 on CC-022 exhausted 25 tool rounds without retrieving detailed observations
 or producing a final response. The scripted witness and incomplete model
 trial are different forms of evidence and must not be combined into a score.
+The old trial also advertised eight-character ID schemas for twelve-character
+roster IDs. It is interface-confounded; its failure cannot be attributed solely
+to the model. The shared schema now accepts both supported ID lengths.
 
 Experiment logs retain profile, grading, and completion markers. The analysis
 script keeps all selected trials in its counts and nulls benchmark metrics
