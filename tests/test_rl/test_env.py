@@ -41,7 +41,15 @@ def _task() -> Task:
         description="Env test description.",
         initial_state={},
         expected_tools=(),
-        criteria=(),
+        criteria=(
+            {
+                "id": "ENV-001-C01",
+                "assertion": "Agent retrieved patient records",
+                "dimension": "clinical_completeness",
+                "verification": "world_state",
+                "check": "audit_log contains call to searchPatients",
+            },
+        ),
         metadata={},
     )
 

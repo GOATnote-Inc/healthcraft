@@ -33,7 +33,7 @@ from healthcraft.mcp.server import HealthcraftServer, create_server
 from healthcraft.rl.loss_mask import role_loss_mask
 from healthcraft.rl.types import RolloutResult
 from healthcraft.tasks.environment import prepare_task_environment
-from healthcraft.tasks.loader import Task
+from healthcraft.tasks.loader import Task, require_task_criteria
 from healthcraft.world.seed import WorldSeeder
 from healthcraft.world.state import WorldState
 
@@ -110,6 +110,7 @@ class HealthCraftEnv:
         self._fault_injector = None
         self._scenario_context = {}
         self._episode_seed = None
+        require_task_criteria(task)
         if scenario_profile is not None and self._dynamic_state_enabled:
             raise ValueError("Unvalidated scenario profiles cannot enable dynamic state")
         self._episode_seed = int(episode_seed)
@@ -165,6 +166,7 @@ class HealthCraftEnv:
             raise RuntimeError("HealthCraftEnv.reset(...) must be called before rollout()")
         if self._episode_seed is None:
             raise RuntimeError("episode_seed is unset; reset() did not record it")
+        require_task_criteria(self._task)
 
         trajectory = run_agent_task(
             policy_client,

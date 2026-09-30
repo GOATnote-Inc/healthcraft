@@ -39,6 +39,17 @@ class Task:
     source_data: dict[str, Any] = field(default_factory=dict)
 
 
+def require_task_criteria(task: Task) -> None:
+    """Reject a task that cannot support scoring or a training episode.
+
+    Legacy definitions remain loadable for inspection and ungraded diagnostics.
+    Assessment entry points call this before provider, world or output work.
+    This checks the rubric's presence, not full criterion/schema validity.
+    """
+    if not isinstance(task.criteria, (tuple, list)) or not task.criteria:
+        raise ValueError(f"Evaluation task {task.id!r} requires nonempty criteria")
+
+
 # --- Schema validation ---
 
 _REQUIRED_FIELDS = {"id", "category", "level", "title", "description"}
@@ -198,8 +209,7 @@ def load_tasks(directory: Path, *, strict: bool = False) -> list[Task]:
         try:
             task = load_task(path)
             if strict:
-                if not task.criteria:
-                    raise ValueError("Evaluation tasks require nonempty criteria")
+                require_task_criteria(task)
                 for field_name in ("id", "category"):
                     value = getattr(task, field_name)
                     if type(value) is not str or not re.fullmatch(

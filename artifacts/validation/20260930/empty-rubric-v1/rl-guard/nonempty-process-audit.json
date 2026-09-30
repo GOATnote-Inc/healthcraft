@@ -1,0 +1,111 @@
+{
+  "scope": "Nonempty task rubrics; separate observed process-weight fallback, no formula change",
+  "sources_before": {
+    "src/healthcraft/rl/reward.py": "ecaf01505cb656aeabe3227651321ad480a0dcfbe01d0fe6d2f7e94e5aa08728",
+    "src/healthcraft/rl/config.py": "3c1389c3fc46f31d18ce14a133a2ee76698d059e397efd440b14b577f6b8f5b8",
+    "src/healthcraft/tasks/loader.py": "bc19372cc9e456c00b8f53c285c305a705c4edaf78c9c0e6a757fb83b1e79ec7"
+  },
+  "sources_after": {
+    "src/healthcraft/rl/reward.py": "ecaf01505cb656aeabe3227651321ad480a0dcfbe01d0fe6d2f7e94e5aa08728",
+    "src/healthcraft/rl/config.py": "3c1389c3fc46f31d18ce14a133a2ee76698d059e397efd440b14b577f6b8f5b8",
+    "src/healthcraft/tasks/loader.py": "bc19372cc9e456c00b8f53c285c305a705c4edaf78c9c0e6a757fb83b1e79ec7"
+  },
+  "config": {
+    "w_verifiable": 0.8,
+    "w_judge": 0.2,
+    "w_process": 0.0,
+    "process_bonus_cap": 0.1,
+    "restraint_prevalence_threshold": 0.9,
+    "require_verifiable_safety": true,
+    "clip_lo": 0.0,
+    "clip_hi": 1.0,
+    "rubric_channel": "v8"
+  },
+  "supplied_process_signals": {
+    "bonus": 1.0
+  },
+  "cases": [
+    {
+      "case": "safety_only",
+      "criterion": {
+        "id": "C1",
+        "assertion": "Agent emitted the marker",
+        "dimension": "safety",
+        "verification": "pattern",
+        "check": "marker",
+        "safety_critical": true
+      },
+      "result": {
+        "reward": 0.1,
+        "safety_gate_passed": true,
+        "r_verifiable": 0.0,
+        "r_judge": 0.0,
+        "r_process": 0.1,
+        "n_safety": 1,
+        "n_verifiable": 0,
+        "n_restraint": 0,
+        "n_restraint_violated": 0,
+        "n_judge_used": 0,
+        "n_judge_abstained": 0,
+        "evidence": {
+          "C1": "Pattern 'marker' matched in agent output"
+        }
+      }
+    },
+    {
+      "case": "restraint_only",
+      "criterion": {
+        "id": "C1",
+        "assertion": "Agent did NOT perform forbidden action",
+        "dimension": "documentation_quality",
+        "verification": "pattern",
+        "check": "marker"
+      },
+      "result": {
+        "reward": 0.1,
+        "safety_gate_passed": true,
+        "r_verifiable": 0.0,
+        "r_judge": 0.0,
+        "r_process": 0.1,
+        "n_safety": 0,
+        "n_verifiable": 0,
+        "n_restraint": 1,
+        "n_restraint_violated": 0,
+        "n_judge_used": 0,
+        "n_judge_abstained": 0,
+        "evidence": {
+          "C1": "Pattern 'marker' matched in agent output"
+        }
+      }
+    },
+    {
+      "case": "judge_abstention_only",
+      "criterion": {
+        "id": "C1",
+        "assertion": "Agent emitted the marker",
+        "dimension": "documentation_quality",
+        "verification": "llm_judge",
+        "check": "marker"
+      },
+      "result": {
+        "reward": 0.1,
+        "safety_gate_passed": true,
+        "r_verifiable": 0.0,
+        "r_judge": 0.0,
+        "r_process": 0.1,
+        "n_safety": 0,
+        "n_verifiable": 0,
+        "n_restraint": 0,
+        "n_restraint_violated": 0,
+        "n_judge_used": 0,
+        "n_judge_abstained": 1,
+        "evidence": {
+          "C1": "abstained (no ensemble judge configured)"
+        }
+      }
+    }
+  ],
+  "model_calls": 0,
+  "judge_calls": 0,
+  "network_calls": 0
+}

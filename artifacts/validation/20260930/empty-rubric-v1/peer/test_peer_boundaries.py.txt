@@ -1,0 +1,190 @@
+"""Offline independent empty-rubric boundary checks (not a formal red team)."""
+from __future__ import annotations
+
+import asyncio
+import copy
+import importlib.util
+import json
+import sys
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+import yaml
+
+from healthcraft.llm import evaluator as standalone
+from healthcraft.rl import env as env_module
+from healthcraft.rl import reward as reward_module
+from healthcraft.rl.config import RewardConfig
+from healthcraft.tasks import evaluator, loader
+from healthcraft.tasks.loader import Task
+from healthcraft.trajectory import Trajectory
+from healthcraft.world.state import WorldState
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+CRITERION = {'id': 'PEER-001-C01', 'assertion': 'Synthetic completion token', 'verification': 'pattern', 'dimension': 'documentation_quality', 'check': 'done'}
+
+
+def task(identifier='PEER-001', empty=False):
+    return Task(id=identifier, category='test', level=1, title='Synthetic peer fixture', description='Synthetic offline fixture.', initial_state={}, expected_tools=(), criteria=() if empty else (copy.deepcopy(CRITERION),), metadata={})
+
+
+def trajectory(identifier='PEER-001'):
+    t = Trajectory(task_id=identifier, model='offline-synthetic', seed=42, system_prompt='Synthetic offline peer check.')
+    t.add_turn('assistant', 'done')
+    return t
+
+
+class NoJudge:
+    _judge_model = 'offline-never-called'
+    def evaluate_criterion(self, *args, **kwargs):
+        pytest.fail('A judge must not run for an invalid rubric')
+
+
+def forbidden(*args, **kwargs):
+    pytest.fail('Invalid rubric crossed a side-effect boundary')
+
+
+def write_task(path, t):
+    data = {'id': t.id, 'category': t.category, 'level': t.level, 'title': t.title, 'description': t.description, 'criteria': list(t.criteria)}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data))
+
+
+def simple_module():
+    name = '_empty_rubric_peer_simple_eval'
+    spec = importlib.util.spec_from_file_location(name, ROOT / 'evals/healthcraft_simple_eval.py')
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_direct_evaluator_rejects_before_verification(monkeypatch):
+    monkeypatch.setattr(evaluator, '_evaluate_criterion', forbidden)
+    world = WorldState()
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        evaluator.evaluate_task(task(empty=True), {'tool_calls': [], 'reasoning': 'done'}, world)
+    assert world.audit_log == []
+
+
+@pytest.mark.parametrize('error', [None, 'Interrupted synthetic execution'])
+@pytest.mark.parametrize('channel', ['v8', 'v10'])
+def test_replay_rejects_before_world_overlay_or_early_error_result(monkeypatch, error, channel):
+    monkeypatch.setattr(evaluator, '_build_replay_world', forbidden)
+    monkeypatch.setattr(evaluator, '_apply_overlay_to_task', forbidden)
+    raw = trajectory().to_dict()
+    raw['error'] = error
+    before = copy.deepcopy(raw)
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        evaluator.replay_from_trajectory(raw, task(empty=True), rubric_channel=channel)
+    assert raw == before
+
+
+def test_standalone_direct_rejects_before_judge():
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        standalone.evaluate_trajectory(trajectory(), task(empty=True), NoJudge())
+
+
+def test_standalone_file_cannot_persist_grade_for_empty_rubric(tmp_path):
+    tasks = tmp_path / 'tasks'; output = tmp_path / 'grading'
+    write_task(tasks / 'empty.yaml', task(empty=True))
+    path = tmp_path / 'PEER-001_offline-synthetic_42_t1.json'
+    path.write_text(trajectory().to_json())
+    before = path.read_bytes()
+    try:
+        result = standalone.evaluate_trajectory_file(path, NoJudge(), tasks_dir=tasks, output_dir=output)
+    except ValueError as exc:
+        assert 'criteri' in str(exc).lower() or 'rubric' in str(exc).lower()
+    else:
+        assert result is None
+    assert path.read_bytes() == before
+    assert not output.exists()
+    assert not list(tmp_path.glob('*_grading.json'))
+
+
+def test_standalone_mixed_cli_rejects_before_any_provider_or_output(monkeypatch, tmp_path):
+    tasks = tmp_path / 'tasks'; trajectories = tmp_path / 'trajectories'; output = tmp_path / 'grading'
+    trajectories.mkdir()
+    for name, empty in [('PEER-001', False), ('PEER-002', True)]:
+        write_task(tasks / f'{name}.yaml', task(name, empty))
+        (trajectories / f'{name}_offline-synthetic_42_t1.json').write_text(trajectory(name).to_json())
+    before = {p.name: p.read_bytes() for p in trajectories.iterdir()}
+    monkeypatch.setattr(standalone, 'create_skeptical_judge', forbidden)
+    monkeypatch.setattr(sys, 'argv', ['evaluator', '--trajectory-dir', str(trajectories), '--tasks-dir', str(tasks), '--output-dir', str(output), '--judge-model', 'offline-fixture', '--judge-key', 'offline-fixture'])
+    with pytest.raises((ValueError, SystemExit)) as rejected:
+        standalone.main()
+    if isinstance(rejected.value, SystemExit):
+        assert rejected.value.code != 0
+    assert not output.exists()
+    assert {p.name: p.read_bytes() for p in trajectories.iterdir()} == before
+
+
+def test_simple_replay_checks_later_authored_empty_rubric_before_limit(monkeypatch, tmp_path):
+    module = simple_module()
+    authored = [task(), task('PEER-002', empty=True)]
+    monkeypatch.setattr(loader, 'load_tasks', lambda *args, **kwargs: authored)
+    monkeypatch.setattr(evaluator, 'replay_from_trajectory', forbidden)
+    for t in authored:
+        (tmp_path / f'{t.id}_offline-synthetic_42_t1.json').write_text(trajectory(t.id).to_json())
+    dataset = [module._DatasetTask(t.id, t.category, ()) for t in authored]
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        module._run_replay(dataset, tmp_path, rubric_channel='v8', trials=1, limit=1)
+
+
+def test_simple_valid_authored_task_allows_unused_empty_dataset_criteria(monkeypatch, tmp_path):
+    module = simple_module()
+    monkeypatch.setattr(loader, 'load_tasks', lambda *args, **kwargs: [task()])
+    (tmp_path / 'PEER-001_offline-synthetic_42_t1.json').write_text(trajectory().to_json())
+    result = module._run_replay([module._DatasetTask('PEER-001', 'test', ())], tmp_path, rubric_channel='v8', trials=1, limit=1)
+    assert len(result) == 1
+    assert result[0].passed is True
+
+
+@pytest.mark.parametrize('channel', ['v8', 'v10'])
+def test_training_reward_rejects_before_overlay_classifier_or_process_bonus(monkeypatch, channel):
+    monkeypatch.setattr(reward_module, '_apply_overlay_to_task', forbidden)
+    monkeypatch.setattr(reward_module, 'classify_criteria', forbidden)
+    config = RewardConfig(w_process=1.0, rubric_channel=channel)
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        reward_module.compute_training_reward(task(empty=True), trajectory(), WorldState(), config=config, ensemble_judge=NoJudge(), process_signals={'synthetic': 1.0})
+
+
+@pytest.mark.parametrize('complete_metadata', [False, True])
+def test_slime_rejects_present_invalid_task_without_breakdown(complete_metadata):
+    metadata = {'task': task(empty=True)}
+    if complete_metadata:
+        metadata.update(trajectory=trajectory(), world=WorldState(), reward_config=RewardConfig(w_process=1.0), ensemble_judge=NoJudge())
+    sample = SimpleNamespace(metadata=metadata)
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        asyncio.run(reward_module.reward_func(None, sample))
+    assert '_training_reward_result' not in metadata
+
+
+def test_rl_failed_reset_invalidates_old_episode_before_any_new_world_work(monkeypatch):
+    environment = env_module.HealthCraftEnv(world_config_path=None)
+    environment.reset(task(), 42, 'synthetic system')
+    old_world = environment.world
+    old_world.put_entity('clinical_note', 'NOTE-PEER0001', {'id':'NOTE-PEER0001', 'content':'synthetic existing episode'})
+    counts, audit = old_world.entity_counts.copy(), old_world.audit_log
+    monkeypatch.setattr(env_module, 'prepare_task_environment', forbidden)
+    monkeypatch.setattr(env_module, 'WorldState', forbidden)
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        environment.reset(task(empty=True), 43, 'invalid new task')
+    assert environment.world is None
+    assert environment.server is None
+    assert environment.task is None
+    assert environment.episode_seed is None
+    assert environment.fault_injector is None
+    assert old_world.entity_counts == counts and old_world.audit_log == audit
+    with pytest.raises(RuntimeError, match='reset'):
+        environment.rollout(SimpleNamespace(chat=forbidden))
+
+
+def test_rl_rollout_rejects_changed_to_empty_task_before_policy():
+    environment = env_module.HealthCraftEnv(world_config_path=None)
+    environment.reset(task(), 42, 'synthetic system')
+    environment._task = replace(environment.task, criteria=())
+    with pytest.raises(ValueError, match='criteri|rubric'):
+        environment.rollout(SimpleNamespace(chat=forbidden))

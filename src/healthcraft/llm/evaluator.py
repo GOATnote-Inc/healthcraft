@@ -44,7 +44,7 @@ from typing import Any
 from healthcraft.llm.agent import create_client
 from healthcraft.llm.checkpoint import selected_trajectory_paths
 from healthcraft.llm.judge import LLMJudge
-from healthcraft.tasks.loader import Task, load_task
+from healthcraft.tasks.loader import Task, load_task, require_task_criteria
 from healthcraft.tasks.rubrics import (
     Criterion,
     CriterionResult,
@@ -141,6 +141,27 @@ def _find_task(task_id: str, tasks_dir: Path) -> Task | None:
     return None
 
 
+def _preflight_task_rubrics(trajectory_paths: list[Path], tasks_dir: Path) -> None:
+    """Reject an empty selected rubric before constructing a judge or writing grades.
+
+    Missing/corrupt trajectories and unresolved task IDs retain the file
+    evaluator's existing handling. A resolved task with no rubric is an invalid
+    assessment configuration, including when its trajectory is interrupted.
+    """
+    checked: set[str] = set()
+    for path in trajectory_paths:
+        try:
+            trajectory = Trajectory.load(path)
+        except Exception:
+            continue
+        if trajectory.task_id in checked:
+            continue
+        task = _find_task(trajectory.task_id, tasks_dir)
+        if task is not None:
+            require_task_criteria(task)
+        checked.add(trajectory.task_id)
+
+
 def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]:
     """Parse raw criterion dicts into Criterion objects."""
     criteria = []
@@ -179,6 +200,7 @@ def evaluate_trajectory(
     Returns:
         A GradingResult with merged evaluation.
     """
+    require_task_criteria(task)
     criteria = _parse_criteria(task.criteria)
 
     # Index original results by criterion ID
@@ -274,14 +296,15 @@ def evaluate_trajectory_file(
         logger.error("Failed to load trajectory %s: %s", trajectory_path, e)
         return None
 
-    if trajectory.error is not None:
-        logger.warning("Skipping error trajectory %s: %s", trajectory_path, trajectory.error)
-        return None
-
     # Find task definition
     task = _find_task(trajectory.task_id, tasks_dir)
     if task is None:
         logger.error("Task %s not found in %s", trajectory.task_id, tasks_dir)
+        return None
+    require_task_criteria(task)
+
+    if trajectory.error is not None:
+        logger.warning("Skipping error trajectory %s: %s", trajectory_path, trajectory.error)
         return None
 
     # Evaluate
@@ -442,24 +465,8 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level, logging.INFO))
 
-    # Resolve judge model and key
-    judge_model = args.judge_model or "gpt-5.4"
-    judge_key = args.judge_key or _resolve_api_key(judge_model)
-    if not judge_key:
-        logger.error("No API key for judge model. Set --judge-key or env var.")
-        sys.exit(1)
-
     tasks_dir = Path(args.tasks_dir) if args.tasks_dir else _TASKS_DIR
     output_dir = Path(args.output_dir) if args.output_dir else None
-
-    # Create judge with skepticism tuning
-    judge = create_skeptical_judge(judge_model, judge_key, args.skepticism)
-
-    logger.info(
-        "Standalone evaluator: judge=%s, skepticism=%s",
-        judge_model,
-        args.skepticism,
-    )
 
     # Collect trajectories
     if args.trajectory:
@@ -473,6 +480,24 @@ def main() -> None:
     if not traj_paths:
         logger.error("No trajectory files found")
         sys.exit(1)
+
+    try:
+        _preflight_task_rubrics(traj_paths, tasks_dir)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    # Resolve/create a judge only after every selected known rubric validates.
+    judge_model = args.judge_model or "gpt-5.4"
+    judge_key = args.judge_key or _resolve_api_key(judge_model)
+    if not judge_key:
+        logger.error("No API key for judge model. Set --judge-key or env var.")
+        sys.exit(1)
+    judge = create_skeptical_judge(judge_model, judge_key, args.skepticism)
+    logger.info(
+        "Standalone evaluator: judge=%s, skepticism=%s",
+        judge_model,
+        args.skepticism,
+    )
 
     logger.info("Evaluating %d trajectories", len(traj_paths))
 

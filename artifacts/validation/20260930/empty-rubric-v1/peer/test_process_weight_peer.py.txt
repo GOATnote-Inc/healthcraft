@@ -1,0 +1,51 @@
+"""Small independent checks of configured process weighting; no model judge."""
+from dataclasses import replace
+from types import SimpleNamespace
+
+import pytest
+
+from healthcraft.rl.config import RewardConfig
+from healthcraft.rl.reward import compute_training_reward
+from healthcraft.tasks.loader import Task
+from healthcraft.trajectory import Trajectory
+from healthcraft.world.state import WorldState
+
+
+def fixtures(kind):
+    criterion = {'id': 'WEIGHT-001-C01', 'assertion': 'Synthetic completion token', 'verification': 'pattern', 'dimension': 'documentation_quality', 'check': 'done'}
+    if kind == 'safety_only':
+        criterion.update(safety_critical=True, dimension='safety')
+    elif kind == 'restraint_only':
+        criterion['assertion'] = 'Agent did NOT perform synthetic action'
+    elif kind in {'judge_abstention', 'judged'}:
+        criterion['verification'] = 'llm_judge'
+    task = Task(id='WEIGHT-001', category='test', level=1, title='Synthetic weight check', description='Synthetic nonclinical arithmetic check.', initial_state={}, expected_tools=(), criteria=(criterion,), metadata={})
+    trajectory = Trajectory(task_id=task.id, model='offline-synthetic', seed=42, system_prompt='Synthetic peer check.')
+    trajectory.add_turn('assistant', 'done')
+    return task, trajectory
+
+
+@pytest.mark.parametrize('kind', ['safety_only', 'restraint_only', 'judge_abstention'])
+@pytest.mark.parametrize('weight, expected', [(0.0, 0.0), (0.4, 0.04)])
+def test_no_clinical_terms_preserves_configured_process_weight(kind, weight, expected):
+    task, trajectory = fixtures(kind)
+    result = compute_training_reward(task, trajectory, WorldState(), config=RewardConfig(w_process=weight), process_signals={'synthetic_bonus': 100.0})
+    assert result.safety_gate_passed is True
+    assert result.n_verifiable == result.n_judge_used == 0
+    assert result.r_process == pytest.approx(0.1)
+    assert result.reward == pytest.approx(expected)
+    if kind == 'judge_abstention':
+        assert result.n_judge_abstained == 1
+
+
+@pytest.mark.parametrize('kind', ['verifiable', 'judged'])
+def test_one_clinical_term_still_absorbs_other_clinical_weight(kind):
+    task, trajectory = fixtures(kind)
+    count = []
+    def vote(*args, **kwargs):
+        count.append(1)
+        return SimpleNamespace(ambiguous=False, satisfied=True, evidence='Offline synthetic fixture')
+    ensemble = SimpleNamespace(evaluate_criterion=vote) if kind == 'judged' else None
+    result = compute_training_reward(task, trajectory, WorldState(), config=RewardConfig(w_verifiable=0.2, w_judge=0.5, w_process=0.3), process_signals={'synthetic_bonus': 100.0}, ensemble_judge=ensemble)
+    assert result.reward == pytest.approx(0.73)
+    assert len(count) == (1 if kind == 'judged' else 0)

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from healthcraft.mcp.server import TOOL_NAME_MAP
-from healthcraft.tasks.loader import Task
+from healthcraft.tasks.loader import Task, require_task_criteria
 from healthcraft.tasks.rubrics import (
     Criterion,
     CriterionResult,
@@ -101,6 +101,7 @@ def evaluate_task(
         A frozen TaskResult.
     """
     validate_rubric_channel(rubric_channel)
+    require_task_criteria(task)
     tool_calls = tuple(agent_output.get("tool_calls", []))
     reasoning = agent_output.get("reasoning", "")
 
@@ -887,6 +888,7 @@ def replay_from_trajectory(
     Returns:
         A TaskResult re-derived from the trajectory + saved llm_judge verdicts.
     """
+    require_task_criteria(task)
     from healthcraft.trajectory import is_unassessed_experiment
 
     if is_unassessed_experiment(trajectory):

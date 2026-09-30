@@ -77,6 +77,18 @@ summary remain available. Parser rejections return nonzero and may emit only
 stderr, without creating run output. Check grading coverage and judge errors
 separately: exit `0` does not establish complete grading or clinical validity.
 
+An assessment requires a nonempty authored rubric. Direct grading, trajectory
+replay, standalone grading and training entry points reject tasks with missing
+or empty criteria as configuration errors. They do not report a passing task
+or a training reward for an undefined assessment. Legacy definitions remain
+loadable for inspection. Existing nonempty rubrics keep their scoring rules.
+
+Standalone grading checks all resolved tasks in the selected trajectories
+before creating a judge or writing grades. The simple-evals replay adapter
+checks all selected authored rubrics before applying its replay limit. It
+grades against the repository's authored task definitions; the dataset's
+`criteria` field does not replace those definitions.
+
 ### Supported providers
 
 The orchestrator auto-detects the provider from the model name:

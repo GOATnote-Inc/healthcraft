@@ -35,6 +35,7 @@ physician-blind validation is required before any deployment conversation.
   from the denominator). If every judge criterion abstains, the judge term
   is omitted and ``w_j`` is folded into ``w_v``.
 - ``R_process`` — small, capped process bonus from ``process_signals``.
+  Its weight stays exactly configured; absent clinical terms never increase it.
   Empty until PR-B (WS-5) lands the signals (idempotency-key use,
   retry-with-backoff, escalation, retry-budget overflow).
 
@@ -70,7 +71,7 @@ from healthcraft.tasks.evaluator import (
     _verify_pattern,
     _verify_world_state,
 )
-from healthcraft.tasks.loader import Task
+from healthcraft.tasks.loader import Task, require_task_criteria
 from healthcraft.tasks.rubrics import (
     Criterion,
     CriterionResult,
@@ -205,6 +206,7 @@ def compute_training_reward(
         A :class:`TrainingRewardResult` with the scalar ``reward`` and the
         decomposition the anti-Goodhart canaries read.
     """
+    require_task_criteria(task)
     scenario = trajectory.metadata.get("scenario_context", {})
     if isinstance(scenario, dict) and scenario.get("profile_version"):
         raise ValueError("Scenario profile has no validated training reward contract")
@@ -349,11 +351,9 @@ def compute_training_reward(
     elif verifiable_term_empty and not judge_term_empty:
         w_j = w_j + w_v
         w_v = 0.0
-    elif verifiable_term_empty and judge_term_empty:
-        # Only process remains (rare). Absorb both into w_p.
-        w_p = w_p + w_v + w_j
-        w_v = 0.0
-        w_j = 0.0
+    # When both clinical terms are empty, their zero-valued contributions
+    # remain zero. Never transfer their weights into the process bonus:
+    # w_process=0 disables it, and positive weights retain their configured cap.
 
     shaped = w_v * r_verifiable + w_j * r_judge + w_p * r_process
     reward = max(cfg.clip_lo, min(cfg.clip_hi, shaped))
@@ -393,6 +393,8 @@ async def reward_func(args: Any, sample: Any, **kwargs: Any) -> float:
     """
     md = getattr(sample, "metadata", None) or {}
     task = md.get("task")
+    if task is not None:
+        require_task_criteria(task)
     trajectory = md.get("trajectory")
     world = md.get("world")
     if task is None or trajectory is None or world is None:

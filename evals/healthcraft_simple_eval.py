@@ -198,13 +198,19 @@ def _run_replay(
     orchestrator path.
     """
     from healthcraft.tasks.evaluator import replay_from_trajectory
-    from healthcraft.tasks.loader import load_tasks
+    from healthcraft.tasks.loader import load_tasks, require_task_criteria
 
     # Load task definitions once so we have the full rubric for replay.
     all_tasks = load_tasks(_PROJECT_ROOT / "configs" / "tasks")
     task_map = {t.id: t for t in all_tasks}
 
     dataset_ids = {t.task_id for t in dataset_tasks}
+    # The authored Task is the actual replay rubric; the dataset criteria field
+    # is not used for grading. Validate the declared selection before any replay
+    # or intentional limit can conceal an empty later rubric.
+    for task in all_tasks:
+        if task.id in dataset_ids:
+            require_task_criteria(task)
     trajectory_paths = _iter_trajectory_files(replay_root)
 
     verdicts: list[_TrialVerdict] = []
@@ -410,13 +416,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: --replay-from path does not exist: {args.replay_from}", file=sys.stderr)
         return 1
 
-    verdicts = _run_replay(
-        dataset_tasks,
-        args.replay_from,
-        rubric_channel=args.rubric_channel,
-        trials=args.trials,
-        limit=args.limit,
-    )
+    try:
+        verdicts = _run_replay(
+            dataset_tasks,
+            args.replay_from,
+            rubric_channel=args.rubric_channel,
+            trials=args.trials,
+            limit=args.limit,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     if not verdicts:
         print(
             f"ERROR: no replayable trajectories under {args.replay_from} for the given dataset",
