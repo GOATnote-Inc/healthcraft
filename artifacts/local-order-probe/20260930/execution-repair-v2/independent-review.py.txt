@@ -1,0 +1,85 @@
+import hashlib
+import json
+import math
+from pathlib import Path
+from healthcraft.llm.review_context import context_digest, validate_review_context
+from healthcraft.trajectory import is_unassessed_experiment, trajectory_completion
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+BASE = ROOT / 'artifacts/local-order-probe/20260930/execution-repair-v2'
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError('duplicate JSON key')
+        result[key] = value
+    return result
+
+def number(value):
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError('nonfinite JSON number')
+    return parsed
+
+def load(path):
+    return json.loads(path.read_text(), object_pairs_hook=pairs, parse_float=number,
+                      parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
+
+def canon(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+r = load(BASE / 'report.json')
+p = load(BASE / 'process-status.json')
+t = r['trajectory']; calls = r['actual_calls']; audit = r['audit_log']
+state = r['final_state']; turns = t['turns']; xs = r['exchanges']
+checks = {}
+def check(name, condition):
+    checks[name] = bool(condition)
+    assert condition, name
+
+check('one_scheduled_attempt_no_retries_process_finished', p['scheduled_attempts'] == 1 and p['inference_retries'] == 0 and p['status'] == 'finished' and p['exit_code'] == 0)
+check('two_normalized_model_exchanges_within_four_limit', r['model_call_count'] == len(xs) == 2 and r['settings']['max_responses'] == 4 and not r['budget_exhausted'])
+check('one_action_audit_order_task', len(calls) == len(audit) == len(state['order']) == len(state['clinical_task']) == t['total_tool_calls'] == 1)
+order = next(iter(state['order'].values())); task = next(iter(state['clinical_task'].values()))
+check('exact_requested_action', canon(calls[0]['params']) == canon(audit[0]['params']) == canon(r['request']) == canon(turns[2]['tool_calls'][0]['arguments']))
+check('request_persisted', all(canon(order[key]) == canon(value) for key, value in r['request'].items()))
+check('successful_non_deduplicated_action', calls[0]['name'] == audit[0]['tool_name'] == turns[2]['tool_calls'][0]['name'] == 'createClinicalOrder' and calls[0]['response']['status'] == audit[0]['result_summary'] == 'ok' and audit[0]['deduplicated'] is False and not calls[0]['response'].get('deduplicated', False) and calls[0]['audit_index'] == 0)
+check('response_store_and_trajectory_agree', canon(calls[0]['response']['data']) == canon(order) and canon(json.loads(turns[3]['content'])) == canon(calls[0]['response']))
+check('pending_task_link_and_details', order['task_id'] == task['id'] == task['task_id'] and task['encounter_id'] == order['encounter_id'] == r['request']['encounter_id'] and task['task_type'] == 'lab_draw' and task['priority'] == order['priority'] == 'urgent' and task['notes'] == r['request']['indication'] and task['status'] == order['status'] == 'pending' and canon(json.loads(task['description'])) == canon({'order_type': r['request']['order_type'], 'details': r['request']['details']}))
+check('timestamps_and_unmodified_fixture', order['ordered_at'] == audit[0]['timestamp'] == task['created_at'] == task['updated_at'] == '2026-01-15T07:00:00+00:00' and state['encounter'] == {'ENC-FEED0001': {'id':'ENC-FEED0001','patient_id':'PAT-FEED0001','clinical_notes':[]}} and state['patient'] == {'PAT-FEED0001': {'id':'PAT-FEED0001','allergies':[]}})
+check('turn_roles_tool_pairing', [turn['role'] for turn in turns] == ['system','user','assistant','tool','assistant'] and turns[2]['tool_calls'][0]['id'] == turns[3]['tool_call_id'] and not turns[-1]['tool_calls'])
+for i, turn_index in enumerate((2, 4)):
+    response = xs[i]['response']; turn = turns[turn_index]
+    check(f'exchange_{i}_response_bound', response['content'] == turn['content'] and canon(response['tool_calls']) == canon(turn['tool_calls']) and xs[i]['error'] is None)
+    expected = []
+    for prior in turns[:turn_index]:
+        message = {'role':prior['role'], 'content':prior['content']}
+        if prior['tool_calls']: message['tool_calls'] = prior['tool_calls']
+        if prior['tool_call_id']: message['tool_call_id'] = prior['tool_call_id']
+        expected.append(message)
+    check(f'exchange_{i}_inputs_bound', canon(xs[i]['messages']) == canon(expected))
+check('complete_no_errors', trajectory_completion(turns, t['metadata'], t['error']) == ('complete','') and r['completion'] == {'status':'complete','reason':''} and t['error'] is None and r['errors'] == [] and xs[0]['response']['stop_reason'] == 'tool_calls' and xs[1]['response']['stop_reason'] == 'stop')
+payload = validate_review_context(t)
+check('context_checkpoint_reconstructs', payload['checkpoint_identity'] == context_digest({'sources':r['source_hashes_before'], 'task':payload['task'], 'settings':r['settings'], 'agent_model':t['model'], 'model':r['model_before']}))
+config = load(ROOT / 'configs/mcp-tools.json')
+canonical_tool = next(item for item in config['tools'] if item['name']=='createClinicalOrder')
+check('only_canonical_order_tool', payload['tool_definitions'] == [{key:canonical_tool[key] for key in ('name','description','parameters')}])
+check('unassessed_profile_no_scores', payload['grading_mode'] == 'profile_diagnostic' and is_unassessed_experiment(t) and t['reward'] is None and t['passed'] is None and t['safety_gate_passed'] is None and t['criteria_results'] == [] and r['grading_enabled'] is False and r['benchmark_score'] is None and r['coverage'] == {'clinical':0,'safety':0})
+check('model_identity_stable', r['model_before'] == r['model_after'] and r['model_before']['model_digest'] == '36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8' and r['model_before']['runtime_version'] == '0.34.4' and r['model_before']['base_url'] == 'http://127.0.0.1:11434')
+check('runtime_stable', r['runtime_before'] == r['runtime_after'])
+check('source_snapshots_equal', r['source_hashes_before'] == r['source_hashes_after'] and len(r['source_hashes_before']) == 352)
+candidate = Path(p['cwd'])
+for label, root in (('candidate', candidate), ('current_repository', ROOT)):
+    mismatch = [name for name, expected in r['source_hashes_before'].items() if not (root/name).is_file() or sha(root/name) != expected]
+    check(f'all_352_sources_match_{label}', mismatch == [])
+check('reported_integration_conditions_hold', r['action_fidelity'] == {'passed':True,'errors':[]} and r['provenance_stable'] is True and r['integration_passed'] is True)
+check('clean_process_stderr', (BASE/'stderr.log').read_text() == '')
+result = {'kind':'ordinary_development_saved_evidence_review', 'source_artifact':str(BASE.relative_to(ROOT)), 'findings':[], 'checks':checks, 'passed_checks':sum(checks.values()), 'process':{'scheduled_attempts':1,'inference_retries':0,'normalized_model_exchanges':2,'tool_actions':1,'orders':1,'clinical_tasks':1,'completion':'complete'}, 'hashes':{name:sha(BASE/name) for name in ('report.json','process-status.json','stdout.log','stderr.log')}, 'review_script_sha256':sha(Path(__file__)), 'limitations':['Read-only review; no new model requests or state mutations.', 'Saved client exchanges are normalized inputs/responses, not captured native HTTP request/response envelopes.', 'Before/after content hashes detect observed drift; they do not independently authenticate execution or prove no transient changes.', 'One restricted synthetic software instruction-following attempt; clinical, benchmark, comparative and readiness outcomes remain unassessed.'], 'command':'PYTHONPATH=src .venv/bin/python /private/tmp/healthcraft-local-order-independent-review-20260930.py'}
+out = Path('/private/tmp/healthcraft-local-order-independent-review-20260930.json')
+with out.open('x') as handle:
+    json.dump(result, handle, indent=2, allow_nan=False); handle.write('\n')
+print(json.dumps({'output':str(out),'checks':len(checks),'all_passed':all(checks.values())}))

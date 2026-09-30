@@ -96,13 +96,18 @@ a new results directory. Resume rejects incompatible run identities.
 ```bash
 # Resume interrupted run (same command)
 python -m healthcraft.llm.orchestrator \
-  --agent-model <your-model> --trials 3 \
-  --results-dir results/<run-name>
+  --agent-model <your-model> \
+  --judge-model <different-vendor-judge> \
+  --tasks IR-001 --rubric-channel v10 \
+  --trials 3 --results-dir results/<run-name> --log-level INFO
 
 # Re-run only error trajectories
 python -m healthcraft.llm.orchestrator \
-  --agent-model <your-model> --trials 3 \
-  --results-dir results/<run-name> --retry-errors
+  --agent-model <your-model> \
+  --judge-model <different-vendor-judge> \
+  --tasks IR-001 --rubric-channel v10 \
+  --trials 3 --results-dir results/<run-name> --log-level INFO \
+  --retry-errors
 ```
 
 ## Interpreting Results
@@ -142,17 +147,37 @@ errors, incomplete runs, unknown completion, and ungraded criteria. The report
 does not rerun models, repair historical scores, or establish clinical validity.
 Choose a new output filename for each report; existing reports are preserved.
 
+Unassessed or non-comparable run markers suppress clean run-level scores.
+Known criterion verdicts in a partially graded run remain visible as recorded
+evidence; profile diagnostics remain wholly ungraded. When a sealed review
+context is present, the report checks its saved bindings and exact frozen
+criterion IDs, including missing, extra and duplicate entries. Conflicting
+coverage metadata is shown explicitly. Legacy files without that context
+retain unknown provenance; the report does not reconstruct them from today's
+task files. These content bindings are not independent authentication.
+
+Malformed normalized model responses and tool exceptions are saved as
+incomplete execution, retaining earlier turns. An invalid tool-call batch
+executes no actions. A tool exception can happen after persistence: an unknown
+outcome is recorded without fabricating a response or automatically retrying
+the action. See the [execution and report contract](EXECUTION_REPORT_INTEGRITY.md).
+
 ### Analysis script
 
 ```bash
-python scripts/analyze_v7.py \
-  --results results/<run-name> \
-  --output results/<run-name>/analysis.md \
-  --json
+python scripts/analyze_results.py results/<run-name> \
+  --output /tmp/healthcraft-analysis.md
 ```
 
-Produces per-category breakdown, Pass^k metrics, hardest tasks, model
-divergence, and Corecraft Table 1 parity comparison.
+Uses the latest experiment-log attempt per trial and latest run summary.
+Inspect the offline evidence report as well; aggregate log analysis cannot
+replace checking saved trajectory bindings and criterion coverage. Preserve
+each report under a new output filename.
+
+`analyze_v7.py` is a historical V7 analysis script. It counts retry JSON files
+as separate observations and reads the original summary, so do not use it for
+current resumable runs. Its Corecraft table is an unrelated historical
+reference, not a matched comparison or evidence of parity.
 
 ### Key metrics
 

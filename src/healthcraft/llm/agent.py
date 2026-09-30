@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -743,6 +744,53 @@ def _build_setting_context(setting: dict[str, Any]) -> str:
     return "\n\n--- Current Department Status ---\n" + "\n".join(parts)
 
 
+def _copy_response_json(value: Any, ancestors: frozenset[int] = frozenset()) -> Any:
+    """Detach a normalized envelope without coercing invalid JSON values.
+
+    This captures the adapter output, not an unobserved native provider envelope.
+    Invalid non-JSON objects cannot be faithfully saved and are not stringified.
+    """
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float and math.isfinite(value):
+        return value
+    if type(value) not in (dict, list):
+        raise ValueError("Normalized response requires finite JSON values")
+    if id(value) in ancestors:
+        raise ValueError("Normalized response contains a cycle")
+    nested = ancestors | {id(value)}
+    if type(value) is list:
+        return [_copy_response_json(item, nested) for item in value]
+    if any(type(key) is not str for key in value):
+        raise ValueError("Normalized response requires string object keys")
+    return {key: _copy_response_json(item, nested) for key, item in value.items()}
+
+
+def _validate_response_batch(response: Any) -> None:
+    """Validate the entire request batch before dispatching any state change."""
+    if not isinstance(response, dict):
+        raise ValueError("Normalized response must be an object")
+    if not isinstance(response.get("content"), str):
+        raise ValueError("Normalized response content must be a string")
+    if not isinstance(response.get("tool_calls"), list):
+        raise ValueError("Normalized response tool_calls must be an array")
+    for field in ("stop_reason", "refusal"):
+        if response.get(field) is not None and not isinstance(response[field], str):
+            raise ValueError(f"Normalized response {field} must be a string or null")
+    pending_ids: set[str] = set()
+    for call in response["tool_calls"]:
+        if not isinstance(call, dict):
+            raise ValueError("Each tool call must be an object")
+        for field in ("id", "name"):
+            if not isinstance(call.get(field), str) or not call[field].strip():
+                raise ValueError(f"Each tool call requires a nonempty {field}")
+        if call["id"] in pending_ids:
+            raise ValueError("Simultaneous tool calls require distinct IDs")
+        pending_ids.add(call["id"])
+        if not isinstance(call.get("arguments", {}), dict):
+            raise ValueError("Tool call arguments must be an object")
+
+
 def run_agent_task(
     client: ModelClient,
     task: Task,
@@ -806,6 +854,26 @@ def run_agent_task(
             traj.metadata["stop_reason"] = "client_error"
             break
 
+        captured_response = None
+        capture_status = "unavailable"
+        try:
+            captured_response = _copy_response_json(response)
+            capture_status = "captured"
+            _validate_response_batch(captured_response)
+        except (ValueError, RecursionError) as exc:
+            # Return the partial trajectory to the orchestrator. Raising here
+            # would lose already completed actions when its assignment fails.
+            traj.error = f"Invalid model response on round {round_num + 1}: {exc}"
+            traj.metadata["termination_kind"] = "invalid_model_response"
+            traj.metadata["stop_reason"] = "invalid_model_response"
+            traj.metadata["agent_protocol_error"] = {
+                "round": round_num + 1,
+                "message": str(exc),
+                "capture_status": capture_status,
+                "normalized_response": captured_response,
+            }
+            break
+        response = captured_response
         content = response["content"]
         tool_calls = response["tool_calls"]
         stop_reason = response.get("stop_reason")
@@ -829,7 +897,7 @@ def run_agent_task(
         # Add assistant message to conversation
         assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
         if tool_calls:
-            assistant_msg["tool_calls"] = tool_calls
+            assistant_msg["tool_calls"] = deepcopy(tool_calls)
         messages.append(assistant_msg)
 
         if response.get("refusal") or reason == "refusal":
@@ -878,9 +946,25 @@ def run_agent_task(
         for tc in tool_calls:
             tool_name = tc["name"]
             tool_args = tc.get("arguments", {})
-            tool_result = server.call_tool(tool_name, tool_args)
-
-            result_str = json.dumps(tool_result, default=str)
+            stage = "dispatch"
+            try:
+                tool_result = server.call_tool(tool_name, deepcopy(tool_args))
+                stage = "serialize_response"
+                result_str = json.dumps(tool_result, default=str, allow_nan=False)
+            except Exception as exc:
+                # An exception can happen after a mutation. Do not invent a
+                # failure response, retry the action, or imply rollback.
+                traj.error = f"Tool execution error on round {round_num + 1}: {exc}"
+                traj.metadata["termination_kind"] = "tool_execution_error"
+                traj.metadata["tool_execution_error"] = {
+                    "round": round_num + 1,
+                    "tool_call_id": tc["id"],
+                    "tool_name": tool_name,
+                    "stage": stage,
+                    "outcome": "unknown",
+                    "message": str(exc),
+                }
+                break
 
             # Record tool result turn
             traj.add_turn(
@@ -896,6 +980,8 @@ def run_agent_task(
                     "content": result_str,
                 }
             )
+        if traj.error is not None:
+            break
     else:
         traj.error = (
             f"Agent exhausted tool round limit ({MAX_TOOL_ROUNDS}) without a final response"

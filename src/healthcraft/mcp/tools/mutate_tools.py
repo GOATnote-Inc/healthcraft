@@ -74,27 +74,69 @@ def _deterministic_patient_id(idem_key: str, first_name: str, last_name: str) ->
     return f"PAT-{h.upper()}"
 
 
-def _is_idempotent_replay(world: WorldState, tool_name: str, idem_key: str) -> bool:
-    """Return True iff a prior committed (ok-status) call recorded the same
-    ``(tool_name, idempotency_key)``. The current call is NOT yet in the
-    audit log when handlers are invoked, so this scans only previously-
-    committed entries — first attempts execute normally; second-and-later
-    attempts dedup.
+def _retry_request_json(params: dict) -> str:
+    """Bind the full finite JSON request, preserving supplied optional fields.
 
-    Tool name comparison is case-insensitive so the camelCase MCP name and
-    the snake_case handler name both match.
+    Only the retry key is excluded. Supplied context binds the request even
+    where a legacy handler currently ignores that field. JSON scalar types
+    and absent-versus-present fields must not compare equal accidentally.
     """
-    if not idem_key:
-        return False
-    tn_lower = tool_name.lower()
+    body = {key: value for key, value in params.items() if key != "idempotency_key"}
+    serialized = json.dumps(body, sort_keys=True, allow_nan=False)
+    pending = [body]
+    while pending:
+        value = pending.pop()
+        if type(value) is dict and all(type(key) is str for key in value):
+            pending.extend(value.values())
+        elif type(value) is list:
+            pending.extend(value)
+        elif value is not None and type(value) not in (str, bool, int, float):
+            raise ValueError("Request values must be JSON values with string object keys")
+    return serialized
+
+
+def _mutation_retry(world: WorldState, tool_name: str, params: dict) -> tuple[bool, dict | None]:
+    """Distinguish an identical committed retry from reuse for different work.
+
+    Scope remains (registered tool, key); registered snake/camel aliases share
+    it. Audit request bodies and tool names stay untouched. Failed calls do
+    not reserve keys. No-key calls and the legacy flag opt-out retain their
+    existing behavior.
+    """
+    from healthcraft.mcp.server import TOOL_NAME_MAP
+
+    if not _idempotent_tools_enabled():
+        return False, None
+    key = params.get("idempotency_key", "")
+    if type(key) is not str:
+        return False, _error("invalid_params", "idempotency_key must be a string")
+    if not key:
+        return False, None
+    try:
+        requested = _retry_request_json(params)
+    except (TypeError, ValueError, RecursionError):
+        return False, _error(
+            "invalid_params", "Idempotent requests must contain finite JSON values"
+        )
+    canonical_name = TOOL_NAME_MAP.get(tool_name, tool_name)
+    matched = False
     for entry in world.audit_log:
         if (
-            entry.idempotency_key == idem_key
-            and entry.tool_name.lower() == tn_lower
-            and entry.result_summary == "ok"
+            entry.idempotency_key != key
+            or TOOL_NAME_MAP.get(entry.tool_name, entry.tool_name) != canonical_name
+            or entry.result_summary != "ok"
         ):
-            return True
-    return False
+            continue
+        try:
+            identical = _retry_request_json(entry.params) == requested
+        except (AttributeError, TypeError, ValueError, RecursionError):
+            identical = False
+        if not identical:
+            return False, _error(
+                "idempotency_conflict", "Idempotency key already represents a different request"
+            )
+        matched = True
+    return matched, None
 
 
 # --- Helpers ---
@@ -297,6 +339,19 @@ def create_clinical_order(world: WorldState, params: dict) -> dict:
                 or _get_field(existing, "order_type") != order_type
             ):
                 return _error("id_collision", "Order ID belongs to different clinical work")
+            # A key identifies one persisted request, not whichever action a
+            # later caller supplies. Preserve absence of optional fields and
+            # JSON scalar types when comparing the effect-bearing payload.
+            original = _entity_to_dict(existing)
+            effect_fields = ("encounter_id", "order_type", "details", "priority", "indication")
+            saved_request = {key: original[key] for key in effect_fields if key in original}
+            requested = {key: params[key] for key in effect_fields if key in params}
+            if json.dumps(saved_request, sort_keys=True, allow_nan=False) != json.dumps(
+                requested, sort_keys=True, allow_nan=False
+            ):
+                return _error(
+                    "idempotency_conflict", "Idempotency key already represents a different order"
+                )
             # Deduplicated: return existing order without creating a new one
             result = _ok(existing if isinstance(existing, dict) else _entity_to_dict(existing))
             result["deduplicated"] = True
@@ -381,13 +436,10 @@ def update_task_status(world: WorldState, params: dict) -> dict:
     if task is None:
         return _error("task_not_found", f"Clinical task not found: {task_id}")
 
-    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
-    idem_key = str(params.get("idempotency_key", "") or "")
-    if (
-        _idempotent_tools_enabled()
-        and idem_key
-        and _is_idempotent_replay(world, "updateTaskStatus", idem_key)
-    ):
+    replay, retry_error = _mutation_retry(world, "updateTaskStatus", params)
+    if retry_error is not None:
+        return retry_error
+    if replay:
         result = _ok(_entity_to_dict(task) if hasattr(task, "__dataclass_fields__") else task)
         result["deduplicated"] = True
         return result
@@ -452,13 +504,10 @@ def update_encounter(world: WorldState, params: dict) -> dict:
     if encounter is None:
         return _error("encounter_not_found", f"Encounter not found: {encounter_id}")
 
-    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
-    idem_key = str(params.get("idempotency_key", "") or "")
-    if (
-        _idempotent_tools_enabled()
-        and idem_key
-        and _is_idempotent_replay(world, "updateEncounter", idem_key)
-    ):
+    replay, retry_error = _mutation_retry(world, "updateEncounter", params)
+    if retry_error is not None:
+        return retry_error
+    if replay:
         result = _ok(
             _entity_to_dict(encounter) if hasattr(encounter, "__dataclass_fields__") else encounter
         )
@@ -537,13 +586,10 @@ def update_patient_record(world: WorldState, params: dict) -> dict:
     if patient is None:
         return _error("patient_not_found", f"Patient not found: {patient_id}")
 
-    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
-    idem_key = str(params.get("idempotency_key", "") or "")
-    if (
-        _idempotent_tools_enabled()
-        and idem_key
-        and _is_idempotent_replay(world, "updatePatientRecord", idem_key)
-    ):
+    replay, retry_error = _mutation_retry(world, "updatePatientRecord", params)
+    if retry_error is not None:
+        return retry_error
+    if replay:
         result = _ok(
             _entity_to_dict(patient) if hasattr(patient, "__dataclass_fields__") else patient
         )
@@ -753,13 +799,10 @@ def apply_protocol(world: WorldState, params: dict) -> dict:
     if encounter is None:
         return _error("encounter_not_found", f"Encounter not found: {encounter_id}")
 
-    # Idempotency: dedup on prior committed call with same key (PR-B / WS-5).
-    idem_key = str(params.get("idempotency_key", "") or "")
-    if (
-        _idempotent_tools_enabled()
-        and idem_key
-        and _is_idempotent_replay(world, "applyProtocol", idem_key)
-    ):
+    replay, retry_error = _mutation_retry(world, "applyProtocol", params)
+    if retry_error is not None:
+        return retry_error
+    if replay:
         return {
             "status": "ok",
             "data": {

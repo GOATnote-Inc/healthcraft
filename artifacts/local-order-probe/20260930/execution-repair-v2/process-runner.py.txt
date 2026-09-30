@@ -1,0 +1,23 @@
+from pathlib import Path
+import datetime,hashlib,json,subprocess,time
+candidate=Path('/private/tmp/healthcraft-execution-candidate-33ze7ldu')
+root=Path('/Users/kiteboard/healthcraft/artifacts/local-order-probe/20260930/execution-repair-v2')
+root.mkdir(parents=True,exist_ok=False)
+command=['/Users/kiteboard/healthcraft/.venv/bin/python',str(candidate/'scripts/local_order_probe.py'),'--agent-model','ollama:counsel-nano-q5:latest','--output',str(root/'report.json'),'--max-responses','4','--max-output-tokens','256','--timeout','45']
+env={'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','PYTHONPATH':str(candidate/'src')+':'+str(candidate),'PYTHONUNBUFFERED':'1'}
+receipt={'status':'started','command':command,'cwd':str(candidate),'environment':env,'outer_timeout_seconds':300,'scheduled_attempts':1,'inference_retries':0,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+p=root/'process-status.json';p.write_text(json.dumps(receipt,indent=2)+'\n')
+start=time.monotonic()
+try:
+ with (root/'stdout.log').open('xb') as out,(root/'stderr.log').open('xb') as err:
+  result=subprocess.run(command,cwd=candidate,env=env,stdout=out,stderr=err,timeout=300)
+ receipt.update(status='finished',exit_code=result.returncode)
+except Exception as exc:
+ receipt.update(status='runner_error',exit_code=None,error=f'{type(exc).__name__}: {exc}')
+receipt.update(duration_seconds=round(time.monotonic()-start,3),ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+p.write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps(receipt))
+if (root/'report.json').exists():
+ report=json.loads((root/'report.json').read_text())
+ print(json.dumps({k:report.get(k) for k in ('integration_passed','completion','model_call_count','action_fidelity','provenance_stable','errors','duration_seconds','coverage')}))
+raise SystemExit(receipt.get('exit_code') if receipt.get('exit_code') is not None else 2)

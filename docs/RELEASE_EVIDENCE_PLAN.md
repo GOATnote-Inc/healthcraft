@@ -56,8 +56,8 @@ existing [research-artifact boundary](RL_COUPLING.md) continues to apply.
 
 | Alternative | Proposed comparison | Current status |
 |---|---|---|
-| [MedAgentBench](https://github.com/stanfordmlgroup/MedAgentBench) | EHR retrieval/action workflows through a reviewed common synthetic adapter. | Feasibility and permissions not established. Published patient-derived scores are not a baseline for new synthetic cases. |
-| [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Feasibility not established; pin repository, adapter, dependencies, and task license before use. |
+| [MedAgentBench](https://github.com/stanfordmlgroup/MedAgentBench) | EHR retrieval/action workflows through a reviewed common synthetic adapter. | Pinned public loop acknowledges POSTs without executing writes; reference grader is separately distributed and uninspected. End-to-end feasibility remains unestablished. Published patient-derived scores are not a baseline for new synthetic cases. |
+| [HealthAgentBench](https://github.com/microsoft/HealthAgentBench) | Portable task execution and review of a valid result. | Pinned CSV verifier interface inspected; proposed synthetic Harbor adaptation remains unimplemented. Its data-quality score cannot establish persisted clinical-action correctness. |
 | [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) | Rollout, verifier, and evidence integration effort on the same workflow. | A pinned counter probe remained incomplete. A later adapted four-record retrieval attempt completed once in each framework under shared native settings. This establishes local interoperability, not a clinical workflow or comparative performance margin. |
 | Corecraft, Archangel Health, Baseten | Equivalent executable workflows and review procedures where accessible. | Numerical superiority is not demonstrated. Product descriptions and unrelated published scores cannot fill missing comparisons. |
 
@@ -66,6 +66,9 @@ is `not_demonstrated`, never a failed competitor. A result against one named
 baseline cannot support a claim about all available products. Primary-source
 design context and licensing decisions are in the
 [evaluation design roadmap](EVALUATION_DESIGN_ROADMAP.md).
+The [synthetic EHR comparator proposal](SYNTHETIC_EHR_COMPARATOR.md) records
+exact source pins, code/data license boundaries, verifier semantics and the
+next engineering controls. A proposed adaptation is not a working comparator.
 
 ## Independent clinical and scoring evidence
 
@@ -153,6 +156,11 @@ prevent an operator from bypassing the required publication procedure.
   distinct from completed administrations and preserves direct imaging facts
   without default modality, impression or time. Its mechanical witness and
   local source-reading probe do not adjudicate treatment or comparative value.
+- The [execution and report repair](EXECUTION_REPORT_INTEGRITY.md) preserves
+  interrupted action evidence, binds retries to their requests, removes three
+  reproduced false criterion passes and checks frozen report provenance.
+  Its local Nemotron round trip confirms one literal synthetic action only;
+  it does not establish clinical or comparative performance.
 - No registered common-protocol comparator study, operator-value study,
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.

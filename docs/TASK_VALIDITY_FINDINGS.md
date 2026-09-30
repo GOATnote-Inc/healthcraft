@@ -49,6 +49,18 @@ retain the defects before repair. Regression coverage lives in
 [tool alias tests](../tests/test_evaluator_integrity/test_tool_aliases.py), and
 [grader contract tests](../tests/test_evals/test_grader_goldset_contract.py).
 
+## Action evidence follow-up at 5cd2955
+
+Three further real-tool false passes were reproduced and repaired locally:
+`admitted` failed a check written with `admit`; medication words in a lab
+order's indication earned medication credit; and a changed idempotent retry
+received credit even though only the original order persisted. The
+[execution and report contract](EXECUTION_REPORT_INTEGRITY.md) describes the
+field bindings, conflict handling, deduplicated replay semantics and retained
+negative-intent checks. Seven authored safety criteria use the affected
+`disposition matching admit` form. The repair changes future evaluation
+behavior without editing those criteria or rewriting historical results.
+
 ## Authored care and imaging: subsequent local repair
 
 The `aa21717` source audit reproduced 37 fabricated administration rows from

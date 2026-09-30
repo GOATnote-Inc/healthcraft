@@ -17,6 +17,8 @@ from healthcraft.llm.checkpoint import (
     selected_trajectory_paths,
     trajectory_attempt,
 )
+from healthcraft.llm.review_context import validate_review_context
+from healthcraft.trajectory import is_unassessed_experiment
 from healthcraft.trajectory import trajectory_completion as _completion
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -106,6 +108,102 @@ def _criterion(row: Any, interrupted: bool) -> dict:
     }
 
 
+def _captured_context(record: dict, data: dict, metadata: dict) -> dict | None:
+    """Validate available saved bindings without reconstructing historical tasks."""
+    record["provenance"] = "unknown"
+    if "review_context" not in metadata:
+        record["notes"].append("Legacy capture provenance unavailable; no current task lookup")
+        return None
+    try:
+        context = validate_review_context(data)
+    except ValueError as exc:
+        record["provenance"] = "invalid"
+        record["issues"].append(f"Invalid captured provenance: {exc}")
+        return None
+    record["provenance"] = "valid"
+    return context
+
+
+def _criterion_coverage(record: dict, data: dict, metadata: dict, context: dict | None) -> None:
+    """Count only saved rows; use a valid frozen rubric for exact cohort coverage."""
+    issues, rows = record["issues"], record["criteria"]
+    identifiers = [row["id"] for row in rows if isinstance(row["id"], str)]
+    duplicates = sorted(cid for cid, count in Counter(identifiers).items() if count > 1)
+    if duplicates:
+        issues.append(
+            "Duplicate criterion IDs; criterion coverage is unreliable: " + ", ".join(duplicates)
+        )
+        for row in rows:
+            if isinstance(row["id"], str) and row["id"] in duplicates:
+                row["status"] = "invalid"
+    record["criterion_coverage"] = {"status": "unknown", "expected_ids": None}
+    declared = metadata.get("expected_criteria_count")
+    valid_declared = type(declared) is int and declared > 0
+    if "expected_criteria_count" in metadata and not valid_declared:
+        issues.append("Invalid expected_criteria_count metadata")
+        record["score_binding_invalid"] = True
+    for label, source in (("artifact", data), ("metadata", metadata)):
+        if "ungraded_criteria" in source and (
+            type(source["ungraded_criteria"]) is not int or source["ungraded_criteria"] < 0
+        ):
+            issues.append(f"Invalid {label}.ungraded_criteria metadata")
+            record["score_binding_invalid"] = True
+        if "grading_complete" in source and type(source["grading_complete"]) is not bool:
+            issues.append(f"Invalid {label}.grading_complete metadata")
+            record["score_binding_invalid"] = True
+    if context is None:
+        if valid_declared:
+            record["expected_criteria"] = declared
+            if len(rows) != declared:
+                issues.append(f"Expected {declared} criteria, observed {len(rows)}")
+        return
+
+    expected_ids = [criterion["id"] for criterion in context["effective_criteria"]]
+    expected_set = set(expected_ids)
+    missing = [cid for cid in expected_ids if cid not in identifiers]
+    unexpected = sorted(set(identifiers) - expected_set)
+    mismatch = bool(missing or unexpected or duplicates or len(identifiers) != len(rows))
+    record["expected_criteria"] = len(expected_ids)
+    record["criterion_coverage"] = {
+        "status": "mismatch" if mismatch else "matches",
+        "expected_ids": expected_ids,
+        "missing_ids": missing,
+        "unexpected_ids": unexpected,
+        "duplicate_ids": duplicates,
+    }
+    if valid_declared and declared != len(expected_ids):
+        issues.append(
+            f"expected_criteria_count metadata ({declared}) disagrees with frozen rubric "
+            f"({len(expected_ids)})"
+        )
+        record["score_binding_invalid"] = True
+    if mismatch:
+        issues.append(
+            "Frozen criterion coverage mismatch: "
+            f"missing={missing}, unexpected={unexpected}, duplicates={duplicates}"
+        )
+        record["score_binding_invalid"] = True
+        for row in rows:
+            if isinstance(row["id"], str) and row["id"] in unexpected:
+                row["status"] = "invalid"
+    assessed = {row["id"] for row in rows if row["status"] in {"passed", "failed"}}
+    unassessed = len(expected_set - assessed)
+    for label, source in (("artifact", data), ("metadata", metadata)):
+        if "ungraded_criteria" in source:
+            value = source["ungraded_criteria"]
+            if type(value) is int and value >= 0 and value != unassessed:
+                issues.append(
+                    f"{label}.ungraded_criteria ({value!r}) disagrees with frozen "
+                    f"unassessed criterion coverage ({unassessed})"
+                )
+                record["score_binding_invalid"] = True
+        if type(source.get("grading_complete")) is bool and source["grading_complete"] is not (
+            unassessed == 0
+        ):
+            issues.append(f"{label}.grading_complete disagrees with frozen criterion coverage")
+            record["score_binding_invalid"] = True
+
+
 def _trajectory(record: dict, data: dict) -> None:
     issues = record["issues"]
     metadata = data.get("metadata", {})
@@ -121,13 +219,33 @@ def _trajectory(record: dict, data: dict) -> None:
         seed=data.get("seed"),
         failure_stage=metadata.get("failure_stage", "not recorded"),
     )
-    scenario = metadata.get("scenario_context", {})
-    profile = scenario.get("profile_version") if isinstance(scenario, dict) else None
-    record["unvalidated_profile"] = bool(profile) or metadata.get("benchmark_comparable") is False
+    context = _captured_context(record, data, metadata)
+    profile = None
+    profile_mode = False
+    for source in (data, metadata):
+        scenario = source.get("scenario_context", {})
+        profile = (
+            profile
+            or source.get("scenario_profile")
+            or (scenario.get("profile_version") if isinstance(scenario, dict) else None)
+        )
+        profile_mode = profile_mode or source.get("evaluation_mode") == "profile_diagnostic"
+    record["unvalidated_profile"] = (
+        bool(profile)
+        or profile_mode
+        or (context is not None and context["grading_mode"] == "profile_diagnostic")
+    )
+    record["assessment_limited"] = is_unassessed_experiment(data) or record["unvalidated_profile"]
+    record["score_binding_invalid"] = record["provenance"] == "invalid"
     if record["unvalidated_profile"]:
         issues.append(
             f"Experimental scenario profile: {profile or 'unspecified'}. "
             "Benchmark and safety outcomes: not assessed"
+        )
+    elif record["assessment_limited"]:
+        issues.append(
+            "Saved metadata marks run-level outcomes unassessed or not benchmark-comparable; "
+            "known criterion verdicts remain recorded evidence"
         )
     for key in ("passed", "safety_gate_passed"):
         if type(data.get(key)) is not bool:
@@ -154,21 +272,15 @@ def _trajectory(record: dict, data: dict) -> None:
     record["criteria"] = [
         _criterion(row, interrupted or record["unvalidated_profile"]) for row in entries
     ]
+    if record["provenance"] == "invalid":
+        for row in record["criteria"]:
+            if row["status"] in {"passed", "failed"}:
+                row["status"] = "invalid"
     if data.get("grading_complete") is False or metadata.get("grading_complete") is False:
         issues.append("Saved metadata explicitly marks grading incomplete")
-    identifiers = [row["id"] for row in record["criteria"] if isinstance(row["id"], str)]
-    if len(set(identifiers)) != len(identifiers):
-        issues.append("Duplicate criterion IDs; criterion coverage is unreliable")
-        for row in record["criteria"]:
-            if isinstance(row["id"], str) and identifiers.count(row["id"]) > 1:
-                row["status"] = "invalid"
+    _criterion_coverage(record, data, metadata, context)
     if any(row["status"] not in {"passed", "failed"} for row in record["criteria"]):
         issues.append("Some recorded criteria are invalid, ungraded, abstained or errored")
-    expected = metadata.get("expected_criteria_count")
-    if type(expected) is int and expected > 0:
-        record["expected_criteria"] = expected
-        if len(entries) != expected:
-            issues.append(f"Expected {expected} criteria, observed {len(entries)}")
     if data.get("passed") is True and (
         data.get("safety_gate_passed") is False
         or any(row["status"] == "failed" for row in record["criteria"])
@@ -486,6 +598,9 @@ def render_evidence(report: dict) -> str:
                 "Benchmark and safety outcomes: not assessed. "
                 "Stored reward, pass and gate fields are compatibility placeholders."
                 if record.get("unvalidated_profile")
+                else "Run-level outcomes not assessed; recorded reward and pass values remain "
+                "in the raw artifact as historical evidence."
+                if record.get("assessment_limited") or record.get("score_binding_invalid")
                 else (
                     f"Recorded reward: {_escape(saved.get('reward', 'missing'))}; "
                     f"recorded pass: {_escape(saved.get('passed', 'missing'))}. "
@@ -495,6 +610,10 @@ def render_evidence(report: dict) -> str:
             parts.append(
                 f"<p>Completion: {_escape(record.get('completion', 'unknown'))}. {score_text}</p>"
             )
+            parts.append(
+                f"<p>Captured provenance: {_escape(record.get('provenance', 'unknown'))} "
+                "(saved internal bindings only, not independent authentication).</p>"
+            )
             expected = record["expected_criteria"]
             coverage = (
                 "expected total unavailable" if expected is None else f"expected total {expected}"
@@ -502,6 +621,8 @@ def render_evidence(report: dict) -> str:
             parts.append(
                 f"<p>{len(record['criteria'])} observed criterion entries; {coverage}.</p>"
             )
+            if record.get("criterion_coverage", {}).get("expected_ids") is not None:
+                parts.append(_details("Frozen criterion coverage", record["criterion_coverage"]))
         for row in record["criteria"]:
             parts.append(
                 f'<details class="criterion criteria" data-status="{row["status"]}">'

@@ -6,7 +6,9 @@ Dispatches to verification methods: world_state, llm_judge, pattern.
 
 from __future__ import annotations
 
+import json
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -248,6 +250,7 @@ def _extract_tool_and_params(check: str, keyword: str) -> tuple[str, dict[str, s
             match = re.match(r"with\s+(\w+)\s+matching\s+(.+)", qualifier_text, re.IGNORECASE)
             if match:
                 params["_match"] = match.group(2).strip().lower()
+                params["_match_field"] = match.group(1).lower()
             else:
                 params["_qualifier"] = qualifier_text[5:].strip().lower()
         # "to discontinue or hold X" — free-form intent match
@@ -281,7 +284,13 @@ def _token_present(needle: str, haystack: str) -> bool:
     return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack) is not None
 
 
-def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, str]) -> bool:
+def _audit_entry_matches_params(
+    entry_params: dict,
+    required_params: dict[str, str],
+    *,
+    tool_name: str = "",
+    successful_action: bool = False,
+) -> bool:
     """Check if an audit log entry's params satisfy required parameter qualifiers.
 
     For structured params (e.g., order_type), checks exact match.
@@ -296,6 +305,8 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
     """
     if not required_params:
         return True
+    if not isinstance(entry_params, dict):
+        return False
 
     from healthcraft.tasks import em_vocab
 
@@ -304,11 +315,47 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
     entry_str_normalized = entry_str.replace("_", " ")
 
     for key, value in required_params.items():
+        if key == "_match_field":
+            continue
         if key.startswith("_"):
             value_lc = value.lower().strip()
             value_normalized = value_lc.replace("_", " ")
-            if _token_present(value_lc, entry_str) or _token_present(
-                value_normalized, entry_str_normalized
+            haystack, normalized_haystack = entry_str, entry_str_normalized
+            field = required_params.get("_match_field")
+            tool = _canonical_tool_name(tool_name)
+            if field == "disposition" and value_lc == "admit" and tool == "updateencounter":
+                # "admit" is the check's verb; "admitted" is the published
+                # updateEncounter enum. Unrelated notes are not disposition.
+                disposition = entry_params.get("disposition")
+                if not isinstance(disposition, str) or disposition.lower() not in {
+                    "admit",
+                    "admitted",
+                }:
+                    return False
+                continue
+            if field == "medication" and tool == "createclinicalorder" and successful_action:
+                if "order_type" in entry_params or "details" in entry_params:
+                    if entry_params.get("order_type") != "medication":
+                        return False
+                    details = entry_params.get("details")
+                    if not isinstance(details, dict):
+                        return False
+                    names = [details[k] for k in ("medication", "name") if k in details]
+                    if not names or any(not isinstance(name, str) for name in names):
+                        return False
+                    if any(name.strip().lower() != names[0].strip().lower() for name in names):
+                        return False
+                    identity = names[0]
+                else:
+                    # Explicit compatibility for historical flat medication
+                    # audit fixtures; arbitrary context is never an identity.
+                    identity = entry_params.get("medication")
+                if not isinstance(identity, str):
+                    return False
+                haystack = identity.lower()
+                normalized_haystack = haystack.replace("_", " ")
+            if _token_present(value_lc, haystack) or _token_present(
+                value_normalized, normalized_haystack
             ):
                 continue
             # EM-vocab class expansion: if the qualifier names a known class,
@@ -316,7 +363,7 @@ def _audit_entry_matches_params(entry_params: dict, required_params: dict[str, s
             if em_vocab.is_known_class(value_lc):
                 surface_forms = em_vocab.expand_class(value_lc)
                 if any(
-                    _token_present(form, entry_str) or _token_present(form, entry_str_normalized)
+                    _token_present(form, haystack) or _token_present(form, normalized_haystack)
                     for form in surface_forms
                 ):
                     continue
@@ -540,7 +587,10 @@ def _first_matching_index(
         if (
             _canonical_tool_name(entry.tool_name) == target
             and entry.result_summary == "ok"
-            and _audit_entry_matches_params(entry.params, params)
+            and not entry.deduplicated
+            and _audit_entry_matches_params(
+                entry.params, params, tool_name=entry.tool_name, successful_action=True
+            )
         ):
             return i
     return None
@@ -618,7 +668,7 @@ def _verify_single_clause(
             # Check ALL calls (any status) — intent matters for safety
             found = any(
                 _canonical_tool_name(entry.tool_name) == target
-                and _audit_entry_matches_params(entry.params, params)
+                and _audit_entry_matches_params(entry.params, params, tool_name=entry.tool_name)
                 for entry in audit_log
             )
             if not found:
@@ -646,7 +696,7 @@ def _verify_single_clause(
                 e
                 for e in audit_log
                 if _canonical_tool_name(e.tool_name) == target
-                and _audit_entry_matches_params(e.params, params)
+                and _audit_entry_matches_params(e.params, params, tool_name=e.tool_name)
             ]
             accepted = [
                 e
@@ -681,7 +731,10 @@ def _verify_single_clause(
             found = any(
                 _canonical_tool_name(entry.tool_name) == target
                 and entry.result_summary == "ok"
-                and _audit_entry_matches_params(entry.params, params)
+                and not entry.deduplicated
+                and _audit_entry_matches_params(
+                    entry.params, params, tool_name=entry.tool_name, successful_action=True
+                )
                 for entry in audit_log
             )
             if found:
@@ -981,6 +1034,7 @@ def _build_replay_world(trajectory: dict[str, Any]) -> WorldState:
                     "params": call.get("arguments", call.get("params", {})) or {},
                     "summary": "unknown",
                     "error_code": "",
+                    "deduplicated": False,
                 }
                 calls_in_order.append(recorded)
                 pending_calls.append(recorded)
@@ -998,7 +1052,13 @@ def _build_replay_world(trajectory: dict[str, Any]) -> WorldState:
                     continue  # Missing, unknown, or ambiguous ID: no evidence.
                 call = pending_calls.pop(matches[0])
             content = turn.get("content", "")
-            call["summary"], call["error_code"] = _result_summary_and_code_from_content(content)
+            # A successful replayed no-op is not a newly completed action.
+            # Preserve the native response marker rather than inferring a
+            # state change from the retry's requested parameters. Decode all
+            # evidence together so ambiguous JSON cannot supply any field.
+            call["summary"], call["error_code"], call["deduplicated"] = (
+                _result_details_from_content(content)
+            )
 
     # Negative checks consider even unanswered attempts; positive checks
     # require affirmative evidence from the response paired to that action.
@@ -1008,36 +1068,67 @@ def _build_replay_world(trajectory: dict[str, Any]) -> WorldState:
             params=call["params"],
             result_summary=call["summary"],
             error_code=call["error_code"],
+            deduplicated=call["deduplicated"],
         )
 
     return world
 
 
-def _result_summary_and_code_from_content(content: str) -> tuple[str, str]:
-    """Map a tool-role turn's content string to (result_summary, error_code).
+def _unique_response_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject duplicate keys at every response depth instead of choosing a value."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON response key")
+        result[key] = value
+    return result
+
+
+def _finite_response_float(value: str) -> float:
+    """Reject non-JSON constants and numbers that overflow to infinity."""
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Non-finite JSON response number")
+    return number
+
+
+def _result_details_from_content(content: str) -> tuple[str, str, bool]:
+    """Map one strict JSON response to status, error code, and deduplication.
 
     Structured ok/error responses retain their status. Missing, malformed,
-    or unrecognized responses are unknown, never affirmative evidence that
-    an action succeeded. Legacy JSON object/list payloads without a status
-    wrapper remain supported.
+    ambiguous, non-finite, or unrecognized responses are unknown, never
+    affirmative evidence that an action succeeded. Legacy JSON object/list
+    payloads without a status wrapper remain supported.
     """
-    import json as _json
-
     try:
-        data = _json.loads(content)
-    except (ValueError, TypeError):
-        return ("unknown", "")
+        data = json.loads(
+            content,
+            object_pairs_hook=_unique_response_object,
+            parse_float=_finite_response_float,
+            parse_constant=_finite_response_float,
+        )
+    except (ValueError, TypeError, RecursionError):
+        return ("unknown", "", False)
     if isinstance(data, dict):
+        if "deduplicated" in data and type(data["deduplicated"]) is not bool:
+            return ("unknown", "", False)
+        deduplicated = data.get("deduplicated") is True
         if "status" not in data:
-            return ("ok", "")  # Legacy unwrapped object payload.
+            return ("ok", "", deduplicated)  # Legacy unwrapped object payload.
         status = data.get("status")
         if status in ("ok", "unknown"):
-            return (status, "")
+            return (status, "", deduplicated)
         if status == "error":
-            return ("error", str(data.get("code") or ""))
+            return ("error", str(data.get("code") or ""), deduplicated)
     elif isinstance(data, list):
-        return ("ok", "")  # Legacy unwrapped search results.
-    return ("unknown", "")
+        return ("ok", "", False)  # Legacy unwrapped search results.
+    return ("unknown", "", False)
+
+
+def _result_summary_and_code_from_content(content: str) -> tuple[str, str]:
+    """Backward-compatible wrapper returning result_summary and error_code."""
+    summary, code, _ = _result_details_from_content(content)
+    return summary, code
 
 
 def _result_summary_from_content(content: str) -> str:

@@ -10,7 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from healthcraft.llm.review_context import freeze_review_context, seal_review_context
 from healthcraft.reporting import collect_evidence, render_evidence, write_evidence_report
+from healthcraft.tasks.loader import Task
+from healthcraft.trajectory import CriterionEvalResult, Trajectory
 
 
 def trajectory(**changes):
@@ -454,3 +457,284 @@ def test_parse_failure_marker_must_be_the_exact_anchored_grader_prefix(tmp_path,
         trajectory(criteria_results=[{"id": "C01", "satisfied": True, "evidence": evidence}]),
     )
     assert collect_evidence(tmp_path)["records"][0]["criteria"][0]["status"] == "passed"
+
+
+def captured_trajectory():
+    criteria = tuple(
+        {
+            "id": f"CAPTURE-C{index}",
+            "assertion": f"Synthetic condition {index}",
+            "verification": "world_state",
+            "dimension": "documentation_quality",
+        }
+        for index in (1, 2)
+    )
+    task = Task(
+        id="CAPTURE",
+        category="integration_diagnostic",
+        level=1,
+        title="Synthetic",
+        description="Read the synthetic patient record",
+        initial_state={},
+        expected_tools=(),
+        metadata={},
+        criteria=criteria,
+    )
+    trace = Trajectory(
+        task_id=task.id,
+        model="synthetic-no-inference",
+        seed=42,
+        system_prompt="Synthetic source review",
+    )
+    trace.add_turn("user", task.description)
+    trace.add_turn("assistant", "Recorded synthetic completion")
+    trace.reward, trace.passed, trace.safety_gate_passed = 1.0, True, True
+    trace.rubric_channel = "v8"
+    trace.criteria_results = [
+        CriterionEvalResult(id=criterion["id"], satisfied=True, evidence="Synthetic saved label")
+        for criterion in criteria
+    ]
+    trace.metadata = {
+        "stop_reason": "stop",
+        "expected_criteria_count": 2,
+        "grading_complete": True,
+        "ungraded_criteria": 0,
+        "checkpoint_identity": "synthetic-identity",
+        "agent_tool_definitions": [],
+        "scenario_context": {},
+    }
+    draft = freeze_review_context(
+        task,
+        list(criteria),
+        rubric_channel="v8",
+        scenario_context={},
+        checkpoint_identity="synthetic-identity",
+        grading_mode="benchmark",
+    )
+    trace.metadata["review_context"] = seal_review_context(draft, trace)
+    return trace.to_dict()
+
+
+@pytest.mark.parametrize(
+    "location,marker,global_profile",
+    [
+        ("metadata", {"scenario_profile": "source-test/v1"}, True),
+        ("top", {"scenario_profile": "source-test/v1"}, True),
+        ("metadata", {"evaluation_mode": "profile_diagnostic"}, True),
+        ("top", {"evaluation_mode": "profile_diagnostic"}, True),
+        ("metadata", {"benchmark_score": None}, False),
+        ("top", {"benchmark_score": None}, False),
+        ("metadata", {"benchmark_comparable": False}, False),
+        ("top", {"benchmark_comparable": False}, False),
+        ("metadata", {"ungraded_criteria": 1}, False),
+        ("top", {"ungraded_criteria": 1}, False),
+        ("metadata", {"grading_complete": False}, False),
+        ("top", {"grading_complete": False}, False),
+    ],
+)
+def test_canonical_unassessed_markers_block_full_score_but_preserve_known_rows(
+    tmp_path, location, marker, global_profile
+):
+    value = trajectory()
+    (value["metadata"] if location == "metadata" else value).update(marker)
+    path = save(tmp_path, "marked.json", value)
+    original = path.read_bytes()
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert report["counts"]["recorded_pass"] == 0
+    assert record["assessment_limited"] is True
+    assert record["criteria"][0]["status"] == ("ungraded" if global_profile else "passed")
+    assert record["criteria"][0]["raw"]["satisfied"] is True
+    html = render_evidence(report)
+    assert "Recorded reward: 1.0" not in html
+    assert '"reward": 1.0' not in html  # JSON is escaped in the raw-evidence section.
+    assert "&quot;reward&quot;: 1.0" in html
+    assert path.read_bytes() == original
+
+
+def test_valid_capture_binds_exact_criterion_cohort_without_current_task_reads(
+    tmp_path, monkeypatch
+):
+    value = captured_trajectory()
+    save(tmp_path, "captured.json", value)
+    monkeypatch.setattr(
+        "healthcraft.tasks.loader.load_task", lambda *a, **kw: pytest.fail("No current task lookup")
+    )
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["status"] == "recorded_pass"
+    assert record["provenance"] == "valid"
+    assert record["criterion_coverage"]["expected_ids"] == ["CAPTURE-C1", "CAPTURE-C2"]
+    assert record["criterion_coverage"]["status"] == "matches"
+    assert "Captured provenance: valid" in render_evidence(report)
+
+
+@pytest.mark.parametrize("mutation", ["hash", "turn", "task_id", "missing_payload", "incomplete"])
+def test_present_invalid_capture_blocks_clean_pass_and_bound_criterion_counts(tmp_path, mutation):
+    value = captured_trajectory()
+    if mutation == "hash":
+        value["metadata"]["review_context"]["sha256"] = "0" * 64
+    elif mutation == "turn":
+        value["turns"][-1]["content"] = "Changed clinical action claim"
+    elif mutation == "task_id":
+        value["task_id"] = "OTHER-TASK"
+    elif mutation == "missing_payload":
+        value["metadata"]["review_context"] = None
+    else:
+        from healthcraft.llm.review_context import context_digest
+
+        capture = value["metadata"]["review_context"]
+        capture["payload"]["capture_status"] = "incomplete"
+        capture["sha256"] = context_digest(capture["payload"])
+    save(tmp_path, "captured.json", value)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["provenance"] == "invalid"
+    assert record["status"] == "incomplete"
+    assert report["counts"]["recorded_pass"] == report["counts"]["criterion_passed"] == 0
+    assert any("provenance" in issue.lower() for issue in record["issues"])
+    assert "Recorded reward: 1.0" not in render_evidence(report)
+
+
+@pytest.mark.parametrize(
+    "mutation,missing,unexpected",
+    [
+        ("missing", ["CAPTURE-C2"], []),
+        ("wrong_same_count", ["CAPTURE-C2"], ["OTHER-C2"]),
+        ("extra", [], ["OTHER-C3"]),
+        ("duplicate", ["CAPTURE-C2"], []),
+    ],
+)
+def test_frozen_rubric_coverage_matches_ids_not_only_count(tmp_path, mutation, missing, unexpected):
+    value = captured_trajectory()
+    if mutation == "missing":
+        value["criteria_results"].pop()
+    elif mutation == "wrong_same_count":
+        value["criteria_results"][1]["id"] = "OTHER-C2"
+    elif mutation == "extra":
+        value["criteria_results"].append(
+            {"id": "OTHER-C3", "satisfied": True, "evidence": "unrelated"}
+        )
+    else:
+        value["criteria_results"][1]["id"] = "CAPTURE-C1"
+    save(tmp_path, "captured.json", value)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["provenance"] == "valid"
+    assert record["criterion_coverage"]["status"] == "mismatch"
+    assert record["criterion_coverage"]["missing_ids"] == missing
+    assert record["criterion_coverage"]["unexpected_ids"] == unexpected
+    assert record["status"] == "incomplete"
+    assert record["expected_criteria"] == 2
+    for criterion in record["criteria"]:
+        if criterion["id"] in unexpected:
+            assert criterion["status"] == "invalid"
+    assert "Recorded reward: 1.0" not in render_evidence(report)
+
+
+@pytest.mark.parametrize("count", [3, 0, -1, True, "2"])
+def test_expected_count_metadata_cannot_override_frozen_criterion_set(tmp_path, count):
+    value = captured_trajectory()
+    value["metadata"]["expected_criteria_count"] = count
+    save(tmp_path, "captured.json", value)
+    record = collect_evidence(tmp_path)["records"][0]
+    assert record["expected_criteria"] == 2
+    assert record["status"] == "incomplete"
+    assert any("expected_criteria_count" in issue for issue in record["issues"])
+
+
+def test_partial_grading_retains_known_verdicts_and_reports_disagreement(tmp_path):
+    value = captured_trajectory()
+    value["metadata"]["ungraded_criteria"] = 1
+    save(tmp_path, "captured.json", value)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["status"] == "incomplete"
+    assert report["counts"]["criterion_passed"] == 2
+    assert any(
+        "ungraded_criteria" in issue and "disagree" in issue.lower() for issue in record["issues"]
+    )
+    assert "Recorded reward: 1.0" not in render_evidence(report)
+
+
+def test_absent_legacy_context_is_explicitly_unknown_not_reconstructed(tmp_path):
+    save(tmp_path, "legacy.json", trajectory())
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["provenance"] == "unknown"
+    assert record["criterion_coverage"]["status"] == "unknown"
+    assert record["status"] == "recorded_pass"
+    assert "Captured provenance: unknown" in render_evidence(report)
+
+
+@pytest.mark.parametrize("mutation", [None, "turn", "hash", "task_id"])
+def test_actual_saved_5cd2955_local_probe_capture_and_mutants_remain_unassessed(tmp_path, mutation):
+    root = Path(__file__).resolve().parents[1]
+    source = root / "artifacts/local-order-probe/20260930/order-transport-v1/trajectory.json"
+    before = source.read_bytes()
+    value = json.loads(before)
+    if mutation == "turn":
+        value["turns"][-1]["content"] += " Changed saved action."
+    elif mutation == "hash":
+        value["metadata"]["review_context"]["sha256"] = "0" * 64
+    elif mutation == "task_id":
+        value["task_id"] = "OTHER-TASK"
+    save(tmp_path, "real_saved_copy.json", value)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["provenance"] == ("valid" if mutation is None else "invalid")
+    assert report["counts"]["recorded_pass"] == report["counts"]["criterion_passed"] == 0
+    assert record["assessment_limited"] is True
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("ungraded_criteria", True),
+        ("ungraded_criteria", -1),
+        ("ungraded_criteria", "0"),
+        ("grading_complete", "true"),
+        ("grading_complete", 1),
+    ],
+)
+def test_malformed_legacy_grading_metadata_cannot_appear_assessed(tmp_path, field, value):
+    data = trajectory()
+    data["metadata"][field] = value
+    save(tmp_path, "legacy.json", data)
+    record = collect_evidence(tmp_path)["records"][0]
+    assert record["status"] == "incomplete"
+    assert any(field in issue for issue in record["issues"])
+    assert record["criteria"][0]["status"] == "passed"
+    assert "Recorded reward: 1.0" not in render_evidence(collect_evidence(tmp_path))
+
+
+def test_partial_frozen_coverage_keeps_valid_judgment_separate_from_ungraded_row(tmp_path):
+    data = captured_trajectory()
+    data["metadata"].update(grading_complete=False, ungraded_criteria=1)
+    data["criteria_results"][1].update(satisfied=False, graded=False)
+    save(tmp_path, "partial.json", data)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["criterion_coverage"]["status"] == "matches"
+    assert record["status"] == "incomplete"
+    assert report["counts"]["criterion_passed"] == 1
+    assert report["counts"]["criterion_ungraded"] == 1
+    assert not any("disagrees" in issue for issue in record["issues"])
+
+
+def test_valid_captured_profile_mode_blocks_legacy_placeholder_verdicts(tmp_path):
+    from healthcraft.llm.review_context import context_digest
+
+    data = captured_trajectory()
+    context = data["metadata"]["review_context"]
+    context["payload"]["grading_mode"] = "profile_diagnostic"
+    context["sha256"] = context_digest(context["payload"])
+    data["metadata"].update(grading_complete=False, ungraded_criteria=2)
+    save(tmp_path, "profile.json", data)
+    report = collect_evidence(tmp_path)
+    record = report["records"][0]
+    assert record["provenance"] == "valid"
+    assert record["unvalidated_profile"] is True
+    assert report["counts"]["criterion_ungraded"] == 2
+    assert report["counts"]["criterion_passed"] == 0

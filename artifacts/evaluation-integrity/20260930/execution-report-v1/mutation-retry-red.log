@@ -1,0 +1,1619 @@
+FFFFFFFFFFFFFFFFFFFFFFFF.F.F.F.F.F.F.F.FFFFFFFFFFFFFFFFF................ [ 67%]
+................FFFFFF..FFFFFFFFFF                                       [100%]
+=================================== FAILURES ===================================
+_ test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-BBBBBBBB', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'sepsis_bundle', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'sepsis_bundle', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateEncounter-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateEncounter-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updateEncounter-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-payload] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-target] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-applyProtocol-payload] __
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'payload'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+__ test_changed_request_conflicts_without_mutation[dict-applyProtocol-target] __
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'target'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-BBBBBBBB', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'sepsis_bundle', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_changed_request_conflicts_without_mutation[dict-applyProtocol-missing_optional] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+change_kind = 'missing_optional'
+
+    @pytest.mark.parametrize("change_kind", ["payload", "target", "missing_optional"])
+    def test_changed_request_conflicts_without_mutation(world, request_case, change_kind):
+        name, params, payload_change, target_change, optional = request_case
+        server = create_server(world)
+        jsonschema.validate(params, SCHEMAS[name])
+        assert server.call_tool(name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        altered = deepcopy(params)
+        if change_kind == "missing_optional":
+            altered.pop(optional)
+        else:
+            altered.update(payload_change if change_kind == "payload" else target_change)
+        jsonschema.validate(altered, SCHEMAS[name])
+        saved_body = deepcopy(altered)
+        result = server.call_tool(name, altered)
+>       assert result["status"] == "error", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'sepsis_bundle', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:136: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dataclass-updateTaskStatus-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b6b8f00>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b6b8f00> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dataclass-updateEncounter-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b187500>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b187500> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dataclass-updatePatientRecord-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b6a9b00>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b6a9b00> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dataclass-applyProtocol-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b5d9880>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b5d9880> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'sepsis_bundle', 'steps': ['Synthetic step 0'], 'tasks_created': ['TASK-C2EC2E40']}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dict-updateTaskStatus-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b2654c0>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b2654c0> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dict-updateEncounter-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b6e9a00>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b6e9a00> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+_ test_registered_alias_retry_is_exactly_one_effect[dict-updatePatientRecord-True] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b6f5c80>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b6f5c80> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+__ test_registered_alias_retry_is_exactly_one_effect[dict-applyProtocol-True] __
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_registered_alias_retry_is_exactly_one_effect(world, request_case, first_snake):
+        name, params, _, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        initial_body = deepcopy(params)
+        first = server.call_tool(first_name, params)
+        assert first["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        reordered = dict(reversed(list(params.items())))
+        second = server.call_tool(second_name, reordered)
+        assert second["status"] == "ok"
+>       assert second.get("deduplicated") is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x10b2f3f40>('deduplicated')
+E        +    where <built-in method get of dict object at 0x10b2f3f40> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'sepsis_bundle', 'steps': ['Synthetic step 0'], 'tasks_created': ['TASK-C2EC2E40']}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:162: AssertionError
+____ test_changed_alias_request_conflicts[dataclass-updateTaskStatus-False] ____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b6f5680>('code')
+E        +    where <built-in method get of dict object at 0x10b6f5680> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+____ test_changed_alias_request_conflicts[dataclass-updateTaskStatus-True] _____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b68f900>('code')
+E        +    where <built-in method get of dict object at 0x10b68f900> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+____ test_changed_alias_request_conflicts[dataclass-updateEncounter-False] _____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b705c00>('code')
+E        +    where <built-in method get of dict object at 0x10b705c00> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_____ test_changed_alias_request_conflicts[dataclass-updateEncounter-True] _____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b649e00>('code')
+E        +    where <built-in method get of dict object at 0x10b649e00> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+__ test_changed_alias_request_conflicts[dataclass-updatePatientRecord-False] ___
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b5dca40>('code')
+E        +    where <built-in method get of dict object at 0x10b5dca40> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+___ test_changed_alias_request_conflicts[dataclass-updatePatientRecord-True] ___
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'}, {'grade': 1, 'name': 'Synthetic...), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b649800>('code')
+E        +    where <built-in method get of dict object at 0x10b649800> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'}, {'grade': 1, 'name': 'Synthetic...), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_____ test_changed_alias_request_conflicts[dataclass-applyProtocol-False] ______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b5dea80>('code')
+E        +    where <built-in method get of dict object at 0x10b5dea80> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+______ test_changed_alias_request_conflicts[dataclass-applyProtocol-True] ______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 4})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'stemi_alert', 'steps': ['Synthetic step 1'], 'tasks_created': ['TASK-5EEAF887']}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b215440>('code')
+E        +    where <built-in method get of dict object at 0x10b215440> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'stemi_alert', 'steps': ['Synthetic step 1'], 'tasks_created': ['TASK-5EEAF887']}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+______ test_changed_alias_request_conflicts[dict-updateTaskStatus-False] _______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b64a400>('code')
+E        +    where <built-in method get of dict object at 0x10b64a400> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_______ test_changed_alias_request_conflicts[dict-updateTaskStatus-True] _______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateTaskStatus', {'idempotency_key': 'shared-request-key', 'notes': 'Original request', 'status': 'in_progress', 'task_id': 'TASK-AAAAAAAA'}, {'status': 'pending'}, {'task_id': 'TASK-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10ac24cc0>('code')
+E        +    where <built-in method get of dict object at 0x10ac24cc0> = {'data': {'assigned_to': '', 'completed_time': None, 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'description': '', ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_______ test_changed_alias_request_conflicts[dict-updateEncounter-False] _______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 1, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b6b9440>('code')
+E        +    where <built-in method get of dict object at 0x10b6b9440> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_______ test_changed_alias_request_conflicts[dict-updateEncounter-True] ________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'clinical_note': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updateEncounter', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'notes': 'Original request'}, {'notes': 'Changed request'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'notes')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10ac266c0>('code')
+E        +    where <built-in method get of dict object at 0x10ac266c0> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_____ test_changed_alias_request_conflicts[dict-updatePatientRecord-False] _____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b6b9840>('code')
+E        +    where <built-in method get of dict object at 0x10b6b9840> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+_____ test_changed_alias_request_conflicts[dict-updatePatientRecord-True] ______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+request_case = ('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Synthetic A'}], 'idempotency_key': 'shared-request-key', ...d': 'PAT-AAAAAAAA'}, {'allergies': [{'grade': 1, 'name': 'Synthetic B'}]}, {'patient_id': 'PAT-BBBBBBBB'}, 'allergies')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'}, {'grade': 1, 'name': 'Synthetic...), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b625240>('code')
+E        +    where <built-in method get of dict object at 0x10b625240> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'}, {'grade': 1, 'name': 'Synthetic...), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+________ test_changed_alias_request_conflicts[dict-applyProtocol-False] ________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 3})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = False
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10abbd180>('code')
+E        +    where <built-in method get of dict object at 0x10abbd180> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'note': 'Protocol previously applied for this idempotency key.', 'protocol_applied': 'stemi_alert', 'steps': [], ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+________ test_changed_alias_request_conflicts[dict-applyProtocol-True] _________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 4})
+request_case = ('applyProtocol', {'encounter_id': 'ENC-AAAAAAAA', 'idempotency_key': 'shared-request-key', 'protocol_name': 'sepsis_bundle', 'reason': 'Supplied'}, {'protocol_name': 'stemi_alert'}, {'encounter_id': 'ENC-BBBBBBBB'}, 'reason')
+first_snake = True
+
+    @pytest.mark.parametrize("first_snake", [False, True])
+    def test_changed_alias_request_conflicts(world, request_case, first_snake):
+        name, params, changes, _, _ = request_case
+        server = create_server(world)
+        first_name, second_name = (TOOL_NAME_MAP[name], name) if first_snake else (name, TOOL_NAME_MAP[name])
+        assert server.call_tool(first_name, params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        result = server.call_tool(second_name, {**params, **changes})
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'stemi_alert', 'steps': ['Synthetic step 1'], 'tasks_created': ['TASK-5EEAF887']}, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b19c1c0>('code')
+E        +    where <built-in method get of dict object at 0x10b19c1c0> = {'data': {'encounter_id': 'ENC-AAAAAAAA', 'protocol_applied': 'stemi_alert', 'steps': ['Synthetic step 1'], 'tasks_created': ['TASK-5EEAF887']}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:179: AssertionError
+________ test_json_scalar_types_are_not_interchangeable[dataclass-True] ________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+value = True
+
+    @pytest.mark.parametrize("value", [True, 1.0])
+    def test_json_scalar_types_are_not_interchangeable(world, value):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "typed-source"
+        assert server.call_tool("updatePatientRecord", params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        changed = deepcopy(params)
+        changed["allergies"][0]["grade"] = value
+        result = server.call_tool("updatePatientRecord", changed)
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b2be900>('code')
+E        +    where <built-in method get of dict object at 0x10b2be900> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:223: AssertionError
+________ test_json_scalar_types_are_not_interchangeable[dataclass-1.0] _________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+value = 1.0
+
+    @pytest.mark.parametrize("value", [True, 1.0])
+    def test_json_scalar_types_are_not_interchangeable(world, value):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "typed-source"
+        assert server.call_tool("updatePatientRecord", params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        changed = deepcopy(params)
+        changed["allergies"][0]["grade"] = value
+        result = server.call_tool("updatePatientRecord", changed)
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b654740>('code')
+E        +    where <built-in method get of dict object at 0x10b654740> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:223: AssertionError
+__________ test_json_scalar_types_are_not_interchangeable[dict-True] ___________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+value = True
+
+    @pytest.mark.parametrize("value", [True, 1.0])
+    def test_json_scalar_types_are_not_interchangeable(world, value):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "typed-source"
+        assert server.call_tool("updatePatientRecord", params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        changed = deepcopy(params)
+        changed["allergies"][0]["grade"] = value
+        result = server.call_tool("updatePatientRecord", changed)
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10abf9880>('code')
+E        +    where <built-in method get of dict object at 0x10abf9880> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:223: AssertionError
+___________ test_json_scalar_types_are_not_interchangeable[dict-1.0] ___________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+value = 1.0
+
+    @pytest.mark.parametrize("value", [True, 1.0])
+    def test_json_scalar_types_are_not_interchangeable(world, value):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "typed-source"
+        assert server.call_tool("updatePatientRecord", params)["status"] == "ok"
+        snapshot = entity_snapshot(world)
+        changed = deepcopy(params)
+        changed["allergies"][0]["grade"] = value
+        result = server.call_tool("updatePatientRecord", changed)
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b184ac0>('code')
+E        +    where <built-in method get of dict object at 0x10b184ac0> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:223: AssertionError
+______ test_input_mutation_cannot_rewrite_committed_retry_body[dataclass] ______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+
+    def test_input_mutation_cannot_rewrite_committed_retry_body(world):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "immutable-body"
+        original = deepcopy(params)
+        result = server.call_tool("updatePatientRecord", params)
+        params["allergies"][0]["name"] = "Changed after return"
+        result["data"]["allergies"][0]["name"] = "Changed returned response"
+        assert world.audit_log[-1].params == original
+        assert server.call_tool("updatePatientRecord", original).get("deduplicated") is True
+>       assert server.call_tool("updatePatientRecord", params).get("code") == "idempotency_conflict"
+E       AssertionError: assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b61c080>('code')
+E        +    where <built-in method get of dict object at 0x10b61c080> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+E        +      where {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'} = call_tool('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Changed after return'}], 'idempotency_key': 'immutable-body', 'patient_id': 'PAT-AAAAAAAA'})
+E        +        where call_tool = <healthcraft.mcp.server.HealthcraftServer object at 0x10b736030>.call_tool
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:238: AssertionError
+________ test_input_mutation_cannot_rewrite_committed_retry_body[dict] _________
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+
+    def test_input_mutation_cannot_rewrite_committed_retry_body(world):
+        server = create_server(world)
+        params = deepcopy(CASES["updatePatientRecord"][0])
+        params["idempotency_key"] = "immutable-body"
+        original = deepcopy(params)
+        result = server.call_tool("updatePatientRecord", params)
+        params["allergies"][0]["name"] = "Changed after return"
+        result["data"]["allergies"][0]["name"] = "Changed returned response"
+        assert world.audit_log[-1].params == original
+        assert server.call_tool("updatePatientRecord", original).get("deduplicated") is True
+>       assert server.call_tool("updatePatientRecord", params).get("code") == "idempotency_conflict"
+E       AssertionError: assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b674540>('code')
+E        +    where <built-in method get of dict object at 0x10b674540> = {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'}.get
+E        +      where {'data': {'advance_directives': '', 'allergies': ({'grade': 1, 'name': 'Synthetic A'},), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'deduplicated': True, 'status': 'ok'} = call_tool('updatePatientRecord', {'allergies': [{'grade': 1, 'name': 'Changed after return'}], 'idempotency_key': 'immutable-body', 'patient_id': 'PAT-AAAAAAAA'})
+E        +        where call_tool = <healthcraft.mcp.server.HealthcraftServer object at 0x10b736c90>.call_tool
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:238: AssertionError
+___ test_legacy_audit_without_request_payload_cannot_prove_retry[dataclass] ____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+
+    def test_legacy_audit_without_request_payload_cannot_prove_retry(world):
+        server = create_server(world)
+        world.record_audit("updateEncounter", {}, "ok", idempotency_key="missing-body")
+        result = server.call_tool("updateEncounter", {
+            "encounter_id": "ENC-AAAAAAAA", "notes": "New text", "idempotency_key": "missing-body",
+        })
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b1b2300>('code')
+E        +    where <built-in method get of dict object at 0x10b1b2300> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:256: AssertionError
+______ test_legacy_audit_without_request_payload_cannot_prove_retry[dict] ______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+
+    def test_legacy_audit_without_request_payload_cannot_prove_retry(world):
+        server = create_server(world)
+        world.record_audit("updateEncounter", {}, "ok", idempotency_key="missing-body")
+        result = server.call_tool("updateEncounter", {
+            "encounter_id": "ENC-AAAAAAAA", "notes": "New text", "idempotency_key": "missing-body",
+        })
+>       assert result.get("code") == "idempotency_conflict", result
+E       AssertionError: {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}
+E       assert None == 'idempotency_conflict'
+E        +  where None = <built-in method get of dict object at 0x10b6ea100>('code')
+E        +    where <built-in method get of dict object at 0x10b6ea100> = {'data': {'arrival_mode': '', 'arrival_time': None, 'attending_id': '', 'authored_care': (), ...}, 'deduplicated': True, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:256: AssertionError
+____ test_non_json_keyed_request_is_rejected_before_mutation[dataclass-nan] ____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = nan
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': nan}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b610340>('code')
+E        +    where <built-in method get of dict object at 0x10b610340> = {'data': {'advance_directives': {'source': nan}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+____ test_non_json_keyed_request_is_rejected_before_mutation[dataclass-inf] ____
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = inf
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': inf}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b621f40>('code')
+E        +    where <built-in method get of dict object at 0x10b621f40> = {'data': {'advance_directives': {'source': inf}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+_ test_non_json_keyed_request_is_rejected_before_mutation[dataclass-bad_value2] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = {1: 'not a string key'}
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': {1: 'not a string key'}}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b6b7480>('code')
+E        +    where <built-in method get of dict object at 0x10b6b7480> = {'data': {'advance_directives': {'source': {1: 'not a string key'}}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+_ test_non_json_keyed_request_is_rejected_before_mutation[dataclass-bad_value3] _
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = (1, 2)
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': (1, 2)}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b623740>('code')
+E        +    where <built-in method get of dict object at 0x10b623740> = {'data': {'advance_directives': {'source': (1, 2)}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+______ test_non_json_keyed_request_is_rejected_before_mutation[dict-nan] _______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = nan
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': nan}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b6b7b40>('code')
+E        +    where <built-in method get of dict object at 0x10b6b7b40> = {'data': {'advance_directives': {'source': nan}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+______ test_non_json_keyed_request_is_rejected_before_mutation[dict-inf] _______
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = inf
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': inf}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b620f80>('code')
+E        +    where <built-in method get of dict object at 0x10b620f80> = {'data': {'advance_directives': {'source': inf}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+___ test_non_json_keyed_request_is_rejected_before_mutation[dict-bad_value2] ___
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = {1: 'not a string key'}
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': {1: 'not a string key'}}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b5dd980>('code')
+E        +    where <built-in method get of dict object at 0x10b5dd980> = {'data': {'advance_directives': {'source': {1: 'not a string key'}}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+___ test_non_json_keyed_request_is_rejected_before_mutation[dict-bad_value3] ___
+
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 2, 'encounter': 2, 'protocol': 2, 'clinical_task': 2})
+bad_value = (1, 2)
+
+    @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), {1: "not a string key"}, (1, 2)])
+    def test_non_json_keyed_request_is_rejected_before_mutation(world, bad_value):
+        server = create_server(world)
+        before = entity_snapshot(world)
+        result = server.call_tool("updatePatientRecord", {
+            "patient_id": "PAT-AAAAAAAA", "advance_directives": {"source": bad_value},
+            "idempotency_key": "finite-json-request",
+        })
+>       assert result.get("code") == "invalid_params", result
+E       AssertionError: {'data': {'advance_directives': {'source': (1, 2)}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}
+E       assert None == 'invalid_params'
+E        +  where None = <built-in method get of dict object at 0x10b18f900>('code')
+E        +    where <built-in method get of dict object at 0x10b18f900> = {'data': {'advance_directives': {'source': (1, 2)}, 'allergies': (), 'created_at': datetime.datetime(2026, 1, 15, 7, 0, tzinfo=datetime.timezone.utc), 'dob': None, ...}, 'status': 'ok'}.get
+
+tests/test_mcp_tools/test_mutation_retry_contract.py:268: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateTaskStatus-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updateEncounter-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-updatePatientRecord-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dataclass-applyProtocol-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateTaskStatus-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateEncounter-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateEncounter-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updateEncounter-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-updatePatientRecord-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-applyProtocol-payload]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-applyProtocol-target]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_request_conflicts_without_mutation[dict-applyProtocol-missing_optional]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dataclass-updateTaskStatus-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dataclass-updateEncounter-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dataclass-updatePatientRecord-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dataclass-applyProtocol-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dict-updateTaskStatus-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dict-updateEncounter-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dict-updatePatientRecord-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_registered_alias_retry_is_exactly_one_effect[dict-applyProtocol-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updateTaskStatus-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updateTaskStatus-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updateEncounter-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updateEncounter-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updatePatientRecord-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-updatePatientRecord-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-applyProtocol-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dataclass-applyProtocol-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updateTaskStatus-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updateTaskStatus-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updateEncounter-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updateEncounter-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updatePatientRecord-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-updatePatientRecord-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-applyProtocol-False]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_changed_alias_request_conflicts[dict-applyProtocol-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_json_scalar_types_are_not_interchangeable[dataclass-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_json_scalar_types_are_not_interchangeable[dataclass-1.0]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_json_scalar_types_are_not_interchangeable[dict-True]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_json_scalar_types_are_not_interchangeable[dict-1.0]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_input_mutation_cannot_rewrite_committed_retry_body[dataclass]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_input_mutation_cannot_rewrite_committed_retry_body[dict]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_legacy_audit_without_request_payload_cannot_prove_retry[dataclass]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_legacy_audit_without_request_payload_cannot_prove_retry[dict]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dataclass-nan]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dataclass-inf]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dataclass-bad_value2]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dataclass-bad_value3]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dict-nan]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dict-inf]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dict-bad_value2]
+FAILED tests/test_mcp_tools/test_mutation_retry_contract.py::test_non_json_keyed_request_is_rejected_before_mutation[dict-bad_value3]
+64 failed, 42 passed in 0.30s

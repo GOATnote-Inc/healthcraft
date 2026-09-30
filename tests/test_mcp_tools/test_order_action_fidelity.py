@@ -154,11 +154,16 @@ def test_equivalent_worlds_and_idempotent_retries_keep_one_exact_task():
         world, ids, recorder = scenario()
         response = recorder.call("createClinicalOrder", order_params(ids))
         task = world.get_entity("clinical_task", response["data"]["task_id"])
-        replay = recorder.call(
-            "createClinicalOrder", order_params(ids, priority="routine", indication="Changed retry")
-        )
+        replay = recorder.call("createClinicalOrder", order_params(ids))
         assert replay["deduplicated"] is True
         assert replay["data"] == response["data"]
+        conflict = recorder.call(
+            "createClinicalOrder", order_params(ids, priority="routine", indication="Changed retry")
+        )
+        assert conflict["status"] == "error"
+        assert conflict["code"] == "idempotency_conflict"
+        assert not conflict.get("deduplicated", False)
+        assert world.list_entities("order") == {response["data"]["id"]: response["data"]}
         assert world.list_entities("clinical_task") == {task.id: task}
         outputs.append((response, asdict(task)))
     assert outputs[0] == outputs[1]
