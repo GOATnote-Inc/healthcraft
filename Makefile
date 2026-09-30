@@ -27,6 +27,10 @@ grader-goldset:  ## Measure FP/FN + Wilson CI on the curated regression set
 grader-challenges:  ## Offline counterexamples; nonzero means a mismatch or harness error
 	$(PYTHON) scripts/grade_challenges.py
 
+.PHONY: certify-history
+certify-history:  ## Opt-in IR-002 reference execution; no models or benchmark score
+	$(PYTHON) scripts/certify_history_task.py
+
 docker-up:
 	docker compose -f docker/docker-compose.yaml up -d --build
 

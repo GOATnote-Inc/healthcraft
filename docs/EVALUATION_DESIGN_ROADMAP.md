@@ -118,6 +118,14 @@ structural preflight checks and RL distribution canaries without changing
 published tasks or rewards. The suite has no safety-criterion coverage.
 See [the integrity report](EVALUATION_INTEGRITY_2026-09-30.md).
 
+The opt-in [IR-002 reference certificate](REFERENCE_CERTIFICATES.md) adds an
+actual eight-call witness with four linked, date-only historical records.
+Its separate verifier checks source-fact retrieval and newly persisted
+documentation, with counterexamples for omissions, ownership, precision,
+and ordering. It covers four mechanical analogues of task criteria and
+leaves the four clinical criteria, including safety, unassessed. It is not
+yet a promoted benchmark task revision or a general-purpose agent grader.
+
 The broader challenge and task-certificate work remains:
 
 1. Define typed probe outcomes: expected failure/success, observed verdict,

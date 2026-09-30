@@ -48,6 +48,12 @@ substitute evidence.
 
 ## Required versioned repair and certificate
 
+An opt-in `linked-history/v1` profile and actual-execution mechanical witness
+now implement the first experimental slice, documented in
+[Reference certificates](REFERENCE_CERTIFICATES.md). They preserve the original
+task and default injection. Promotion into a benchmark task revision still
+requires the validity and clinical review below.
+
 The next task revision should retain the historical version and declare
 the revised task, injection profile, tool schema, and verification contract
 in its run identity. The following acceptance conditions are concrete:

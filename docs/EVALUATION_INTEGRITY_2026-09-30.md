@@ -49,10 +49,10 @@ limitations are in [the local run notes](../artifacts/local-models/20260930/READ
 
 ## Compatibility and limits
 
-Validation after the date-filter repair: `make test` **1,653 passed, two
+Validation after the date-filter repair and reference certificate: `make test` **1,757 passed, two
 skipped**; `make preflight` passed; the canonical-number structural audit
 passed. `make lint` passed against an export of the staged repository
-source (259 Python files). The full suite requires localhost HTTP test
+source (266 Python files). The full suite requires localhost HTTP test
 servers, so it ran with local-server permission after the sandboxed attempt
 could not bind `127.0.0.1`. The development checkout additionally contains
 untracked research archives and presentation scripts with 115 unrelated
@@ -98,6 +98,16 @@ changing a historical rubric or treating a low model score as sufficient
 evidence that the task is well designed.
 
 ## Executable counterexamples
+
+The opt-in [IR-002 execution certificate](REFERENCE_CERTIFICATES.md) now adds
+an eight-call reference witness against real tool handlers. Its isolated
+profile materializes four linked date-only visits; its independent verifier
+checks patient/date scope, grouped source facts, and newly persisted notes.
+The 104 focused regressions include seven reviewer-added failures observed
+before tightening the verifier. The [saved report](../artifacts/task-validity/20260930/ir002-linked-history-v1.json)
+passes four mechanical checks and explicitly leaves all four clinical
+criteria, including safety, unassessed. This is a versioned experiment,
+not a replacement score for the historical IR-002 task.
 
 `make grader-challenges` runs independently authored synthetic replay
 fixtures against the real grader. Its first seven cases cover only two
