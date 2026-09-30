@@ -1,0 +1,66 @@
+"""Source-bound offline peer checks; no browser, model, tool or network activity."""
+import argparse,datetime,hashlib,json,subprocess
+from pathlib import Path
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path(__file__).resolve().parent
+NAMES=['src/healthcraft/operator_review.py','src/healthcraft/operator_review_report.py','tests/test_operator_review.py','tests/test_operator_review_report.py','src/healthcraft/reconciliation/diagnostics.py','src/healthcraft/reconciliation/oracle.py','src/healthcraft/entities/base.py','src/healthcraft/mcp/server.py']
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def capture():return{k:sha(ROOT/k)for k in NAMES}
+p=argparse.ArgumentParser();p.add_argument('--renderer-sha',required=True);p.add_argument('--renderer-test-sha',required=True);a=p.parse_args()
+expected={NAMES[0]:'95050c950df2d7adec4ec3d13241036e370c561e4ef3820258c12e218bfb565e',NAMES[1]:a.renderer_sha,NAMES[2]:'d90ff6cc3356f1d23aa14cc3a4e5e44d8b85ab0d24220a541a31634bc624f6ae',NAMES[3]:a.renderer_test_sha}
+before=capture();assert all(before[k]==v for k,v in expected.items())
+base=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1'
+originals={str(f.relative_to(ROOT)):sha(f)for f in base.rglob('*')if f.is_file()}
+runs=[]
+for version,exe in [('3.10','/private/tmp/healthcraft-check-py310/bin/python'),('3.12','/private/tmp/healthcraft-check-py312/bin/python'),('3.14',str(ROOT/'.venv/bin/python'))]:
+ cmd=[exe,'-m','pytest',str(OUT/'test_operator_peer.py'),'-q'];env={'PATH':'/bin:/usr/bin','PYTHONPATH':str(ROOT/'src'),'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1'}
+ r=subprocess.run(cmd,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+ log=OUT/('final-py'+version.replace('.','')+'.log')
+ with log.open('x')as f:f.write(r.stdout)
+ runs.append({'python':version,'command':cmd,'environment':env,'exit_code':r.returncode,'log':log.name,'log_sha256':sha(log)})
+ print(version,r.stdout.strip());assert r.returncode==0
+ assert capture()==before
+unchanged=all(sha(ROOT/f)==h for f,h in originals.items());assert unchanged
+after=capture()
+receipt={
+ 'recorded_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+ 'scope':'Independent ordinary engineering review of operator tutorial packet/import and static/offline JavaScript presentation; not formal red team or participant research.',
+ 'source_before':before,'source_after':after,'source_stable':before==after,'owner_frozen_hashes_match':True,
+ 'saved_source_files_checked':len(originals),'saved_source_files_unchanged':unchanged,'saved_source_sha256':originals,
+ 'runs':runs,'cases_per_runtime':57,'overlap_note':'The same 57 independent cases run on three Python versions, not 171 distinct tests; owner suites overlap.',
+ 'node_runtime':'/Users/kiteboard/.nvm/versions/node/v22.17.1/bin/node',
+ 'node_scope':'Six pure Node VM checks per Python run: three duplicate-key controls, two real core-to-export-to-import paths, and blank-template export. A document stub supplies script text and does not simulate browser layout or actual interaction.',
+ 'findings':[],
+ 'resolved_findings':[
+  {'issue':'Output nested inside a source bundle or issued packet mutates the sealed inventory.',
+   'reproduction':'containment-reproduction.json','ownership':'Also found independently by root and repaired by core owner before final peer probes.',
+   'final_controls':'Direct and symlink-parent output aliases are rejected; originals remain unchanged.'},
+  {'issue':'Manual evidence-reference JSON with duplicate keys was silently reduced by JSON.parse before strict response import.',
+   'reproduction':'duplicate-js-reference.json','ownership':'Reported by this reviewer; renderer owner added strict duplicate-key parsing with RED/GREEN.',
+   'final_controls':'Plain, escaped-equivalent and nested duplicate keys reject in the actual exported script.'}
+ ],
+ 'verified':[
+  'Complete packet reconstruction and immutable payload hashes reject self-rehashed duplicate, altered, prefilled, foreign or misbound packet representations.',
+  'Canonical evidence duplicates reject even when JSON file whitespace differs; source inventory traversal, unlisted files and symlinks reject before output.',
+  'Original input_paths are informational: verified copied bundles remain portable. Captured original HTML is retained as data and is not trusted as the new controlled display.',
+  'Unavailable cases remain six assigned opportunities with unknown event counts. Missing, partial, abstained and evidence-unassessed responses retain separate full denominators.',
+  'Invalid submissions preserve exact bytes and import no earlier partial judgments; all assigned axes stay pending.',
+  'Structured but intentionally incorrect human answers are preserved as declarations without correctness, participant-count, clinical or score claims.',
+  'Timing preserves explicit unknown active duration; no timer or automatic measurement is inferred.',
+  'Both raw and assisted scripts export the same response contract; case-local pointer resolution includes explicit null and decoded note strings.',
+  'Static navigation references resolve independently to their advertised exact source values and digests; hostile text cannot add tested active markup or external links.',
+  'Duplicate imports retain the same packet/assignment/reviewer identity; receipts are not additional independent participants.',
+  'Recorded implementation identity mismatch rejects before response import.'
+ ],
+ 'initial_runs':[
+  {'log':'initial-peer.log','result':'45 passed; one peer-only spacing SyntaxWarning later corrected, no production failure.'},
+  {'log':'expanded-peer.log','result':'55 passed before final static-navigation cases were added.'}
+ ],
+ 'limitations':[
+  'No browser automation, rendering, accessibility, download-interaction or usability validation; earlier browser policy block was not bypassed.',
+  'No models, providers, daemons, runtime tool dispatch or network; in-process socket entrypoints are disabled by tests.',
+  'No repository source, tests or saved result/artifact files edited by the reviewer; only temporary synthetic copies and logs were written.',
+  'Content/implementation hashes establish consistency, not authorship, independent participant identity, clinical truth, registration timing or execution authenticity.',
+  'No participant outcomes, comparative-value measurement, clinical assessment or formal red team was performed.'
+ ],
+ 'peer_test_sha256':sha(OUT/'test_operator_peer.py'),'runner_sha256':sha(Path(__file__))}
+with(OUT/'peer-review.json').open('x')as f:json.dump(receipt,f,indent=2);f.write('\n')

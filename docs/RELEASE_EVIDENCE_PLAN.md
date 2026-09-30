@@ -184,6 +184,14 @@ prevent an operator from bypassing the required publication procedure.
   independent clinical calibration, or final formal red-team review has
   been completed for the proposed release.
 
+The [operator review tutorial](OPERATOR_REVIEW.md) now provides a separate
+collection contract for exposed reconciliation attempts: equal source documents
+in raw and assisted views, six explicit judgments, source citations and manual
+timing provenance. Immutable imports preserve pending and malformed responses.
+This is engineering support for later study work; fresh cases, registered
+assignments, instrumented time collection, independent participants and outcome
+adjudication remain absent.
+
 Installation constraints, task-specific policies, and offline evidence review
 are implemented locally. Current work improves authored-record reachability,
 preserves unassessed outcomes throughout analysis/export paths, and establishes

@@ -177,3 +177,8 @@ Operator-value measurement, independent clinical review and held-out
 evaluation remain unperformed. Ordinary TDD and peer
 review here are not the final formal red team. The release gate remains
 [value evidence → formal red team → remote main and manuscript](RELEASE_EVIDENCE_PLAN.md).
+
+The separate [operator review tutorial](OPERATOR_REVIEW.md) packages these
+recorded attempts into an offline response form with source citations. It
+preserves pending questions and invalid submissions for later adjudication;
+it does not turn tutorial responses into study or clinical outcomes.

@@ -262,6 +262,12 @@ new execution-time captures. It retains every supplied attempt and pending or
 unassessed response. Imported submissions are not authenticated expert labels,
 clinical calibration, or a release approval.
 
+For captured reconciliation attempts, the [operator review tutorial](docs/OPERATOR_REVIEW.md)
+provides raw and assisted evidence views, six response questions, source
+citations and offline JSON export. Its importer preserves every assigned
+question, including pending answers and invalid submissions, for later
+adjudication. Tutorial responses do not establish operator or clinical value.
+
 The [authored observation contract](docs/AUTHORED_OBSERVATIONS.md) explains
 source-linked vitals/labs, explicit timing, and unknown values in new runs.
 The [care and imaging contract](docs/CARE_IMAGING_FIDELITY.md) keeps authored

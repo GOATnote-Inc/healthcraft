@@ -1,0 +1,104 @@
+{
+  "schema_version": "healthcraft-development-validation/v1",
+  "scope": "Operator tutorial packet and human-response collection core; no correctness adjudication or clinical/value score.",
+  "baseline_commit": "03f7e895f01df2f3f8cb9e91824c30e8e5e97e5c",
+  "owned_files": {
+    "src/healthcraft/operator_review.py": "95050c950df2d7adec4ec3d13241036e370c561e4ef3820258c12e218bfb565e",
+    "tests/test_operator_review.py": "d90ff6cc3356f1d23aa14cc3a4e5e44d8b85ab0d24220a541a31634bc624f6ae"
+  },
+  "input_files": {
+    "configs/evaluation/reconciliation_v1/scenario.json": "b379592cded476accc9bc31b393f14c9b148405c9f6078a3418382fa5fa227ba",
+    "configs/evaluation/reconciliation_v1/expectations.json": "66be875a20e5238008c8a21d0c21d57f2acdc840fef1d35dbf9d0678c9b2ef7e"
+  },
+  "runtimes": {
+    "py314": "Python 3.14.3",
+    "py310": "Python 3.10.18",
+    "py312": "Python 3.12.8"
+  },
+  "tdd": [
+    {
+      "log": "red.log",
+      "result": "71 errors: module did not exist; new feature tests added before implementation"
+    },
+    {
+      "log": "green-initial.log",
+      "result": "71 passed"
+    },
+    {
+      "log": "red-containment.log",
+      "result": "2 failed, 77 deselected; build/import output nested in source/packet mutated input inventory"
+    },
+    {
+      "log": "red-source-question-contract.log",
+      "result": "2 failed, 79 deselected; missing implementation inventory and target-conflating question wording"
+    },
+    {
+      "log": "green-reviewed.log",
+      "result": "54 failed, 27 passed; implementation source root typo introduced during development; retained"
+    },
+    {
+      "log": "green-reviewed-corrected.log",
+      "result": "81 passed after correcting source-root path"
+    },
+    {
+      "log": "red-derivation-drift.log",
+      "result": "2 failed, 82 deselected; source changes during derivation not detected"
+    },
+    {
+      "log": "green-compat-py314.log",
+      "result": "216 passed"
+    },
+    {
+      "log": "red-unassessed-accounting.log",
+      "result": "2 failed, 84 deselected; non-abstention reasons incorrectly classified as abstention"
+    }
+  ],
+  "final_validation": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_operator_review.py tests/test_clinical_review.py tests/test_reconciliation/test_diagnostics.py tests/test_reconciliation/test_oracle.py -q",
+      "log": "green-compat-py314-final.log",
+      "passed": 218
+    },
+    {
+      "command": "/private/tmp/healthcraft-check-py310/bin/python -m pytest tests/test_operator_review.py -q",
+      "log": "green-py310.log",
+      "passed": 86
+    },
+    {
+      "command": "/private/tmp/healthcraft-check-py312/bin/python -m pytest tests/test_operator_review.py -q",
+      "log": "green-py312.log",
+      "passed": 86
+    },
+    {
+      "command": ".venv/bin/ruff check src/healthcraft/operator_review.py tests/test_operator_review.py && .venv/bin/ruff format --check src/healthcraft/operator_review.py tests/test_operator_review.py",
+      "log": "lint.log",
+      "result": "clean"
+    }
+  ],
+  "logs_sha256": {
+    "green-compat-py314-final.log": "af44effabd6a7b20dd6fe16193ff09af09077e288fd8377ea2345ac91a6bea3a",
+    "green-compat-py314.log": "0da73edcfa1047776ccf768a8b982953259acbeb0ed08a2f2cd0598df869bbb4",
+    "green-initial.log": "f03d5c20230a5e3b048f0e203f77466578a094309110b6001e044cc34f1c068b",
+    "green-py310.log": "0a079f0373b7f2ed716b4aab3965ae4083d5249412fa143636b792860fd3fd35",
+    "green-py312.log": "dd81ff0dc950abf0ed8015d1b552deb363ad8bb6a921ef47061b88ef9c20d7a5",
+    "green-reviewed-corrected.log": "d79097c9a1906b71a522f2708ea18fc0ba788364fac7b796256803dc5719db91",
+    "green-reviewed.log": "467c57d38f56546e17cf5a2487d4d2107852bbf99a79256e7fa0eee755f045ca",
+    "lint.log": "afa20b27dacc9bf0aba3c1d265964c21e04ab42f6e39e2dd4769718ceded003a",
+    "red-containment.log": "c566253f062b5349938a7886bffb36b90dc8c9120923dbf1f318d8abed12474e",
+    "red-derivation-drift.log": "c374617caf1ee3924eddb203c6d40d50d012ad44c1587e3783d0d0ee34044552",
+    "red-source-question-contract.log": "39460dcc021dce82cd02774b003143bd681efe3ef092387296bb7c538e59b451",
+    "red-unassessed-accounting.log": "e1ea4e722a4a09dfd84ff5f74c5e9e819bc042a1aecd83fd35b1b9c32b223fcd",
+    "red.log": "9704e6865756d8fc2f0ef99d13cb4a205f56dc81c63d0e52d4eb693fcbc3ab93"
+  },
+  "claim_limits": [
+    "Most core tests substitute only deterministic renderer output to isolate immutable binding; an actual renderer build/import test also passes.",
+    "Source bundles are created by actual in-process handlers in engineering tests; no models or external services called.",
+    "Returned human judgments are structurally validated and preserved, never compared to oracle truth for grading.",
+    "Tutorial-only unblinded workflow; no real reviewer recruited, no instrumented operator timing, no clinical or comparative study.",
+    "Filesystem failure can retain a partial new directory without manifest; no transactional rollback is claimed.",
+    "No repository evidence/result artifacts generated, no commits or remote changes."
+  ],
+  "model_calls": 0,
+  "network_calls": 0,
+  "formal_red_team": false
+}

@@ -1,0 +1,68 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_source_change_during_derivation_does_not_seal_a_misbound_artifact[build] _
+
+core = <module 'healthcraft.operator_review' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_review.py'>
+bundle = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-521/test_source_change_during_deri0/bundle')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-521/test_source_change_during_deri0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b2aa8b0>
+operation = 'build'
+
+    @pytest.mark.parametrize("operation", ["build", "import"])
+    def test_source_change_during_derivation_does_not_seal_a_misbound_artifact(
+        core, bundle, tmp_path, monkeypatch, operation
+    ):
+        if operation == "import":
+            build(core, bundle, tmp_path)
+        original = core._implementation()
+        reads = 0
+    
+        def drifting_source():
+            nonlocal reads
+            reads += 1
+            value = deepcopy(original)
+            if reads > 1:
+                value["src/healthcraft/operator_review.py"] = "0" * 64
+            return value
+    
+        monkeypatch.setattr(core, "_implementation", drifting_source)
+>       with pytest.raises(ValueError, match="[Ii]mplementation"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_review.py:690: Failed
+_ test_source_change_during_derivation_does_not_seal_a_misbound_artifact[import] _
+
+core = <module 'healthcraft.operator_review' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_review.py'>
+bundle = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-521/test_source_change_during_deri1/bundle')
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-521/test_source_change_during_deri1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b2aa520>
+operation = 'import'
+
+    @pytest.mark.parametrize("operation", ["build", "import"])
+    def test_source_change_during_derivation_does_not_seal_a_misbound_artifact(
+        core, bundle, tmp_path, monkeypatch, operation
+    ):
+        if operation == "import":
+            build(core, bundle, tmp_path)
+        original = core._implementation()
+        reads = 0
+    
+        def drifting_source():
+            nonlocal reads
+            reads += 1
+            value = deepcopy(original)
+            if reads > 1:
+                value["src/healthcraft/operator_review.py"] = "0" * 64
+            return value
+    
+        monkeypatch.setattr(core, "_implementation", drifting_source)
+>       with pytest.raises(ValueError, match="[Ii]mplementation"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_operator_review.py:690: Failed
+=========================== short test summary info ============================
+FAILED tests/test_operator_review.py::test_source_change_during_derivation_does_not_seal_a_misbound_artifact[build]
+FAILED tests/test_operator_review.py::test_source_change_during_derivation_does_not_seal_a_misbound_artifact[import]
+2 failed, 82 deselected in 0.10s
