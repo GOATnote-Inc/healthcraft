@@ -3,7 +3,7 @@
 HEALTHCRAFT directly adapts the architecture described in:
 
 > **EnterpriseBench Corecraft: Training Generalizable Agents on High-Fidelity RL Environments**
-> Sushant Mehta, Alexander Ritchie, Sai Mahesh Garre, Paulo Niebres, Brady Heiner, Albert Chen
+> Sushant Mehta, Logan Ritchie, Suhaas Garre, Ian Niebres, Nick Heiner, Edwin Chen
 > Surge AI
 > arXiv:2602.16179v5
 

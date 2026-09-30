@@ -1,0 +1,226 @@
+F.FFFF                                                                   [100%]
+=================================== FAILURES ===================================
+__ test_initial_prompt_identity_blocks_all_model_access_on_mismatch[missing] ___
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x107ca6a50>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-367/test_initial_prompt_identity_b0')
+fault = 'missing'
+
+    @pytest.mark.parametrize(
+        "fault", ["missing", "malformed", "mismatch", "changed_instruction", "changed_schema"]
+    )
+    def test_initial_prompt_identity_blocks_all_model_access_on_mismatch(api, service, tmp_path, fault):
+        model_config = config()
+        instruction = "public"
+        if fault == "missing":
+            del model_config["initial_messages_sha256"]
+        elif fault == "malformed":
+            model_config["initial_messages_sha256"] = "NOT-A-DIGEST"
+        elif fault == "mismatch":
+            model_config["initial_messages_sha256"] = "0" * 64
+        elif fault == "changed_instruction":
+            instruction = "changed public instruction"
+        else:
+            service._tools[0]["description"] += " changed publicly advertised description"
+        instances, processes = [], []
+        output = tmp_path / "trial"
+        result = api.run_trial(
+            model_config=model_config,
+            instruction=instruction,
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+>       assert result["status"] == "failed"
+E       AssertionError: assert 'terminated' == 'failed'
+E         
+E         - failed
+E         + terminated
+
+tests/test_scripts/test_reconciliation_model_trial.py:548: AssertionError
+__ test_initial_prompt_identity_blocks_all_model_access_on_mismatch[mismatch] __
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x107472210>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-367/test_initial_prompt_identity_b2')
+fault = 'mismatch'
+
+    @pytest.mark.parametrize(
+        "fault", ["missing", "malformed", "mismatch", "changed_instruction", "changed_schema"]
+    )
+    def test_initial_prompt_identity_blocks_all_model_access_on_mismatch(api, service, tmp_path, fault):
+        model_config = config()
+        instruction = "public"
+        if fault == "missing":
+            del model_config["initial_messages_sha256"]
+        elif fault == "malformed":
+            model_config["initial_messages_sha256"] = "NOT-A-DIGEST"
+        elif fault == "mismatch":
+            model_config["initial_messages_sha256"] = "0" * 64
+        elif fault == "changed_instruction":
+            instruction = "changed public instruction"
+        else:
+            service._tools[0]["description"] += " changed publicly advertised description"
+        instances, processes = [], []
+        output = tmp_path / "trial"
+        result = api.run_trial(
+            model_config=model_config,
+            instruction=instruction,
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+        assert result["status"] == "failed"
+        assert result["model_calls"] == 0
+        assert instances == []
+        if fault in {"missing", "malformed"}:
+            assert result["failure_stage"] == "preparation"
+            assert processes == []
+        else:
+>           assert result["failure_stage"] == "prompt_identity"
+E           AssertionError: assert 'preparation' == 'prompt_identity'
+E             
+E             - prompt_identity
+E             + preparation
+
+tests/test_scripts/test_reconciliation_model_trial.py:555: AssertionError
+_ test_initial_prompt_identity_blocks_all_model_access_on_mismatch[changed_instruction] _
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x107b04510>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-367/test_initial_prompt_identity_b3')
+fault = 'changed_instruction'
+
+    @pytest.mark.parametrize(
+        "fault", ["missing", "malformed", "mismatch", "changed_instruction", "changed_schema"]
+    )
+    def test_initial_prompt_identity_blocks_all_model_access_on_mismatch(api, service, tmp_path, fault):
+        model_config = config()
+        instruction = "public"
+        if fault == "missing":
+            del model_config["initial_messages_sha256"]
+        elif fault == "malformed":
+            model_config["initial_messages_sha256"] = "NOT-A-DIGEST"
+        elif fault == "mismatch":
+            model_config["initial_messages_sha256"] = "0" * 64
+        elif fault == "changed_instruction":
+            instruction = "changed public instruction"
+        else:
+            service._tools[0]["description"] += " changed publicly advertised description"
+        instances, processes = [], []
+        output = tmp_path / "trial"
+        result = api.run_trial(
+            model_config=model_config,
+            instruction=instruction,
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+        assert result["status"] == "failed"
+        assert result["model_calls"] == 0
+        assert instances == []
+        if fault in {"missing", "malformed"}:
+            assert result["failure_stage"] == "preparation"
+            assert processes == []
+        else:
+>           assert result["failure_stage"] == "prompt_identity"
+E           AssertionError: assert 'preparation' == 'prompt_identity'
+E             
+E             - prompt_identity
+E             + preparation
+
+tests/test_scripts/test_reconciliation_model_trial.py:555: AssertionError
+_ test_initial_prompt_identity_blocks_all_model_access_on_mismatch[changed_schema] _
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x107b04fc0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-367/test_initial_prompt_identity_b4')
+fault = 'changed_schema'
+
+    @pytest.mark.parametrize(
+        "fault", ["missing", "malformed", "mismatch", "changed_instruction", "changed_schema"]
+    )
+    def test_initial_prompt_identity_blocks_all_model_access_on_mismatch(api, service, tmp_path, fault):
+        model_config = config()
+        instruction = "public"
+        if fault == "missing":
+            del model_config["initial_messages_sha256"]
+        elif fault == "malformed":
+            model_config["initial_messages_sha256"] = "NOT-A-DIGEST"
+        elif fault == "mismatch":
+            model_config["initial_messages_sha256"] = "0" * 64
+        elif fault == "changed_instruction":
+            instruction = "changed public instruction"
+        else:
+            service._tools[0]["description"] += " changed publicly advertised description"
+        instances, processes = [], []
+        output = tmp_path / "trial"
+        result = api.run_trial(
+            model_config=model_config,
+            instruction=instruction,
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+        assert result["status"] == "failed"
+        assert result["model_calls"] == 0
+        assert instances == []
+        if fault in {"missing", "malformed"}:
+            assert result["failure_stage"] == "preparation"
+            assert processes == []
+        else:
+>           assert result["failure_stage"] == "prompt_identity"
+E           AssertionError: assert 'preparation' == 'prompt_identity'
+E             
+E             - prompt_identity
+E             + preparation
+
+tests/test_scripts/test_reconciliation_model_trial.py:555: AssertionError
+__________ test_matching_prompt_identity_is_durable_before_preflight ___________
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x107b328d0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-367/test_matching_prompt_identity_0')
+
+    def test_matching_prompt_identity_is_durable_before_preflight(api, service, tmp_path):
+        instances, processes = [], []
+        output = tmp_path / "trial"
+        factory = fake_model_factory(['{"action":"finish"}'], instances)
+    
+        class Client(factory):
+            def preflight(self):
+                binding = json.loads((output / "initial-prompt.json").read_text())
+                assert (
+                    binding["actual_sha256"]
+                    == binding["expected_sha256"]
+                    == config()["initial_messages_sha256"]
+                )
+                return super().preflight()
+    
+        result = api.run_trial(
+            model_config=config(),
+            instruction="public",
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=Client,
+        )
+>       assert result["status"] == "terminated"
+E       AssertionError: assert 'failed' == 'terminated'
+E         
+E         - terminated
+E         + failed
+
+tests/test_scripts/test_reconciliation_model_trial.py:588: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_initial_prompt_identity_blocks_all_model_access_on_mismatch[missing]
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_initial_prompt_identity_blocks_all_model_access_on_mismatch[mismatch]
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_initial_prompt_identity_blocks_all_model_access_on_mismatch[changed_instruction]
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_initial_prompt_identity_blocks_all_model_access_on_mismatch[changed_schema]
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_matching_prompt_identity_is_durable_before_preflight
+5 failed, 1 passed, 30 deselected in 0.10s

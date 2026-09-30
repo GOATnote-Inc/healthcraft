@@ -370,5 +370,9 @@ metadata:
    exist in the world state (validated at load time).
 7. **Expected tools.** List tools the agent should use. Mark required vs. optional.
    The evaluator does not penalize for using unlisted tools.
-8. **Clinical review.** All tasks must be reviewed via `/review-clinical` before
-   inclusion in the evaluation suite.
+8. **Evidence and versioning.** Validate task structure, source reachability,
+   action persistence and rubric behavior with automated positive and negative
+   controls. Document unsupported clinical judgments and use a new version for
+   semantic changes. External clinical review is optional research; it is not
+   required to publish engineering tasks or repository releases. These checks
+   do not establish clinical calibration.

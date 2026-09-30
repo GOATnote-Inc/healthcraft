@@ -1,0 +1,62 @@
+{
+  "recorded_at": "2026-09-30T14:37:37.595608+00:00",
+  "status": "read_only_boundary_inventory_and_probes_prepared_before_implementation_freeze",
+  "source_sha256_at_inventory": {
+    "src/healthcraft/tasks/loader.py": "bc19372cc9e456c00b8f53c285c305a705c4edaf78c9c0e6a757fb83b1e79ec7",
+    "src/healthcraft/tasks/evaluator.py": "7b954a52ec3fde1484152ad9ee6b1e058b170325525f6aaae6c9f1c52056740c",
+    "src/healthcraft/tasks/rubrics.py": "8c97c34257a06b916d108d38f16450759b4a0b93910b25cb3004dfd76a36ce26",
+    "src/healthcraft/llm/evaluator.py": "85ea90f2149933ac3745b7c7749382c5324494413b383025d05e343642b9e7c0",
+    "evals/healthcraft_simple_eval.py": "12cc7959ce3068fd5dafd2f7e16b1db6080e7854081660c5eb78d58a10116a28",
+    "src/healthcraft/rl/reward.py": "ecaf01505cb656aeabe3227651321ad480a0dcfbe01d0fe6d2f7e94e5aa08728",
+    "src/healthcraft/rl/env.py": "9086e8372b337b9108b1495d23a2ef2ca9c8d7d3c87882900f40f6608a737d25"
+  },
+  "input_reproduction": "/private/tmp/healthcraft-empty-rubric-audit/reproduction.json",
+  "reproduction_sha256": "a20c564c66d6062312b0fb2bdf2116adcd222743fea5067718b4781f69a14710",
+  "boundaries": [
+    {
+      "entrypoint": "evaluate_task",
+      "reject_before": "criterion parsing/verification/reward/pass calculation"
+    },
+    {
+      "entrypoint": "replay_from_trajectory",
+      "reject_before": "error early return, overlay, replay-world reconstruction, shadow logging"
+    },
+    {
+      "entrypoint": "evaluate_trajectory/evaluate_trajectory_file",
+      "reject_before": "judge calls, result/save; original trajectory bytes unchanged"
+    },
+    {
+      "entrypoint": "standalone main",
+      "reject_before": "judge construction and any first grading output; validate mixed chosen cohort upfront"
+    },
+    {
+      "entrypoint": "simple-evals _run_replay",
+      "reject_before": "replay/limit/report for all dataset-selected authored Task rubrics",
+      "compatibility": "Unused JSONL criteria are not the authoritative rubric; valid authored Task remains allowed with empty/missing JSONL criteria"
+    },
+    {
+      "entrypoint": "compute_training_reward",
+      "reject_before": "overlay/classifier/judge/process bonus"
+    },
+    {
+      "entrypoint": "slime reward_func",
+      "reject_before": "missing-other-metadata fallback when invalid task is present; never attach a training reward breakdown"
+    },
+    {
+      "entrypoint": "HealthCraftEnv.reset",
+      "reject_after": "intentional invalidation of previous episode refs",
+      "reject_before": "new seed/world/injection; oldworld external reference unchanged; rollout blocked"
+    },
+    {
+      "entrypoint": "HealthCraftEnv.rollout",
+      "reject_before": "policy access, when current Task was replaced by empty rubric"
+    }
+  ],
+  "non_goals": [
+    "No full rubric schema/clinical validity claim",
+    "No changes to low-level empty-set mathematical helpers; validation belongs to Task assessment entry points",
+    "Legacy definitions may remain loadable for inspection and ungraded diagnostics",
+    "No model/provider/network calls or production edits"
+  ],
+  "prepared_probe": "test_peer_boundaries.py"
+}

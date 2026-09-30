@@ -1,0 +1,76 @@
+"""Offline probes of actual task loader/selection; provider calls are impossible."""
+from contextlib import ExitStack, redirect_stdout
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import hashlib, io, json, tempfile, warnings
+
+from healthcraft import cli
+from healthcraft.llm import orchestrator as orch
+from healthcraft.tasks.loader import load_task
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-cohort-selection-audit')
+WORK=Path(tempfile.mkdtemp(prefix='probes-',dir=OUT))
+SOURCES=['src/healthcraft/llm/orchestrator.py','src/healthcraft/tasks/loader.py','src/healthcraft/cli.py']
+def hashes(): return {p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in SOURCES}
+before=hashes()
+source=ROOT/'configs/tasks/clinical_reasoning/task_001_the_mimic.yaml'
+a=source.read_bytes()
+second=next(p for p in sorted(source.parent.glob('*.yaml')) if load_task(p).id=='CR-002')
+b=second.read_bytes()
+
+def probe(name,files,task_filter='all',trials=1,public=False):
+ taskdir=WORK/name/'tasks'; taskdir.mkdir(parents=True)
+ for fn,data in files.items(): (taskdir/fn).write_bytes(data)
+ resultdir=WORK/name/'output'
+ events=[]
+ def create(model,key):
+  events.append({'kind':'create_client','model':model})
+  return SimpleNamespace(_model=model)
+ def run_agent(client,task,server,prompt):
+  events.append({'kind':'agent_attempt','task_id':task.id})
+  raise RuntimeError('synthetic offline provider error: no model was called')
+ with ExitStack() as stack:
+  stack.enter_context(patch.object(orch,'create_client',create))
+  stack.enter_context(patch.object(orch,'run_agent_task',run_agent))
+  stack.enter_context(patch.object(orch,'environment_digest',return_value='offline-fixture-environment'))
+  stack.enter_context(patch.object(orch,'_api_preflight',side_effect=lambda **kwargs: events.append({'kind':'preflight','agent':kwargs['agent_model']})))
+  stack.enter_context(patch.object(orch,'_resolve_api_key',return_value=''))
+  warning_context=stack.enter_context(warnings.catch_warnings(record=True))
+  warnings.simplefilter('always')
+  stdout=io.StringIO()
+  try:
+   with redirect_stdout(stdout):
+    if public:
+     exitcode=cli.main(['evaluate','--agent-model','ollama:offline','--tasks',task_filter,'--trials',str(trials),'--tasks-dir',str(taskdir),'--results-dir',str(resultdir)])
+     result={'exit_code':exitcode,'stdout':stdout.getvalue()}
+    else:
+     result=orch.run_frontier_evaluation(agent_model='ollama:offline',agent_key='',judge_model=None,judge_key=None,task_filter=task_filter,trials=trials,tasks_dir=taskdir,results_dir=resultdir)
+  except BaseException as exc:
+   result={'exception_type':type(exc).__name__,'message':str(exc),'code':getattr(exc,'code',None)}
+  warned=[str(w.message) for w in warning_context]
+ summaries=[json.loads(p.read_text()) for p in sorted(resultdir.glob('summary*.json'))]
+ trajectories=sorted(resultdir.glob('trajectories/**/*.json'))
+ return {'name':name,'requested':task_filter,'trials':trials,'result':result,
+ 'events':events,'warnings':warned,'summary':summaries[-1] if summaries else None,
+ 'saved_trajectory_ids':[json.loads(p.read_text())['task_id'] for p in trajectories],
+ 'model_calls':0,'input_hashes':{fn:hashlib.sha256(data).hexdigest() for fn,data in files.items()}}
+
+cases=[
+ probe('partial-missing',{'a.yaml':a},'CR-001,DOES-NOT-EXIST'),
+ probe('duplicate-hides-requested',{'a-first.yaml':a,'a-second.yaml':a,'b.yaml':b},'CR-001,CR-002'),
+ probe('all-skips-malformed',{'a.yaml':a,'b.yaml':b'id: CR-002\n'}),
+ probe('explicit-skips-malformed',{'a.yaml':a,'b.yaml':b'id: CR-002\n'},'CR-001,CR-002'),
+ probe('explicit-ignores-yml',{'a.yaml':a,'b.yml':b},'CR-001,CR-002'),
+ probe('api-zero-trials',{'a.yaml':a},trials=0),
+ probe('api-negative-trials',{'a.yaml':a},trials=-1),
+ probe('cli-error-trial',{'a.yaml':a},'CR-001',public=True),
+ probe('cli-missing-only',{'a.yaml':a},'DOES-NOT-EXIST',public=True),
+]
+after=hashes()
+assert before==after
+receipt={'source_before':before,'source_after':after,'source_stable':True,'cases':cases,'work_dir':str(WORK),'model_calls':0,'provider_access':False}
+(OUT/'reproduction.json').write_text(json.dumps(receipt,indent=2)+'\n')
+for c in cases:
+ print(json.dumps({'name':c['name'],'result':c['result'],'events':c['events'],'warnings':c['warnings'],'saved':c['saved_trajectory_ids']},sort_keys=True))

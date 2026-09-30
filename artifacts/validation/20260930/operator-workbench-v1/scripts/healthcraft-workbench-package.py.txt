@@ -1,0 +1,97 @@
+"""Seal this development slice once; retain raw validation evidence unchanged."""
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+CHECK=Path('/private/tmp/healthcraft-workbench-final')
+OUT=ROOT/'artifacts/validation/20260930/operator-workbench-v1'
+DEMO=ROOT/'artifacts/operator-review/20260930/workbench-v1'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def save(p,v):
+    p.parent.mkdir(parents=True,exist_ok=True)
+    with p.open('x') as f:json.dump(v,f,indent=2);f.write('\n')
+def copy(p,q):
+    q.parent.mkdir(parents=True,exist_ok=True)
+    with q.open('xb') as f:f.write(p.read_bytes())
+    assert sha(p)==sha(q)
+def inventory(p):return {x.relative_to(p).as_posix():sha(x) for x in sorted(p.rglob('*')) if x.is_file()}
+
+candidate=json.loads((CHECK/'candidate-inputs.json').read_text())
+assert all(sha(ROOT/n)==h for n,h in candidate.items())
+suite=json.loads((CHECK/'full-suite-receipt.json').read_text());assert suite['exit_code']==0
+compat=json.loads((CHECK/'compatibility-receipt.json').read_text())
+assert all(r['exit_code']==0 for r in compat['reports'])
+lint=json.loads((CHECK/'lint-receipt.json').read_text());assert lint['reports'][-1]['exit_code']==0
+hist=json.loads((CHECK/'history-after.json').read_text())
+for b in hist['bundles']:
+    p=ROOT/b['path'];assert sha(p/'manifest.json')==b['manifest_sha256']
+    actual=inventory(p);del actual['manifest.json'];assert actual==b['payload_sha256']
+assert (DEMO/'manifest.json').is_file()
+demo_inventory=inventory(DEMO);del demo_inventory['manifest.json']
+assert demo_inventory==json.loads((DEMO/'manifest.json').read_text())['files']
+OUT.mkdir(parents=True,exist_ok=False)
+for p in sorted(CHECK.iterdir()):
+    if p.is_file():copy(p,OUT/'final-validation'/p.name)
+for n in candidate:copy(ROOT/n,OUT/'candidate-source'/(n+'.txt'))
+collections={
+    'drafts':'/private/tmp/healthcraft-operator-workbench-drafts',
+    'ui':'/private/tmp/healthcraft-operator-workbench-ui',
+    'peer':'/private/tmp/healthcraft-operator-workbench-peer',
+    'ui-peer':'/private/tmp/healthcraft-operator-workbench-ui-peer',
+    'source-path-audit':'/private/tmp/healthcraft-source-path-attainability',
+}
+copied={}
+for name,folder in collections.items():
+    for p in sorted(Path(folder).rglob('*')):
+        if p.is_file() and p.suffix in {'.json','.log','.md','.py'}:
+            relative=p.relative_to(folder).as_posix()
+            q=OUT/name/(relative+('.txt' if p.suffix=='.py' else ''));copy(p,q)
+            copied[q.relative_to(OUT).as_posix()]={'original':str(p),'sha256':sha(p)}
+for p in sorted(Path('/private/tmp').glob('healthcraft-operator-workbench-*.log')):
+    copy(p,OUT/'root-tdd'/p.name)
+for name in ['healthcraft-workbench-validate.py','healthcraft-workbench-package.py']:
+    copy(Path('/private/tmp')/name,OUT/'scripts'/(name+'.txt'))
+copy(DEMO/'reproduce.py.txt',OUT/'scripts/healthcraft-workbench-demo-executed.py.txt')
+match=re.search(r'(\d+) passed, (\d+) skipped.* in ([\d.]+)s',(CHECK/'full-suite.log').read_text());assert match
+focused=[]
+for r in compat['reports']:
+    m=re.search(r'(\d+) passed',(CHECK/r['log']).read_text());assert m
+    focused.append({'python':r['python'],'passed':int(m[1]),'exit_code':r['exit_code']})
+receipt={'schema_version':'healthcraft-operator-workbench-validation/v1',
+    'parent_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+    'candidate_sha256':candidate,
+    'full_suite':{'passed':int(match[1]),'skipped':int(match[2]),'seconds':float(match[3]),'exit_code':0,'log_sha256':sha(CHECK/'full-suite.log')},
+    'focused_compatibility':focused,
+    'lint':{'input_count':lint['input_count'],'isolated_exit_code':0,'workspace_exit_code':lint['reports'][0]['exit_code'],'known_unrelated_archive_errors':115},
+    'historical_integrity':{'bundles':hist['bundle_count'],'files':hist['files'],'all_stable':True},
+    'demo_manifest_sha256':sha(DEMO/'manifest.json'), 'copied_development_evidence':copied,
+    'limits':['No new inference, downloads, hosted APIs, real participants, independent human labels or clinical outcomes.',
+    'Static byte counts and Node DOM fixtures do not establish browser performance, accessibility or end-user benefit.',
+    'Original issuers, packets, response schemas, prior results and old artifacts are unchanged.',
+    'Ordinary development review only; formal red team, remote main and manuscript/arXiv updates remain gated.',
+    'Earlier red/green logs and receipts are retained verbatim; final candidate hashes identify the shipped version.']}
+save(OUT/'validation-receipt.json',receipt)
+(OUT/'README.md').write_text(f'''# Offline workbench development validation
+
+The candidate provides on-demand source navigation and explicit Preview, Apply,
+Cancel and Undo for saved responses. Original v2 assignments and importers remain
+authoritative. Existing issuer code and historical artifact inventories are unchanged.
+
+Full suite: {match[1]} passed, {match[2]} skipped. Focused compatibility runs and lint
+results are recorded in validation-receipt.json. Workspace lint still reports 115
+unrelated archive errors; the inventoried candidate passes isolated make lint.
+
+TDD logs include initial missing-module interface tests and concrete behavioral
+regressions. Intermediate test-fixture errors are disclosed in their original agent
+receipts. No real browser, intended-user session or independent clinician validation
+was performed. The static generated-page reductions are not user performance data.
+
+The demonstration reuses exposed prior captures. It contains no new model runs,
+participants, clinical labels, timings or comparative outcomes. Superiority remains
+unestablished; formal red team and publication have not begun.
+''')
+save(OUT/'manifest.json',{'schema_version':'healthcraft-operator-workbench-validation-manifest/v1','files':inventory(OUT)})
+print(json.dumps({'validation':str(OUT),'manifest_sha256':sha(OUT/'manifest.json'),'payloads':len(inventory(OUT))-1,'suite':receipt['full_suite']},indent=2))

@@ -13,9 +13,11 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import math
 import os
 import re
 import time
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -77,6 +79,7 @@ class ModelClient(Protocol):
 
         Returns:
             Dict with 'content' (str), 'tool_calls' (list[dict]), 'stop_reason' (str).
+            Explicit provider refusal text, when present, is retained as 'refusal'.
         """
         ...
 
@@ -366,11 +369,15 @@ class OpenAIClient:
                     }
                 )
 
-        return {
+        result = {
             "content": message.content or "",
             "tool_calls": tool_calls,
             "stop_reason": choice.finish_reason,
         }
+        refusal = getattr(message, "refusal", None)
+        if refusal:
+            result["refusal"] = refusal
+        return result
 
 
 class GrokClient(OpenAIClient):
@@ -463,11 +470,17 @@ class GeminiClient:
         # Extract system instruction
         system_text = None
         contents = []
+        # Generic IDs correlate our saved messages; Gemini's function response
+        # name must instead match FunctionCall.name. Consume IDs per roundtrip
+        # because legacy Gemini-generated IDs can recur on later turns.
+        pending_calls: dict[str, dict[str, Any]] = {}
         for msg in messages:
             role = msg["role"]
             if role == "system":
                 system_text = msg["content"]
                 continue
+            if role != "tool" and pending_calls:
+                raise ValueError("Gemini tool calls have no matching responses before next turn")
 
             # Map roles: assistant -> model, tool -> function response
             if role == "assistant":
@@ -475,16 +488,24 @@ class GeminiClient:
                 if msg.get("content"):
                     parts.append(types.Part.from_text(text=msg["content"]))
                 for tc in msg.get("tool_calls", []):
+                    tc_id = tc.get("id")
+                    if not isinstance(tc_id, str) or not tc_id:
+                        raise ValueError("Gemini tool call requires a nonempty correlation ID")
+                    if tc_id in pending_calls:
+                        raise ValueError(f"Gemini tool call ID is already pending: {tc_id}")
+                    pending_calls[tc_id] = tc
                     ts = tc.get("thought_signature")
-                    if ts:
+                    provider_id = tc.get("provider_call_id")
+                    if ts or provider_id:
                         fc = types.FunctionCall(
+                            id=provider_id,
                             name=tc["name"],
                             args=tc.get("arguments", {}),
                         )
                         parts.append(
                             types.Part(
                                 function_call=fc,
-                                thought_signature=base64.b64decode(ts),
+                                thought_signature=base64.b64decode(ts) if ts else None,
                             )
                         )
                     else:
@@ -496,23 +517,32 @@ class GeminiClient:
                         )
                 contents.append(types.Content(role="model", parts=parts))
             elif role == "tool":
-                tc_id = msg.get("tool_call_id", "")
+                tc_id = msg.get("tool_call_id")
+                if not isinstance(tc_id, str) or tc_id not in pending_calls:
+                    raise ValueError("Gemini tool response has no matching pending function call")
+                tc = pending_calls.pop(tc_id)
                 result_str = msg.get("content", "{}")
                 try:
                     result_data = json.loads(result_str)
                 except (json.JSONDecodeError, TypeError):
                     result_data = {"result": result_str}
-                contents.append(
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_function_response(
-                                name=tc_id,
-                                response=result_data,
-                            )
-                        ],
+                response_part = types.Part(
+                    function_response=types.FunctionResponse(
+                        id=tc.get("provider_call_id"),
+                        name=tc["name"],
+                        response=result_data,
                     )
                 )
+                # Parallel results belong in one user Content, in source order.
+                # Do not merge them with an ordinary user message.
+                if (
+                    contents
+                    and contents[-1].role == "user"
+                    and all(part.function_response for part in contents[-1].parts)
+                ):
+                    contents[-1].parts.append(response_part)
+                else:
+                    contents.append(types.Content(role="user", parts=[response_part]))
             else:
                 contents.append(
                     types.Content(
@@ -520,6 +550,9 @@ class GeminiClient:
                         parts=[types.Part.from_text(text=msg.get("content", ""))],
                     )
                 )
+
+        if pending_calls:
+            raise ValueError("Gemini tool calls have no matching responses")
 
         # Build tool declarations
         tool_declarations = None
@@ -548,11 +581,28 @@ class GeminiClient:
             config=config,
         )
 
+        # Google distinguishes a natural STOP from MAX_TOKENS, safety blocks,
+        # invalid function calls, and other incomplete endings. A non-streaming
+        # response with no finish reason has not established completion either.
+        # https://ai.google.dev/api/generate-content#finishreason
+        if not response.candidates:
+            feedback = getattr(response, "prompt_feedback", None)
+            blocked = getattr(feedback, "block_reason", None)
+            blocked_name = getattr(blocked, "value", blocked) or "unknown"
+            raise RuntimeError(
+                f"Gemini completion returned no candidate (prompt block: {blocked_name})"
+            )
+        candidate = response.candidates[0]
+        finish = getattr(candidate, "finish_reason", None)
+        finish_name = getattr(finish, "value", finish) or "missing"
+        if finish_name not in {"STOP", "MAX_TOKENS"}:
+            raise RuntimeError(f"Gemini completion did not finish successfully: {finish_name}")
+
         # Parse response
         content = ""
         tool_calls = []
-        if response.candidates and response.candidates[0].content:
-            for part in response.candidates[0].content.parts:
+        if candidate.content:
+            for part in candidate.content.parts or []:
                 if part.text:
                     content += part.text
                 elif part.function_call:
@@ -563,14 +613,16 @@ class GeminiClient:
                             dict(part.function_call.args) if part.function_call.args else {}
                         ),
                     }
+                    if getattr(part.function_call, "id", None):
+                        tc_entry["provider_call_id"] = part.function_call.id
                     if getattr(part, "thought_signature", None):
                         tc_entry["thought_signature"] = base64.b64encode(
                             part.thought_signature
                         ).decode("ascii")
                     tool_calls.append(tc_entry)
 
-        stop_reason = "stop"
-        if tool_calls:
+        stop_reason = "max_tokens" if finish_name == "MAX_TOKENS" else "stop"
+        if tool_calls and finish_name == "STOP":
             stop_reason = "tool_calls"
 
         return {
@@ -592,6 +644,10 @@ def create_client(model: str, api_key: str) -> ModelClient:
         A ModelClient instance.
     """
     m = model.lower()
+    if m.startswith("ollama:"):
+        from healthcraft.llm.local_models import OllamaClient
+
+        return OllamaClient(model=model[len("ollama:") :])
     if m.startswith("sglang:") or m.startswith("http://") or m.startswith("https://"):
         # Open-weights policy served by SGLang (used by the RL coupling).
         # Two forms:
@@ -688,6 +744,53 @@ def _build_setting_context(setting: dict[str, Any]) -> str:
     return "\n\n--- Current Department Status ---\n" + "\n".join(parts)
 
 
+def _copy_response_json(value: Any, ancestors: frozenset[int] = frozenset()) -> Any:
+    """Detach a normalized envelope without coercing invalid JSON values.
+
+    This captures the adapter output, not an unobserved native provider envelope.
+    Invalid non-JSON objects cannot be faithfully saved and are not stringified.
+    """
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float and math.isfinite(value):
+        return value
+    if type(value) not in (dict, list):
+        raise ValueError("Normalized response requires finite JSON values")
+    if id(value) in ancestors:
+        raise ValueError("Normalized response contains a cycle")
+    nested = ancestors | {id(value)}
+    if type(value) is list:
+        return [_copy_response_json(item, nested) for item in value]
+    if any(type(key) is not str for key in value):
+        raise ValueError("Normalized response requires string object keys")
+    return {key: _copy_response_json(item, nested) for key, item in value.items()}
+
+
+def _validate_response_batch(response: Any) -> None:
+    """Validate the entire request batch before dispatching any state change."""
+    if not isinstance(response, dict):
+        raise ValueError("Normalized response must be an object")
+    if not isinstance(response.get("content"), str):
+        raise ValueError("Normalized response content must be a string")
+    if not isinstance(response.get("tool_calls"), list):
+        raise ValueError("Normalized response tool_calls must be an array")
+    for field in ("stop_reason", "refusal"):
+        if response.get(field) is not None and not isinstance(response[field], str):
+            raise ValueError(f"Normalized response {field} must be a string or null")
+    pending_ids: set[str] = set()
+    for call in response["tool_calls"]:
+        if not isinstance(call, dict):
+            raise ValueError("Each tool call must be an object")
+        for field in ("id", "name"):
+            if not isinstance(call.get(field), str) or not call[field].strip():
+                raise ValueError(f"Each tool call requires a nonempty {field}")
+        if call["id"] in pending_ids:
+            raise ValueError("Simultaneous tool calls require distinct IDs")
+        pending_ids.add(call["id"])
+        if not isinstance(call.get("arguments", {}), dict):
+            raise ValueError("Tool call arguments must be an object")
+
+
 def run_agent_task(
     client: ModelClient,
     task: Task,
@@ -717,10 +820,14 @@ def run_agent_task(
             "category": task.category,
             "level": task.level,
             "title": task.title,
+            "max_tool_rounds": MAX_TOOL_ROUNDS,
         },
     )
 
     tools = _build_tool_definitions(server)
+    # Preserve the actual advertised interface before passing mutable objects
+    # to a client. This is coordinator evidence, never added to model messages.
+    traj.metadata["agent_tool_definitions"] = deepcopy(tools)
 
     # Build user message: task description + setting context
     user_content = task.description
@@ -744,37 +851,120 @@ def run_agent_task(
         except Exception as e:
             logger.error("API call failed on round %d: %s", round_num + 1, e)
             traj.error = f"API error on round {round_num + 1}: {e}"
+            traj.metadata["stop_reason"] = "client_error"
             break
 
+        captured_response = None
+        capture_status = "unavailable"
+        try:
+            captured_response = _copy_response_json(response)
+            capture_status = "captured"
+            _validate_response_batch(captured_response)
+        except (ValueError, RecursionError) as exc:
+            # Return the partial trajectory to the orchestrator. Raising here
+            # would lose already completed actions when its assignment fails.
+            traj.error = f"Invalid model response on round {round_num + 1}: {exc}"
+            traj.metadata["termination_kind"] = "invalid_model_response"
+            traj.metadata["stop_reason"] = "invalid_model_response"
+            traj.metadata["agent_protocol_error"] = {
+                "round": round_num + 1,
+                "message": str(exc),
+                "capture_status": capture_status,
+                "normalized_response": captured_response,
+            }
+            break
+        response = captured_response
         content = response["content"]
         tool_calls = response["tool_calls"]
+        stop_reason = response.get("stop_reason")
+        traj.metadata["stop_reason"] = stop_reason
+        reason = stop_reason if isinstance(stop_reason, str) else None
 
         # Record assistant turn
         traj.add_turn(
             "assistant",
             content,
             tool_calls=[
-                {"name": tc["name"], "arguments": tc.get("arguments", {})} for tc in tool_calls
+                {
+                    "id": tc.get("id", ""),
+                    "name": tc["name"],
+                    "arguments": tc.get("arguments", {}),
+                }
+                for tc in tool_calls
             ],
         )
 
         # Add assistant message to conversation
         assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
         if tool_calls:
-            assistant_msg["tool_calls"] = tool_calls
+            assistant_msg["tool_calls"] = deepcopy(tool_calls)
         messages.append(assistant_msg)
 
-        # If no tool calls, the agent is done
-        if not tool_calls:
+        if response.get("refusal") or reason == "refusal":
+            traj.metadata["termination_kind"] = "provider_refusal"
+            if response.get("refusal"):
+                traj.metadata["provider_refusal"] = response["refusal"]
+            traj.error = f"Provider refusal on round {round_num + 1}; task execution incomplete"
             break
+
+        if reason == "content_filter":
+            traj.metadata["termination_kind"] = "provider_filter"
+            traj.error = (
+                f"Provider content filter on round {round_num + 1}; task execution incomplete"
+            )
+            break
+
+        if reason in {"length", "max_tokens", "max_output_tokens"}:
+            traj.metadata["termination_kind"] = "truncated"
+            traj.error = f"Agent response truncated ({stop_reason}) on round {round_num + 1}"
+            break
+
+        # Only explicit natural completion can finish a tool-free turn.
+        if not tool_calls:
+            if reason not in {"stop", "end_turn", "stop_sequence"}:
+                traj.metadata["termination_kind"] = "incomplete_provider_turn"
+                traj.error = (
+                    f"Provider termination {stop_reason!r} without tool calls on round "
+                    f"{round_num + 1}; task execution incomplete"
+                )
+            else:
+                traj.metadata["termination_kind"] = "complete"
+            break
+
+        # A filtered, paused, unknown, or inconsistent response cannot dispatch
+        # pending actions merely because it happens to contain tool arguments.
+        if reason not in {"tool_calls", "tool_use"}:
+            traj.metadata["termination_kind"] = "incomplete_provider_turn"
+            traj.error = (
+                f"Provider termination {stop_reason!r} cannot authorize tool continuation "
+                f"on round {round_num + 1}; task execution incomplete"
+            )
+            break
+        traj.metadata["termination_kind"] = "tool_continuation"
 
         # Execute tool calls and add results
         for tc in tool_calls:
             tool_name = tc["name"]
             tool_args = tc.get("arguments", {})
-            tool_result = server.call_tool(tool_name, tool_args)
-
-            result_str = json.dumps(tool_result, default=str)
+            stage = "dispatch"
+            try:
+                tool_result = server.call_tool(tool_name, deepcopy(tool_args))
+                stage = "serialize_response"
+                result_str = json.dumps(tool_result, default=str, allow_nan=False)
+            except Exception as exc:
+                # An exception can happen after a mutation. Do not invent a
+                # failure response, retry the action, or imply rollback.
+                traj.error = f"Tool execution error on round {round_num + 1}: {exc}"
+                traj.metadata["termination_kind"] = "tool_execution_error"
+                traj.metadata["tool_execution_error"] = {
+                    "round": round_num + 1,
+                    "tool_call_id": tc["id"],
+                    "tool_name": tool_name,
+                    "stage": stage,
+                    "outcome": "unknown",
+                    "message": str(exc),
+                }
+                break
 
             # Record tool result turn
             traj.add_turn(
@@ -790,6 +980,14 @@ def run_agent_task(
                     "content": result_str,
                 }
             )
+        if traj.error is not None:
+            break
+    else:
+        traj.error = (
+            f"Agent exhausted tool round limit ({MAX_TOOL_ROUNDS}) without a final response"
+        )
+        traj.metadata["stop_reason"] = "tool_round_limit"
+        traj.metadata["termination_kind"] = "tool_round_limit"
 
     traj.duration_seconds = time.monotonic() - start_time
     return traj

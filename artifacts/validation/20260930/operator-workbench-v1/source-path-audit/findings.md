@@ -1,0 +1,22 @@
+# Public source-descriptor attainability review
+
+The saved v2 task is attainable from its public interface. I reproduced all 44 path-only differences in 12 stored notes using only the captured public instruction, successful getEncounterDetails responses and updateEncounter request text. This independent extractor imports no fixture, oracle, expectation or private snapshot. Its 84 distinct retrieved source-row appearances agree with the prior independent review. All 44 incorrect descriptors preserve their corresponding raw row exactly and retain the /patient prefix; 35 are care rows and nine imaging rows. All sixteen saved instructions equal the current instruction template instantiated with their target IDs.
+
+The demanded collection is explicit on every returned projection. The demanded row path is not a ready-to-copy field, but its construction is explicitly defined in the saved instruction: remove the leading /patient namespace, descend within source_data using original array indices/object keys, and escape RFC6901 key tokens. Care projections are collection groups, whereas imaging projections already describe individual rows. These are public transformations, not concealed expected-answer labels. The eight immutable reference transcripts expose all fifty distinct source rows (6,5,6,5,6,7,4,11) through the same five public tools.
+
+Representative captured evidence:
+
+- REC2-002/medgemma: active_orders projection /patient/active_orders with source_data[0] implies /active_orders/0. The note instead invents /patient/active_orders/item~0.
+- REC2-002/medgemma: imaging projection /patient/imaging_pending/order~1~0pending already contains the escaped key order/~pending. Removing the namespace yields /imaging_pending/order~1~0pending; no additional escaping is needed.
+- REC2-004/nano: three source rows are in treatments_given source_data positions 0,1,2. The note copies the same collection-level /patient/treatments_given for each, losing distinguishability.
+- REC2-005/medgemma: raw rows remain exact, but paths add item/value and study_id/value components that are not keys in the represented structures.
+
+## Concrete interface limitations and a versioned improvement
+
+There is no evidence that these 44 failures require hidden authoring information or that their saved v2 verdicts should be repaired. There is a usability defect worth removing in a new public contract: the same field name source_path denotes two different granularities in returned records, and the required note source_path uses a different root namespace. A faithful copy of visible metadata is therefore invalid even when source values are preserved. The tool return schemas also leave these nested projection fields unspecified beyond object/array descriptions. The prose resolves the mapping, but consumers lack an explicit typed descriptor contract.
+
+A new version can expose a detached, canonical row-level descriptor alongside each raw source, containing source_id, patient_id, encounter_id, source_collection, source_path and source. Define the pointer root and granularity in that version's public schema; preserve the existing grouped provenance separately. Derive descriptors from returned source projections/ownership only, for every row and every encounter, without target filtering, expected IDs, conflict labels, exclusions or private oracle inputs. Let the new instruction require exact descriptor copying. This is a changed interface and experimental condition, not a retrospective v2 fix or proof that the old model failures were caused by presentation.
+
+Meaningful TDD controls: array positions 0/1/2; slash/tilde and newline object keys; current/prior/other-patient ownership; source literals/nulls/offsets unchanged; no target-based source omission; detached copies; descriptor path resolves to the exact raw source; and public-only reference execution across all eight existing exposed cases. Keep old instructions, schemas, outputs and verdicts immutable and issue new source/prompt/protocol identities. Do not claim a model improvement until new explicitly exploratory observations exist.
+
+Bounds: this is ordinary offline development review, not independent clinical review, formal red team, a new model run, or a held-out result. Source identity and input hashes are in attainability-receipt.json and public-descriptor-review.json; the latter retains every concrete public projection and path difference. No repository or old artifact was edited.

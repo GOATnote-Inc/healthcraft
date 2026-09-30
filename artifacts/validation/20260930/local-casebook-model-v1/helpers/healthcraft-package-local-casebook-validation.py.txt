@@ -1,0 +1,72 @@
+"""Package only frozen engineering validation; never run copied helper scripts."""
+import hashlib,json
+from datetime import datetime,timezone
+from pathlib import Path
+ROOT=Path('/Users/kiteboard/healthcraft')
+TMP=Path('/private/tmp')
+OUT=ROOT/'artifacts/validation/20260930/local-casebook-model-v1'
+INDEX=TMP/'healthcraft-local-casebook-validation-index/inventory.json'
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+index=json.loads(INDEX.read_text())
+final=TMP/'healthcraft-local-casebook-final'
+full=json.loads((final/'full-suite-receipt.json').read_text())
+assert full['exit_code']==0 and sha(final/'full-suite.log')==full['log_sha256']
+assert '4316 passed, 58 skipped' in (final/'full-suite.log').read_text()
+source_before={p:sha(ROOT/p) for p in full['candidate_inputs']}
+assert source_before==full['candidate_inputs']
+assert all(sha(ROOT/p)==h for p,h in index['final_source_sha256'].items())
+OUT.mkdir(parents=True,exist_ok=False)
+copies={}
+def copy(src,rel,expected=None):
+ src=Path(src);dst=OUT/rel
+ assert src.is_file() and not src.is_symlink(),str(src)
+ raw=src.read_bytes(); h=hashlib.sha256(raw).hexdigest()
+ if expected is not None:assert h==expected,(str(src),h,expected)
+ assert rel not in copies
+ dst.parent.mkdir(parents=True,exist_ok=True)
+ with dst.open('xb') as f:f.write(raw)
+ assert sha(dst)==h and sha(src)==h
+ copies[rel]={'source':str(src),'sha256':h,'bytes':len(raw)}
+for item in index['files']:copy(item['source'],item['destination'],item['sha256'])
+extras=[
+(final/'full-suite.log','final-validation/full-suite.log'),
+(final/'full-suite-receipt.json','final-validation/full-suite-receipt.json'),
+(TMP/'healthcraft-local-casebook-history-peer/receipt.json','historical-integrity/receipt.json'),
+(TMP/'healthcraft-local-casebook-history-peer/check_history.py','historical-integrity/check_history.py.txt'),
+(TMP/'healthcraft-local-casebook-history-peer/next-user-value-gap.md','historical-integrity/next-user-value-gap.md'),
+(TMP/'healthcraft-local-casebook-history-peer/next-gap-receipt.json','historical-integrity/next-gap-receipt.json'),
+(TMP/'healthcraft-run-local-casebook.py','helpers/healthcraft-run-local-casebook.py.txt'),
+(TMP/'healthcraft-local-casebook-validate.py','helpers/healthcraft-local-casebook-validate.py.txt'),
+(TMP/'healthcraft-package-local-casebook-validation.py','helpers/healthcraft-package-local-casebook-validation.py.txt'),
+(INDEX,'selection-index/inventory.json'),
+(TMP/'healthcraft-local-casebook-validation-index/package-list.tsv','selection-index/package-list.tsv'),
+(TMP/'healthcraft-local-casebook-validation-index/README.md','selection-index/README.md'),
+(TMP/'healthcraft-local-casebook-validation-index/manifest.json','selection-index/manifest.json'),
+(TMP/'healthcraft-local-casebook-validation-index/build_index.py','selection-index/build_index.py.txt'),
+(TMP/'healthcraft-model-cohort-peer/blocked_reply-fixed/receipt.json','ipc-raw/blocked_reply-fixed/receipt.json'),
+]
+for src,rel in extras:copy(src,rel)
+for name in ['partial-frame-attempt','partial_frame-fixed']:
+ base=TMP/'healthcraft-model-cohort-peer'/name
+ for src in sorted(base.rglob('*')):
+  if src.is_file():copy(src,'ipc-raw/'+name+'/'+src.relative_to(base).as_posix())
+source_after={p:sha(ROOT/p) for p in full['candidate_inputs']}
+assert source_before==source_after
+hist=json.loads((TMP/'healthcraft-local-casebook-history-peer/receipt.json').read_text())
+assert hist['total_actual_regular_files']==2371 and hist['all_archived_bytes_stable_during_review']
+assert hist['findings']==[] and hist['bundle_count']==11
+summary={
+ 'schema_version':'healthcraft-engineering-validation-package/v1',
+ 'packaged_at':datetime.now(timezone.utc).isoformat(),
+ 'scope':'This-turn engineering validation only; no live model outcomes copied or evaluated.',
+ 'copied_file_count':len(copies), 'copied_bytes':sum(x['bytes'] for x in copies.values()),
+ 'original_81_file_index_sha256':sha(INDEX),'copies':copies,
+ 'candidate_source_before':source_before,'candidate_source_after':source_after,'candidate_unchanged':True,
+ 'full_suite':{'passed':4316,'skipped':58,'duration_seconds':294.29,'exit_code':0,'python':full['python'],'log_sha256':full['log_sha256']},
+ 'lint':{'isolated_exit_code':0,'inputs':799,'python_files':411,'root_exit_code':2,'retained_root_diagnostics':115},
+ 'historical_integrity':{'receipt':'historical-integrity/receipt.json','bundles':11,'total_regular_files':2371,'listed_payloads':1202,'top_manifests':11,'archive_bound_unlisted_build_files':1158,'current_candidate_replay_performed':False},
+ 'omitted_optional_raw':['Two large blocked-reply raw trees contain repeated synthetic megabyte note bodies; compact original/fixed receipts and fixed receipt are retained instead.'],
+ 'limitations':['No new tests, inference, daemon or network access during packaging.','Repeated and overlapping focused counts do not represent independent experiments.','No clinical validation, model ranking, benchmark score, deployment claim or formal red team.','The copied wrapper is a source snapshot only and was not executed by this packaging script.','The selection-index README predates the final full-suite result; final-validation files supersede only its pending-suite status.'],
+}
+with (OUT/'packaging-receipt.json').open('x') as f:json.dump(summary,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'copied_file_count':len(copies),'copied_bytes':summary['copied_bytes'],'output':str(OUT)},indent=2))

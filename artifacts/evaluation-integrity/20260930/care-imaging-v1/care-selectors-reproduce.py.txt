@@ -1,0 +1,86 @@
+"""Follow-up field-scope review against immutable prior observation report."""
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib, json, re, yaml
+ROOT = Path('/Users/kiteboard/healthcraft')
+BASE = Path('/private/tmp/healthcraft-medication-provenance-aa21717.json')
+OUT = Path('/private/tmp/healthcraft-medication-scope-aa21717.json')
+if OUT.exists():
+    raise SystemExit('Output exists')
+baseline = json.loads(BASE.read_text())
+original = sorted(k for k in baseline['summary']['direct_field_counts'] if k != 'medications')
+additional = ['original_prescriptions', 'resuscitation_summary', 'anesthesia_record', 'transfusion_details']
+fields = original + additional
+pattern = re.compile(r'expected|recommend|answer|correct|target|rationale|contraindicat|duplicate|issue', re.I)
+def walk(value, path=()):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield path + (key,), child
+            yield from walk(child, path + (key,))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from walk(child, path + (index,))
+def strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from strings(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from strings(child)
+groups = []
+checked_hashes = {}
+for task in baseline['tasks']:
+    relative_path = task['task_path']
+    file_path = ROOT / relative_path
+    digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    if digest != baseline['hashes_before'][relative_path]:
+        raise RuntimeError(f'Task changed: {relative_path}')
+    checked_hashes[relative_path] = digest
+    patient = yaml.safe_load(file_path.read_text()).get('patient') or {}
+    observed = task.get('observation', {}).get('getEncounterDetails', {}).get('response', {}).get('data', {})
+    visible_text = '\n'.join(strings(observed))
+    for key in fields:
+        if key not in patient:
+            continue
+        value = patient[key]
+        groups.append({
+            'task_id': task['task_id'],
+            'source_path': '/patient/' + key,
+            'source_collection': key,
+            'source_data': value,
+            'source_shape': type(value).__name__,
+            'candidate_label_keys': [list(path) for path, _ in walk(value) if pattern.search(str(path[-1]))],
+            'all_nonempty_string_values_present_in_baseline_mcp': all(text in visible_text for text in strings(value) if text),
+            'strings_not_present_in_baseline_mcp': [text for text in strings(value) if text and text not in visible_text],
+        })
+report = {
+    'scope': 'Read-only direct-field source contract follow-up. No clinical interpretation, benchmark result, comprehensive medication coverage claim, or new runtime execution.',
+    'created_at': datetime.now(timezone.utc).isoformat(),
+    'observation_revision': baseline['revision'],
+    'observation_report': str(BASE),
+    'observation_report_sha256': hashlib.sha256(BASE.read_bytes()).hexdigest(),
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'task_hashes': checked_hashes,
+    'all_task_hashes_match_observation_report': True,
+    'source_files_now_may_be_under_parent_edit': True,
+    'original_selection': {'field_count': len(original), 'group_count': sum(g['source_collection'] in original for g in groups), 'task_count': len({g['task_id'] for g in groups if g['source_collection'] in original})},
+    'expanded_selection': {'field_count': len(fields), 'group_count': len(groups), 'task_count': len({g['task_id'] for g in groups})},
+    'candidate_direct_fields': fields,
+    'groups': groups,
+    'contract': {
+        'projection': 'One record per explicitly allowlisted direct patient field: source_collection, source_path, deep-copied whole source_data. Retain empty collections, item order, mixed content, raw times, qualifiers and field grouping.',
+        'administration_semantics': 'These are authored source assertions. Do not create MedicationAdministration or simulator audit events from them. No prose dose/route/time/status extraction.',
+        'separate_contract': ['patient.medications', 'patient medication/allergy history'],
+        'excluded_automatic_sources': ['root rosters', 'nested other-patient structures', 'prior_ed_visit(s)', 'prior_encounters', 'generic timeline/code_timeline', 'pdmp_data', 'contingency_plans', 'pharmacy_concerns', 'individualized_pain_plan', 'criteria', 'metadata'],
+        'coverage_limit': 'A finite field allowlist cannot establish all medications or absence of administrations from generic narratives. Existing catch-all notes remain visible. Never claim comprehensive clinical validation.',
+        'label_limit': 'Some currently visible source note/reason/issue strings carry authored clinical judgments. Preserve as source wording; do not reclassify as independent observed or verified findings.',
+        'consumer_expectation': 'Discharge must describe administration evidence as not established when no canonical administration records exist. Medication interaction validation must report unresolved selected encounter care context instead of silently treating it as absent.',
+        'timing_limit': 'Reported per-event time, total dose, last-dose time, and date-only history have distinct meanings; preserve raw values without inferred date/zone or event expansion.',
+    },
+}
+with OUT.open('x') as stream:
+    json.dump(report, stream, indent=2, sort_keys=True, allow_nan=False)
+    stream.write('\n')
+print(json.dumps({'output': str(OUT), 'original_selection': report['original_selection'], 'expanded_selection': report['expanded_selection'], 'missing_baseline_visibility': [g['source_path'] + '@' + g['task_id'] for g in groups if not g['all_nonempty_string_values_present_in_baseline_mcp']], 'candidate_label_keys': [{'task_id':g['task_id'], 'source_collection':g['source_collection'], 'keys':g['candidate_label_keys']} for g in groups if g['candidate_label_keys']]}, indent=2))

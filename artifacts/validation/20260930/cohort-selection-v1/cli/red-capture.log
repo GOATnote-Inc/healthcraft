@@ -1,0 +1,104 @@
+FF....FF.                                                                [100%]
+=================================== FAILURES ===================================
+______ test_captured_execution_errors_return_nonzero_and_preserve_summary ______
+
+public_evaluation = <function public_evaluation.<locals>.run at 0x1099b4250>
+
+    def test_captured_execution_errors_return_nonzero_and_preserve_summary(public_evaluation):
+        summary = {
+            "total_tasks": 1,
+            "total_runs": 1,
+            "error_runs": 1,
+            "total_passed": 0,
+            "pass_rate": 0.0,
+            "grading_complete": False,
+            "ungraded_criteria": 3,
+            "results_dir": "/tmp/saved-run",
+        }
+        status, _ = public_evaluation(summary)
+>       assert status == 1
+E       assert 0 == 1
+
+tests/test_cli_evaluation_exit.py:46: AssertionError
+___________ test_top_level_rejection_is_printed_before_failure_exit ____________
+
+public_evaluation = <function public_evaluation.<locals>.run at 0x1099b6a30>
+
+    def test_top_level_rejection_is_printed_before_failure_exit(public_evaluation):
+        summary = {"error": "Requested task IDs were not found: MISSING-001"}
+>       status, _ = public_evaluation(summary)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli_evaluation_exit.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_cli_evaluation_exit.py:28: in run
+    assert json.loads(captured.out) == summary
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x107dfacf0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:363: JSONDecodeError
+_ test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence[raised] _
+
+captured_evaluation = (<function captured_evaluation.<locals>.run at 0x109a6cb40>, {'calls': 1, 'mode': 'raised'}, PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-449/test_actual_captured_and_cache0/output'))
+mode = 'raised'
+
+    @pytest.mark.parametrize("mode", ["raised", "returned"])
+    def test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence(
+        captured_evaluation, mode
+    ):
+        run, state, output = captured_evaluation
+        state["mode"] = mode
+        status, summary, trajectory = run()
+>       assert status == 1
+E       assert 0 == 1
+
+tests/test_cli_evaluation_exit.py:159: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    healthcraft.orchestrator:orchestrator.py:728 Task EXEC-001 trial 1 FAILED: Offline synthetic provider failure
+_ test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence[returned] _
+
+captured_evaluation = (<function captured_evaluation.<locals>.run at 0x1099b40f0>, {'calls': 1, 'mode': 'returned'}, PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-449/test_actual_captured_and_cache1/output'))
+mode = 'returned'
+
+    @pytest.mark.parametrize("mode", ["raised", "returned"])
+    def test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence(
+        captured_evaluation, mode
+    ):
+        run, state, output = captured_evaluation
+        state["mode"] = mode
+        status, summary, trajectory = run()
+>       assert status == 1
+E       assert 0 == 1
+
+tests/test_cli_evaluation_exit.py:159: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    healthcraft.orchestrator:orchestrator.py:626 Task EXEC-001 trial 1 interrupted: Offline synthetic provider interruption
+=========================== short test summary info ============================
+FAILED tests/test_cli_evaluation_exit.py::test_captured_execution_errors_return_nonzero_and_preserve_summary
+FAILED tests/test_cli_evaluation_exit.py::test_top_level_rejection_is_printed_before_failure_exit
+FAILED tests/test_cli_evaluation_exit.py::test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence[raised]
+FAILED tests/test_cli_evaluation_exit.py::test_actual_captured_and_cached_errors_keep_failure_status_and_immutable_evidence[returned]
+4 failed, 5 passed in 0.08s

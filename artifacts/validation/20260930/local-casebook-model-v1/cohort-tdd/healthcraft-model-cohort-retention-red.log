@@ -1,0 +1,50 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_outcome_file_collision_retains_error_and_continues_roster ________
+
+api = <module 'healthcraft.reconciliation.model_cohort' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/model_cohort.py'>
+plan = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-591/test_outcome_file_...bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'expected_runtime': 'test', 'model': 'fixture-two:latest', ...}, 'id': 'two'}], ...})
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-591/test_outcome_file_collision_re0')
+
+    def test_outcome_file_collision_retains_error_and_continues_roster(api, plan, tmp_path):
+        seen = []
+        def collide(case, config, output_dir):
+            receipt = reference_attempt(case, config, output_dir)
+            seen.append(case["case_id"])
+            if len(seen) == 1:
+                (output_dir / "cohort-outcome.json").write_text("original collision bytes")
+            return receipt
+        output = tmp_path / "out"
+>       result = execute(api, plan, output, attempt_runner=collide)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_model_cohort.py:291: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_reconciliation/test_model_cohort.py:96: in execute
+    return api.run_model_cohort(
+src/healthcraft/reconciliation/model_cohort.py:265: in run_model_cohort
+    _write(directory / "cohort-outcome.json", outcome)
+src/healthcraft/reconciliation/model_cohort.py:39: in _write
+    with path.open("xb") as stream:
+         ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-591/test_outcome_file_collision_re0/out/REC2-001/one/cohort-outcome.json')
+mode = 'xb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileExistsError: [Errno 17] File exists: '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-591/test_outcome_file_collision_re0/out/REC2-001/one/cohort-outcome.json'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileExistsError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_model_cohort.py::test_outcome_file_collision_retains_error_and_continues_roster
+1 failed, 34 deselected in 0.10s

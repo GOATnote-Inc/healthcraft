@@ -1,0 +1,48 @@
+............................F.                                           [100%]
+=================================== FAILURES ===================================
+___ test_builder_binds_exact_operator_submission_without_prefilled_verdicts ____
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-609/test_builder_binds_exact_opera0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ae88bb0>
+
+    def test_builder_binds_exact_operator_submission_without_prefilled_verdicts(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True))
+        original = {"cases": [case["documents"]["response"] for case in packet["cases"]]}
+        raw = json.dumps(original, indent=4).encode()
+        source_packet = {
+            "protocol": packet["protocol"], "operator_id": "test-operator",
+            "cases": [{"review_case_id": c["review_case_id"], "scenario_family_id": c["scenario_family_id"],
+                       "documents": {k: c["documents"][k] for k in ("task", "scenario", "evidence", "runtime")},
+                       "assistance": {"hidden_from_adjudicator": "MODEL_VERDICT_CANARY"}}
+                      for c in packet["cases"]],
+        }
+        received = {"review-a": {"response": original["cases"][0], "status": "submitted"}}
+        monkeypatch.setattr(core, "_operator_inputs", lambda *a, **k: (source_packet, raw, received, b"{}", []))
+>       result = core.build_adjudication_packet(
+            tmp_path / "source-manifest.json", tmp_path / "response.json", tmp_path / "built",
+            assignment={"assignment_id": "adj-a", "adjudicator_id": "reviewer-a", "role": "initial"},
+        )
+
+tests/test_operator_adjudication.py:315: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:367: in build_adjudication_packet
+    _outside(output, Path(operator_manifest).parent)
+src/healthcraft/operator_review.py:377: in _outside
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Output must not be inside a source or issued packet directory'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Output must not be inside a source or issued packet directory
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_adjudication.py::test_builder_binds_exact_operator_submission_without_prefilled_verdicts
+1 failed, 29 passed in 0.08s

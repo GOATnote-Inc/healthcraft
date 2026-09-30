@@ -1,0 +1,50 @@
+from pathlib import Path
+import ast,io,tokenize,textwrap,json
+p=Path('src/healthcraft/operator_incident_report.py');s=p.read_text()
+# Split Python literal payloads without altering their content.
+replacements=[]
+lines=s.splitlines(keepends=True);offsets=[0]
+for line in lines:offsets.append(offsets[-1]+len(line))
+for tok in tokenize.generate_tokens(io.StringIO(s).readline):
+ if tok.type==tokenize.STRING and '\n' not in tok.string and len(tok.string)>70:
+  try:value=ast.literal_eval(tok.string)
+  except Exception:continue
+  if type(value) is not str:continue
+  chunks=textwrap.wrap(value,width=58,drop_whitespace=False,replace_whitespace=False)
+  replacement='(\n'+'\n'.join(' '*tok.start[1]+repr(chunk) for chunk in chunks)+'\n'+' '*tok.start[1]+')'
+  replacements.append((offsets[tok.start[0]-1]+tok.start[1],offsets[tok.end[0]-1]+tok.end[1],replacement))
+for start,end,replacement in reversed(replacements):s=s[:start]+replacement+s[end:]
+start=s.index('_SCRIPT = r"""')+len('_SCRIPT = r"""');end=s.index('"""',start);script=s[start:end]
+# Token-aware indentation; slash occurs only in regex literals in this script.
+parts=[];i=0
+while i<len(script):
+ c=script[i]
+ if c in '\"\'`/':
+  j=i+1;cls=False
+  while j<len(script):
+   if script[j]=='\\':j+=2;continue
+   if c=='/':
+    if script[j]=='[':cls=True
+    elif script[j]==']':cls=False
+   if script[j]==c and not cls:break
+   j+=1
+  assert j<len(script)
+  token=script[i:j+1]
+  if c=='"' and len(token)>85:
+   value=json.loads(token);chunks=textwrap.wrap(value,width=64,replace_whitespace=False,drop_whitespace=False)
+   token='(\n'+' +\n'.join(json.dumps(v) for v in chunks)+'\n)'
+  parts.append(('atom',token));i=j+1
+ else:parts.append(('char',c));i+=1
+rows=[];row=[];depth=0
+for kind,value in parts:
+ if kind=='char' and value=='\n':
+  if row:
+   text=''.join(v for _,v in row).strip()
+   leading=1 if text.startswith('}') else 0
+   for sub in text.splitlines():rows.append('  '*max(0,depth-leading)+sub)
+   depth+=sum(1 if v=='{' else -1 if v=='}' else 0 for k,v in row if k=='char')
+   row=[]
+ else:row.append((kind,value))
+assert not row or not ''.join(v for _,v in row).strip()
+s=s[:start]+'\n'+'\n'.join(rows)+'\n'+s[end:]
+p.write_text(s)

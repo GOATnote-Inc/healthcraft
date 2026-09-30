@@ -1,0 +1,44 @@
+"""Freeze candidate inputs and retain validation exit evidence without altering prior bundles."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-operator-incidents-final')
+NAMES=['README.md','docs/OPERATOR_INCIDENTS.md','scripts/operator_incidents.py','src/healthcraft/operator_incidents.py','src/healthcraft/operator_adjudication.py','src/healthcraft/operator_incident_report.py','src/healthcraft/reconciliation/incident_evidence.py','tests/test_operator_incidents.py','tests/test_operator_adjudication.py','tests/test_operator_adjudication_binding.py','tests/test_operator_incident_report.py','tests/test_operator_incidents_cli.py','tests/test_reconciliation/test_incident_evidence.py']
+TESTS=[n for n in NAMES if n.startswith('tests/')]+['tests/test_operator_review.py','tests/test_operator_review_report.py','tests/test_reconciliation/test_fixture_v2.py','tests/test_reconciliation/test_execution_v2.py']
+def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def save(name,value):
+ with (OUT/name).open('x') as f:json.dump(value,f,indent=2,allow_nan=False);f.write('\n')
+def stable(inventory):assert all(digest(ROOT/name)==value for name,value in inventory.items())
+def command(label,cmd,cwd=ROOT,env=None):
+ with (OUT/(label+'.log')).open('x') as f:code=subprocess.run(cmd,cwd=cwd,stdout=f,stderr=subprocess.STDOUT,env=env).returncode
+ return {'command':cmd,'exit_code':code,'log':label+'.log','log_sha256':digest(OUT/(label+'.log'))}
+mode=sys.argv[1]
+if mode=='lint':
+ OUT.mkdir(exist_ok=False)
+ candidate={name:digest(ROOT/name) for name in NAMES};save('candidate-inputs.json',candidate)
+ prior=ROOT/'artifacts/validation/20260930/local-casebook-model-v1/candidate-lint/lint-inputs.json'
+ names=sorted(set(json.loads(prior.read_text()))|set(NAMES));inventory={name:digest(ROOT/name) for name in names};save('lint-inputs.json',inventory)
+ snapshot=Path(tempfile.mkdtemp(prefix='healthcraft-operator-incidents-lint-',dir='/private/tmp'))
+ for name in names:
+  dest=snapshot/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dest);assert digest(dest)==inventory[name]
+ cmd=['make','lint','PYTHON='+str(ROOT/'.venv/bin/python')]
+ reports=[command('root-make-lint',cmd),command('isolated-make-lint',cmd,cwd=snapshot)]
+ stable(inventory);save('lint-receipt.json',{'candidate':candidate,'snapshot':str(snapshot),'inputs':len(names),'python_files':sum(n.endswith('.py') for n in names),'reports':reports,'scope':'Inventoried repository candidate; unrelated archives and immutable artifacts/results excluded from isolated lint.'})
+ print(json.dumps({'inputs':len(names),'reports':reports},indent=2));raise SystemExit(reports[-1]['exit_code'])
+elif mode=='test':
+ inventory=json.loads((OUT/'candidate-inputs.json').read_text());stable(inventory)
+ report=command('full-suite',['make','test']);stable(inventory);report['candidate_inputs']=inventory;save('full-suite-receipt.json',report);print(json.dumps(report,indent=2));raise SystemExit(report['exit_code'])
+elif mode=='compat':
+ import os
+ inventory=json.loads((OUT/'candidate-inputs.json').read_text());stable(inventory);reports=[]
+ for label,exe in [('py310','/private/tmp/healthcraft-check-py310/bin/python'),('py312','/private/tmp/healthcraft-check-py312/bin/python'),('py314',str(ROOT/'.venv/bin/python'))]:
+  env={**os.environ,'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1','PYTHONPATH':'src'}
+  report=command(label,[exe,'-m','pytest',*TESTS,'-q'],env=env);report['python']=subprocess.check_output([exe,'--version'],text=True).strip();reports.append(report)
+ stable(inventory);save('compatibility-receipt.json',{'reports':reports,'candidate_inputs':inventory});print(json.dumps(reports,indent=2));raise SystemExit(any(r['exit_code'] for r in reports))
+else:raise ValueError(mode)

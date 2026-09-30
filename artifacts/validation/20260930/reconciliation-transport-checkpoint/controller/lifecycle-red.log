@@ -1,0 +1,40 @@
+.........................................FF.......                       [100%]
+=================================== FAILURES ===================================
+_______ test_failed_identity_check_cannot_be_bypassed_by_reusing_client ________
+
+api = <module 'healthcraft.reconciliation.controller' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/controller.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bee2a50>
+
+    def test_failed_identity_check_cannot_be_bypassed_by_reusing_client(api, monkeypatch):
+        client, requests, _, metadata = local_client(api, monkeypatch, [native()])
+        metadata["digest"] = "wrong"
+        for _ in range(2):
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE <class 'ValueError'>
+
+tests/test_reconciliation/test_controller.py:377: Failed
+________ test_settings_mismatch_is_retained_as_failed_without_inference ________
+
+api = <module 'healthcraft.reconciliation.controller' from '/Users/kiteboard/healthcraft/src/healthcraft/reconciliation/controller.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x10bf4f750>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bdf7930>
+
+    def test_settings_mismatch_is_retained_as_failed_without_inference(api, service, monkeypatch):
+        client, requests, _, _ = local_client(api, monkeypatch, [native()])
+        controller = api.CommandController(
+            "public", discovery(service), settings=replace(api.PilotSettings(), max_output_tokens=2048)
+        )
+        with pytest.raises(ValueError):
+            controller.next_command(client)
+>       assert controller.snapshot()["completion"]["status"] == "failed"
+E       AssertionError: assert 'running' == 'failed'
+E         
+E         - failed
+E         + running
+
+tests/test_reconciliation/test_controller.py:389: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_controller.py::test_failed_identity_check_cannot_be_bypassed_by_reusing_client
+FAILED tests/test_reconciliation/test_controller.py::test_settings_mismatch_is_retained_as_failed_without_inference
+2 failed, 48 passed in 0.27s

@@ -1,0 +1,624 @@
+FFFFFFFFF.                                                               [100%]
+=================================== FAILURES ===================================
+___ test_later_malformed_response_retains_real_prior_action_and_trace[None] ____
+
+malformed = None
+
+    @pytest.mark.parametrize("malformed", [None, [], {"content": "Malformed later response", "stop_reason": "stop"}])
+    def test_later_malformed_response_retains_real_prior_action_and_trace(malformed):
+        world, server, task, call = fixture()
+>       trajectory = run_agent_task(client(tool_response(call), malformed), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = namespace(chat=<function client.<locals>.<lambda> at 0x109376da0>)
+task = Task(id='PROTOCOL-TEST', category='information_retrieval', level=1, title='Synthetic execution protocol', description=...ria=(), metadata={}, patient=None, system_prompt_override=None, rubric=None, system_prompt_append=None, source_data={})
+server = <healthcraft.mcp.server.HealthcraftServer object at 0x109358ad0>
+system_prompt = 'system'
+
+    def run_agent_task(
+        client: ModelClient,
+        task: Task,
+        server: HealthcraftServer,
+        system_prompt: str,
+    ) -> Trajectory:
+        """Run an LLM agent on a task, capturing the full trajectory.
+    
+        The agent interacts with the MCP server via tool calls until it
+        either stops calling tools or hits the MAX_TOOL_ROUNDS limit.
+    
+        Args:
+            client: The model client to use.
+            task: The task definition.
+            server: The MCP server for tool dispatch.
+            system_prompt: The system prompt for the agent.
+    
+        Returns:
+            A Trajectory capturing the full interaction.
+        """
+        traj = Trajectory(
+            task_id=task.id,
+            model="unknown",
+            seed=42,
+            system_prompt=system_prompt,
+            metadata={
+                "category": task.category,
+                "level": task.level,
+                "title": task.title,
+                "max_tool_rounds": MAX_TOOL_ROUNDS,
+            },
+        )
+    
+        tools = _build_tool_definitions(server)
+        # Preserve the actual advertised interface before passing mutable objects
+        # to a client. This is coordinator evidence, never added to model messages.
+        traj.metadata["agent_tool_definitions"] = deepcopy(tools)
+    
+        # Build user message: task description + setting context
+        user_content = task.description
+        setting_context = _build_setting_context(task.initial_state)
+        if setting_context:
+            user_content = user_content.rstrip() + "\n" + setting_context
+    
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+    
+        traj.add_turn("system", system_prompt)
+        traj.add_turn("user", user_content)
+    
+        start_time = time.monotonic()
+    
+        for round_num in range(MAX_TOOL_ROUNDS):
+            try:
+                response = client.chat(messages, tools=tools)
+            except Exception as e:
+                logger.error("API call failed on round %d: %s", round_num + 1, e)
+                traj.error = f"API error on round {round_num + 1}: {e}"
+                traj.metadata["stop_reason"] = "client_error"
+                break
+    
+>           content = response["content"]
+                      ^^^^^^^^^^^^^^^^^^^
+E           TypeError: 'NoneType' object is not subscriptable
+
+src/healthcraft/llm/agent.py:809: TypeError
+_ test_later_malformed_response_retains_real_prior_action_and_trace[malformed1] _
+
+malformed = []
+
+    @pytest.mark.parametrize("malformed", [None, [], {"content": "Malformed later response", "stop_reason": "stop"}])
+    def test_later_malformed_response_retains_real_prior_action_and_trace(malformed):
+        world, server, task, call = fixture()
+>       trajectory = run_agent_task(client(tool_response(call), malformed), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = namespace(chat=<function client.<locals>.<lambda> at 0x1093ce1f0>)
+task = Task(id='PROTOCOL-TEST', category='information_retrieval', level=1, title='Synthetic execution protocol', description=...ria=(), metadata={}, patient=None, system_prompt_override=None, rubric=None, system_prompt_append=None, source_data={})
+server = <healthcraft.mcp.server.HealthcraftServer object at 0x108d7b610>
+system_prompt = 'system'
+
+    def run_agent_task(
+        client: ModelClient,
+        task: Task,
+        server: HealthcraftServer,
+        system_prompt: str,
+    ) -> Trajectory:
+        """Run an LLM agent on a task, capturing the full trajectory.
+    
+        The agent interacts with the MCP server via tool calls until it
+        either stops calling tools or hits the MAX_TOOL_ROUNDS limit.
+    
+        Args:
+            client: The model client to use.
+            task: The task definition.
+            server: The MCP server for tool dispatch.
+            system_prompt: The system prompt for the agent.
+    
+        Returns:
+            A Trajectory capturing the full interaction.
+        """
+        traj = Trajectory(
+            task_id=task.id,
+            model="unknown",
+            seed=42,
+            system_prompt=system_prompt,
+            metadata={
+                "category": task.category,
+                "level": task.level,
+                "title": task.title,
+                "max_tool_rounds": MAX_TOOL_ROUNDS,
+            },
+        )
+    
+        tools = _build_tool_definitions(server)
+        # Preserve the actual advertised interface before passing mutable objects
+        # to a client. This is coordinator evidence, never added to model messages.
+        traj.metadata["agent_tool_definitions"] = deepcopy(tools)
+    
+        # Build user message: task description + setting context
+        user_content = task.description
+        setting_context = _build_setting_context(task.initial_state)
+        if setting_context:
+            user_content = user_content.rstrip() + "\n" + setting_context
+    
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+    
+        traj.add_turn("system", system_prompt)
+        traj.add_turn("user", user_content)
+    
+        start_time = time.monotonic()
+    
+        for round_num in range(MAX_TOOL_ROUNDS):
+            try:
+                response = client.chat(messages, tools=tools)
+            except Exception as e:
+                logger.error("API call failed on round %d: %s", round_num + 1, e)
+                traj.error = f"API error on round {round_num + 1}: {e}"
+                traj.metadata["stop_reason"] = "client_error"
+                break
+    
+>           content = response["content"]
+                      ^^^^^^^^^^^^^^^^^^^
+E           TypeError: list indices must be integers or slices, not str
+
+src/healthcraft/llm/agent.py:809: TypeError
+_ test_later_malformed_response_retains_real_prior_action_and_trace[malformed2] _
+
+malformed = {'content': 'Malformed later response', 'stop_reason': 'stop'}
+
+    @pytest.mark.parametrize("malformed", [None, [], {"content": "Malformed later response", "stop_reason": "stop"}])
+    def test_later_malformed_response_retains_real_prior_action_and_trace(malformed):
+        world, server, task, call = fixture()
+>       trajectory = run_agent_task(client(tool_response(call), malformed), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = namespace(chat=<function client.<locals>.<lambda> at 0x109376140>)
+task = Task(id='PROTOCOL-TEST', category='information_retrieval', level=1, title='Synthetic execution protocol', description=...ria=(), metadata={}, patient=None, system_prompt_override=None, rubric=None, system_prompt_append=None, source_data={})
+server = <healthcraft.mcp.server.HealthcraftServer object at 0x1093f07d0>
+system_prompt = 'system'
+
+    def run_agent_task(
+        client: ModelClient,
+        task: Task,
+        server: HealthcraftServer,
+        system_prompt: str,
+    ) -> Trajectory:
+        """Run an LLM agent on a task, capturing the full trajectory.
+    
+        The agent interacts with the MCP server via tool calls until it
+        either stops calling tools or hits the MAX_TOOL_ROUNDS limit.
+    
+        Args:
+            client: The model client to use.
+            task: The task definition.
+            server: The MCP server for tool dispatch.
+            system_prompt: The system prompt for the agent.
+    
+        Returns:
+            A Trajectory capturing the full interaction.
+        """
+        traj = Trajectory(
+            task_id=task.id,
+            model="unknown",
+            seed=42,
+            system_prompt=system_prompt,
+            metadata={
+                "category": task.category,
+                "level": task.level,
+                "title": task.title,
+                "max_tool_rounds": MAX_TOOL_ROUNDS,
+            },
+        )
+    
+        tools = _build_tool_definitions(server)
+        # Preserve the actual advertised interface before passing mutable objects
+        # to a client. This is coordinator evidence, never added to model messages.
+        traj.metadata["agent_tool_definitions"] = deepcopy(tools)
+    
+        # Build user message: task description + setting context
+        user_content = task.description
+        setting_context = _build_setting_context(task.initial_state)
+        if setting_context:
+            user_content = user_content.rstrip() + "\n" + setting_context
+    
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+    
+        traj.add_turn("system", system_prompt)
+        traj.add_turn("user", user_content)
+    
+        start_time = time.monotonic()
+    
+        for round_num in range(MAX_TOOL_ROUNDS):
+            try:
+                response = client.chat(messages, tools=tools)
+            except Exception as e:
+                logger.error("API call failed on round %d: %s", round_num + 1, e)
+                traj.error = f"API error on round {round_num + 1}: {e}"
+                traj.metadata["stop_reason"] = "client_error"
+                break
+    
+            content = response["content"]
+>           tool_calls = response["tool_calls"]
+                         ^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'tool_calls'
+
+src/healthcraft/llm/agent.py:810: KeyError
+_____ test_invalid_batch_is_rejected_before_any_actual_order[duplicate_id] _____
+
+kind = 'duplicate_id'
+
+    @pytest.mark.parametrize("kind", ["duplicate_id", "missing_id", "empty_id", "malformed_arguments", "missing_name"])
+    def test_invalid_batch_is_rejected_before_any_actual_order(kind):
+        world, server, task, call = fixture()
+        second = deepcopy(call)
+        second["id"] = "call-2"
+        if kind == "duplicate_id":
+            second["id"] = call["id"]
+        elif kind == "missing_id":
+            second.pop("id")
+        elif kind == "empty_id":
+            second["id"] = ""
+        elif kind == "malformed_arguments":
+            second["arguments"] = []
+        elif kind == "missing_name":
+            second.pop("name")
+        response = tool_response(call, second)
+        trajectory = run_agent_task(client(response, FINAL), task, server, "system")
+>       assert trajectory.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Trajectory(task_id='PROTOCOL-TEST', model='unknown', seed=42, system_prompt='system', turns=[TrajectoryTurn(role='syst... timestamp='2026-09-30T10:21:54.332102+00:00', duration_seconds=0.00011179200373589993, total_tool_calls=2, error=None).error
+
+tests/test_llm/test_agent_protocol.py:86: AssertionError
+______ test_invalid_batch_is_rejected_before_any_actual_order[missing_id] ______
+
+kind = 'missing_id'
+
+    @pytest.mark.parametrize("kind", ["duplicate_id", "missing_id", "empty_id", "malformed_arguments", "missing_name"])
+    def test_invalid_batch_is_rejected_before_any_actual_order(kind):
+        world, server, task, call = fixture()
+        second = deepcopy(call)
+        second["id"] = "call-2"
+        if kind == "duplicate_id":
+            second["id"] = call["id"]
+        elif kind == "missing_id":
+            second.pop("id")
+        elif kind == "empty_id":
+            second["id"] = ""
+        elif kind == "malformed_arguments":
+            second["arguments"] = []
+        elif kind == "missing_name":
+            second.pop("name")
+        response = tool_response(call, second)
+        trajectory = run_agent_task(client(response, FINAL), task, server, "system")
+>       assert trajectory.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Trajectory(task_id='PROTOCOL-TEST', model='unknown', seed=42, system_prompt='system', turns=[TrajectoryTurn(role='syst..., timestamp='2026-09-30T10:21:54.334126+00:00', duration_seconds=8.795799658400938e-05, total_tool_calls=2, error=None).error
+
+tests/test_llm/test_agent_protocol.py:86: AssertionError
+_______ test_invalid_batch_is_rejected_before_any_actual_order[empty_id] _______
+
+kind = 'empty_id'
+
+    @pytest.mark.parametrize("kind", ["duplicate_id", "missing_id", "empty_id", "malformed_arguments", "missing_name"])
+    def test_invalid_batch_is_rejected_before_any_actual_order(kind):
+        world, server, task, call = fixture()
+        second = deepcopy(call)
+        second["id"] = "call-2"
+        if kind == "duplicate_id":
+            second["id"] = call["id"]
+        elif kind == "missing_id":
+            second.pop("id")
+        elif kind == "empty_id":
+            second["id"] = ""
+        elif kind == "malformed_arguments":
+            second["arguments"] = []
+        elif kind == "missing_name":
+            second.pop("name")
+        response = tool_response(call, second)
+        trajectory = run_agent_task(client(response, FINAL), task, server, "system")
+>       assert trajectory.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Trajectory(task_id='PROTOCOL-TEST', model='unknown', seed=42, system_prompt='system', turns=[TrajectoryTurn(role='syst..., timestamp='2026-09-30T10:21:54.336033+00:00', duration_seconds=9.950000094249845e-05, total_tool_calls=2, error=None).error
+
+tests/test_llm/test_agent_protocol.py:86: AssertionError
+_ test_invalid_batch_is_rejected_before_any_actual_order[malformed_arguments] __
+
+self = <healthcraft.mcp.server.HealthcraftServer object at 0x1093b45a0>
+tool_name = 'createClinicalOrder', params = []
+
+    def call_tool(self, tool_name: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Dispatch a tool call with validation and audit logging.
+    
+        Accepts both camelCase (MCP standard) and snake_case tool names.
+    
+        PR-B (WS-5): threads idempotency metadata through to ``record_audit``:
+        ``idempotency_key`` is extracted from ``params`` if present;
+        ``attempt_number`` is computed from prior audit entries with the same
+        key (1-indexed); ``deduplicated`` is honoured from the handler's
+        return value. Also threads ``error_code`` from error-status results
+        (a previously-latent bug — the dataclass field existed but the live
+        path never populated it, so live-eval ``contains attempt at`` checks
+        could never see simulator-side codes).
+        """
+        handler_key = self._resolve_tool_name(tool_name)
+        if handler_key is None:
+            result = _make_error("unknown_tool", f"Unknown tool: {tool_name}")
+            self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+            return result
+    
+        # Extract idempotency metadata and compute attempt_number.
+        idempotency_key = ""
+        if isinstance(params, dict):
+            raw_key = params.get("idempotency_key", "")
+            if isinstance(raw_key, str):
+                idempotency_key = raw_key
+        attempt_number = 1
+        if idempotency_key:
+            attempt_number = (
+                sum(
+                    1 for entry in self._world.audit_log if entry.idempotency_key == idempotency_key
+                )
+                + 1
+            )
+    
+        try:
+            result = self._handlers[handler_key](self._world, params)
+>           self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+
+src/healthcraft/mcp/server.py:208: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/mcp/audit.py:75: in log_tool_call
+    params=_sanitize_params(params),
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+params = []
+
+    def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize parameters for safe logging.
+    
+        Truncates long string values and removes any potentially sensitive
+        fields.
+    
+        Args:
+            params: Raw parameter dict.
+    
+        Returns:
+            Sanitized deep snapshot of the params.
+        """
+        sanitized: dict[str, Any] = {}
+>       for key, value in params.items():
+                          ^^^^^^^^^^^^
+E       AttributeError: 'list' object has no attribute 'items'
+
+src/healthcraft/mcp/audit.py:130: AttributeError
+
+During handling of the above exception, another exception occurred:
+
+kind = 'malformed_arguments'
+
+    @pytest.mark.parametrize("kind", ["duplicate_id", "missing_id", "empty_id", "malformed_arguments", "missing_name"])
+    def test_invalid_batch_is_rejected_before_any_actual_order(kind):
+        world, server, task, call = fixture()
+        second = deepcopy(call)
+        second["id"] = "call-2"
+        if kind == "duplicate_id":
+            second["id"] = call["id"]
+        elif kind == "missing_id":
+            second.pop("id")
+        elif kind == "empty_id":
+            second["id"] = ""
+        elif kind == "malformed_arguments":
+            second["arguments"] = []
+        elif kind == "missing_name":
+            second.pop("name")
+        response = tool_response(call, second)
+>       trajectory = run_agent_task(client(response, FINAL), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/llm/agent.py:881: in run_agent_task
+    tool_result = server.call_tool(tool_name, tool_args)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/mcp/server.py:241: in call_tool
+    self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
+src/healthcraft/mcp/audit.py:75: in log_tool_call
+    params=_sanitize_params(params),
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+params = []
+
+    def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize parameters for safe logging.
+    
+        Truncates long string values and removes any potentially sensitive
+        fields.
+    
+        Args:
+            params: Raw parameter dict.
+    
+        Returns:
+            Sanitized deep snapshot of the params.
+        """
+        sanitized: dict[str, Any] = {}
+>       for key, value in params.items():
+                          ^^^^^^^^^^^^
+E       AttributeError: 'list' object has no attribute 'items'
+
+src/healthcraft/mcp/audit.py:130: AttributeError
+_____ test_invalid_batch_is_rejected_before_any_actual_order[missing_name] _____
+
+kind = 'missing_name'
+
+    @pytest.mark.parametrize("kind", ["duplicate_id", "missing_id", "empty_id", "malformed_arguments", "missing_name"])
+    def test_invalid_batch_is_rejected_before_any_actual_order(kind):
+        world, server, task, call = fixture()
+        second = deepcopy(call)
+        second["id"] = "call-2"
+        if kind == "duplicate_id":
+            second["id"] = call["id"]
+        elif kind == "missing_id":
+            second.pop("id")
+        elif kind == "empty_id":
+            second["id"] = ""
+        elif kind == "malformed_arguments":
+            second["arguments"] = []
+        elif kind == "missing_name":
+            second.pop("name")
+        response = tool_response(call, second)
+>       trajectory = run_agent_task(client(response, FINAL), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = namespace(chat=<function client.<locals>.<lambda> at 0x1093cdd20>)
+task = Task(id='PROTOCOL-TEST', category='information_retrieval', level=1, title='Synthetic execution protocol', description=...ria=(), metadata={}, patient=None, system_prompt_override=None, rubric=None, system_prompt_append=None, source_data={})
+server = <healthcraft.mcp.server.HealthcraftServer object at 0x1093b5d00>
+system_prompt = 'system'
+
+    def run_agent_task(
+        client: ModelClient,
+        task: Task,
+        server: HealthcraftServer,
+        system_prompt: str,
+    ) -> Trajectory:
+        """Run an LLM agent on a task, capturing the full trajectory.
+    
+        The agent interacts with the MCP server via tool calls until it
+        either stops calling tools or hits the MAX_TOOL_ROUNDS limit.
+    
+        Args:
+            client: The model client to use.
+            task: The task definition.
+            server: The MCP server for tool dispatch.
+            system_prompt: The system prompt for the agent.
+    
+        Returns:
+            A Trajectory capturing the full interaction.
+        """
+        traj = Trajectory(
+            task_id=task.id,
+            model="unknown",
+            seed=42,
+            system_prompt=system_prompt,
+            metadata={
+                "category": task.category,
+                "level": task.level,
+                "title": task.title,
+                "max_tool_rounds": MAX_TOOL_ROUNDS,
+            },
+        )
+    
+        tools = _build_tool_definitions(server)
+        # Preserve the actual advertised interface before passing mutable objects
+        # to a client. This is coordinator evidence, never added to model messages.
+        traj.metadata["agent_tool_definitions"] = deepcopy(tools)
+    
+        # Build user message: task description + setting context
+        user_content = task.description
+        setting_context = _build_setting_context(task.initial_state)
+        if setting_context:
+            user_content = user_content.rstrip() + "\n" + setting_context
+    
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+    
+        traj.add_turn("system", system_prompt)
+        traj.add_turn("user", user_content)
+    
+        start_time = time.monotonic()
+    
+        for round_num in range(MAX_TOOL_ROUNDS):
+            try:
+                response = client.chat(messages, tools=tools)
+            except Exception as e:
+                logger.error("API call failed on round %d: %s", round_num + 1, e)
+                traj.error = f"API error on round {round_num + 1}: {e}"
+                traj.metadata["stop_reason"] = "client_error"
+                break
+    
+            content = response["content"]
+            tool_calls = response["tool_calls"]
+            stop_reason = response.get("stop_reason")
+            traj.metadata["stop_reason"] = stop_reason
+            reason = stop_reason if isinstance(stop_reason, str) else None
+    
+            # Record assistant turn
+            traj.add_turn(
+                "assistant",
+                content,
+                tool_calls=[
+                    {
+                        "id": tc.get("id", ""),
+>                       "name": tc["name"],
+                                ^^^^^^^^^^
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ],
+            )
+E           KeyError: 'name'
+
+src/healthcraft/llm/agent.py:822: KeyError
+_ test_exception_after_a_real_tool_action_preserves_request_and_unknown_outcome _
+
+    def test_exception_after_a_real_tool_action_preserves_request_and_unknown_outcome():
+        world, server, task, call = fixture()
+        actual = server.call_tool
+    
+        def lose_response(name, params):
+            actual(name, params)
+            raise RuntimeError("Synthetic response transport interruption")
+    
+        server.call_tool = lose_response
+>       trajectory = run_agent_task(client(tool_response(call), FINAL), task, server, "system")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_llm/test_agent_protocol.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/llm/agent.py:881: in run_agent_task
+    tool_result = server.call_tool(tool_name, tool_args)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'createClinicalOrder'
+params = {'details': {'test_name': 'SYNTHETIC-PROTOCOL-CHECK'}, 'encounter_id': 'ENC-58C3A03C', 'order_type': 'lab'}
+
+    def lose_response(name, params):
+        actual(name, params)
+>       raise RuntimeError("Synthetic response transport interruption")
+E       RuntimeError: Synthetic response transport interruption
+
+tests/test_llm/test_agent_protocol.py:100: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/test_llm/test_agent_protocol.py::test_later_malformed_response_retains_real_prior_action_and_trace[None]
+FAILED tests/test_llm/test_agent_protocol.py::test_later_malformed_response_retains_real_prior_action_and_trace[malformed1]
+FAILED tests/test_llm/test_agent_protocol.py::test_later_malformed_response_retains_real_prior_action_and_trace[malformed2]
+FAILED tests/test_llm/test_agent_protocol.py::test_invalid_batch_is_rejected_before_any_actual_order[duplicate_id]
+FAILED tests/test_llm/test_agent_protocol.py::test_invalid_batch_is_rejected_before_any_actual_order[missing_id]
+FAILED tests/test_llm/test_agent_protocol.py::test_invalid_batch_is_rejected_before_any_actual_order[empty_id]
+FAILED tests/test_llm/test_agent_protocol.py::test_invalid_batch_is_rejected_before_any_actual_order[malformed_arguments]
+FAILED tests/test_llm/test_agent_protocol.py::test_invalid_batch_is_rejected_before_any_actual_order[missing_name]
+FAILED tests/test_llm/test_agent_protocol.py::test_exception_after_a_real_tool_action_preserves_request_and_unknown_outcome
+9 failed, 1 passed in 0.09s

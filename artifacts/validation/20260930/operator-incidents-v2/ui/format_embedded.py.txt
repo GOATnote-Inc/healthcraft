@@ -1,0 +1,26 @@
+from pathlib import Path
+import re,json
+p=Path('src/healthcraft/operator_incident_report.py');s=p.read_text()
+start=s.index('_SCRIPT = r"""')+len('_SCRIPT = r"""');end=s.index('"""',start)
+script=s[start:end]
+# Whitespace-only JS layout, treating quoted strings and regex literals as indivisible.
+pattern=re.compile(r'''"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|/(?:\\.|[^/\\\n])+/[dgimsuvy]*|.''' ,re.S)
+parts=[]
+for match in pattern.finditer(script):
+    token=match.group()
+    if token in '{};,': parts.append(token+'\n')
+    else: parts.append(token)
+script=''.join(parts)
+lines=[];indent=0
+for line in script.splitlines():
+    line=line.strip()
+    if not line: continue
+    if line.startswith('}'): indent=max(0,indent-1)
+    lines.append('  '*indent+line)
+    if line.endswith('{'): indent+=1
+# Indentation doesn't describe expression blocks perfectly; syntax/semantic tests check it.
+s=s[:start]+'\n'+'\n'.join(lines)+'\n'+s[end:]
+start=s.index('_STYLE = """')+len('_STYLE = """');end=s.index('"""',start)
+css=s[start:end].replace('}', '}\n').replace(';',';\n  ')
+s=s[:start]+'\n'+css+'\n'+s[end:]
+p.write_text(s)

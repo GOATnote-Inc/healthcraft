@@ -1,0 +1,117 @@
+from pathlib import Path
+from copy import deepcopy
+import importlib.util,json,subprocess,sys
+sys.path.insert(0,'/Users/kiteboard/healthcraft/src')
+import pytest
+ROOT=Path('/Users/kiteboard/healthcraft');ART=ROOT/'artifacts/operator-review/20260930/incidents-v2'
+def module(name,path):
+ spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+examples=module('peer_examples',ROOT/'tests/test_operator_incident_report.py')
+drafts=module('peer_drafts',ROOT/'tests/test_operator_workbench_drafts.py')
+from healthcraft.operator_workbench_report import render_workbench
+
+@pytest.mark.parametrize('label,response,mode',[
+ ('native-assisted','coordinator/synthetic-operator-response.json','incident'),
+ ('native-raw','native-raw/public/response-template.json','incident'),
+ ('model-assisted','model-assisted/public/response-template.json','incident'),
+ ('synthetic-reviewer-a','coordinator/synthetic-reviewer-a-response.json','adjudication'),
+ ('synthetic-reviewer-b','coordinator/synthetic-reviewer-b-response.json','adjudication'),
+ ('synthetic-resolver','coordinator/resolver-response.json','adjudication')])
+def test_actual_issued_responses_roundtrip(label,response,mode):
+ pair=(mode,tuple(json.loads((ART/label/'public'/name).read_text()) for name in ('packet.json','response-template.json')))
+ value=json.loads((ART/response).read_text())
+ expression=drafts.export_expression(pair)
+ result=drafts.run_js(pair,value,"(()=>{const initial="+expression+";HealthcraftDrafts.preview(raw);const previewChanges=mutationCount();HealthcraftDrafts.apply();const resumed="+expression+";HealthcraftDrafts.undo();return{initial,resumed,undone:"+expression+",previewChanges};})()")
+ assert 'error' not in result,result
+ assert result['result']['previewChanges']==0
+ assert result['result']['resumed']==value
+ assert result['result']['initial']==result['result']['undone']
+ if mode=='incident':
+  from healthcraft.operator_incidents import validate_incident_response
+  validate_incident_response(result['result']['resumed'],pair[1][0])
+ else:
+  from healthcraft.operator_adjudication import validate_adjudication_response
+  validate_adjudication_response(result['result']['resumed'],pair[1][0])
+
+
+def finding(identifier):return {'finding_id':identifier,'category':'source_uncertainty','claim':'Pending draft claim','observed_target':{'patient_id':None,'encounter_id':None},'source_ids':[],'evidence_refs':[]}
+
+
+def test_normal_resume_add_remove_undo_ids_and_raw_export():
+ pair=('incident',examples.incident.__wrapped__());value=deepcopy(pair[1][1]);value['cases'][0]['incident_assessment']['findings']=[finding('finding-8')]
+ result=drafts.run_js(pair,value,r'''(()=>{HealthcraftDrafts.preview(raw);HealthcraftDrafts.apply();ids['add-finding-0'].listeners.click();const first=ids['findings-0'].children.map(n=>n.querySelector('[data-field="finding_id"]').value);ids['findings-0'].children[0].removeHandler();ids['add-finding-0'].listeners.click();for(const n of ids['findings-0'].children){n.querySelector('[data-field="category"]').value='source_uncertainty';n.querySelector('[data-field="claim"]').value='Pending draft claim';}const exported=buildIncidentResponse(readIncidentForm(),responseTemplate,packet);HealthcraftDrafts.undo();return{first,exported,undone:buildIncidentResponse(readIncidentForm(),responseTemplate,packet)};})()''')
+ assert 'error' not in result,result
+ assert result['result']['first'][0]=='finding-8' and len(set(result['result']['first']))==2
+ final_ids=[f['finding_id']for f in result['result']['exported']['cases'][0]['incident_assessment']['findings']];assert len(set(final_ids))==2 and 'finding-8' not in final_ids and result['result']['first'][1] in final_ids
+ assert result['result']['undone']==pair[1][1]
+
+
+def test_extreme_counter_never_silently_creates_duplicate_findings():
+ pair=('incident',examples.incident.__wrapped__());value=deepcopy(pair[1][1]);value['cases'][0]['incident_assessment']['findings']=[finding('finding-9007199254740991')]
+ result=drafts.run_js(pair,value,r'''(()=>{let rejected;try{HealthcraftDrafts.preview(raw);}catch(e){rejected=e.message;}if(rejected)return{rejected,changes:mutationCount()};HealthcraftDrafts.apply();ids['add-finding-0'].listeners.click();ids['add-finding-0'].listeners.click();return{ids:ids['findings-0'].children.map(n=>n.querySelector('[data-field="finding_id"]').value)};})()''')
+ assert 'error' not in result,result
+ actual=result['result']
+ if 'rejected'in actual:assert actual['changes']==0
+ else:assert len(set(x.casefold()for x in actual['ids']))==len(actual['ids'])
+
+
+def source_open(pair, refs):
+ page=examples.Page(render_workbench(*pair))
+ harness=r'''const fs=require('node:fs'),vm=require('node:vm'),p=JSON.parse(fs.readFileSync(0,'utf8'));const nodes={};function el(tag){return{tagName:tag,children:[],listeners:{},textContent:'',value:'',hidden:false,appendChild(n){this.children.push(n);},replaceChildren(...n){this.children=n;},addEventListener(k,f){this.listeners[k]=f;}};}for(const[tag,a]of p.tags)if(a.id)nodes[a.id]=el(tag);nodes['incident-packet'].textContent=p.packet_text;nodes['incident-template'].textContent=p.template_text;const c={document:{getElementById(i){return nodes[i];},querySelectorAll(){return[];},createElement:el}};vm.createContext(c);vm.runInContext(p.base,c);vm.runInContext(p.script,c);const results=p.refs.map(r=>{const result=c.HealthcraftSources.open(0,r);return{result,display:nodes['source-0-value'].textContent,citation:nodes['source-0-citation'].value,raw:nodes['source-0-raw'].textContent};});process.stdout.write(JSON.stringify(results));'''
+ completed=subprocess.run(['node','-e',harness],input=json.dumps({'tags':page.tags,'packet_text':page.scripts['incident-packet'],'template_text':page.scripts['incident-template'],'base':page.scripts['incident-app'],'script':page.scripts['workbench-sources'],'refs':refs}),text=True,capture_output=True,check=True)
+ return json.loads(completed.stdout)
+
+
+def test_response_decoding_cannot_offer_mismatched_raw_citation():
+ pair=examples.adjudication.__wrapped__(examples.incident.__wrapped__())
+ pair[0]['cases'][0]['documents']['response']['incident_assessment']['summary']='{"result":"nested claim"}'
+ pair[1]['packet_sha256']=examples.digest(pair[0])
+ rows=source_open(pair,[{'document':'response','pointer':'/incident_assessment/summary'},{'document':'response','pointer':'/incident_assessment/summary','decoded_json_pointer':'/result'}])
+ assert rows[0]['display']=='{"result":"nested claim"}'
+ assert rows[0]['citation']=='"/incident_assessment/summary"'
+ assert rows[1]['result']['status']=='unavailable'
+ assert rows[1]['display']==rows[1]['citation']==''
+
+
+def test_unavailable_or_malformed_navigation_clears_previous_citation():
+ pair=examples.incident.__wrapped__()
+ rows=source_open(pair,[{'document':'scenario','pointer':'/nested/a~1b~0c/1/literal'},{'document':'runtime','pointer':''},{'document':'evidence','pointer':'/bad_note','decoded_json_pointer':'/x'},{'document':'scenario','pointer':'/missing'}])
+ assert rows[0]['display']=='é\nline'and rows[0]['citation']
+ for row in rows[1:]:assert row['citation']==''and row['display']==''and row['result']['status']=='unavailable'
+ assert rows[2]['raw']=='{"x":1,"x":2}'
+
+
+def test_number_text_retains_lexeme_and_null_is_not_unavailable():
+ pair=examples.incident.__wrapped__();docs=pair[0]['cases'][0]['documents']
+ docs['evidence']['literal']='{"integer":900719925474099312345678901234567890,"decimal":0.10000000000000000000000001,"null":null,"negative_zero":-0.0}'
+ pair[0]['cases'][0]['availability']['evidence']['sha256']=examples.digest(docs['evidence']);pair[1]['packet_sha256']=examples.digest(pair[0])
+ rows=source_open(pair,[{'document':'evidence','pointer':'/literal','decoded_json_pointer':'/'+key}for key in ('integer','decimal','null','negative_zero')])
+ assert [r['display']for r in rows]==['900719925474099312345678901234567890','0.10000000000000000000000001','null','-0.0']
+ assert all(r['result']['status']=='available'and r['citation']for r in rows)
+
+@pytest.mark.parametrize('identifiers',[
+ ['finding-9007199254740991'],
+ ['finding-9007199254740992'],
+ ['finding-1','FINDING-3','finding-9007199254740992']])
+def test_loaded_identity_survives_add_remove_export_and_undo(identifiers):
+ pair=('incident',examples.incident.__wrapped__());value=deepcopy(pair[1][1]);original=[finding(x)for x in identifiers];value['cases'][0]['incident_assessment']['findings']=original
+ action=r'''(()=>{
+ HealthcraftDrafts.preview(raw);HealthcraftDrafts.apply();
+ const originalCount=JSON.parse(raw).cases[0].incident_assessment.findings.length;
+ for(let n=0;n<2;n++)ids['add-finding-0'].listeners.click();
+ ids['findings-0'].children[originalCount].removeHandler();
+ ids['add-finding-0'].listeners.click();
+ for(const node of ids['findings-0'].children.slice(originalCount)){
+ node.querySelector('[data-field="category"]').value='source_uncertainty';
+ node.querySelector('[data-field="claim"]').value='New unfinished draft';}
+ const resumed=buildIncidentResponse(readIncidentForm(),responseTemplate,packet);
+ HealthcraftDrafts.undo();const undone=buildIncidentResponse(readIncidentForm(),responseTemplate,packet);
+ return{resumed,undone};})()'''
+ result=drafts.run_js(pair,value,action)
+ assert 'error'not in result,result
+ rows=result['result']['resumed']['cases'][0]['incident_assessment']['findings']
+ assert rows[:len(original)]==original
+ assert len(rows)==len(original)+2 and len({r['finding_id'].casefold()for r in rows})==len(rows)
+ assert result['result']['undone']==pair[1][1]
+ from healthcraft.operator_incidents import validate_incident_response
+ assert validate_incident_response(result['result']['resumed'],pair[1][0])['case-1']['status']=='pending'

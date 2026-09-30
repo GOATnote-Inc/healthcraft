@@ -7,6 +7,9 @@ task evaluation, and YAML validation.
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,23 +30,36 @@ def _cmd_seed(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    """Start the MCP server."""
-    from healthcraft.mcp.server import create_server
-    from healthcraft.world.state import WorldState
+    """Run a real transport; stdio is reserved exclusively for MCP messages."""
+    config = Path(args.config).resolve()
+    if not config.is_file():
+        raise ValueError(f"Config file not found: {config}")
+    if args.transport == "http":
+        if importlib.util.find_spec("uvicorn") is None:
+            raise RuntimeError("Install healthcraft[mcp] to serve the HTTP tool API")
+        environment = {
+            **os.environ,
+            "HEALTHCRAFT_HOST": "127.0.0.1",
+            "HEALTHCRAFT_PORT": str(args.port or 8000),
+            "HEALTHCRAFT_SEED": str(args.seed),
+            "HEALTHCRAFT_SEED_CONFIG": str(config),
+        }
+        # The child owns its seeded app state and logs. Its exit code, including
+        # bind/import failure, is the command's result; no parent readiness claim.
+        completed = subprocess.run(
+            [sys.executable, "-m", "healthcraft.mcp.app"], env=environment, check=False
+        )
+        return completed.returncode
+    if args.port is not None:
+        raise ValueError("--port requires --transport http (the HTTP tool API)")
+    from healthcraft.mcp.stdio import serve_stdio
 
-    world = WorldState()
-    server = create_server(world)
-    print(f"HEALTHCRAFT MCP server ready: {server}")
-    print(f"World state: {world}")
-
-    if args.port:
-        print(f"Listening on port {args.port} (MCP transport not yet implemented)")
-
+    serve_stdio(config_path=config, seed=args.seed)
     return 0
 
 
-def _cmd_evaluate(args: argparse.Namespace) -> int:
-    """Run task evaluation."""
+def _cmd_list_tasks(args: argparse.Namespace) -> int:
+    """List task definitions without claiming to have evaluated them."""
     from healthcraft.tasks.loader import load_task, load_tasks
 
     task_path = Path(args.tasks)
@@ -61,6 +77,13 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
         print(f"  [{task.id}] {task.title} (level={task.level}, category={task.category})")
 
     return 0
+
+
+def _port(value: str) -> int:
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("Port must be between 1 and 65535")
+    return port
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
@@ -101,6 +124,23 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Exit code (0 = success).
     """
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    # Each runner owns its full option parser. Forward verbatim, including help,
+    # so this public entry point cannot drift into a different evaluation path.
+    if arguments and arguments[0] in {"evaluate", "simulate"}:
+        try:
+            if arguments[0] == "evaluate":
+                from healthcraft.llm.orchestrator import main as evaluate
+
+                evaluate(arguments[1:], prog="healthcraft evaluate")
+                return 0
+            from healthcraft.eval_runner import main as simulate
+
+            return simulate(arguments[1:])
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
     parser = argparse.ArgumentParser(
         prog="healthcraft",
         description="HEALTHCRAFT: Emergency Medicine RL Training Environment",
@@ -129,18 +169,34 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # serve
-    serve_parser = subparsers.add_parser("serve", help="Start the MCP server")
+    serve_parser = subparsers.add_parser("serve", help="Serve the seeded world over MCP stdio")
+    serve_parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help="stdio: native MCP; http: loopback HTTP tool API (not MCP JSON-RPC)",
+    )
+    serve_parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(__file__).resolve().parents[2] / "configs/world/mercy_point_v1.yaml",
+        help="World seed configuration file",
+    )
+    serve_parser.add_argument("--seed", type=int, default=42)
     serve_parser.add_argument(
         "--port",
         "-p",
-        type=int,
+        type=_port,
         default=None,
-        help="Port to listen on (default: stdio transport)",
+        help="HTTP tool API port; requires --transport http (default: 8000)",
     )
 
-    # evaluate
-    eval_parser = subparsers.add_parser("evaluate", help="Run task evaluation")
-    eval_parser.add_argument(
+    subparsers.add_parser(
+        "evaluate", help="Run actual model evaluation; evaluate --help for options"
+    )
+    subparsers.add_parser("simulate", help="Run ungraded scripted smoke checks; simulate --help")
+    inventory_parser = subparsers.add_parser("list-tasks", help="List task definitions")
+    inventory_parser.add_argument(
         "--tasks",
         "-t",
         required=True,
@@ -154,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to YAML file or directory to validate",
     )
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
 
     if args.command is None:
         parser.print_help()
@@ -163,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "seed": _cmd_seed,
         "serve": _cmd_serve,
-        "evaluate": _cmd_evaluate,
+        "list-tasks": _cmd_list_tasks,
         "validate": _cmd_validate,
     }
 

@@ -1,0 +1,27 @@
+import hashlib,json,sys
+from pathlib import Path
+ROOT=Path('/Users/kiteboard/healthcraft')
+sys.path[:0]=[str(ROOT),str(ROOT/'src')]
+from scripts.explain_reconciliation import write_explanation_bundle
+
+def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+source=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3'
+expected='816114ca43540db985d96e684f535696c3a234d1e38a405321afeed04bf1fba1'
+assert digest(source/'manifest.json')==expected
+manifest=json.loads((source/'manifest.json').read_text())
+for name,sha in manifest['files'].items(): assert digest(source/name)==sha,name
+out=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1'
+out.mkdir(exist_ok=False)
+rows=[]
+for name in ('nano-direct-01','nano-harbor-01','medgemma-harbor-01','medgemma-direct-01'):
+    result=json.loads((source/name/'result.json').read_text())
+    write_explanation_bundle(scenario=ROOT/'configs/evaluation/reconciliation_v1/scenario.json',expectations=ROOT/'configs/evaluation/reconciliation_v1/expectations.json',evidence=source/name/'backend/session/evidence.json',output_dir=out/name,title=f"{name}: reconciliation evidence")
+    oracle=json.loads((out/name/'verification.json').read_text())
+    assert oracle==result['oracle'],name
+    explanation=json.loads((out/name/'explanation.json').read_text())
+    events=explanation['observed_execution']
+    reads={call for note in explanation['notes'] for call in note['readback']['successful_target_call_ids']}
+    rows.append({'attempt':name,'write_acknowledgements':len(events['successful_write_calls']),'stored_notes':len(events['new_stored_notes']),'actual_target_reads':len(reads),'oracle_checks':oracle['checks'],'exclusion_issue_codes':[issue['code'] for note in explanation['notes'] for issue in note['scope_exclusions']['issues']],'original_result_sha256':digest(source/name/'result.json')})
+for name,sha in manifest['files'].items(): assert digest(source/name)==sha,name
+(out/'derivation.json').write_text(json.dumps({'source_manifest_sha256':expected,'source_cohort':'../local-model-pilot-v3','all_original_payload_hashes_unchanged':True,'original_payloads_checked':len(manifest['files']),'new_model_calls':0,'new_tool_calls':0,'oracle_replays_match_all_originals':True,'attempts':rows},indent=2,sort_keys=True)+'\n')
+print(json.dumps({'output':str(out),'reports':len(rows),'new_model_calls':0,'oracle_replays_match':True}))

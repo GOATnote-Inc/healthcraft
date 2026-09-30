@@ -1,0 +1,41 @@
+....................................F                                    [100%]
+=================================== FAILURES ===================================
+_____________ test_adjudicator_can_cite_strict_decoded_json_array ______________
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+
+    def test_adjudicator_can_cite_strict_decoded_json_array(core, packet):
+        packet['cases'][0]['documents']['evidence']['captured_text'] = '[{"id":"source-a"}]'
+        value = completed_response(core, packet)
+        value['cases'][0]['checks'][0]['evidence_refs'] = [{
+            'document':'evidence', 'pointer':'/captured_text', 'decoded_json_pointer':'/0/id',
+        }]
+>       assert core.validate_adjudication_response(value, packet)['review-a']['status'] == 'declared'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_operator_adjudication.py:612: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/operator_adjudication.py:200: in validate_adjudication_response
+    statuses[key] = _check(check, assigned[identifier]["documents"])
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:137: in _check
+    _source_refs(row["evidence_refs"], documents)
+src/healthcraft/operator_adjudication.py:118: in _source_refs
+    _resolve(_parse(value), ref["decoded_json_pointer"])
+             ^^^^^^^^^^^^^
+src/healthcraft/operator_review.py:136: in _parse
+    _require(type(value) is dict, "Expected a JSON object")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'Expected a JSON object'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Expected a JSON object
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_operator_adjudication.py::test_adjudicator_can_cite_strict_decoded_json_array
+1 failed, 36 passed in 0.22s

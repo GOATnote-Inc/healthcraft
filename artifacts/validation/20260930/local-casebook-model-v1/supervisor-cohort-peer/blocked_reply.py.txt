@@ -1,0 +1,18 @@
+import json,re,sys,time
+from dataclasses import asdict
+from pathlib import Path
+sys.path.insert(0,'/Users/kiteboard/healthcraft/src')
+from healthcraft.reconciliation.casebook import load_cases
+from healthcraft.reconciliation.controller import PilotSettings,command_format_identity
+from healthcraft.reconciliation.model_case import run_model_case
+
+def blocked_reply(connection,public,output):
+    target=re.search(r'ENC-(?:[A-F0-9]{12}|[A-F0-9]{8})',public['instruction'])[0]
+    connection.send({'event':'call','id':1,'name':'updateEncounter','params':{'encounter_id':target,'notes':'synthetic ' * 100000}})
+    (output/'started.json').write_text(json.dumps({'response_not_read':True}))
+    time.sleep(30)
+
+if __name__=='__main__':
+    config={'model':'offline-fixture:latest','expected_digest':'a'*64,'expected_runtime':'fixture','settings':asdict(PilotSettings(attempt_timeout_seconds=0.5)),'command_format':command_format_identity()}
+    outcome=run_model_case(load_cases()[0],config,Path(sys.argv[1]),worker_target=blocked_reply)
+    print(json.dumps(outcome))

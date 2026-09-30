@@ -1,0 +1,67 @@
+"""Reproduce the bounded native JSON review without network or model access."""
+import hashlib
+import json
+import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-native-json-peer')
+SOURCE=[
+ 'src/healthcraft/llm/local_models.py',
+ 'src/healthcraft/reconciliation/controller.py',
+ 'tests/test_llm/test_local_native_json.py',
+]
+
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def sources():return {p:sha(ROOT/p) for p in SOURCE}
+def legacy_check():
+    result=[]
+    for version in (1,2,3):
+        base=ROOT/f'artifacts/reconciliation/20260930/local-model-pilot-v{version}'
+        manifest=base/'manifest.json'
+        data=json.loads(manifest.read_text())
+        checks=[]
+        for rel,expected in data['files'].items():
+            path=base/rel
+            actual=sha(path)
+            checks.append({'path':rel,'expected':expected,'actual':actual,'matches':actual==expected})
+        result.append({'version':version,'manifest_sha256':sha(manifest),'checked_files':len(checks),'all_match':all(c['matches'] for c in checks),'mismatches':[c for c in checks if not c['matches']]})
+    return result
+
+before=sources()
+legacy_before=legacy_check()
+interpreters=[ROOT/'.venv/bin/python',Path('/private/tmp/healthcraft-check-py312/bin/python'),Path('/private/tmp/healthcraft-check-py310/bin/python')]
+args=['-m','pytest',str(OUT/'test_peer.py'),'tests/test_llm/test_local_native_json.py','tests/test_llm/test_local_models.py','tests/test_reconciliation/test_controller.py','-q']
+def run(item):
+    index,executable=item
+    env=os.environ.copy()
+    env['PYTHONPATH']=str(ROOT/'src')
+    env['PYTEST_DISABLE_PLUGIN_AUTOLOAD']='1'
+    cmd=[str(executable),*args]
+    version=subprocess.check_output([str(executable),'--version'],text=True).strip()
+    p=subprocess.run(cmd,cwd=ROOT,env=env,text=True,capture_output=True)
+    log=OUT/f'final-green-{index}.log'
+    with log.open('x') as f:f.write(p.stdout+p.stderr)
+    return {'command':cmd,'environment_overrides':{'PYTHONPATH':env['PYTHONPATH'],'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1'},'runtime':version,'exit_code':p.returncode,'log':str(log),'summary':p.stdout.strip().splitlines()[-1]}
+with ThreadPoolExecutor(max_workers=3) as pool:tests=list(pool.map(run,enumerate(interpreters)))
+after=sources()
+legacy_after=legacy_check()
+receipt={
+ 'scope':'Ordinary bounded development review; no formal red team, network, inference, regrading or repository writes.',
+ 'source_before':before,'source_after':after,'source_stable':before==after,
+ 'peer_checker_sha256':sha(OUT/'test_peer.py'),'runner_sha256':sha(OUT/'run_peer.py'),
+ 'tests':tests,'peer_cases':43,
+ 'legacy_cohorts_before':legacy_before,'legacy_cohorts_after':legacy_after,'legacy_cohorts_stable':legacy_before==legacy_after,
+ 'finding':{'id':'native-string-arguments','status':'fixed and independently rechecked','original_reproduction':str(OUT/'string-tool-arguments-reproduction.json'),'detail':'String-encoded native tool arguments used plain json.loads, permitting duplicate-key overwrite and nonfinite values after strict envelope parsing. Owner now applies the same duplicate-key and finite-number checks; eight negative and one valid string-argument controls pass.'},
+ 'remaining_findings':[],
+ 'checks':['Nested and escaped-equivalent duplicate native keys reject.','NaN, positive/negative Infinity and exponent overflow reject.','Non-UTF8 native HTTP bodies reject after exact capture.','Valid Unicode, null, booleans, finite floats and large integers retain decoded values.','Base64 and SHA256 match exact successful-HTTP body bytes before decode, including invalid JSON bodies.','Provider metadata uses strict parsing.','Sink errors before dispatch, after bytes received or after decode stop the controller without returning a tool command; a followup cannot dispatch.','Valid finish remains termination only.','Saved v1/v2/v3 file bytes match their existing manifests and stay unchanged; no historical oracle replay was performed.'],
+ 'limitations':['HTTPError still uses the pre-existing bounded decoded detail; the exact body capture hook covers successful HTTP responses, including decode/semantic failures, not all HTTP error bodies.','These are mocked-opener tests, not live Ollama binary/inference validation.','Deep valid JSON may exceed decoding or deepcopy depth depending on runtime; both paths fail closed with raw bytes retained.','One initial peer test incorrectly demanded LocalModelError for deep valid JSON; corrected expectation permits RecursionError from deepcopy. Original failed log is preserved.'],
+}
+assert before==after
+assert legacy_before==legacy_after
+assert all(item['all_match'] for item in legacy_after)
+assert all(item['exit_code']==0 for item in tests)
+with (OUT/'peer-review.json').open('x') as f:json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'source':after,'tests':tests,'legacy':legacy_after,'receipt':str(OUT/'peer-review.json')}))

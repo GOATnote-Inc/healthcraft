@@ -9,7 +9,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "patient_id": {"type": "string", "pattern": "^PAT-[A-F0-9]{8}$"},
+          "patient_id": {"type": "string", "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$"},
           "date_from": {"type": "string", "format": "date-time"},
           "date_to": {"type": "string", "format": "date-time"},
           "chief_complaint": {"type": "string"},
@@ -113,24 +113,27 @@
     },
     {
       "name": "getEncounterDetails",
-      "description": "Get full details for a specific encounter including vitals, labs, imaging, orders, and notes",
+      "description": "Retrieve encounter observations and clinical notes. authored_care preserves source reports and plans, not confirmed administrations. Imaging records preserve source roles/status; pending or withheld guidance is not an observed result.",
       "category": "read",
       "parameters": {
         "type": "object",
         "properties": {
-          "encounter_id": {"type": "string", "pattern": "^ENC-[A-F0-9]{8}$"}
+          "encounter_id": {"type": "string", "pattern": "^ENC-(?:[A-F0-9]{8}|[A-F0-9]{12})$"}
         },
         "required": ["encounter_id"]
       },
       "returns": {
         "type": "object",
         "properties": {
-          "encounter": {"type": "object"},
+          "id": {"type": "string"},
+          "patient_id": {"type": "string"},
           "vitals": {"type": "array"},
           "labs": {"type": "array"},
-          "imaging": {"type": "array"},
-          "orders": {"type": "array"},
-          "notes": {"type": "array"}
+          "imaging": {"type": "array", "description": "Imaging source records; roles/status do not establish that a study was performed"},
+          "imaging_projection_notices": {"type": "array", "items": {"type": "object"}},
+          "authored_care": {"type": "array", "description": "Grouped authored care assertions, distinct from administration events", "items": {"type": "object"}},
+          "meds_administered": {"type": "array", "description": "Structured administration records, when available; an empty list does not establish that no medications were given"},
+          "clinical_notes": {"type": "array"}
         }
       }
     },
@@ -161,7 +164,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "patient_id": {"type": "string", "pattern": "^PAT-[A-F0-9]{8}$"}
+          "patient_id": {"type": "string", "pattern": "^PAT-(?:[A-F0-9]{8}|[A-F0-9]{12})$"}
         },
         "required": ["patient_id"]
       },
@@ -331,12 +334,13 @@
     },
     {
       "name": "validateTreatmentPlan",
-      "description": "Validate a treatment plan against patient allergies, drug interactions, and protocol compliance",
+      "description": "Check provided patient history for allergies, known drug interactions, and advance directives. Supply encounter_id to include its structured medication records. Unresolved authored encounter care and protocol-specific validation return explicit unavailable errors; patient-only checks exclude encounter medication context.",
       "category": "compute",
       "parameters": {
         "type": "object",
         "properties": {
           "patient_id": {"type": "string"},
+          "encounter_id": {"type": "string", "description": "Optional matching encounter; required to include encounter medication context"},
           "medications": {"type": "array", "items": {"type": "object"}},
           "procedures": {"type": "array", "items": {"type": "string"}},
           "protocol_id": {"type": "string"}
@@ -346,7 +350,9 @@
       "returns": {
         "type": "object",
         "properties": {
-          "valid": {"type": "boolean"},
+          "valid": {"type": "boolean", "description": "Outcome of the limited implemented checks within assessment_scope, not clinical clearance"},
+          "assessment_scope": {"type": "string", "enum": ["provided_patient_history_only", "provided_patient_history_and_structured_encounter_records"]},
+          "encounter_medications_assessed": {"type": "boolean"},
           "warnings": {"type": "array"},
           "contraindications": {"type": "array"},
           "interactions": {"type": "array"}
@@ -365,7 +371,7 @@
           "details": {"type": "object", "description": "Order-specific details (test name, medication dose, procedure type, etc.)"},
           "priority": {"type": "string", "enum": ["routine", "urgent", "stat", "emergent"]},
           "indication": {"type": "string"},
-          "idempotency_key": {"type": "string", "description": "Optional UUID for idempotent retry — same key returns the same result without double-applying the mutation (PR-B / WS-5)."}
+          "idempotency_key": {"type": "string", "description": "Optional retry key scoped to this encounter and order type. Reuse only for identical details, priority and indication; changed values return idempotency_conflict. Use a new key for new work."}
         },
         "required": ["encounter_id", "order_type", "details"]
       },
@@ -388,7 +394,7 @@
           "task_id": {"type": "string"},
           "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"]},
           "notes": {"type": "string"},
-          "idempotency_key": {"type": "string", "description": "Optional UUID for idempotent retry — same key returns the same result without double-applying the mutation (PR-B / WS-5)."}
+          "idempotency_key": {"type": "string", "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work."}
         },
         "required": ["task_id", "status"]
       },
@@ -413,7 +419,7 @@
           "disposition": {"type": "string", "enum": ["admitted", "discharged", "transferred", "ama", "observation"]},
           "disposition_details": {"type": "object"},
           "status": {"type": "string"},
-          "idempotency_key": {"type": "string", "description": "Optional UUID for idempotent retry — same key returns the same result without double-applying the mutation (PR-B / WS-5)."}
+          "idempotency_key": {"type": "string", "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work."}
         },
         "required": ["encounter_id"]
       },
@@ -438,7 +444,7 @@
           "advance_directives": {"type": "object"},
           "consent": {"type": "object"},
           "demographics": {"type": "object"},
-          "idempotency_key": {"type": "string", "description": "Optional UUID for idempotent retry — same key returns the same result without double-applying the mutation (PR-B / WS-5)."}
+          "idempotency_key": {"type": "string", "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work."}
         },
         "required": ["patient_id"]
       },
@@ -489,7 +495,7 @@
           "protocol_name": {"type": "string", "enum": ["sepsis_bundle", "stemi_alert", "trauma_activation_level1", "trauma_activation_level2", "stroke_alert", "massive_transfusion", "difficult_airway", "cardiac_arrest"]},
           "reason": {"type": "string"},
           "override_reason": {"type": "string", "description": "Required when activating a protocol that conflicts with current status"},
-          "idempotency_key": {"type": "string", "description": "Optional UUID for idempotent retry — same key returns the same result without double-applying the mutation (PR-B / WS-5)."}
+          "idempotency_key": {"type": "string", "description": "Optional retry key for this tool. Reuse only with the identical target and request body; changed requests return idempotency_conflict. Use a new key for new work."}
         },
         "required": ["encounter_id", "protocol_name"]
       },

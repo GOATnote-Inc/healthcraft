@@ -1,0 +1,222 @@
+"""Source-linked diagnostic summarization of already completed immutable captures."""
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
+import sys
+from check_live import ROOT, OUT, canonical, digest, inventory, read, sha, strict
+
+RUN = ROOT/'artifacts/reconciliation/20260930/local-casebook-pilot-v1/run'
+
+
+def escaped(key):
+    return str(key).replace('~', '~0').replace('/', '~1')
+
+
+def source_rows(value, path):
+    if type(value) is dict:
+        if type(value.get('source_id')) is str:
+            yield path, value
+        else:
+            for key, child in value.items():
+                yield from source_rows(child, path+'/'+escaped(key))
+    elif type(value) is list:
+        for index, child in enumerate(value):
+            yield from source_rows(child, path+'/'+str(index))
+
+
+def returned_rows(call, call_index):
+    response = call.get('response', {})
+    if call['name'] != 'getEncounterDetails' or response.get('status') != 'ok':
+        return []
+    data = response['data']
+    result = []
+    for collection in ('authored_care', 'imaging'):
+        for projection_index, projection in enumerate(data.get(collection, [])):
+            path = projection['source_path']
+            if not path.startswith('/patient/'):
+                raise ValueError('Unexpected projection namespace')
+            for row_path, source in source_rows(projection['source_data'], path[len('/patient'):]):
+                result.append({
+                    'source_id': source['source_id'], 'patient_id': data['patient_id'],
+                    'encounter_id': data['id'], 'source_collection': projection['source_collection'],
+                    'source_path': row_path, 'source': source,
+                    'response_pointer': f'/calls/{call_index}/response/data/{collection}/{projection_index}/source_data',
+                    'call_index': call_index,
+                })
+    return result
+
+
+def classify_note(analysis):
+    if not analysis['available']:
+        return ['stored_note_not_strict_json']
+    categories = []
+    if analysis['top_level_missing'] or analysis['top_level_unexpected'] or not analysis['schema_matches'] or not analysis['target_matches']:
+        categories.append('note_top_level_contract_mismatch')
+    observations = analysis['observations']
+    if observations['missing']:
+        categories.append('target_source_rows_omitted')
+    if observations['unexpected']:
+        categories.append('out_of_scope_rows_in_target_observations')
+    changed_fields = Counter()
+    for item in observations['changed']:
+        expected, observed = item['expected'], item['observed']
+        for key in expected.keys() | observed.keys():
+            if key not in expected or key not in observed or canonical(expected[key]) != canonical(observed[key]):
+                changed_fields[key] += 1
+    if changed_fields['source_path']:
+        categories.append('observation_source_paths_not_exact')
+    if any(key != 'source_path' for key in changed_fields):
+        categories.append('other_observation_descriptor_or_source_changed')
+    if observations['malformed'] or observations['duplicates']:
+        categories.append('observation_shape_or_multiplicity_mismatch')
+    exclusions = analysis['scope_exclusions']
+    if exclusions['missing']:
+        categories.append('scope_exclusion_source_ids_omitted')
+    if exclusions['malformed']:
+        categories.append('scope_exclusion_missing_source_id')
+    if exclusions['changed']:
+        categories.append('scope_exclusion_descriptor_mismatch')
+    if exclusions['unexpected'] or exclusions['duplicates']:
+        categories.append('scope_exclusion_identity_or_multiplicity_mismatch')
+    conflicts = analysis['unresolved_conflicts']
+    if conflicts['missing']:
+        categories.append('opposing_report_group_omitted')
+    if conflicts['unexpected']:
+        categories.append('conflict_group_not_in_authored_source_contract')
+    if conflicts['changed'] or conflicts['duplicates'] or conflicts['malformed']:
+        categories.append('conflict_descriptor_or_multiplicity_mismatch')
+    return categories
+
+
+def main():
+    before = inventory(RUN)
+    peer = read(OUT/'peer-review.json')
+    assert before == peer['input_file_sha256']
+    sys.path.insert(0, str(ROOT/'src'))
+    from healthcraft.reconciliation.casebook import load_cases
+    cases = read(RUN/'cases.json')
+    assert canonical(cases) == canonical(load_cases())
+    cases_by_id = {case['case_id']:case for case in cases}
+    totals = Counter()
+    category_attempts = {}
+    tool_counts = Counter()
+    rows = []
+    errors = []
+    for prior in peer['outcomes']:
+        attempt_id = prior['id']; folder = RUN/attempt_id
+        case = read(folder/'case.json')
+        assert canonical(case) == canonical(cases_by_id[case['case_id']])
+        expected = case['expectations']; target = expected['target']
+        evidence = read(folder/'execution.json'); receipt = read(folder/'receipt.json')
+        worker = receipt['worker_receipt']
+        row = {key:deepcopy(prior[key]) for key in ('id','status','recorded_model_calls','native_tool_calls','audit_entries','error','grading_error','worker_cleanup')}
+        row.update(case_binding=evidence['case_binding'], verification=prior['verification']['checks'], input_file_sha256={p.name:sha(p) for p in (folder/'case.json',folder/'execution.json',folder/'receipt.json',folder/'verification.json')})
+        row['worker_status'] = worker['status']
+        row['worker_error'] = worker['error']
+        row['worker_failure_stage'] = worker['failure_stage']
+        row['controller_completion'] = worker['controller']['completion']
+        row['postflight_status'] = worker['postflight_status']
+        assert worker['postflight_status'] == 'matched'
+        assert worker['identity_before']['model_digest'] == worker['identity_after']['model_digest'] == receipt['model_config']['expected_digest']
+        assert worker['identity_before']['runtime_version'] == worker['identity_after']['runtime_version'] == receipt['model_config']['expected_runtime']
+        assert all(value is False for key,value in receipt['worker_cleanup'].items() if key.endswith('_alive') or key in ('alive','killed','terminated'))
+        categories = []
+        source_by_id = {source['source_id']:source for source in expected['sources']}
+        first_write = next((i for i,c in enumerate(evidence['calls']) if c['name']=='updateEncounter'), None)
+        returned = []
+        for index, call in enumerate(evidence['calls']):
+            status=call.get('response',{}).get('status')
+            tool_counts[(call['name'],status)] += 1
+            returned += returned_rows(call,index)
+            if status != 'ok':
+                errors.append({'attempt_id':attempt_id,'evidence_pointer':f'/calls/{index}','call':call,'audit':evidence['audit'][call['audit_start']:call['audit_end']]})
+        exact = []
+        for descriptor in returned:
+            descriptor_core = {key:value for key,value in descriptor.items() if key not in ('response_pointer','call_index')}
+            assert descriptor['source_id'] in source_by_id
+            assert canonical(descriptor_core) == canonical(source_by_id[descriptor['source_id']])
+            exact.append(descriptor)
+        retrieved_ids = {source['source_id'] for source in exact}
+        before_write_ids = {source['source_id'] for source in exact if first_write is not None and source['call_index'] < first_write}
+        row['source_retrieval'] = {
+            'expected_sources':len(source_by_id), 'distinct_exact_sources_returned':len(retrieved_ids),
+            'distinct_exact_sources_before_first_write':len(before_write_ids) if first_write is not None else None,
+            'missing_source_ids':sorted(source_by_id.keys()-retrieved_ids),
+            'returned_source_refs':exact,
+            'all_expected_returned_before_first_write':source_by_id.keys()==before_write_ids if first_write is not None else None,
+        }
+        if source_by_id.keys() != retrieved_ids:
+            categories.append('closed_cohort_source_retrieval_incomplete')
+        literal=prior['observed_actions']
+        row['observed_actions']={key:value for key,value in literal.items() if key!='reads'}
+        row['successful_details_reads']=len(literal['reads'])
+        row['postwrite_details_reads']=[entry for entry in literal['reads'] if first_write is not None and entry['call_index'] > first_write]
+        if not literal['stored_note_count']:
+            categories.append('no_stored_note')
+        elif not literal['stored_note_readback_count']:
+            categories.append('no_postwrite_exact_stored_text_readback')
+        row['notes']=deepcopy(prior['note_content'])
+        for n in row['notes']:
+            analysis=n['analysis']; categories.extend(classify_note(analysis))
+            if analysis['available']:
+                note=strict(evidence['after']['entities']['clinical_note'][n['note_id']]['content'])
+                if not note['observations']:
+                    categories.append('empty_observations_array')
+                totals['strictly_parseable_stored_notes'] += 1
+                totals['observation_descriptors_missing'] += len(analysis['observations']['missing'])
+                totals['out_of_scope_observation_descriptors'] += len(analysis['observations']['unexpected'])
+                totals['matched_target_source_rows_with_wrong_path'] += len(analysis['observations']['changed'])
+                for item in analysis['observations']['changed']:
+                    wanted, actual = item['expected'], item['observed']
+                    assert canonical(wanted['source']) == canonical(actual['source'])
+                    assert set(wanted)==set(actual)
+                    assert all(canonical(wanted[k])==canonical(actual[k]) for k in wanted if k != 'source_path')
+                for observed in note['observations']:
+                    if observed['source_id'] not in expected['observation_source_ids']:
+                        authored=source_by_id[observed['source_id']]
+                        assert canonical(observed['source']) == canonical(authored['source'])
+                        if observed['encounter_id']==target['encounter_id'] and authored['encounter_id']!=target['encounter_id']:
+                            categories.append('prior_encounter_row_reassigned_to_current_encounter')
+            else:
+                totals['strict_json_unavailable_stored_notes'] += 1
+        if row['status']=='failed':categories.append('execution_failed_on_tool_error')
+        row['diagnostic_categories']=sorted(set(categories))
+        for category in row['diagnostic_categories']:
+            category_attempts.setdefault(category,[]).append(attempt_id)
+        totals['native_request_attempts'] += prior['recorded_model_calls']
+        totals['raw_native_response_bodies'] += prior['native']['raw_response_count']
+        totals['tool_calls'] += len(evidence['calls'])
+        totals['audit_entries'] += len(evidence['audit'])
+        for key in ('successful_write_acknowledgements','deduplicated_write_acknowledgements','stored_note_count','stored_note_readback_count'):
+            totals[key] += literal[key]
+        totals['successful_details_reads'] += len(literal['reads'])
+        totals['postwrite_details_reads'] += len(row['postwrite_details_reads'])
+        totals['expected_source_rows_across_attempts'] += len(source_by_id)
+        totals['distinct_exact_returned_source_rows_across_attempts'] += len(retrieved_ids)
+        for request in prior['native']['requests']:
+            assert request['done'] is True and request['done_reason']=='stop'
+            assert request['raw_body_available'] is True and request['raw_parse_error'] is None
+            assert request['command_parse_error'] is None and request['native_error'] is None
+            for key in ('eval_count','prompt_eval_count'):
+                assert type(request[key]) is int and request[key]>=0
+                totals['provider_reported_'+key] += request[key]
+        rows.append(row)
+    totals['successful_tool_calls'] = sum(count for (_,status),count in tool_counts.items() if status=='ok')
+    totals['failed_tool_calls'] = sum(count for (_,status),count in tool_counts.items() if status!='ok')
+    assert before == inventory(RUN)
+    output = {
+        'schema_version':'healthcraft-live-development-roster-diagnostics/v1',
+        'run':str(RUN),'counts':peer['counts'],'totals':dict(totals),
+        'tool_counts':[{'name':name,'status':status,'count':count} for (name,status),count in sorted(tool_counts.items())],
+        'diagnostic_categories':{key:{'attempt_count':len(ids),'attempt_ids':ids} for key,ids in sorted(category_attempts.items())},
+        'tool_errors':errors,'outcomes':rows,
+        'binding':{'peer_review_sha256':sha(OUT/'peer-review.json'),'run_manifest_sha256':sha(RUN/'manifest.json'),'checker_sha256':sha(OUT/'check_live.py'),'diagnostics_script_sha256':sha(Path(__file__)),'casebook_canonical_sha256':cases[0]['casebook_sha256'],'source_sha256':peer['source_sha256'],'casebook_files_sha256':inventory(ROOT/'configs/evaluation/reconciliation_v2'),'run_files_sha256':before},
+        'checks':{'frozen_inventory_unchanged':True,'canonical_casebook_and_all_case_copies_agree':True,'native_response_bodies_116_strictly_parse_and_stop':True,'request_shapes_and_schema_identity_checked_by_peer':True,'all_identities_before_after_match_declared':True,'returned_source_descriptors_exactly_match_authored_rows':True,'all_workers_and_ipc_threads_stopped':True},
+        'clinical_criteria':0,'safety_criteria':0,'benchmark_score':None,'unassessed':['clinical correctness','healthcare value','clinical safety','held-out generalization','independent human label adjudication'],
+        'limitations':peer['limitations']+['Stored-note parse failure excludes that note from per-field content counting; its original string remains preserved.','Content and retrieval categories overlap and are descriptive; these counts are not an aggregate score.','Source-row copies retain source assertions without asserting that any administration or other clinical event occurred.','Native token counters are provider-reported observations, not independent inference measurements.'],
+    }
+    with (OUT/'roster-diagnostics.json').open('x') as f:f.write(canonical(output)+'\n')
+    print(canonical({'counts':output['counts'],'totals':output['totals'],'categories':{k:v['attempt_count'] for k,v in output['diagnostic_categories'].items()},'source_unchanged':True}))
+
+
+if __name__=='__main__':main()

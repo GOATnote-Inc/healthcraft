@@ -1,0 +1,51 @@
+...............FFF                                                       [100%]
+=================================== FAILURES ===================================
+_ test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors[source0] _
+
+source = {0: 'First entry', 'note': 'Second entry'}
+
+    @pytest.mark.parametrize("source", [{0: "First entry", "note": "Second entry"}, {"nested": {0: "First entry", "note": "Second entry"}}])
+    def test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors(source):
+        _, server, ids, _ = inject({"age": 50, "sex": "F", "current_management": source})
+        result = server.call_tool("processDischarge", {"encounter_id": ids["encounter_id"], "diagnosis": "Synthetic"})
+>       assert result["status"] == "ok"
+E       AssertionError: assert 'error' == 'ok'
+E         
+E         - ok
+E         + error
+
+tests/test_tasks/test_care_source_fidelity.py:206: AssertionError
+_ test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors[source1] _
+
+source = {'nested': {0: 'First entry', 'note': 'Second entry'}}
+
+    @pytest.mark.parametrize("source", [{0: "First entry", "note": "Second entry"}, {"nested": {0: "First entry", "note": "Second entry"}}])
+    def test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors(source):
+        _, server, ids, _ = inject({"age": 50, "sex": "F", "current_management": source})
+        result = server.call_tool("processDischarge", {"encounter_id": ids["encounter_id"], "diagnosis": "Synthetic"})
+>       assert result["status"] == "ok"
+E       AssertionError: assert 'error' == 'ok'
+E         
+E         - ok
+E         + error
+
+tests/test_tasks/test_care_source_fidelity.py:206: AssertionError
+_ test_unresolved_encounter_context_retains_independently_assessable_findings __
+
+    def test_unresolved_encounter_context_retains_independently_assessable_findings():
+        _, server, ids, _ = inject({"age": 50, "sex": "F", "medications": ["Warfarin"],
+                                   "advance_directives": "dnr", "current_management": ["unresolved"]})
+        result = server.call_tool("validateTreatmentPlan", {
+            "encounter_id": ids["encounter_id"], "medications": [{"name": "Aspirin"}], "procedures": ["CPR"],
+        })
+        assert result["status"] == "error" and result["code"] == "unresolved_medication_context"
+>       findings = result["details"]["known_findings"]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'known_findings'
+
+tests/test_tasks/test_care_source_fidelity.py:218: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors[source0]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_discharge_rendering_preserves_mixed_source_keys_without_comparison_errors[source1]
+FAILED tests/test_tasks/test_care_source_fidelity.py::test_unresolved_encounter_context_retains_independently_assessable_findings
+3 failed, 15 passed in 0.08s

@@ -1,0 +1,33 @@
+from pathlib import Path
+from copy import deepcopy
+import importlib.util,json,subprocess,hashlib,sys
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-workbench-ui-peer')
+sys.path.insert(0,str(ROOT/'src'))
+def load(name,path):
+ spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+examples=load('examples',ROOT/'tests/test_operator_incident_report.py')
+drafts=load('draft_tests',ROOT/'tests/test_operator_workbench_drafts.py')
+from healthcraft.operator_workbench_report import render_workbench
+pair=examples.adjudication.__wrapped__(examples.incident.__wrapped__())
+pair[0]['cases'][0]['documents']['response']['incident_assessment']['summary']='{"result":"displayed nested claim"}'
+pair[1]['packet_sha256']=examples.digest(pair[0])
+page=examples.Page(render_workbench(*pair))
+harness=r'''
+const fs=require('node:fs'),vm=require('node:vm'),p=JSON.parse(fs.readFileSync(0,'utf8'));const nodes={};
+function el(tag){return {tagName:tag,children:[],listeners:{},textContent:'',value:'',hidden:false,appendChild(n){this.children.push(n);},replaceChildren(...x){this.children=x;},addEventListener(k,f){this.listeners[k]=f;}};}
+for(const [tag,a]of p.tags)if(a.id)nodes[a.id]=el(tag);nodes['incident-packet'].textContent=p.packet_text;nodes['incident-template'].textContent=p.template_text;
+const c={document:{getElementById(i){return nodes[i];},querySelectorAll(){return [];},createElement:el}};vm.createContext(c);vm.runInContext(p.base,c);vm.runInContext(p.script,c);
+const decoded=c.HealthcraftSources.open(0,{document:'response',pointer:'/incident_assessment/summary',decoded_json_pointer:'/result'});
+const result={decoded,shown:nodes['source-0-value'].textContent,citation:nodes['source-0-citation'].value,citation_label:nodes['source-0-citation-label'].textContent};
+c.HealthcraftSources.open(0,{document:'runtime',pointer:''});result.after_unavailable={value:nodes['source-0-value'].textContent,citation:nodes['source-0-citation'].value};
+process.stdout.write(JSON.stringify(result));
+'''
+proc=subprocess.run(['node','-e',harness],input=json.dumps({'tags':page.tags,'packet_text':page.scripts['incident-packet'],'template_text':page.scripts['incident-template'],'base':page.scripts['incident-app'],'script':page.scripts['workbench-sources']}),text=True,capture_output=True,check=True)
+response_result=json.loads(proc.stdout)
+drafts.HARNESS=drafts.HARNESS.replace('const document={',"ids['add-finding-0']=new Field({id:'add-finding-0',tag:'BUTTON',value:'',options:[]});ids['add-finding-0'].dataset={addFinding:'0'};\nconst document={")
+drafts.HARNESS=drafts.HARNESS.replace('querySelectorAll(){\n    return [];\n  }',"querySelectorAll(q){return q==='[data-add-finding]'?[ids['add-finding-0']]:[];}")
+incident=('incident',examples.incident.__wrapped__());value=deepcopy(incident[1][1]);value['cases'][0]['incident_assessment']['findings']=[{'finding_id':'finding-9007199254740991','category':'source_uncertainty','claim':'Preserved draft','observed_target':{'patient_id':None,'encounter_id':None},'source_ids':[],'evidence_refs':[]}]
+result=drafts.run_js(incident,value,"""(()=>{HealthcraftDrafts.preview(raw);HealthcraftDrafts.apply();ids['add-finding-0'].listeners.click();ids['add-finding-0'].listeners.click();for(const n of ids['findings-0'].children){n.querySelector('[data-field="category"]').value='source_uncertainty';n.querySelector('[data-field="claim"]').value='Pending draft claim';}const idsNow=ids['findings-0'].children.map(n=>n.querySelector('[data-field="finding_id"]').value);let error;try{buildIncidentResponse(readIncidentForm(),responseTemplate,packet);}catch(e){error=e.message;}return{idsNow,error};})()""")
+output={'source_sha256':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['src/healthcraft/operator_workbench_drafts.py','src/healthcraft/operator_workbench_report.py']},'response_decoding':response_result,'finding_counter':result,'inference_browser_repository_mutation':False}
+with (OUT/'complete-export-probes.json').open('x')as f:json.dump(output,f,indent=2);f.write('\n')
+print(json.dumps(output,indent=2))

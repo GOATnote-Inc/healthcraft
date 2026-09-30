@@ -1,0 +1,737 @@
+FFF...FFFFFFFFFF                                                         [100%]
+=================================== FAILURES ===================================
+_______ test_evaluate_delegates_exact_arguments_to_the_real_orchestrator _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10708bce0>
+
+    def test_evaluate_delegates_exact_arguments_to_the_real_orchestrator(monkeypatch):
+        seen = []
+        monkeypatch.setattr(orchestrator, "main", lambda argv, **kwargs: seen.append((argv, kwargs)))
+        arguments = [
+            "--agent-model", "ollama:installed-local", "--tasks", "IR-001", "--trials", "1",
+            "--results-dir", "/tmp/new-run", "--rubric-channel", "v10", "--retry-errors",
+        ]
+>       assert cli.main(["evaluate", *arguments]) == 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2007: in parse_args
+    self.error(msg)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'healthcraft: error: unrecognized arguments: --agent-model ollama:installed-local --trials 1 --results-dir /tmp/new-run --rubric-channel v10 --retry-errors\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: unrecognized arguments: --agent-model ollama:installed-local --trials 1 --results-dir /tmp/new-run --rubric-channel v10 --retry-errors
+_____________ test_evaluate_cannot_succeed_by_merely_listing_tasks _____________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x10702b230>
+
+    def test_evaluate_cannot_succeed_by_merely_listing_tasks(capsys):
+>       with pytest.raises(SystemExit) as exc:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_cli.py:31: Failed
+----------------------------- Captured stdout call -----------------------------
+Loaded 205 task(s)
+  [CC-001] Pneumonia Discharge Instructions (level=2, category=clinical_communication)
+  [CC-002] Cardiology Consult for New-Onset AFib with RVR (level=3, category=clinical_communication)
+  [CC-003] The Handoff (level=3, category=clinical_communication)
+  [CC-004] Breaking Bad News (level=4, category=clinical_communication)
+  [CC-005] The AMA Discharge (level=3, category=clinical_communication)
+  [CC-006] Consult Clarity (level=2, category=clinical_communication)
+  [CC-007] Transfer Package (level=3, category=clinical_communication)
+  [CC-008] The Interpreter (level=2, category=clinical_communication)
+  [CC-009] Medication Teaching (level=3, category=clinical_communication)
+  [CC-010] The Worried Parent (level=2, category=clinical_communication)
+  [CC-011] Code Documentation (level=4, category=clinical_communication)
+  [CC-012] Pain Management Plan (level=2, category=clinical_communication)
+  [CC-013] Psychiatric Hold (level=3, category=clinical_communication)
+  [CC-014] Follow-up Instructions (level=2, category=clinical_communication)
+  [CC-015] The Second Opinion (level=3, category=clinical_communication)
+  [CC-016] SBAR Handoff to ICU (level=3, category=clinical_communication)
+  [CC-017] Informed Consent for High-Risk Procedure (level=4, category=clinical_communication)
+  [CC-018] Death Notification to Family (level=5, category=clinical_communication)
+  [CC-019] Trauma Team Activation Briefing (level=4, category=clinical_communication)
+  [CC-020] Social Worker Referral Documentation (level=3, category=clinical_communication)
+  [CC-021] Pharmacy Clarification Call (level=3, category=clinical_communication)
+  [CC-022] Nurse Delegation and Task Assignment (level=3, category=clinical_communication)
+  [CC-023] Patient Education for CHF Exacerbation (level=2, category=clinical_communication)
+  [CC-024] Poison Control Consultation (level=3, category=clinical_communication)
+  [CC-025] Child Protective Services Mandatory Report (level=4, category=clinical_communication)
+  [CC-026] Medical Examiner Notification (level=3, category=clinical_communication)
+  [CC-027] Ambulance Diversion Communication (level=4, category=clinical_communication)
+  [CC-028] Surge Capacity Notification (level=4, category=clinical_communication)
+  [CC-029] Quality Improvement Incident Report (level=3, category=clinical_communication)
+  [CC-030] Malpractice-Aware Documentation (level=5, category=clinical_communication)
+  [CR-001] The Mimic (level=4, category=clinical_reasoning)
+  [CR-002] Sepsis Recognition in Elderly UTI (level=3, category=clinical_reasoning)
+  [CR-003] The Stroke Mimic (level=4, category=clinical_reasoning)
+  [CR-004] The Quiet MI (level=3, category=clinical_reasoning)
+  [CR-005] Ovarian Torsion vs Appendicitis (level=4, category=clinical_reasoning)
+  [CR-006] PE vs Anxiety (level=3, category=clinical_reasoning)
+  [CR-007] Meningitis vs Migraine (level=4, category=clinical_reasoning)
+  [CR-008] DKA vs Sepsis (level=3, category=clinical_reasoning)
+  [CR-009] Ectopic Pregnancy (level=3, category=clinical_reasoning)
+  [CR-010] Tension Pneumothorax (level=5, category=clinical_reasoning)
+  [CR-011] Aortic Aneurysm Rupture (level=4, category=clinical_reasoning)
+  [CR-012] Testicular Torsion (level=3, category=clinical_reasoning)
+  [CR-013] Carbon Monoxide Poisoning (level=3, category=clinical_reasoning)
+  [CR-014] Cauda Equina Syndrome (level=4, category=clinical_reasoning)
+  [CR-015] Hyperkalemia Crisis (level=4, category=clinical_reasoning)
+  [CR-016] Ludwig's Angina (level=4, category=clinical_reasoning)
+  [CR-017] Addisonian Crisis (level=3, category=clinical_reasoning)
+  [CR-018] Posterior Stroke (level=4, category=clinical_reasoning)
+  [CR-019] Fat Embolism Syndrome (level=4, category=clinical_reasoning)
+  [CR-020] Boerhaave Syndrome (level=5, category=clinical_reasoning)
+  [CR-021] The Thunderclap (level=5, category=clinical_reasoning)
+  [CR-022] The Lucid Interval (level=5, category=clinical_reasoning)
+  [CR-023] The Flesh Eater (level=5, category=clinical_reasoning)
+  [CR-024] The Red Eye Headache (level=4, category=clinical_reasoning)
+  [CR-025] The Catastrophic Flank Pain (level=5, category=clinical_reasoning)
+  [CR-026] The Ascending Paralysis (level=4, category=clinical_reasoning)
+  [CR-027] The Silent Stridor (level=4, category=clinical_reasoning)
+  [CR-028] The Burning Thyroid (level=4, category=clinical_reasoning)
+  [CR-029] The Refractory Hypotension (level=4, category=clinical_reasoning)
+  [CR-030] The Adrenaline Surge (level=4, category=clinical_reasoning)
+  [CR-031] The Operating Room Inferno (level=5, category=clinical_reasoning)
+  [CR-032] The Tightening Cast (level=4, category=clinical_reasoning)
+  [CR-033] The Retching Rupture (level=5, category=clinical_reasoning)
+  [CR-034] The Swollen Floor (level=4, category=clinical_reasoning)
+  [CR-035] The Dilating Colon (level=4, category=clinical_reasoning)
+  [CR-036] The Marrow Shower (level=5, category=clinical_reasoning)
+  [CR-037] The Dizzy Deception (level=5, category=clinical_reasoning)
+  [CR-038] The Hot Spine (level=5, category=clinical_reasoning)
+  [CR-039] The Gut Infarction (level=5, category=clinical_reasoning)
+  [CR-040] The Toxic Acid (level=5, category=clinical_reasoning)
+  [CR-041] The Bloody Diarrhea Triad (level=5, category=clinical_reasoning)
+  [CR-042] The Purple Urine Mystery (level=5, category=clinical_reasoning)
+  [CR-043] The Stumbling Drinker (level=5, category=clinical_reasoning)
+  [CR-044] The Swollen Face (level=4, category=clinical_reasoning)
+  [CR-045] The Wrong Perforation (level=5, category=clinical_reasoning)
+  [CR-046] The Inflamed Mimic (level=4, category=clinical_reasoning)
+  [CR-047] The Persistent Stone (level=3, category=clinical_reasoning)
+  [CR-048] The Deceptive Enzyme (level=4, category=clinical_reasoning)
+  [CR-049] The False Consolidation (level=4, category=clinical_reasoning)
+  [CR-050] The ST Elevation Trap (level=4, category=clinical_reasoning)
+  [IR-001] Allergy Cross-Reactivity Check (level=1, category=information_retrieval)
+  [IR-002] Frequent Flyer Pattern Recognition (level=2, category=information_retrieval)
+  [IR-003] The Hidden Allergy (level=2, category=information_retrieval)
+  [IR-004] The Repeat Visitor (level=2, category=information_retrieval)
+  [IR-005] The DNR Dilemma (level=2, category=information_retrieval)
+  [IR-006] Drug Interaction Trap (level=2, category=information_retrieval)
+  [IR-007] The Insurance Barrier (level=1, category=information_retrieval)
+  [IR-008] Protocol Lookup (level=1, category=information_retrieval)
+  [IR-009] Decision Rule Application (level=2, category=information_retrieval)
+  [IR-010] Resource Hunt (level=1, category=information_retrieval)
+  [IR-011] Transfer Destination (level=2, category=information_retrieval)
+  [IR-012] The Reference Check (level=2, category=information_retrieval)
+  [IR-013] Medication Reconciliation (level=3, category=information_retrieval)
+  [IR-014] Lab Result Interpretation (level=2, category=information_retrieval)
+  [IR-015] The Triage Board (level=2, category=information_retrieval)
+  [IR-016] Paginated Search Trap (level=3, category=information_retrieval)
+  [IR-017] Expired Insurance Records (level=2, category=information_retrieval)
+  [IR-018] Critical Supply Shortage (level=3, category=information_retrieval)
+  [IR-019] Treatment-Contraindication Cross-Reference (level=3, category=information_retrieval)
+  [IR-020] EMTALA Regulatory Lookup (level=3, category=information_retrieval)
+  [IR-021] Decision Rule Variable Collection (level=3, category=information_retrieval)
+  [IR-022] Multi-Drug Interaction Reference Lookup (level=3, category=information_retrieval)
+  [IR-023] Supply Shortage Impact Assessment (level=4, category=information_retrieval)
+  [IR-024] Transfer Facility Capability Matching (level=3, category=information_retrieval)
+  [IR-025] Multi-Patient Priority Triage Lookup (level=4, category=information_retrieval)
+  [IR-026] Protocol Step-by-Step Retrieval (level=2, category=information_retrieval)
+  [IR-027] Staff Workload and Assignment Lookup (level=2, category=information_retrieval)
+  [IR-028] Condition Differential Retrieval (level=3, category=information_retrieval)
+  [IR-029] Encounter History Pattern Recognition (level=3, category=information_retrieval)
+  [IR-030] Lab and Vitals Trend Analysis (level=3, category=information_retrieval)
+  [MSW-001] The Insurance Labyrinth (level=3, category=multi_step_workflows)
+  [MW-002] Sepsis Bundle Sprint (level=4, category=multi_step_workflows)
+  [MW-003] The STEMI Relay (level=4, category=multi_step_workflows)
+  [MW-004] Trauma Primary Survey (level=5, category=multi_step_workflows)
+  [MW-005] Code Blue (level=5, category=multi_step_workflows)
+  [MW-006] Stroke Pathway (level=4, category=multi_step_workflows)
+  [MW-007] Mass Transfusion (level=5, category=multi_step_workflows)
+  [MW-008] RSI Sequence (level=4, category=multi_step_workflows)
+  [MW-009] The Polytrauma (level=5, category=multi_step_workflows)
+  [MW-010] Overdose Workup (level=3, category=multi_step_workflows)
+  [MW-011] Pediatric Resuscitation (level=5, category=multi_step_workflows)
+  [MW-012] Burn Assessment (level=4, category=multi_step_workflows)
+  [MW-013] DKA Protocol (level=4, category=multi_step_workflows)
+  [MW-014] Diabetic Ketoacidosis — Insulin Drip and Monitoring (level=4, category=multi_step_workflows)
+  [MW-015] Burn Stabilization — Fluid Resuscitation and Transfer (level=4, category=multi_step_workflows)
+  [MW-016] Status Epilepticus — Escalating Therapy (level=5, category=multi_step_workflows)
+  [MW-017] Chest Tube Insertion — Consent, Procedure, and Imaging (level=3, category=multi_step_workflows)
+  [MW-018] Acute GI Bleed — Resuscitation and GI Consult (level=4, category=multi_step_workflows)
+  [MW-019] Anaphylaxis — Epinephrine, Monitoring, and Disposition (level=3, category=multi_step_workflows)
+  [MW-020] Acute Coronary Syndrome — Dual Antiplatelet and Cath Lab (level=4, category=multi_step_workflows)
+  [MW-021] Post-ROSC Care Bundle — Targeted Temperature Management (level=5, category=multi_step_workflows)
+  [MW-022] Toxicology Overdose — Decontamination Workflow (level=4, category=multi_step_workflows)
+  [MW-023] Spinal Cord Injury — Immobilization and Transfer (level=4, category=multi_step_workflows)
+  [MW-024] Pediatric Fever — Age-Appropriate Workup Protocol (level=3, category=multi_step_workflows)
+  [MW-025] Obstetric Emergency — Eclampsia Protocol (level=5, category=multi_step_workflows)
+  [MW-026] Multi-Organ Failure — Triage and Stabilization (level=5, category=multi_step_workflows)
+  [MW-027] Acute Aortic Dissection — Imaging, BP Control, and Surgical Transfer (level=5, category=multi_step_workflows)
+  [MW-028] Febrile Neutropenia — Urgent Workup, Empiric Antibiotics, and Isolation (level=4, category=multi_step_workflows)
+  [MW-029] Acute Limb Ischemia — 6 Ps, Anticoagulation, and Vascular Surgery (level=4, category=multi_step_workflows)
+  [MW-030] Neonatal Resuscitation — NRP Algorithm and NICU Transfer (level=5, category=multi_step_workflows)
+  [MW-031] Malignant Hyperthermia — Dantrolene, Cooling, and Metabolic Management (level=5, category=multi_step_workflows)
+  [MW-032] Acute Stroke Pathway — Door-to-Needle (level=5, category=multi_step_workflows)
+  [MW-033] Massive PE — Thrombolytics and Hemodynamic Support (level=5, category=multi_step_workflows)
+  [NEG-001] Low-Risk Chest Pain (HEART 2) - Appropriate Restraint (level=3, category=safety_critical_judgment)
+  [NEG-002] PECARN Very-Low-Risk Pediatric Head Injury - No Imaging (level=2, category=safety_critical_judgment)
+  [NEG-003] Simple Febrile Seizure - Restraint in a Well Toddler (level=2, category=safety_critical_judgment)
+  [NEG-004] Asymptomatic Hypertension - Outpatient Management (level=2, category=safety_critical_judgment)
+  [NEG-005] Hypoglycemic Aphasia - Resolved After D50 (level=3, category=temporal_reasoning)
+  [NEG-006] Clean Serial Chest Pain Workup - No Repeat Imaging, No Cath (level=3, category=temporal_reasoning)
+  [NEG-007] Alcoholic Ketoacidosis - Dextrose and Thiamine, Not Insulin (level=3, category=temporal_reasoning)
+  [NEG-008] Uncomplicated Pyelonephritis - Discharge with Oral Antibiotics (level=2, category=multi_step_workflows)
+  [NEG-009] Uncomplicated Low Back Pain - No MRI, No Opioid Rx (level=2, category=multi_step_workflows)
+  [NEG-010] Benign Vasovagal Syncope - Clean Workup, Discharge (level=3, category=clinical_reasoning)
+  [SCJ-001] The Decision Rule Paradox (level=3, category=safety_critical_judgment)
+  [SCJ-002] The Ethical Knot (level=4, category=safety_critical_judgment)
+  [SCJ-003] EMTALA Transfer (level=4, category=safety_critical_judgment)
+  [SCJ-004] The Capacity Question (level=4, category=safety_critical_judgment)
+  [SCJ-005] Wrong Blood Type (level=5, category=safety_critical_judgment)
+  [SCJ-006] Pediatric Dosing Error (level=4, category=safety_critical_judgment)
+  [SCJ-007] The DNR Override (level=5, category=safety_critical_judgment)
+  [SCJ-008] Restraint Decision (level=3, category=safety_critical_judgment)
+  [SCJ-009] Medication Allergy Cross-React (level=3, category=safety_critical_judgment)
+  [SCJ-010] The Pregnant Trauma (level=5, category=safety_critical_judgment)
+  [SCJ-011] Controlled Substance Seeker (level=3, category=safety_critical_judgment)
+  [SCJ-012] The Protocol Override (level=4, category=safety_critical_judgment)
+  [SCJ-013] The Elopement Risk (level=5, category=safety_critical_judgment)
+  [SCJ-014] The Wrong Dose (level=4, category=safety_critical_judgment)
+  [SCJ-015] The Impaired Colleague (level=5, category=safety_critical_judgment)
+  [SCJ-016] The Privacy Breach (level=4, category=safety_critical_judgment)
+  [SCJ-017] The Silent Patient (level=5, category=safety_critical_judgment)
+  [SCJ-018] The Donor Protocol (level=5, category=safety_critical_judgment)
+  [SCJ-019] The Caregiver's Burden (level=4, category=safety_critical_judgment)
+  [SCJ-020] The Refusal (level=5, category=safety_critical_judgment)
+  [SCJ-021] The Empty Shelf (level=4, category=safety_critical_judgment)
+  [SCJ-022] The Expectant Category (level=5, category=safety_critical_judgment)
+  [SCJ-023] The Reaction (level=4, category=safety_critical_judgment)
+  [SCJ-024] The Mimics (level=5, category=safety_critical_judgment)
+  [SCJ-025] The Displaced Appendix (level=4, category=safety_critical_judgment)
+  [SCJ-026] The Refusal of Blood (level=5, category=safety_critical_judgment)
+  [SCJ-027] The Wrong Medication (level=4, category=safety_critical_judgment)
+  [TR-001] The Cascade (level=5, category=temporal_reasoning)
+  [TR-002] The tPA Window (level=4, category=temporal_reasoning)
+  [TR-003] Simultaneous Codes (level=5, category=temporal_reasoning)
+  [TR-004] The Boarding Crisis (level=4, category=temporal_reasoning)
+  [TR-005] Antibiotic Clock (level=3, category=temporal_reasoning)
+  [TR-006] The Deteriorating Patient (level=3, category=temporal_reasoning)
+  [TR-007] Shift Change Crunch (level=3, category=temporal_reasoning)
+  [TR-008] The MCI Drill (level=5, category=temporal_reasoning)
+  [TR-009] Contrast Timing (level=3, category=temporal_reasoning)
+  [TR-010] The Delayed Presentation (level=4, category=temporal_reasoning)
+  [TR-011] Medication Timing Conflict (level=3, category=temporal_reasoning)
+  [TR-012] Lab Recheck Schedule (level=3, category=temporal_reasoning)
+  [TR-013] Boarding Hold (level=4, category=temporal_reasoning)
+  [TR-014] Sequential Sedation Monitoring (level=4, category=temporal_reasoning)
+  [TR-015] Antibiotic De-escalation Timing (level=3, category=temporal_reasoning)
+  [TR-016] Blood Product Expiration Tracking (level=5, category=temporal_reasoning)
+  [TR-017] Tetanus Prophylaxis Timing Decision (level=3, category=temporal_reasoning)
+  [TR-018] Post-Thrombolytic Monitoring Schedule (level=5, category=temporal_reasoning)
+  [TR-019] Overcrowded ED Re-Triage (level=4, category=temporal_reasoning)
+  [TR-020] Medication Half-Life Overlap (level=4, category=temporal_reasoning)
+  [TR-021] Post-Cardiac Arrest Targeted Temperature Management (level=4, category=temporal_reasoning)
+  [TR-022] Trauma Golden Hour (level=4, category=temporal_reasoning)
+  [TR-023] Drug Interaction Timing — Serotonin Syndrome (level=3, category=temporal_reasoning)
+  [TR-024] Serial Troponin Protocol (level=3, category=temporal_reasoning)
+  [TR-025] Wake-Up Stroke — Last-Known-Well Window (level=5, category=temporal_reasoning)
+_________ test_evaluate_help_uses_real_options_without_provider_access _________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x1071034d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107161350>
+
+    def test_evaluate_help_uses_real_options_without_provider_access(capsys, monkeypatch):
+        monkeypatch.setattr(orchestrator, "_api_preflight", lambda **kw: pytest.fail("provider access"))
+        with pytest.raises(SystemExit) as exc:
+            cli.main(["evaluate", "--help"])
+        assert exc.value.code == 0
+        text = capsys.readouterr().out
+        assert "healthcraft evaluate" in text
+>       assert "--agent-model" in text and "--scenario-profile" in text
+E       AssertionError: assert ('--agent-model' in 'usage: healthcraft evaluate [-h] --tasks TASKS\n\noptions:\n  -h, --help         show this help message and exit\n  --tasks, -t TASKS  Path to task YAML file or directory\n')
+
+tests/test_cli.py:46: AssertionError
+__________________ test_evaluate_propagates_failure_exit_code __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107166f50>
+
+    def test_evaluate_propagates_failure_exit_code(monkeypatch):
+        def fail(*args, **kwargs):
+            raise SystemExit(7)
+    
+        monkeypatch.setattr(orchestrator, "main", fail)
+        with pytest.raises(SystemExit) as exc:
+            cli.main(["evaluate", "--agent-model", "ollama:installed-local"])
+>       assert exc.value.code == 7
+E       assert 2 == 7
+E        +  where 2 = SystemExit(2).code
+E        +    where SystemExit(2) = <ExceptionInfo SystemExit(2) tblen=13>.value
+
+tests/test_cli.py:64: AssertionError
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft evaluate [-h] --tasks TASKS
+healthcraft evaluate: error: the following arguments are required: --tasks/-t
+_____________ test_simulation_routes_to_explicit_simulation_runner _____________
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+args = ['simulate', '--tasks', 'IR-001'], namespace = Namespace(command=None)
+intermixed = False
+
+    def _parse_known_args2(self, args, namespace, intermixed):
+        if args is None:
+            # args default to the system args
+            args = _sys.argv[1:]
+        else:
+            # make sure that args are mutable
+            args = list(args)
+    
+        # default Namespace built from parser defaults
+        if namespace is None:
+            namespace = Namespace()
+    
+        # add any action defaults that aren't present
+        for action in self._actions:
+            if action.dest is not SUPPRESS:
+                if not hasattr(namespace, action.dest):
+                    if action.default is not SUPPRESS:
+                        setattr(namespace, action.dest, action.default)
+    
+        # add any parser defaults that aren't present
+        for dest in self._defaults:
+            if not hasattr(namespace, dest):
+                setattr(namespace, dest, self._defaults[dest])
+    
+        # parse the arguments and exit if there are any errors
+        if self.exit_on_error:
+            try:
+>               namespace, args = self._parse_known_args(args, namespace, intermixed)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2042: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2274: in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2249: in consume_positionals
+    take_action(action, args)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2103: in take_action
+    argument_values = self._get_values(action, argument_strings)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2629: in _get_values
+    self._check_value(action, value[0])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+action = _SubParsersAction(option_strings=[], dest='command', nargs='A...', const=None, default=None, type=None, choices={'seed..., conflict_handler='error', add_help=True)}, required=False, help='Available commands', metavar=None, deprecated=False)
+value = 'simulate'
+
+    def _check_value(self, action, value):
+        # converted value must be one of the choices (if specified)
+        choices = action.choices
+        if choices is None:
+            return
+    
+        if isinstance(choices, str):
+            choices = iter(choices)
+    
+        if value not in choices:
+            args = {'value': str(value),
+                    'choices': ', '.join(map(str, action.choices))}
+            msg = _('invalid choice: %(value)r (choose from %(choices)s)')
+    
+            if self.suggest_on_error and isinstance(value, str):
+                if all(isinstance(choice, str) for choice in action.choices):
+                    import difflib
+                    suggestions = difflib.get_close_matches(value, action.choices, 1)
+                    if suggestions:
+                        args['closest'] = suggestions[0]
+                        msg = _('invalid choice: %(value)r, maybe you meant %(closest)r? '
+                                '(choose from %(choices)s)')
+    
+>           raise ArgumentError(action, msg % args)
+E           argparse.ArgumentError: argument command: invalid choice: 'simulate' (choose from seed, serve, evaluate, validate)
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2691: ArgumentError
+
+During handling of the above exception, another exception occurred:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107167850>
+
+    def test_simulation_routes_to_explicit_simulation_runner(monkeypatch):
+        from healthcraft import eval_runner
+    
+        seen = []
+        monkeypatch.setattr(eval_runner, "main", lambda argv: seen.append(argv) or 2)
+>       assert cli.main(["simulate", "--tasks", "IR-001"]) == 2
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2003: in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2013: in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2044: in _parse_known_args2
+    self.error(str(err))
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = "healthcraft: error: argument command: invalid choice: 'simulate' (choose from seed, serve, evaluate, validate)\n"
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: argument command: invalid choice: 'simulate' (choose from seed, serve, evaluate, validate)
+_____ test_list_tasks_retains_the_old_inventory_function_with_honest_name ______
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+args = ['list-tasks', '--tasks', '/Users/kiteboard/healthcraft/configs/tasks/information_retrieval/task_017_expired_insurance.yaml']
+namespace = Namespace(command=None), intermixed = False
+
+    def _parse_known_args2(self, args, namespace, intermixed):
+        if args is None:
+            # args default to the system args
+            args = _sys.argv[1:]
+        else:
+            # make sure that args are mutable
+            args = list(args)
+    
+        # default Namespace built from parser defaults
+        if namespace is None:
+            namespace = Namespace()
+    
+        # add any action defaults that aren't present
+        for action in self._actions:
+            if action.dest is not SUPPRESS:
+                if not hasattr(namespace, action.dest):
+                    if action.default is not SUPPRESS:
+                        setattr(namespace, action.dest, action.default)
+    
+        # add any parser defaults that aren't present
+        for dest in self._defaults:
+            if not hasattr(namespace, dest):
+                setattr(namespace, dest, self._defaults[dest])
+    
+        # parse the arguments and exit if there are any errors
+        if self.exit_on_error:
+            try:
+>               namespace, args = self._parse_known_args(args, namespace, intermixed)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2042: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2274: in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2249: in consume_positionals
+    take_action(action, args)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2103: in take_action
+    argument_values = self._get_values(action, argument_strings)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2629: in _get_values
+    self._check_value(action, value[0])
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+action = _SubParsersAction(option_strings=[], dest='command', nargs='A...', const=None, default=None, type=None, choices={'seed..., conflict_handler='error', add_help=True)}, required=False, help='Available commands', metavar=None, deprecated=False)
+value = 'list-tasks'
+
+    def _check_value(self, action, value):
+        # converted value must be one of the choices (if specified)
+        choices = action.choices
+        if choices is None:
+            return
+    
+        if isinstance(choices, str):
+            choices = iter(choices)
+    
+        if value not in choices:
+            args = {'value': str(value),
+                    'choices': ', '.join(map(str, action.choices))}
+            msg = _('invalid choice: %(value)r (choose from %(choices)s)')
+    
+            if self.suggest_on_error and isinstance(value, str):
+                if all(isinstance(choice, str) for choice in action.choices):
+                    import difflib
+                    suggestions = difflib.get_close_matches(value, action.choices, 1)
+                    if suggestions:
+                        args['closest'] = suggestions[0]
+                        msg = _('invalid choice: %(value)r, maybe you meant %(closest)r? '
+                                '(choose from %(choices)s)')
+    
+>           raise ArgumentError(action, msg % args)
+E           argparse.ArgumentError: argument command: invalid choice: 'list-tasks' (choose from seed, serve, evaluate, validate)
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2691: ArgumentError
+
+During handling of the above exception, another exception occurred:
+
+capsys = <_pytest.capture.CaptureFixture object at 0x1071a2710>
+
+    def test_list_tasks_retains_the_old_inventory_function_with_honest_name(capsys):
+        path = ROOT / "configs/tasks/information_retrieval/task_001_patient_history.yaml"
+        path = next((ROOT / "configs/tasks/information_retrieval").glob("*.yaml"))
+>       assert cli.main(["list-tasks", "--tasks", str(path)]) == 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2003: in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2013: in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2044: in _parse_known_args2
+    self.error(str(err))
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = "healthcraft: error: argument command: invalid choice: 'list-tasks' (choose from seed, serve, evaluate, validate)\n"
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: argument command: invalid choice: 'list-tasks' (choose from seed, serve, evaluate, validate)
+____________ test_serve_runs_seeded_stdio_transport_without_stdout _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10719bc50>
+capsys = <_pytest.capture.CaptureFixture object at 0x107651940>
+
+    def test_serve_runs_seeded_stdio_transport_without_stdout(monkeypatch, capsys):
+        calls = []
+        fake = SimpleNamespace(serve_stdio=lambda **kw: calls.append(kw))
+        monkeypatch.setitem(sys.modules, "healthcraft.mcp.stdio", fake)
+>       assert cli.main(["serve", "--config", str(CONFIG), "--seed", "17"]) == 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2007: in parse_args
+    self.error(msg)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'healthcraft: error: unrecognized arguments: --config /Users/kiteboard/healthcraft/configs/world/mercy_point_v1.yaml --seed 17\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: unrecognized arguments: --config /Users/kiteboard/healthcraft/configs/world/mercy_point_v1.yaml --seed 17
+_____ test_serve_reports_missing_dependency_failure_without_ready_message ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1076b8b90>
+capsys = <_pytest.capture.CaptureFixture object at 0x107652190>
+
+    def test_serve_reports_missing_dependency_failure_without_ready_message(monkeypatch, capsys):
+        def unavailable(**kwargs):
+            raise RuntimeError("Install healthcraft[mcp] to serve MCP over stdio")
+    
+        monkeypatch.setitem(sys.modules, "healthcraft.mcp.stdio", SimpleNamespace(serve_stdio=unavailable))
+>       assert cli.main(["serve"]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function main at 0x1061349e0>(['serve'])
+E        +    where <function main at 0x1061349e0> = cli.main
+
+tests/test_cli.py:97: AssertionError
+----------------------------- Captured stdout call -----------------------------
+HEALTHCRAFT MCP server ready: <healthcraft.mcp.server.HealthcraftServer object at 0x10719cad0>
+World state: WorldState(time=2026-01-15T07:00:00+00:00, entities={})
+____________ test_serve_invalid_config_does_not_start_any_transport ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107151d30>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-414/test_serve_invalid_config_does0')
+
+    def test_serve_invalid_config_does_not_start_any_transport(monkeypatch, tmp_path):
+        def forbidden(**kwargs):
+            pytest.fail("transport started")
+    
+        monkeypatch.setitem(sys.modules, "healthcraft.mcp.stdio", SimpleNamespace(serve_stdio=forbidden))
+>       assert cli.main(["serve", "--config", str(tmp_path / "missing.yaml")]) == 1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2007: in parse_args
+    self.error(msg)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'healthcraft: error: unrecognized arguments: --config /private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-414/test_serve_invalid_config_does0/missing.yaml\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: unrecognized arguments: --config /private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-414/test_serve_invalid_config_does0/missing.yaml
+_________ test_stdio_refuses_http_port_instead_of_silently_ignoring_it _________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x10766fad0>
+
+    def test_stdio_refuses_http_port_instead_of_silently_ignoring_it(capsys):
+>       assert cli.main(["serve", "--port", "9000"]) != 0
+E       AssertionError: assert 0 != 0
+E        +  where 0 = <function main at 0x1061349e0>(['serve', '--port', '9000'])
+E        +    where <function main at 0x1061349e0> = cli.main
+
+tests/test_cli.py:112: AssertionError
+----------------------------- Captured stdout call -----------------------------
+HEALTHCRAFT MCP server ready: <healthcraft.mcp.server.HealthcraftServer object at 0x1071a2ad0>
+World state: WorldState(time=2026-01-15T07:00:00+00:00, entities={})
+Listening on port 9000 (MCP transport not yet implemented)
+___ test_explicit_http_transport_runs_existing_tool_api_and_propagates_exit ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107151010>
+
+    def test_explicit_http_transport_runs_existing_tool_api_and_propagates_exit(monkeypatch):
+        seen = []
+        monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    
+        def run(argv, **kwargs):
+            selected = {name: kwargs["env"][name] for name in (
+                "HEALTHCRAFT_HOST", "HEALTHCRAFT_PORT", "HEALTHCRAFT_SEED", "HEALTHCRAFT_SEED_CONFIG"
+            )}
+            seen.append((argv, selected, kwargs.get("shell", False)))
+            return SimpleNamespace(returncode=3)
+    
+        monkeypatch.setattr(subprocess, "run", run)
+>       assert cli.main(["serve", "--transport", "http", "--port", "9876", "--seed", "9"]) == 3
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli.py:128: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/cli.py:157: in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2007: in parse_args
+    self.error(msg)
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2780: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='healthcraft', usage=None, description='HEALTHCRAFT: Emergency Medicine RL Training Environment', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'healthcraft: error: unrecognized arguments: --transport http --seed 9\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/argparse.py:2767: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: healthcraft [-h] [--version] {seed,serve,evaluate,validate} ...
+healthcraft: error: unrecognized arguments: --transport http --seed 9
+_______ test_module_entrypoint_is_same_command_surface_as_installed_cli ________
+
+    def test_module_entrypoint_is_same_command_surface_as_installed_cli():
+        completed = subprocess.run(
+            [sys.executable, "-m", "healthcraft", "--help"], cwd=ROOT,
+            env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True,
+            timeout=20, check=False,
+        )
+        assert completed.returncode == 0
+>       assert "evaluate" in completed.stdout and "serve" in completed.stdout
+E       assert ('evaluate' in 'usage: python -m healthcraft [-h] [--tasks TASKS] [--model MODEL]\n                             [--trials TRIALS] [--...r TASKS_DIR\n                        Tasks directory\n  --log-level LOG_LEVEL\n                        Logging level\n')
+E        +  where 'usage: python -m healthcraft [-h] [--tasks TASKS] [--model MODEL]\n                             [--trials TRIALS] [--...r TASKS_DIR\n                        Tasks directory\n  --log-level LOG_LEVEL\n                        Logging level\n' = CompletedProcess(args=['/Users/kiteboard/healthcraft/.venv/bin/python', '-m', 'healthcraft', '--help'], returncode=0, ...n                        Tasks directory\n  --log-level LOG_LEVEL\n                        Logging level\n", stderr='').stdout
+
+tests/test_cli.py:142: AssertionError
+_________________ test_module_entrypoint_propagates_error_exit _________________
+
+    def test_module_entrypoint_propagates_error_exit():
+        completed = subprocess.run(
+            [sys.executable, "-m", "healthcraft", "validate", "/nonexistent/healthcraft-input"],
+            cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True,
+            text=True, timeout=20, check=False,
+        )
+>       assert completed.returncode == 1
+E       AssertionError: assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/kiteboard/healthcraft/.venv/bin/python', '-m', 'healthcraft', 'validate', '/nonexistent...log-level LOG_LEVEL]\npython -m healthcraft: error: unrecognized arguments: validate /nonexistent/healthcraft-input\n').returncode
+
+tests/test_cli.py:152: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::test_evaluate_delegates_exact_arguments_to_the_real_orchestrator
+FAILED tests/test_cli.py::test_evaluate_cannot_succeed_by_merely_listing_tasks
+FAILED tests/test_cli.py::test_evaluate_help_uses_real_options_without_provider_access
+FAILED tests/test_cli.py::test_evaluate_propagates_failure_exit_code - assert...
+FAILED tests/test_cli.py::test_simulation_routes_to_explicit_simulation_runner
+FAILED tests/test_cli.py::test_list_tasks_retains_the_old_inventory_function_with_honest_name
+FAILED tests/test_cli.py::test_serve_runs_seeded_stdio_transport_without_stdout
+FAILED tests/test_cli.py::test_serve_reports_missing_dependency_failure_without_ready_message
+FAILED tests/test_cli.py::test_serve_invalid_config_does_not_start_any_transport
+FAILED tests/test_cli.py::test_stdio_refuses_http_port_instead_of_silently_ignoring_it
+FAILED tests/test_cli.py::test_explicit_http_transport_runs_existing_tool_api_and_propagates_exit
+FAILED tests/test_cli.py::test_module_entrypoint_is_same_command_surface_as_installed_cli
+FAILED tests/test_cli.py::test_module_entrypoint_propagates_error_exit - Asse...
+13 failed, 3 passed in 1.38s

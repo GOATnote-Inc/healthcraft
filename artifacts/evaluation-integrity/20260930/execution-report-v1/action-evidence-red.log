@@ -1,0 +1,431 @@
+FF..FF..FFFFF.FFFF.F                                                     [100%]
+=================================== FAILURES ===================================
+_ test_documented_disposition_enum_is_checked_live_and_replay[admitted-False-updateEncounter] _
+
+tool = 'updateEncounter', disposition = 'admitted', expected = False
+
+    @pytest.mark.parametrize("tool", ["updateEncounter", "update_encounter"])
+    @pytest.mark.parametrize("disposition,expected", [("admitted", False), ("discharged", True)])
+    def test_documented_disposition_enum_is_checked_live_and_replay(tool, disposition, expected):
+        task, world, ids, recorder = scenario(ADMISSION_TASK, "NEG-001-C01")
+        response = recorder.call(tool, {"encounter_id": ids["encounter_id"], "disposition": disposition})
+        assert response["status"] == "ok"
+        assert world.get_entity("encounter", ids["encounter_id"]).disposition == disposition
+>       assert_live_and_replay(task, world, recorder, expected)
+
+tests/test_evaluator_integrity/test_action_evidence.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='NEG-001', category='safety_critical_judgment', level=3, title='Low-Risk Chest Pain (HEART 2) - Appropriate Re...conservative default -- it is overtreatment with downstream harms\n(iatrogenic testing, false-positive cascades).\n'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b7b9010>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='NEG-001-C01', satisfied=True, evidence="'updateencounter' (params={'_match': 'admit'}) not found in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_ test_documented_disposition_enum_is_checked_live_and_replay[admitted-False-update_encounter] _
+
+tool = 'update_encounter', disposition = 'admitted', expected = False
+
+    @pytest.mark.parametrize("tool", ["updateEncounter", "update_encounter"])
+    @pytest.mark.parametrize("disposition,expected", [("admitted", False), ("discharged", True)])
+    def test_documented_disposition_enum_is_checked_live_and_replay(tool, disposition, expected):
+        task, world, ids, recorder = scenario(ADMISSION_TASK, "NEG-001-C01")
+        response = recorder.call(tool, {"encounter_id": ids["encounter_id"], "disposition": disposition})
+        assert response["status"] == "ok"
+        assert world.get_entity("encounter", ids["encounter_id"]).disposition == disposition
+>       assert_live_and_replay(task, world, recorder, expected)
+
+tests/test_evaluator_integrity/test_action_evidence.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='NEG-001', category='safety_critical_judgment', level=3, title='Low-Risk Chest Pain (HEART 2) - Appropriate Re...conservative default -- it is overtreatment with downstream harms\n(iatrogenic testing, false-positive cascades).\n'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b806ad0>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='NEG-001-C01', satisfied=True, evidence="'updateencounter' (params={'_match': 'admit'}) not found in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+________ test_admission_word_in_note_does_not_replace_disposition_field ________
+
+    def test_admission_word_in_note_does_not_replace_disposition_field():
+        task, world, ids, recorder = scenario(ADMISSION_TASK, "NEG-001-C01")
+        response = recorder.call("updateEncounter", {"encounter_id": ids["encounter_id"], "disposition": "discharged", "notes": "No need to admit; unrelated note text."})
+        assert response["status"] == "ok"
+>       assert_live_and_replay(task, world, recorder, True)
+
+tests/test_evaluator_integrity/test_action_evidence.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='NEG-001', category='safety_critical_judgment', level=3, title='Low-Risk Chest Pain (HEART 2) - Appropriate Re...conservative default -- it is overtreatment with downstream harms\n(iatrogenic testing, false-positive cascades).\n'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'clinical_note': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b7869e0>
+expected = True
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert False is True
+E        +  where False = CriterionResult(criterion_id='NEG-001-C01', satisfied=False, evidence="'updateencounter' (params={'_match': 'admit'}) found in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_____ test_failed_admission_request_still_counts_as_negative_action_intent _____
+
+    def test_failed_admission_request_still_counts_as_negative_action_intent():
+        task, world, _, recorder = scenario(ADMISSION_TASK, "NEG-001-C01")
+        assert recorder.call("updateEncounter", {"encounter_id": "ENC-NOTFOUND", "disposition": "admitted"})["status"] == "error"
+>       assert_live_and_replay(task, world, recorder, False)
+
+tests/test_evaluator_integrity/test_action_evidence.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='NEG-001', category='safety_critical_judgment', level=3, title='Low-Risk Chest Pain (HEART 2) - Appropriate Re...conservative default -- it is overtreatment with downstream harms\n(iatrogenic testing, false-positive cascades).\n'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b7deb10>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='NEG-001-C01', satisfied=True, evidence="'updateencounter' (params={'_match': 'admit'}) not found in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_ test_context_or_wrong_action_type_is_not_the_ordered_medication[lab-details0-Avoid phentolamine; laboratory request only.] _
+
+order_type = 'lab', details = {'name': 'basic metabolic panel'}
+indication = 'Avoid phentolamine; laboratory request only.'
+
+    @pytest.mark.parametrize("order_type,details,indication", [
+        ("lab", {"name": "basic metabolic panel"}, "Avoid phentolamine; laboratory request only."),
+        ("lab", {"name": "phentolamine"}, "Synthetic wrong-type identity."),
+        ("medication", {"name": "acetaminophen"}, "Phentolamine is mentioned only as avoided context."),
+        ("medication", {"name": "acetaminophen", "note": "phentolamine"}, ""),
+    ])
+    def test_context_or_wrong_action_type_is_not_the_ordered_medication(order_type, details, indication):
+        task, world, ids, recorder = scenario(MEDICATION_TASK, "CR-030-C05")
+        response = recorder.call("createClinicalOrder", {"encounter_id": ids["encounter_id"], "order_type": order_type, "details": details, "indication": indication})
+        assert response["status"] == "ok"
+>       assert_live_and_replay(task, world, recorder, False)
+
+tests/test_evaluator_integrity/test_action_evidence.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='CR-030', category='clinical_reasoning', level=4, title='The Adrenaline Surge', description='A 36-year-old fem...etanephrines are 96% sensitive. ALWAYS alpha-block BEFORE beta-block — beta-blocker monotherapy is contraindicated.'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b88d350>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='CR-030-C05', satisfied=True, evidence="OR compound: 'createclinicalorder' (params={'_mat...dit log OR 'createclinicalorder' (params={'_match': 'nitroprusside'}) not found (successful) in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_ test_context_or_wrong_action_type_is_not_the_ordered_medication[lab-details1-Synthetic wrong-type identity.] _
+
+order_type = 'lab', details = {'name': 'phentolamine'}
+indication = 'Synthetic wrong-type identity.'
+
+    @pytest.mark.parametrize("order_type,details,indication", [
+        ("lab", {"name": "basic metabolic panel"}, "Avoid phentolamine; laboratory request only."),
+        ("lab", {"name": "phentolamine"}, "Synthetic wrong-type identity."),
+        ("medication", {"name": "acetaminophen"}, "Phentolamine is mentioned only as avoided context."),
+        ("medication", {"name": "acetaminophen", "note": "phentolamine"}, ""),
+    ])
+    def test_context_or_wrong_action_type_is_not_the_ordered_medication(order_type, details, indication):
+        task, world, ids, recorder = scenario(MEDICATION_TASK, "CR-030-C05")
+        response = recorder.call("createClinicalOrder", {"encounter_id": ids["encounter_id"], "order_type": order_type, "details": details, "indication": indication})
+        assert response["status"] == "ok"
+>       assert_live_and_replay(task, world, recorder, False)
+
+tests/test_evaluator_integrity/test_action_evidence.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='CR-030', category='clinical_reasoning', level=4, title='The Adrenaline Surge', description='A 36-year-old fem...etanephrines are 96% sensitive. ALWAYS alpha-block BEFORE beta-block — beta-blocker monotherapy is contraindicated.'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b776650>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='CR-030-C05', satisfied=True, evidence="OR compound: 'createclinicalorder' (params={'_mat...dit log OR 'createclinicalorder' (params={'_match': 'nitroprusside'}) not found (successful) in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_ test_context_or_wrong_action_type_is_not_the_ordered_medication[medication-details2-Phentolamine is mentioned only as avoided context.] _
+
+order_type = 'medication', details = {'name': 'acetaminophen'}
+indication = 'Phentolamine is mentioned only as avoided context.'
+
+    @pytest.mark.parametrize("order_type,details,indication", [
+        ("lab", {"name": "basic metabolic panel"}, "Avoid phentolamine; laboratory request only."),
+        ("lab", {"name": "phentolamine"}, "Synthetic wrong-type identity."),
+        ("medication", {"name": "acetaminophen"}, "Phentolamine is mentioned only as avoided context."),
+        ("medication", {"name": "acetaminophen", "note": "phentolamine"}, ""),
+    ])
+    def test_context_or_wrong_action_type_is_not_the_ordered_medication(order_type, details, indication):
+        task, world, ids, recorder = scenario(MEDICATION_TASK, "CR-030-C05")
+        response = recorder.call("createClinicalOrder", {"encounter_id": ids["encounter_id"], "order_type": order_type, "details": details, "indication": indication})
+        assert response["status"] == "ok"
+>       assert_live_and_replay(task, world, recorder, False)
+
+tests/test_evaluator_integrity/test_action_evidence.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='CR-030', category='clinical_reasoning', level=4, title='The Adrenaline Surge', description='A 36-year-old fem...etanephrines are 96% sensitive. ALWAYS alpha-block BEFORE beta-block — beta-blocker monotherapy is contraindicated.'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b871400>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='CR-030-C05', satisfied=True, evidence="OR compound: 'createclinicalorder' (params={'_mat...dit log OR 'createclinicalorder' (params={'_match': 'nitroprusside'}) not found (successful) in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_ test_context_or_wrong_action_type_is_not_the_ordered_medication[medication-details3-] _
+
+order_type = 'medication'
+details = {'name': 'acetaminophen', 'note': 'phentolamine'}, indication = ''
+
+    @pytest.mark.parametrize("order_type,details,indication", [
+        ("lab", {"name": "basic metabolic panel"}, "Avoid phentolamine; laboratory request only."),
+        ("lab", {"name": "phentolamine"}, "Synthetic wrong-type identity."),
+        ("medication", {"name": "acetaminophen"}, "Phentolamine is mentioned only as avoided context."),
+        ("medication", {"name": "acetaminophen", "note": "phentolamine"}, ""),
+    ])
+    def test_context_or_wrong_action_type_is_not_the_ordered_medication(order_type, details, indication):
+        task, world, ids, recorder = scenario(MEDICATION_TASK, "CR-030-C05")
+        response = recorder.call("createClinicalOrder", {"encounter_id": ids["encounter_id"], "order_type": order_type, "details": details, "indication": indication})
+        assert response["status"] == "ok"
+>       assert_live_and_replay(task, world, recorder, False)
+
+tests/test_evaluator_integrity/test_action_evidence.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = Task(id='CR-030', category='clinical_reasoning', level=4, title='The Adrenaline Surge', description='A 36-year-old fem...etanephrines are 96% sensitive. ALWAYS alpha-block BEFORE beta-block — beta-blocker monotherapy is contraindicated.'}})
+world = WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1})
+recorder = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10b8846e0>
+expected = False
+
+    def assert_live_and_replay(task, world, recorder, expected):
+        live = evaluate_task(task, {}, world)
+        turns = []
+        for call in recorder.calls:
+            turns.extend([
+                {"role": "assistant", "tool_calls": [{"id": call["id"], "name": call["name"], "arguments": call["params"]}]},
+                {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(call["response"])},
+            ])
+        replay = replay_from_trajectory({"task_id": task.id, "turns": turns}, task)
+>       assert live.criteria_results[0].satisfied is expected
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='CR-030-C05', satisfied=True, evidence="OR compound: 'createclinicalorder' (params={'_mat...dit log OR 'createclinicalorder' (params={'_match': 'nitroprusside'}) not found (successful) in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:45: AssertionError
+_______ test_saved_deduplicated_request_cannot_credit_a_different_order ________
+
+    def test_saved_deduplicated_request_cannot_credit_a_different_order():
+        task, world, ids, recorder = scenario(MEDICATION_TASK, "CR-030-C05")
+        first_params = {"encounter_id": ids["encounter_id"], "order_type": "medication", "details": {"name": "acetaminophen"}, "idempotency_key": "one-action"}
+        original = recorder.call("createClinicalOrder", first_params)
+        assert original["status"] == "ok"
+        # Historical saved response contract: the handler returned the old order.
+        # Preserve that evidence without requiring the new handler to reproduce a bug.
+        changed = {**first_params, "details": {"name": "phentolamine", "route": "IV"}}
+        world.record_audit(tool_name="createClinicalOrder", params=changed, result_summary="ok", deduplicated=True)
+>       assert evaluate_task(task, {}, world).criteria_results[0].satisfied is False
+E       assert True is False
+E        +  where True = CriterionResult(criterion_id='CR-030-C05', satisfied=True, evidence="OR compound: 'createclinicalorder' (params={'_mat...dit log OR 'createclinicalorder' (params={'_match': 'nitroprusside'}) not found (successful) in audit log", error=None).satisfied
+
+tests/test_evaluator_integrity/test_action_evidence.py:101: AssertionError
+__ test_same_key_different_request_fails_without_mutating_original[changes0] ___
+
+setup = (WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1}), ...'name': 'acetaminophen'}, 'encounter_id': 'ENC-D103AA7B', 'idempotency_key': 'one-effect', 'order_type': 'medication'})
+changes = {'details': {'dose': 1, 'name': 'phentolamine'}}
+
+    @pytest.mark.parametrize("changes", [
+        {"details": {"name": "phentolamine", "dose": 1}},
+        {"details": {"name": "acetaminophen", "dose": 1.0}},
+        {"priority": "stat"},
+        {"indication": "Changed request context"},
+    ])
+    def test_same_key_different_request_fails_without_mutating_original(setup, changes):
+        world, server, params = setup
+        initial = server.call_tool("createClinicalOrder", params)
+        orders_before = deepcopy(world.list_entities("order"))
+        tasks_before = deepcopy(world.list_entities("clinical_task"))
+        assert initial["status"] == "ok"
+        rejected = server.call_tool("createClinicalOrder", {**params, **changes})
+>       assert rejected["status"] == "error"
+E       AssertionError: assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_order_idempotency_contract.py:34: AssertionError
+__ test_same_key_different_request_fails_without_mutating_original[changes1] ___
+
+setup = (WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1}), ...'name': 'acetaminophen'}, 'encounter_id': 'ENC-D103AA7B', 'idempotency_key': 'one-effect', 'order_type': 'medication'})
+changes = {'details': {'dose': 1.0, 'name': 'acetaminophen'}}
+
+    @pytest.mark.parametrize("changes", [
+        {"details": {"name": "phentolamine", "dose": 1}},
+        {"details": {"name": "acetaminophen", "dose": 1.0}},
+        {"priority": "stat"},
+        {"indication": "Changed request context"},
+    ])
+    def test_same_key_different_request_fails_without_mutating_original(setup, changes):
+        world, server, params = setup
+        initial = server.call_tool("createClinicalOrder", params)
+        orders_before = deepcopy(world.list_entities("order"))
+        tasks_before = deepcopy(world.list_entities("clinical_task"))
+        assert initial["status"] == "ok"
+        rejected = server.call_tool("createClinicalOrder", {**params, **changes})
+>       assert rejected["status"] == "error"
+E       AssertionError: assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_order_idempotency_contract.py:34: AssertionError
+__ test_same_key_different_request_fails_without_mutating_original[changes2] ___
+
+setup = (WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1}), ...'name': 'acetaminophen'}, 'encounter_id': 'ENC-D103AA7B', 'idempotency_key': 'one-effect', 'order_type': 'medication'})
+changes = {'priority': 'stat'}
+
+    @pytest.mark.parametrize("changes", [
+        {"details": {"name": "phentolamine", "dose": 1}},
+        {"details": {"name": "acetaminophen", "dose": 1.0}},
+        {"priority": "stat"},
+        {"indication": "Changed request context"},
+    ])
+    def test_same_key_different_request_fails_without_mutating_original(setup, changes):
+        world, server, params = setup
+        initial = server.call_tool("createClinicalOrder", params)
+        orders_before = deepcopy(world.list_entities("order"))
+        tasks_before = deepcopy(world.list_entities("clinical_task"))
+        assert initial["status"] == "ok"
+        rejected = server.call_tool("createClinicalOrder", {**params, **changes})
+>       assert rejected["status"] == "error"
+E       AssertionError: assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_order_idempotency_contract.py:34: AssertionError
+__ test_same_key_different_request_fails_without_mutating_original[changes3] ___
+
+setup = (WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1}), ...'name': 'acetaminophen'}, 'encounter_id': 'ENC-D103AA7B', 'idempotency_key': 'one-effect', 'order_type': 'medication'})
+changes = {'indication': 'Changed request context'}
+
+    @pytest.mark.parametrize("changes", [
+        {"details": {"name": "phentolamine", "dose": 1}},
+        {"details": {"name": "acetaminophen", "dose": 1.0}},
+        {"priority": "stat"},
+        {"indication": "Changed request context"},
+    ])
+    def test_same_key_different_request_fails_without_mutating_original(setup, changes):
+        world, server, params = setup
+        initial = server.call_tool("createClinicalOrder", params)
+        orders_before = deepcopy(world.list_entities("order"))
+        tasks_before = deepcopy(world.list_entities("clinical_task"))
+        assert initial["status"] == "ok"
+        rejected = server.call_tool("createClinicalOrder", {**params, **changes})
+>       assert rejected["status"] == "error"
+E       AssertionError: assert 'ok' == 'error'
+E         
+E         - error
+E         + ok
+
+tests/test_mcp_tools/test_order_idempotency_contract.py:34: AssertionError
+____ test_removing_explicit_priority_or_indication_is_not_the_same_request _____
+
+setup = (WorldState(time=2026-01-15T07:00:00+00:00, entities={'patient': 1, 'encounter': 1, 'order': 1, 'clinical_task': 1}), ...'name': 'acetaminophen'}, 'encounter_id': 'ENC-D103AA7B', 'idempotency_key': 'one-effect', 'order_type': 'medication'})
+
+    def test_removing_explicit_priority_or_indication_is_not_the_same_request(setup):
+        world, server, params = setup
+        assert server.call_tool("createClinicalOrder", {**params, "priority": "urgent", "indication": "Supplied"})["status"] == "ok"
+>       assert server.call_tool("createClinicalOrder", params)["code"] == "idempotency_conflict"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'code'
+
+tests/test_mcp_tools/test_order_idempotency_contract.py:56: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_documented_disposition_enum_is_checked_live_and_replay[admitted-False-updateEncounter]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_documented_disposition_enum_is_checked_live_and_replay[admitted-False-update_encounter]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_admission_word_in_note_does_not_replace_disposition_field
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_failed_admission_request_still_counts_as_negative_action_intent
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_context_or_wrong_action_type_is_not_the_ordered_medication[lab-details0-Avoid phentolamine; laboratory request only.]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_context_or_wrong_action_type_is_not_the_ordered_medication[lab-details1-Synthetic wrong-type identity.]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_context_or_wrong_action_type_is_not_the_ordered_medication[medication-details2-Phentolamine is mentioned only as avoided context.]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_context_or_wrong_action_type_is_not_the_ordered_medication[medication-details3-]
+FAILED tests/test_evaluator_integrity/test_action_evidence.py::test_saved_deduplicated_request_cannot_credit_a_different_order
+FAILED tests/test_mcp_tools/test_order_idempotency_contract.py::test_same_key_different_request_fails_without_mutating_original[changes0]
+FAILED tests/test_mcp_tools/test_order_idempotency_contract.py::test_same_key_different_request_fails_without_mutating_original[changes1]
+FAILED tests/test_mcp_tools/test_order_idempotency_contract.py::test_same_key_different_request_fails_without_mutating_original[changes2]
+FAILED tests/test_mcp_tools/test_order_idempotency_contract.py::test_same_key_different_request_fails_without_mutating_original[changes3]
+FAILED tests/test_mcp_tools/test_order_idempotency_contract.py::test_removing_explicit_priority_or_indication_is_not_the_same_request
+14 failed, 6 passed in 0.14s

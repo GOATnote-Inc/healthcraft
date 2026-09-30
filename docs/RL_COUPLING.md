@@ -8,10 +8,11 @@ Implementation lives under `src/healthcraft/rl/`.
 
 > **Score ≠ clinical readiness.** A policy trained against HealthCraft is a
 > research artifact. A strong HealthCraft training score does NOT constitute
-> evidence of clinical readiness. Held-out prospective validation by a
-> physician reviewer blind to model identity is required before any
-> deployment conversation. This is non-negotiable; the rest of this doc
-> assumes it.
+> evidence of clinical readiness. Independent, held-out prospective clinical
+> validation is optional future research; clinical readiness remains unproven.
+> Human review is not required for a research-software or paper release. The
+> [automated release workflow](RELEASE_EVIDENCE_PLAN.md) preserves the
+> research-artifact boundary and separates publication from clinical use.
 
 > **Empirical training-safety remains future work.** The whitepaper names
 > three items still open: soft-gate/hard-gate ablation, restraint-criterion
@@ -84,8 +85,20 @@ empirically validated yet):**
 3. **Judge abstention.** `EnsembleJudge` already supports same-vendor skip
    and `EnsembleResult.ambiguous` for supermajority-fail. The training
    reward consumes that — ambiguous criteria are dropped from the
-   denominator rather than guessed at; the verifiable/process weights are
-   renormalised to maintain reward range.
+   denominator rather than guessed at. If one clinical term remains, it
+   receives the other clinical term's weight. If neither remains, their
+   contribution is zero. Clinical weights never transfer to the process
+   term: `w_process` remains exactly configured, including zero. The capped
+   raw process signal remains visible in diagnostics even when its weight
+   is zero.
+
+Training requires a nonempty task rubric. Reward computation and the slime
+reward adapter reject a present task with missing or empty criteria before
+returning a scalar or recording a reward breakdown. `HealthCraftEnv.reset`
+invalidates the prior episode and rejects such a task before preparing a new
+world; rollout rechecks the rubric before calling the policy. General task
+loading remains available for inspecting legacy definitions. These guards
+do not establish that a nonempty rubric is clinically valid.
 
 Note that "verifiable" world-state checks are deterministic and free of
 LLM-judge noise; they are **not** ungameable. The whitepaper's

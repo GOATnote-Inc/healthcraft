@@ -1,0 +1,107 @@
+"""Post-repair synthetic source/note check on frozen candidate; no models/network."""
+from copy import deepcopy
+from dataclasses import asdict
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path('/private/tmp/healthcraft-execution-candidate-opv37lpv')
+sys.path.insert(0, str(ROOT / 'src'))
+from healthcraft.entities.base import EntityType
+from healthcraft.entities.encounters import Encounter
+from healthcraft.entities.patients import Patient
+from healthcraft.mcp.server import create_server
+from healthcraft.tasks.care_projection import project_authored_care
+from healthcraft.tasks.history_execution import ExecutionRecorder, _json_snapshot
+from healthcraft.tasks.imaging_projection import project_imaging
+from healthcraft.world.state import WorldState
+import jsonschema
+
+OUT = Path('/Users/kiteboard/healthcraft/artifacts/evaluation-integrity/20260930/execution-report-v1/note-contract-repaired.json')
+FILES = ['src/healthcraft/mcp/tools/mutate_tools.py', 'src/healthcraft/mcp/tools/read_tools.py', 'src/healthcraft/mcp/server.py', 'src/healthcraft/world/state.py', 'src/healthcraft/tasks/history_execution.py', 'src/healthcraft/tasks/care_projection.py', 'src/healthcraft/tasks/imaging_projection.py', 'src/healthcraft/entities/encounters.py', 'configs/mcp-tools.json']
+def hashes():
+    return {p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in FILES}
+SCHEMAS = {x['name']:x['parameters'] for x in json.loads((ROOT/'configs/mcp-tools.json').read_text())['tools']}
+CLOCK = datetime(2026, 9, 30, 14, 30, tzinfo=timezone.utc)
+SOURCE = {
+    'active_orders': [{'source_id':'SRC-A01','order_id':'ORDER-A01','item':'synthetic_medication_A','status':'planned','time':None}],
+    'current_management': [
+        {'source_id':'SRC-A02','item':'repeat observation','kind':'non_drug','status':'requested','time':'2026-09-30T14:10:00Z'},
+        {'source_id':'SRC-A03','item':'synthetic_medication_B','status':None,'time':None}],
+    'treatments_given': [
+        {'source_id':'SRC-A04','event_id':'EVENT-A01','item':'synthetic_medication_C','reported_status':'administered','event_time':'2026-09-30T14:05:00Z','reporter':'source_chart_A'},
+        {'source_id':'SRC-A05','event_id':'EVENT-A01','item':'synthetic_medication_C','reported_status':'not_administered','event_time':'2026-09-30T14:05:00Z','reporter':'source_chart_B'}],
+    'imaging_pending': {'study_01': {'source_id':'SRC-A06','study_id':'STUDY-A01','modality':'XR','body_part':'chest','status':'pending','time':None}},
+}
+
+def make_world():
+    world = WorldState(CLOCK)
+    for p in ('A','B'):
+        patient = Patient(id=f'PAT-{p*8}',entity_type=EntityType.PATIENT,created_at=CLOCK,updated_at=CLOCK,mrn=f'SYNTHETIC-{p}',first_name='Rowan',last_name='Example',dob=None,prior_visit_ids=('ENC-CCCCCCCC',) if p=='A' else ())
+        world.put_entity('patient',patient.id,patient)
+    for e,p,source in [('A','A',SOURCE),('B','B',{'treatments_given':[{'source_id':'SRC-B01','item':'synthetic_medication_C','reported_status':'administered','event_time':'2026-09-30T14:05:00Z'}]}),('C','A',{'treatments_given':[{'source_id':'SRC-A07','item':'synthetic_medication_A','reported_status':'administered','event_time':None}]})]:
+        imaging=project_imaging(source,task_id='SYNTHETIC-EHR-V1')
+        enc=Encounter(id=f'ENC-{e*8}',entity_type=EntityType.ENCOUNTER,created_at=CLOCK,updated_at=CLOCK,patient_id=f'PAT-{p*8}',chief_complaint='Synthetic source reconciliation',esi_level=None,arrival_time=CLOCK if e in 'AB' else None,authored_care=project_authored_care(source),imaging=imaging.records,clinical_notes=(('Source context','Wholly synthetic, no diagnosis or treatment selection requested.'),))
+        world.put_entity('encounter',enc.id,enc)
+    return world
+
+def call(rec,name,params):
+    jsonschema.validate(params,SCHEMAS[name])
+    return rec.call(name,params)
+
+before=hashes()
+os.environ['HC_IDEMPOTENT_TOOLS']='1'
+world=make_world()
+rec=ExecutionRecorder(create_server(world),world)
+initial_world={k:_json_snapshot({eid:asdict(e) if hasattr(e,'__dataclass_fields__') else e for eid,e in world.list_entities(k).items()}) for k in ('patient','encounter','clinical_note','order','clinical_task')}
+call(rec,'searchPatients',{'name':'Rowan Example'})
+call(rec,'searchEncounters',{'patient_id':'PAT-AAAAAAAA'})
+call(rec,'getPatientHistory',{'patient_id':'PAT-AAAAAAAA'})
+for eid in ('ENC-AAAAAAAA','ENC-CCCCCCCC','ENC-BBBBBBBB'):
+    call(rec,'getEncounterDetails',{'encounter_id':eid})
+NOTE='Source reconciliation (synthetic): SRC-A04 and SRC-A05 report conflicting statuses for EVENT-A01 at the same stated event time; neither is selected as true. SRC-A01 is planned; SRC-A02 is non-drug requested work; SRC-A03 status/time are unknown; SRC-A06 is pending with unknown time. SRC-A07 belongs to a different encounter; SRC-B01 belongs to another patient. No completed care is inferred.'
+params={'encounter_id':'ENC-AAAAAAAA','notes':NOTE,'idempotency_key':'synthetic-note-1'}
+first=call(rec,'updateEncounter',params)
+retry=call(rec,'updateEncounter',deepcopy(params))
+readback=call(rec,'getEncounterDetails',{'encounter_id':'ENC-AAAAAAAA'})
+assert len(world.list_entities('clinical_note'))==1
+assert retry.get('deduplicated') is True
+assert readback['data']['clinical_notes'][-1][1]==NOTE
+assert _json_snapshot(asdict(world.get_entity('encounter','ENC-BBBBBBBB')))==initial_world['encounter']['ENC-BBBBBBBB']
+assert _json_snapshot(asdict(world.get_entity('encounter','ENC-CCCCCCCC')))==initial_world['encounter']['ENC-CCCCCCCC']
+# Separate world: changed requests must return conflict without persistence.
+badworld=make_world(); badrec=ExecutionRecorder(create_server(badworld),badworld)
+call(badrec,'updateEncounter',params)
+changed=call(badrec,'updateEncounter',{**params,'notes':'Changed note that is not persisted'})
+cross=call(badrec,'updateEncounter',{**params,'encounter_id':'ENC-BBBBBBBB','notes':'Other patient note that is not persisted'})
+missed_a=call(badrec,'getEncounterDetails',{'encounter_id':'ENC-AAAAAAAA'})
+missed_b=call(badrec,'getEncounterDetails',{'encounter_id':'ENC-BBBBBBBB'})
+newkey=call(badrec,'updateEncounter',{**params,'encounter_id':'ENC-BBBBBBBB','notes':'Other patient note using unique key','idempotency_key':'synthetic-note-2'})
+read_b=call(badrec,'getEncounterDetails',{'encounter_id':'ENC-BBBBBBBB'})
+assert changed.get('deduplicated') is not True and changed['status']=='error' and changed['code']=='idempotency_conflict'
+assert cross.get('deduplicated') is not True and cross['status']=='error' and cross['code']=='idempotency_conflict'
+assert 'Changed note that is not persisted' not in str(missed_a['data']['clinical_notes'])
+assert 'Other patient note that is not persisted' not in str(missed_b['data']['clinical_notes'])
+assert read_b['data']['clinical_notes'][-1][1]=='Other patient note using unique key'
+after=hashes()
+result={
+ 'schema_version':'ehr-note-contract-observation/v1','original_synthetic_only':True,'external_comparator_executed':False,'model_calls':0,
+ 'head':'5cd2955502e373d969b66817162587170ce79e8f',
+ 'source_hashes_before':before,'source_hashes_after':after,'source_unchanged_during_probe':before==after,
+ 'clock':CLOCK.isoformat(),'source_fixture':SOURCE,
+ 'source_fixture_sha256':hashlib.sha256(json.dumps(SOURCE,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
+ 'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+ 'initial_world':initial_world,'reference_calls':rec.calls,
+ 'reference_stored_notes':_json_snapshot(world.list_entities('clinical_note')),
+ 'reference_audit':_json_snapshot([asdict(e) for e in world.audit_log]),
+ 'idempotency_collision_calls':badrec.calls,
+ 'collision_stored_notes':_json_snapshot(badworld.list_entities('clinical_note')),
+ 'collision_audit':_json_snapshot([asdict(e) for e in badworld.audit_log]),
+ 'observations':{'same_request_one_note':True,'wrong_patient_and_other_encounter_untouched_by_reference':True,'same_key_changed_notes_rejected_without_write':True,'same_key_changed_encounter_rejected_without_write':True,'distinct_key_other_patient_write_persisted':newkey['status']=='ok'},
+ 'limitations':['In-process real handlers, no network MCP transport','Frozen staged candidate export; head identifies baseline only, exact file hashes bind observed sources','Source strings are exact mechanical assertions, not validated clinical facts','No independently implemented full workflow verifier yet']}
+with OUT.open('x') as handle: json.dump(result,handle,indent=2,allow_nan=False)
+print(json.dumps({'output':str(OUT),'source_unchanged':before==after,'observations':result['observations'],'reference_calls':len(rec.calls),'collision_calls':len(badrec.calls)},indent=2))

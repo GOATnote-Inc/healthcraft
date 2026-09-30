@@ -183,11 +183,6 @@ class HealthcraftServer:
         could never see simulator-side codes).
         """
         handler_key = self._resolve_tool_name(tool_name)
-        if handler_key is None:
-            result = _make_error("unknown_tool", f"Unknown tool: {tool_name}")
-            self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
-            return result
-
         # Extract idempotency metadata and compute attempt_number.
         idempotency_key = ""
         if isinstance(params, dict):
@@ -204,7 +199,12 @@ class HealthcraftServer:
             )
 
         try:
-            result = self._handlers[handler_key](self._world, params)
+            # Rejected names are attempts too: route their error response
+            # through the same audit middleware without dispatching a handler.
+            if handler_key is None:
+                result = _make_error("unknown_tool", f"Unknown tool: {tool_name}")
+            else:
+                result = self._handlers[handler_key](self._world, params)
             self._audit.log_tool_call(tool_name, params, result, self._world.timestamp)
             deduplicated = False
             error_code = ""

@@ -1,0 +1,97 @@
+"""Create new offline tutorial artifacts from frozen existing model attempts."""
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=ROOT/'artifacts/reconciliation/20260930/operator-review-tutorial-v1'
+VALIDATION=Path('/private/tmp/healthcraft-operator-tutorial-checks')
+SOURCES=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1'
+CODE=['src/healthcraft/operator_review.py','src/healthcraft/operator_review_report.py',
+      'scripts/operator_review.py']
+
+def sha(raw): return hashlib.sha256(raw).hexdigest()
+def json_write(path,value):
+    with path.open('x') as stream:
+        json.dump(value,stream,indent=2,ensure_ascii=False,allow_nan=False)
+        stream.write('\n')
+def files(root):
+    return {str(p.relative_to(root)):sha(p.read_bytes()) for p in sorted(root.rglob('*')) if p.is_file()}
+
+sys.path.insert(0,str(ROOT/'src'))
+from healthcraft.operator_review import build_operator_packet,import_operator_response
+
+names=['nano-direct-01','nano-harbor-01','medgemma-direct-01','medgemma-harbor-01']
+roster={f'case-{index+1:02}':SOURCES/name for index,name in enumerate(names)}
+before={name:files(SOURCES/name) for name in names}
+source_code={name:sha((ROOT/name).read_bytes()) for name in CODE}
+OUT.mkdir(parents=True,exist_ok=False)
+VALIDATION.mkdir(exist_ok=False)
+protocol={'protocol_id':'exposed-operator-tutorial-v1','purpose':'engineering_tutorial'}
+json_write(OUT/'protocol.json',protocol)
+packets={}
+for presentation in ['raw','assisted']:
+    assignment={'assignment_id':f'tutorial-example-{presentation}',
+                'reviewer_id':'example-only-no-participant','presentation':presentation}
+    json_write(OUT/f'assignment-{presentation}.json',assignment)
+    packets[presentation]=build_operator_packet(roster,OUT/presentation,protocol=protocol,assignment=assignment)
+    receipt=import_operator_response(OUT/presentation/'manifest.json',
+                                    OUT/presentation/'response-template.json',
+                                    VALIDATION/f'{presentation}-blank-import')
+    assert receipt['status']=='recorded'
+    assert receipt['counts']['assigned_cases']==4
+    assert receipt['counts']['assigned_axes']==receipt['counts']['pending_axes']==24
+    assert receipt['counts']['assessed_axes']==0
+    print(presentation,json.dumps(receipt['counts'],sort_keys=True))
+invalid=VALIDATION/'synthetic-malformed-response.json'
+invalid.write_bytes(b'{"synthetic_contract_probe": [invalid JSON}\n')
+receipt=import_operator_response(OUT/'raw/manifest.json',invalid,VALIDATION/'synthetic-invalid-import')
+assert receipt['status']=='invalid_submission'
+assert receipt['counts']['pending_axes']==24
+assert before=={name:files(SOURCES/name) for name in names}
+assert source_code=={name:sha((ROOT/name).read_bytes()) for name in CODE}
+for raw,assisted in zip(packets['raw']['cases'],packets['assisted']['cases']):
+    assert raw==assisted
+families=sorted({case['scenario_family_id'] for case in packets['raw']['cases']})
+assert len(families)==1
+readme='''# Offline operator review tutorial
+
+Open [the assisted packet](assisted/report.html) or
+[the raw-evidence packet](raw/report.html). Both contain the same four existing
+MedGemma/Nemotron attempts and six blank questions per attempt. All four attempts
+share one exposed synthetic scenario family. No fresh models, cases or
+participants were added; these are examples, not comparison-study observations.
+
+The assisted display adds the recomputed explanation. Both expose scenario,
+evidence, expectations and oracle data, and use the same citation/response
+format. Downloaded responses require later import and independent adjudication.
+The example reviewer alias denotes no person. Replace the example assignment
+with your own newly built packet to collect a response.
+
+Original source bytes and all oracle verdicts are unchanged. Controlled reports
+are regenerated from verified JSON; captured source HTML is not executed.
+Automated checks establish parsing, binding and export contracts, not visual
+usability. Browser QA, participant testing and clinical validation remain
+unperformed. These files are neither a superiority result nor the gated formal
+red team. Remote main and the manuscript remain unchanged.
+
+See [operator instructions](../../../../docs/OPERATOR_REVIEW.md).
+'''
+(OUT/'README.md').write_text(readme)
+manifest={'schema_version':'healthcraft-operator-review-tutorial-artifacts/v1',
+          'status':'complete','source_code_sha256':source_code,
+          'source_cases':{case:str(path.relative_to(ROOT)) for case,path in roster.items()},
+          'source_snapshot_sha256':before,'scenario_families':families,
+          'source_case_count':4,'presentation_count':2,'assigned_axes_per_packet':24,
+          'model_calls':0,'human_participants':0,'clinical_validation':'not_established',
+          'browser_visual_qa':'not_performed','files':files(OUT)}
+json_write(OUT/'manifest.json',manifest)
+json_write(VALIDATION/'tutorial-check-receipt.json',{
+    'tutorial_manifest_sha256':sha((OUT/'manifest.json').read_bytes()),
+    'all_original_source_files_unchanged':True,'case_documents_equal_between_presentations':True,
+    'case_count':4,'scenario_family_count':1,'blank_axes_per_presentation':24,
+    'synthetic_import_checks':'Two blank and one deliberately malformed response; no human observations.'})
+print(json.dumps({'output':str(OUT),'files':len(manifest['files'])+1,
+                  'manifest_sha256':sha((OUT/'manifest.json').read_bytes())},indent=2))

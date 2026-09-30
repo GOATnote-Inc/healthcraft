@@ -1,0 +1,34 @@
+from pathlib import Path
+import hashlib,importlib.util,json,tempfile
+from copy import deepcopy
+from healthcraft import operator_incidents as incident
+from healthcraft import operator_adjudication as adj
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-adjudication-peer')
+spec=importlib.util.spec_from_file_location('incident_test_helpers',ROOT/'tests/test_operator_incidents.py');t=importlib.util.module_from_spec(spec);spec.loader.exec_module(t)
+sourcepaths=[ROOT/'src/healthcraft/operator_adjudication.py',ROOT/'src/healthcraft/operator_incidents.py',ROOT/'src/healthcraft/operator_incident_report.py']
+def hashes():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sourcepaths}
+before=hashes();d=Path(tempfile.mkdtemp(prefix='checks-',dir=OUT));manifest,attempt=t.source(d,case='REC2-001')
+p=incident.build_incident_packet(manifest,d/'operator',expected_sha256=t.sha(manifest),selections={'opaque-1':attempt},protocol=t.PROTOCOL,assignment=t.ASSIGNMENT)
+response=incident.incident_response_template(p);response['cases'][0]['incident_assessment']['summary']='ORIGINAL DRAFT'
+t.write(d/'response.json',response)
+assignment={'assignment_id':'review-1','adjudicator_id':'reviewer-1','role':'initial'}
+a=adj.build_adjudication_packet(d/'operator/manifest.json',d/'response.json',d/'adjudication',assignment=assignment)
+original=(d/'adjudication/coordinator/operator-response.json').read_bytes()
+a['cases'][0]['documents']['response']['incident_assessment']['summary']='ALTERED DRAFT NOT SUBMITTED'
+a['cases'][0]['documents']['scenario']['target']['patient_id']='PAT-FFFFFFFF'
+payloads={'public/packet.json':adj._canonical(a)+b'\n','public/response-template.json':adj._canonical(adj.adjudication_template(a))+b'\n','public/report.html':adj._render(a,adj.adjudication_template(a)).encode()}
+for name,raw in payloads.items():(d/'adjudication'/name).write_bytes(raw)
+m=json.loads((d/'adjudication/manifest.json').read_text());m['packet_sha256']=adj._digest(a);m['files'].update({n:adj._sha(v) for n,v in payloads.items()});t.write(d/'adjudication/manifest.json',m)
+try:
+ validated=adj.validate_adjudication_packet(d/'adjudication/manifest.json')[0]
+ binding={'accepted':True,'altered_response':validated['cases'][0]['documents']['response']['incident_assessment']['summary'],'altered_target':validated['cases'][0]['documents']['scenario']['target'],'original_submission_unchanged':original==(d/'adjudication/coordinator/operator-response.json').read_bytes()}
+except Exception as e:binding={'accepted':False,'error':f'{type(e).__name__}: {e}'}
+# Adjudication output inside original source invalidates original packet and source inventory.
+try:
+ adj.build_adjudication_packet(d/'operator/manifest.json',d/'response.json',manifest.parent/'inserted-adjudication',assignment={**assignment,'assignment_id':'review-2'})
+ containment={'accepted':True,'output':str(manifest.parent/'inserted-adjudication')}
+ try:incident.validate_incident_packet(d/'operator/manifest.json');containment['operator_still_valid']=True
+ except Exception as e:containment['operator_still_valid']=False;containment['error']=f'{type(e).__name__}: {e}'
+except Exception as e:containment={'accepted':False,'error':f'{type(e).__name__}: {e}'}
+r={'source_before':before,'source_after':hashes(),'output':str(d),'self_rehashed_projection':binding,'output_inside_original_source':containment,'scope':'Offline copied synthetic sources only; no originals changed, models, network or browser.'}
+(OUT/'recheck-findings.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

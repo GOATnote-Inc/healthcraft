@@ -1,0 +1,117 @@
+{
+  "schema_version": "ordinary-development-review/v1",
+  "scope": "Shared mutation retry helper and four callers; independent saved note-collision reproduction",
+  "status": "no_production_findings_in_reviewed_scope; obsolete_adjacent_test_expectation_requires_update",
+  "clinical_validation": false,
+  "formal_red_team": false,
+  "model_calls": 0,
+  "source_edits": false,
+  "files_sha256": {
+    "src/healthcraft/mcp/tools/mutate_tools.py": "37546de8387571ef90dc65c28447d639d59d79880277266cada2b611b5311f5e",
+    "tests/test_mcp_tools/test_mutation_retry_contract.py": "8fc9fe8a5ed1214b6e1af164949db47f2c719616ea98142a160cc3480e721af8"
+  },
+  "pre_fix_observation": {
+    "path": "/private/tmp/healthcraft-ehr-note-contract-probe-20260930.json",
+    "sha256": "164e47590e8a78abb6125eac1d98f154775fb337d7a2d7457558c27164648385",
+    "observations": {
+      "same_request_one_note": true,
+      "wrong_patient_and_other_encounter_untouched_by_reference": true,
+      "same_key_changed_notes_acknowledged_but_not_written": true,
+      "same_key_changed_encounter_acknowledged_but_not_written": true,
+      "distinct_key_other_patient_write_persisted": true
+    }
+  },
+  "reproductions": [
+    {
+      "case": "initial_note",
+      "tool": "updateEncounter",
+      "request": {
+        "encounter_id": "ENC-AAAAAAAA",
+        "notes": "Source reconciliation (synthetic): SRC-A04 and SRC-A05 report conflicting statuses for EVENT-A01 at the same stated event time; neither is selected as true. SRC-A01 is planned; SRC-A02 is non-drug requested work; SRC-A03 status/time are unknown; SRC-A06 is pending with unknown time. SRC-A07 belongs to a different encounter; SRC-B01 belongs to another patient. No completed care is inferred.",
+        "idempotency_key": "synthetic-note-1"
+      },
+      "status": "ok",
+      "code": null,
+      "deduplicated": false,
+      "persisted_note_count": 1
+    },
+    {
+      "case": "identical_alias_retry",
+      "tool": "update_encounter",
+      "request": {
+        "idempotency_key": "synthetic-note-1",
+        "notes": "Source reconciliation (synthetic): SRC-A04 and SRC-A05 report conflicting statuses for EVENT-A01 at the same stated event time; neither is selected as true. SRC-A01 is planned; SRC-A02 is non-drug requested work; SRC-A03 status/time are unknown; SRC-A06 is pending with unknown time. SRC-A07 belongs to a different encounter; SRC-B01 belongs to another patient. No completed care is inferred.",
+        "encounter_id": "ENC-AAAAAAAA"
+      },
+      "status": "ok",
+      "code": null,
+      "deduplicated": true,
+      "persisted_note_count": 1
+    },
+    {
+      "case": "changed_note_same_key",
+      "tool": "updateEncounter",
+      "request": {
+        "encounter_id": "ENC-AAAAAAAA",
+        "notes": "Changed note that must not be acknowledged as persisted",
+        "idempotency_key": "synthetic-note-1"
+      },
+      "status": "error",
+      "code": "idempotency_conflict",
+      "deduplicated": false,
+      "persisted_note_count": 1
+    },
+    {
+      "case": "changed_encounter_same_key",
+      "tool": "update_encounter",
+      "request": {
+        "encounter_id": "ENC-BBBBBBBB",
+        "notes": "Source reconciliation (synthetic): SRC-A04 and SRC-A05 report conflicting statuses for EVENT-A01 at the same stated event time; neither is selected as true. SRC-A01 is planned; SRC-A02 is non-drug requested work; SRC-A03 status/time are unknown; SRC-A06 is pending with unknown time. SRC-A07 belongs to a different encounter; SRC-B01 belongs to another patient. No completed care is inferred.",
+        "idempotency_key": "synthetic-note-1"
+      },
+      "status": "error",
+      "code": "idempotency_conflict",
+      "deduplicated": false,
+      "persisted_note_count": 1
+    },
+    {
+      "case": "different_key_other_encounter",
+      "tool": "updateEncounter",
+      "request": {
+        "encounter_id": "ENC-BBBBBBBB",
+        "notes": "Source reconciliation (synthetic): SRC-A04 and SRC-A05 report conflicting statuses for EVENT-A01 at the same stated event time; neither is selected as true. SRC-A01 is planned; SRC-A02 is non-drug requested work; SRC-A03 status/time are unknown; SRC-A06 is pending with unknown time. SRC-A07 belongs to a different encounter; SRC-B01 belongs to another patient. No completed care is inferred.",
+        "idempotency_key": "independent-review-other-key"
+      },
+      "status": "ok",
+      "code": null,
+      "deduplicated": false,
+      "persisted_note_count": 2
+    }
+  ],
+  "tests": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_mcp_tools/test_mutation_retry_contract.py tests/test_mcp_tools/test_idempotency.py tests/test_mcp_tools/test_order_idempotency_contract.py tests/test_evaluator_integrity/test_history_execution.py -q",
+      "result": "186 passed in 3.83s"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_mcp_tools/test_mutation_contract.py tests/test_mcp_tools/test_order_action_fidelity.py -q",
+      "result": "62 passed, 1 failed in 0.25s"
+    }
+  ],
+  "limits": [
+    "Uses real in-process handlers with wholly synthetic dict records reconstructed from saved pre-fix world; no network transport.",
+    "Reviews request equality, target binding, aliases, mutation exclusion and audit preservation; does not assess clinical meaning or treatment appropriateness.",
+    "Registration semantics, protocol generation and terminal guards outside the patch scope.",
+    "Two initial test commands referenced nonexistent test paths and collected no tests; successful exact commands are listed above."
+  ],
+  "findings": [
+    {
+      "kind": "obsolete_test_expectation",
+      "file": "tests/test_mcp_tools/test_order_action_fidelity.py",
+      "line": 160,
+      "test": "test_equivalent_worlds_and_idempotent_retries_keep_one_exact_task",
+      "observed": "Changes priority and indication for an existing keyed order, then expects deduplicated=True; new intended contract returns idempotency_conflict, so assertion raises KeyError.",
+      "recommendation": "Keep an identical-request retry assertion and separately assert changed priority/indication conflicts without altering stored order/task. Do not weaken production guard."
+    }
+  ]
+}

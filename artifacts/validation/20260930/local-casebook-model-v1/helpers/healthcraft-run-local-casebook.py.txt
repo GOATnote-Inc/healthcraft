@@ -1,0 +1,49 @@
+"""Execute one frozen, free local cohort; retain failures without retries."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+from datetime import datetime, timezone
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = ROOT/'artifacts/reconciliation/20260930/local-casebook-pilot-v1'
+FINAL = Path('/private/tmp/healthcraft-local-casebook-final')
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def write(path, value):
+    with path.open('x') as stream:
+        json.dump(value, stream, indent=2, ensure_ascii=False, allow_nan=False)
+        stream.write('\n')
+
+if __name__ == '__main__':
+    candidate = json.loads((FINAL/'candidate-inputs.json').read_text())
+    assert all(sha(ROOT/name) == value for name, value in candidate.items())
+    validation = json.loads((FINAL/'full-suite-receipt.json').read_text())
+    assert validation['exit_code'] == 0
+    OUT.mkdir(parents=True, exist_ok=False)
+    command = [str(ROOT/'.venv/bin/python'), str(ROOT/'scripts/reconciliation_local_cohort.py'),
+               '--plan', str(ROOT/'configs/evaluation/reconciliation_model_v2/local-pilot-plan.json'),
+               '--expected-sha256', 'c6b21023c6eaac2ae1bf0dd764656cf109fc3d1e465fbe07d9347430afa82d49',
+               '--output-dir', str(OUT/'run')]
+    env = {key: os.environ[key] for key in ('HOME', 'PATH', 'TMPDIR', 'LANG') if key in os.environ}
+    env.update(PYTHONUNBUFFERED='1', HC_OLLAMA_BASE_URL='http://127.0.0.1:11434')
+    write(OUT/'launch.json', {
+        'command': command, 'cwd': '/private/tmp',
+        'environment_names': sorted(env), 'endpoint': env['HC_OLLAMA_BASE_URL'],
+        'candidate_inputs': candidate, 'validation_receipt_sha256': sha(FINAL/'full-suite-receipt.json'),
+        'started_at': datetime.now(timezone.utc).isoformat(),
+        'base_commit': 'c9017652924e7f68e0b5a2ee27214fdd4b13bf27',
+        'paid_calls_authorized': False, 'retries': 0,
+    })
+    with (OUT/'cli.stdout.json').open('x') as stdout, (OUT/'cli.stderr.log').open('x') as stderr:
+        code = subprocess.run(command, cwd='/private/tmp', env=env, stdout=stdout, stderr=stderr).returncode
+    write(OUT/'cli-receipt.json', {
+        'command': command, 'cwd': '/private/tmp', 'exit_code': code,
+        'finished_at': datetime.now(timezone.utc).isoformat(),
+        'candidate_unchanged': all(sha(ROOT/name) == value for name, value in candidate.items()),
+    })
+    print(json.dumps({'output': str(OUT), 'exit_code': code}, indent=2))
+    raise SystemExit(code)

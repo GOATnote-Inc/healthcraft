@@ -1,12 +1,12 @@
-.PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels check-lint
+.PHONY: test lint smoke install format docker-up docker-down clean eval simulate validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels check-lint
 
 # Prefer the repo-local .venv when present; fall back to the active
-# interpreter so `pip install -e ".[dev]" && make test` works in any setup.
+# interpreter so `make install && make test` works in any setup.
 PYTHON ?= $(shell test -x .venv/bin/python3 && echo .venv/bin/python3 || echo python3)
 PYTEST ?= $(shell test -x .venv/bin/pytest && echo .venv/bin/pytest || echo pytest)
 
 install:
-	$(PYTHON) -m pip install -e ".[dev]"
+	$(PYTHON) -m pip install -c constraints-security.txt -e ".[dev]"
 
 test:
 	$(PYTEST) tests/ -q
@@ -20,8 +20,20 @@ format:
 smoke:
 	$(PYTHON) scripts/smoke_test.py
 
-grader-goldset:  ## Measure grader precision (FP/FN + Wilson CI) on the EM-labeled gold-set
+grader-goldset:  ## Measure FP/FN + Wilson CI on the curated regression set
 	$(PYTHON) -m healthcraft.evals.grader_goldset
+
+.PHONY: grader-challenges
+grader-challenges:  ## Offline counterexamples; nonzero means a mismatch or harness error
+	$(PYTHON) scripts/grade_challenges.py
+
+.PHONY: certify-history
+certify-history:  ## Opt-in IR-002 reference execution; no models or benchmark score
+	$(PYTHON) scripts/certify_history_task.py
+
+.PHONY: certify-rosters
+certify-rosters:  ## Opt-in roster retrieval evidence; no models or clinical score
+	$(PYTHON) scripts/certify_roster_tasks.py
 
 docker-up:
 	docker compose -f docker/docker-compose.yaml up -d --build
@@ -29,8 +41,10 @@ docker-up:
 docker-down:
 	docker compose -f docker/docker-compose.yaml down
 
-eval:
-	$(PYTHON) -m healthcraft.eval_runner --tasks all --model simulated --trials 1 --seed 42
+eval: simulate  ## Compatibility alias for scripted, ungraded checks (no model inference)
+
+simulate:
+	$(PYTHON) -m healthcraft simulate --tasks all --model simulated --trials 1 --seed 42
 
 validate-tasks:
 	$(PYTHON) -c "from healthcraft.tasks.loader import load_tasks; from pathlib import Path; tasks = load_tasks(Path('configs/tasks')); print(f'{len(tasks)} tasks validated')"

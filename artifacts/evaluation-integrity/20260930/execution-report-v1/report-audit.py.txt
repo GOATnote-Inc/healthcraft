@@ -1,0 +1,47 @@
+"""Offline evidence reader checks; synthetic saved fixtures, no inference/regrading."""
+from pathlib import Path
+from copy import deepcopy
+from datetime import datetime, timezone
+import hashlib, json, subprocess
+from healthcraft.tasks.loader import Task
+from healthcraft.trajectory import Trajectory, CriterionEvalResult, is_unassessed_experiment
+from healthcraft.llm.review_context import freeze_review_context, seal_review_context, validate_review_context
+from healthcraft.reporting import collect_evidence, render_evidence
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-report-audit-5cd2955')
+OUT.mkdir(exist_ok=False)
+PATHS=[ROOT/p for p in ['src/healthcraft/reporting.py','src/healthcraft/trajectory.py','src/healthcraft/llm/review_context.py','src/healthcraft/llm/checkpoint.py','src/healthcraft/evals/grader_goldset.py','scripts/build_evidence_report.py','docs/EVALUATE_YOUR_MODEL.md']]
+def hashes():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in PATHS}
+before=hashes()
+criteria=tuple({'id':f'SYNTHETIC-C{i}','assertion':f'Synthetic evidence condition {i}','verification':'world_state','dimension':'documentation_quality'} for i in (1,2))
+task=Task(id='SYNTHETIC-REPORT-TRACE',category='integration_diagnostic',level=1,title='Synthetic reader fixture',description='Read PAT-ORIGINAL synthetic records',initial_state={},expected_tools=('getPatientHistory',),metadata={},criteria=criteria,patient={'id':'PAT-ORIGINAL'})
+t=Trajectory(task_id=task.id,model='synthetic-saved-no-inference',seed=42,system_prompt='Synthetic report-reader regression only')
+t.add_turn('user',task.description)
+t.add_turn('assistant','',tool_calls=[{'id':'call-1','name':'getPatientHistory','arguments':{'patient_id':'PAT-ORIGINAL'}}])
+t.add_turn('tool','{"status":"ok","data":{"patient_id":"PAT-ORIGINAL"}}',tool_call_id='call-1')
+t.add_turn('assistant','Read the synthetic record.')
+t.reward=1.0;t.passed=True;t.safety_gate_passed=True;t.rubric_channel='v8'
+t.criteria_results=[CriterionEvalResult(id=c['id'],satisfied=True,evidence='Synthetic saved fixture label') for c in criteria]
+t.metadata={'stop_reason':'stop','expected_criteria_count':2,'grading_complete':True,'ungraded_criteria':0,'checkpoint_identity':'synthetic-checkpoint','agent_tool_definitions':[],'scenario_context':{}}
+draft=freeze_review_context(task,list(criteria),rubric_channel='v8',scenario_context={},checkpoint_identity='synthetic-checkpoint',grading_mode='benchmark')
+t.metadata['review_context']=seal_review_context(draft,t)
+base=t.to_dict()
+cases={'control':base}
+a=deepcopy(base);a['metadata']['ungraded_criteria']=1;cases['explicit_ungraded_count']=a
+a=deepcopy(base);a['metadata']['evaluation_mode']='profile_diagnostic';a['metadata']['benchmark_score']=None;cases['explicit_profile_diagnostic']=a
+a=deepcopy(base);a['benchmark_comparable']=False;cases['flat_unassessed_marker']=a
+a=deepcopy(base);a['turns'][1]['tool_calls'][0]['arguments']['patient_id']='PAT-WRONG';cases['changed_actual_patient_after_seal']=a
+a=deepcopy(base);a['metadata']['review_context']['sha256']='0'*64;cases['invalid_context_hash']=a
+a=deepcopy(base);a['criteria_results'][0]['id']='UNRELATED-C1';a['criteria_results'][1]['id']='UNRELATED-C2';cases['wrong_criterion_cohort_same_count']=a
+observations=[]
+for name,value in cases.items():
+ folder=OUT/name;folder.mkdir();(folder/'SYNTHETIC_saved_42_t1.json').write_text(json.dumps(value,indent=2)+'\n')
+ report=collect_evidence(folder);record=report['records'][0]
+ (folder/'report.html').write_text(render_evidence(report))
+ try:validate_review_context(value);capture={'valid':True}
+ except ValueError as e:capture={'valid':False,'error':str(e)}
+ observations.append({'case':name,'source':str(folder/'SYNTHETIC_saved_42_t1.json'),'report_status':record['status'],'report_issues':record['issues'],'recorded_pass_count':report['counts']['recorded_pass'],'report_expected_count':record['expected_criteria'],'report_criteria':[{'id':c['id'],'status':c['status']} for c in record['criteria']],'shared_unassessed_marker':is_unassessed_experiment(value),'shared_review_context_validation':capture})
+after=hashes()
+result={'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'created_at':datetime.now(timezone.utc).isoformat(),'scope':'Static ordinary evidence-reader QA with explicitly synthetic local fixtures. No models, regrading, clinical validation, browser or original evidence changes.','script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'source_hashes_before':before,'source_hashes_after':after,'sources_unchanged':before==after,'observations':observations}
+(OUT/'audit.json').write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps(result,indent=2))

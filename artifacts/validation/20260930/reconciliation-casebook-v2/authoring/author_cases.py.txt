@@ -1,0 +1,431 @@
+"""Author original development data; no HealthCraft code imports or clinical labels.
+
+The explicit rows below are a shared authoring ledger used to serialize source
+records and expected raw-source facts. Inclusion, conflicts and exclusions are
+separately enumerated below. These are not independently reviewed gold labels.
+"""
+
+import hashlib
+import json
+from copy import deepcopy
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft/configs/evaluation/reconciliation_v2')
+RECEIPTS = Path('/private/tmp/healthcraft-reconciliation-v2-authoring')
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False,
+                      allow_nan=False).encode('utf-8')
+
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def pid(case, number):
+    return f'PAT-2{case:03d}{number:04X}'
+
+
+def eid(case, number):
+    return f'ENC-2{case:03d}{number:04X}'
+
+
+def source(encounter, collection, position, **facts):
+    return (encounter, collection, position, facts)
+
+
+# Patient/encounter tuples and all source facts are explicit authored declarations.
+# Encounter tuple: (encounter number, patient number, arrival_time).
+# Source row tuple: (encounter number, native collection, index/key, raw facts).
+CASES = [
+    {
+        'number': 1,
+        'family': 'single-event-two-scope-boundaries/v2',
+        'control': 'valid',
+        'name': ('Emery', 'Linden'),
+        'clock': '2026-11-01T14:30:00Z',
+        'patients': [(1, [2]), (2, [])],
+        'encounters': [(1, 1, '2026-11-01T14:00:00Z'), (2, 1, None),
+                       (3, 2, '2026-11-01T14:00:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-101',
+                   item='synthetic_item_101', status='planned', time=None),
+            source(1, 'current_management', 0, source_id='SRC-A02',
+                   item='synthetic observation check', kind='non_drug', status='requested',
+                   time='2026-11-01T14:10:00Z'),
+            source(1, 'treatments_given', 0, source_id='SRC-A03', event_id='EVENT-101',
+                   item='synthetic_item_102', reported_status='administered',
+                   event_time='2026-11-01T14:05:00Z', reporter='source_record_101'),
+            source(1, 'imaging_pending', 'study_current', source_id='SRC-A04',
+                   study_id='STUDY-101', modality='XR', body_part='chest',
+                   status='pending', time=None),
+            source(2, 'treatments_given', 0, source_id='SRC-A05',
+                   item='synthetic_item_101', reported_status='administered', event_time=None),
+            source(3, 'current_management', 0, source_id='SRC-A06',
+                   item='synthetic observation check', kind='non_drug', status='requested',
+                   time='2026-11-01T14:10:00Z'),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03', 'SRC-A04'],
+        'conflicts': [],
+        'exclusions': [('SRC-A05', 1, 2, 'other_encounter'),
+                       ('SRC-A06', 2, 3, 'other_patient')],
+    },
+    {
+        'number': 2,
+        'family': 'one-patient-multiple-priors-unknown-arrival/v2',
+        'control': 'wrong_exclusion',
+        'name': ('Morgan', 'Cedar'),
+        'clock': '2026-11-02T20:00:00Z',
+        'patients': [(1, [2, 3])],
+        'encounters': [(1, 1, '2026-11-02T19:45:00Z'), (2, 1, None),
+                       (3, 1, '2026-10-30T08:00:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-201',
+                   item='synthetic_item_201', status='planned', time='2026-11-02T21:00:00Z'),
+            source(1, 'current_management', 0, source_id='SRC-A02',
+                   item='synthetic_item_202', status=None, time=None),
+            source(1, 'imaging_pending', 'order/~pending', source_id='SRC-A03',
+                   study_id='STUDY-201', modality='US', body_part='abdomen',
+                   status='pending', time=None),
+            source(2, 'treatments_given', 0, source_id='SRC-A04',
+                   item='synthetic_item_201', reported_status='administered',
+                   event_time='2026-10-29T12:00:00Z'),
+            source(3, 'current_management', 0, source_id='SRC-A05',
+                   item='synthetic_item_202', status=None, time=None),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03'],
+        'conflicts': [],
+        'exclusions': [('SRC-A04', 1, 2, 'other_encounter'),
+                       ('SRC-A05', 1, 3, 'other_encounter')],
+    },
+    {
+        'number': 3,
+        'family': 'three-patient-reused-event-id-ownership/v2',
+        'control': 'wrong_target',
+        'name': ('Casey', 'Alder'),
+        'clock': '2026-11-03T11:00:00Z',
+        'patients': [(1, [2]), (2, []), (3, [])],
+        'encounters': [(1, 1, '2026-11-03T10:30:00Z'),
+                       (2, 1, '2026-10-22T08:00:00Z'),
+                       (3, 2, '2026-11-03T10:30:00Z'),
+                       (4, 3, '2026-11-03T10:30:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-301',
+                   item='synthetic_item_301', status='planned', time=None),
+            source(1, 'treatments_given', 0, source_id='SRC-A02', event_id='EVENT-301',
+                   item='synthetic_item_302', reported_status='administered',
+                   event_time='2026-11-03T10:40:00Z', reporter='source_record_301'),
+            source(2, 'imaging_pending', 'prior_study', source_id='SRC-A03',
+                   study_id='STUDY-301', modality='XR', body_part='wrist',
+                   status='pending', time=None),
+            source(3, 'active_orders', 0, source_id='SRC-A04', order_id='ORDER-302',
+                   item='synthetic_item_301', status='planned', time=None),
+            source(3, 'treatments_given', 0, source_id='SRC-A05', event_id='EVENT-301',
+                   item='synthetic_item_302', reported_status='not_administered',
+                   event_time='2026-11-03T10:40:00Z', reporter='source_record_302'),
+            source(4, 'current_management', 0, source_id='SRC-A06',
+                   item='synthetic_item_303', status=None, time=None),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02'],
+        'conflicts': [],
+        'exclusions': [('SRC-A03', 1, 2, 'other_encounter'),
+                       ('SRC-A04', 2, 3, 'other_patient'),
+                       ('SRC-A05', 2, 3, 'other_patient'),
+                       ('SRC-A06', 3, 4, 'other_patient')],
+    },
+    {
+        'number': 4,
+        'family': 'three-source-disagreement-without-majority-resolution/v2',
+        'control': 'ack_without_storage',
+        'name': ('Jordan', 'Birch'),
+        'clock': '2026-11-04T14:30:00Z',
+        'patients': [(1, [])],
+        'encounters': [(1, 1, '2026-11-04T14:00:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-401',
+                   item='synthetic_item_401', status='planned', time=None),
+            source(1, 'treatments_given', 0, source_id='SRC-A02', event_id='EVENT-401',
+                   item='synthetic_item_402', reported_status='administered',
+                   event_time='2026-11-04T14:05:00Z', reporter='source_record_401'),
+            source(1, 'treatments_given', 1, source_id='SRC-A03', event_id='EVENT-401',
+                   item='synthetic_item_402', reported_status='not_administered',
+                   event_time='2026-11-04T14:05:00Z', reporter='source_record_402'),
+            source(1, 'treatments_given', 2, source_id='SRC-A04', event_id='EVENT-401',
+                   item='synthetic_item_402', reported_status='not_administered',
+                   event_time='2026-11-04T14:05:00Z', reporter='source_record_403'),
+            source(1, 'imaging_pending', 'study_current', source_id='SRC-A05',
+                   study_id='STUDY-401', modality='CT', body_part='head',
+                   status='pending', time=None),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03', 'SRC-A04', 'SRC-A05'],
+        'conflicts': [{'source_ids': ['SRC-A02', 'SRC-A03', 'SRC-A04'],
+                       'event_id': 'EVENT-401', 'field': 'reported_status'}],
+        'exclusions': [],
+    },
+    {
+        'number': 5,
+        'family': 'distinct-events-with-identical-item-and-time/v2',
+        'control': 'duplicate_notes',
+        'name': ('Riley', 'Aspen'),
+        'clock': '2026-11-05T09:30:00Z',
+        'patients': [(1, []), (2, [])],
+        'encounters': [(1, 1, '2026-11-05T09:00:00Z'),
+                       (2, 2, '2026-11-05T09:00:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-501',
+                   item='synthetic_item_501', status='planned', time=None),
+            source(1, 'treatments_given', 0, source_id='SRC-A02', event_id='EVENT-501',
+                   item='synthetic_item_502', reported_status='administered',
+                   event_time='2026-11-05T09:10:00.125Z', reporter='source_record_501'),
+            source(1, 'treatments_given', 1, source_id='SRC-A03', event_id='EVENT-502',
+                   item='synthetic_item_502', reported_status='administered',
+                   event_time='2026-11-05T09:10:00.125Z', reporter='source_record_502'),
+            source(1, 'current_management', 0, source_id='SRC-A04',
+                   item='synthetic_item_503', status=None, time=None),
+            source(1, 'imaging_pending', 'study_current', source_id='SRC-A05',
+                   study_id='STUDY-501', modality='US', body_part='leg',
+                   status='pending', time=None),
+            source(2, 'treatments_given', 0, source_id='SRC-A06',
+                   item='synthetic_item_502', reported_status='administered',
+                   event_time='2026-11-05T09:10:00.125Z'),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03', 'SRC-A04', 'SRC-A05'],
+        'conflicts': [],
+        'exclusions': [('SRC-A06', 2, 2, 'other_patient')],
+    },
+    {
+        'number': 6,
+        'family': 'equivalent-offset-conflict-and-unknown-status/v2',
+        'control': 'incorrect_content_readback',
+        'name': ('Taylor', 'Willow'),
+        'clock': '2026-11-06T12:30:00Z',
+        'patients': [(1, [2, 3]), (2, [])],
+        'encounters': [(1, 1, '2026-11-06T11:45:00Z'),
+                       (2, 1, '2026-10-21T07:00:00Z'), (3, 1, None),
+                       (4, 2, '2026-11-06T11:45:00Z')],
+        'rows': [
+            source(1, 'current_management', 0, source_id='SRC-A01',
+                   item='synthetic_item_601', status=None, time=None),
+            source(1, 'treatments_given', 0, source_id='SRC-A02', event_id='EVENT-601',
+                   item='synthetic_item_602', reported_status='administered',
+                   event_time='2026-11-06T12:00:00Z', reporter='source_record_601'),
+            source(1, 'treatments_given', 1, source_id='SRC-A03', event_id='EVENT-601',
+                   item='synthetic_item_602', reported_status='not_administered',
+                   event_time='2026-11-06T09:00:00-03:00', reporter='source_record_602'),
+            source(1, 'imaging_pending', 'study_current', source_id='SRC-A04',
+                   study_id='STUDY-601', modality='XR', body_part='ankle',
+                   status='pending', time=None),
+            source(2, 'active_orders', 0, source_id='SRC-A05', order_id='ORDER-601',
+                   item='synthetic_item_601', status='planned', time=None),
+            source(3, 'treatments_given', 0, source_id='SRC-A06',
+                   item='synthetic_item_602', reported_status='administered', event_time=None),
+            source(4, 'treatments_given', 0, source_id='SRC-A07', event_id='EVENT-601',
+                   item='synthetic_item_602', reported_status='not_administered',
+                   event_time='2026-11-06T12:00:00Z', reporter='source_record_603'),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03', 'SRC-A04'],
+        'conflicts': [{'source_ids': ['SRC-A02', 'SRC-A03'],
+                       'event_id': 'EVENT-601', 'field': 'reported_status'}],
+        'exclusions': [('SRC-A05', 1, 2, 'other_encounter'),
+                       ('SRC-A06', 1, 3, 'other_encounter'),
+                       ('SRC-A07', 2, 4, 'other_patient')],
+    },
+    {
+        'number': 7,
+        'family': 'future-planned-time-and-prior-unknowns/v2',
+        'control': 'interrupted_after_write',
+        'name': ('Avery', 'Maple'),
+        'clock': '2026-11-07T20:00:00Z',
+        'patients': [(1, [2])],
+        'encounters': [(1, 1, '2026-11-07T19:45:00Z'),
+                       (2, 1, '2026-10-25T16:00:00Z')],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-701',
+                   item='synthetic_item_701', status='planned', time='2026-11-07T20:30:00Z'),
+            source(1, 'current_management', 0, source_id='SRC-A02',
+                   item='synthetic_item_702', status=None, time=None),
+            source(2, 'treatments_given', 0, source_id='SRC-A03',
+                   item='synthetic_item_701', reported_status='not_administered',
+                   event_time='2026-10-25T16:10:00Z'),
+            source(2, 'imaging_pending', 'prior_study', source_id='SRC-A04',
+                   study_id='STUDY-701', modality='CT', body_part='abdomen',
+                   status='pending', time=None),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02'],
+        'conflicts': [],
+        'exclusions': [('SRC-A03', 1, 2, 'other_encounter'),
+                       ('SRC-A04', 1, 2, 'other_encounter')],
+    },
+    {
+        'number': 8,
+        'family': 'larger-three-patient-roster-multiple-pending-studies/v2',
+        'control': 'incomplete_capture',
+        'name': ('Quinn', 'Cypress'),
+        'clock': '2026-11-08T17:00:00Z',
+        'patients': [(1, []), (2, []), (3, [])],
+        'encounters': [(1, 1, '2026-11-08T16:30:00Z'),
+                       (2, 2, '2026-11-08T16:30:00Z'), (3, 3, None)],
+        'rows': [
+            source(1, 'active_orders', 0, source_id='SRC-A01', order_id='ORDER-801',
+                   item='synthetic_item_801', status='planned', time=None),
+            source(1, 'current_management', 0, source_id='SRC-A02',
+                   item='synthetic_item_802', status=None, time=None),
+            source(1, 'treatments_given', 0, source_id='SRC-A03', event_id='EVENT-801',
+                   item='synthetic_item_803', reported_status='administered', event_time=None,
+                   reporter='source_record_801'),
+            source(1, 'treatments_given', 1, source_id='SRC-A04', event_id='EVENT-801',
+                   item='synthetic_item_803', reported_status='not_administered', event_time=None,
+                   reporter='source_record_802'),
+            source(1, 'imaging_pending', 'study_chest', source_id='SRC-A05',
+                   study_id='STUDY-801', modality='XR', body_part='chest',
+                   status='pending', time=None),
+            source(1, 'imaging_pending', 'study_pelvis', source_id='SRC-A06',
+                   study_id='STUDY-802', modality='XR', body_part='pelvis',
+                   status='pending', time=None),
+            source(2, 'active_orders', 0, source_id='SRC-A07', order_id='ORDER-802',
+                   item='synthetic_item_801', status='planned', time=None),
+            source(2, 'treatments_given', 0, source_id='SRC-A08', event_id='EVENT-801',
+                   item='synthetic_item_803', reported_status='administered', event_time=None,
+                   reporter='source_record_803'),
+            source(2, 'imaging_pending', 'other_patient_study', source_id='SRC-A09',
+                   study_id='STUDY-803', modality='XR', body_part='chest',
+                   status='pending', time=None),
+            source(3, 'current_management', 0, source_id='SRC-A10',
+                   item='synthetic observation check', kind='non_drug', status='requested',
+                   time=None),
+            source(3, 'treatments_given', 0, source_id='SRC-A11', event_id='EVENT-801',
+                   item='synthetic_item_803', reported_status='not_administered', event_time=None,
+                   reporter='source_record_804'),
+        ],
+        'observations': ['SRC-A01', 'SRC-A02', 'SRC-A03', 'SRC-A04', 'SRC-A05', 'SRC-A06'],
+        'conflicts': [{'source_ids': ['SRC-A03', 'SRC-A04'],
+                       'event_id': 'EVENT-801', 'field': 'reported_status'}],
+        'exclusions': [('SRC-A07', 2, 2, 'other_patient'),
+                       ('SRC-A08', 2, 2, 'other_patient'),
+                       ('SRC-A09', 2, 2, 'other_patient'),
+                       ('SRC-A10', 3, 3, 'other_patient'),
+                       ('SRC-A11', 3, 3, 'other_patient')],
+    },
+]
+
+
+def materialize(case):
+    number = case['number']
+    scenario_id = f'synthetic-ed-reconciliation/v2/REC2-{number:03d}'
+    first, last = case['name']
+    scenario = {
+        'schema_version': 'healthcraft-reconciliation-scenario/v2',
+        'id': scenario_id,
+        'clock': case['clock'],
+        'target': {'patient_id': pid(number, 1), 'encounter_id': eid(number, 1)},
+        'patients': [
+            {'id': pid(number, person), 'mrn': f'SYNTHETIC-REC2-{number:03d}-{person}',
+             'first_name': first, 'last_name': last, 'date_of_birth': None, 'sex': '',
+             'prior_visit_ids': [eid(number, prior) for prior in priors]}
+            for person, priors in case['patients']
+        ],
+        'encounters': [
+            {'id': eid(number, encounter), 'patient_id': pid(number, owner),
+             'chief_complaint': 'Synthetic source reconciliation', 'arrival_time': arrival,
+             'patient_data': {}}
+            for encounter, owner, arrival in case['encounters']
+        ],
+    }
+    lookup = {row['id']: row for row in scenario['encounters']}
+    ledger = []
+    for encounter, collection, position, facts in case['rows']:
+        encounter_row = lookup[eid(number, encounter)]
+        data = encounter_row['patient_data']
+        if collection == 'imaging_pending':
+            data.setdefault(collection, {})[position] = deepcopy(facts)
+        else:
+            values = data.setdefault(collection, [])
+            assert len(values) == position
+            values.append(deepcopy(facts))
+        # This is the explicitly declared shared authoring ledger, not candidate output.
+        ledger.append({
+            'source_id': facts['source_id'], 'patient_id': encounter_row['patient_id'],
+            'encounter_id': encounter_row['id'], 'source_collection': collection,
+            'source_path': '/' + collection + '/' + str(position).replace('~', '~0').replace('/', '~1'),
+            'source': deepcopy(facts),
+        })
+    expected = {
+        'schema_version': 'healthcraft-reconciliation-expectations/v2',
+        'scenario_id': scenario_id, 'scenario_sha256': sha(canonical(scenario)),
+        'target': {'patient_id': pid(number, 1), 'encounter_id': eid(number, 1)},
+        'sources': ledger,
+        'observation_source_ids': deepcopy(case['observations']),
+        'unresolved_conflicts': deepcopy(case['conflicts']),
+        'scope_exclusions': [
+            {'source_id': source_id, 'patient_id': pid(number, owner),
+             'encounter_id': eid(number, encounter), 'reason': reason}
+            for source_id, owner, encounter, reason in case['exclusions']
+        ],
+    }
+    return scenario, expected
+
+
+def write(path, value):
+    raw = (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n').encode('utf-8')
+    with path.open('xb') as stream:
+        stream.write(raw)
+    return sha(raw)
+
+
+def main():
+    ROOT.mkdir()
+    casebook = {
+        'schema_version': 'healthcraft-reconciliation-casebook/v2',
+        'id': 'source-reconciliation-development/v2', 'exposure': 'development',
+        'label_status': 'engineering_authored_independent_review_pending',
+        'cases': [], 'files': {},
+    }
+    counts = []
+    for case in CASES:
+        identifier = f"REC2-{case['number']:03d}"
+        directory = ROOT / identifier
+        directory.mkdir()
+        scenario, expected = materialize(case)
+        for name, value in [('scenario', scenario), ('expectations', expected)]:
+            relative = f'{identifier}/{name}.json'
+            casebook['files'][relative] = write(ROOT / relative, value)
+        casebook['cases'].append({
+            'case_id': identifier, 'scenario_family_id': case['family'],
+            'scenario': f'{identifier}/scenario.json', 'scenario_sha256': sha(canonical(scenario)),
+            'expectations': f'{identifier}/expectations.json',
+            'expectations_sha256': sha(canonical(expected)),
+            'designated_control': case['control'],
+        })
+        counts.append({'case_id': identifier, 'patients': len(scenario['patients']),
+                       'encounters': len(scenario['encounters']), 'source_rows': len(expected['sources']),
+                       'target_rows': len(expected['observation_source_ids']),
+                       'excluded_rows': len(expected['scope_exclusions']),
+                       'conflict_clusters': len(expected['unresolved_conflicts']),
+                       'designated_control': case['control']})
+    raw_hash = write(ROOT / 'casebook.json', casebook)
+    receipt = {
+        'schema_version': 'healthcraft-reconciliation-development-authoring/v1',
+        'status': 'authored_independent_review_pending',
+        'casebook_canonical_sha256': sha(canonical(casebook)),
+        'casebook_file_sha256': raw_hash,
+        'files': casebook['files'], 'counts': counts,
+        'total_source_rows': sum(row['source_rows'] for row in counts),
+        'authoring_method': 'An explicit shared authoring ledger supplies raw record facts and ownership for scenario and expectations serialization. Target inclusion, unresolved-conflict membership and scope exclusions are separately manually enumerated. No candidate fixture/controller/oracle/diagnostic imports or executions were used.',
+        'limitations': [
+            'Shared authoring is not independent labeling or independent review.',
+            'Development cases are newly authored but exposed, not held out.',
+            'No human participants, clinical labels, treatments recommended, models or task executions.',
+            'designated_control declares a future engineering trace, not an observed outcome.',
+            'Source timestamps remain literal strings or null; repeated reports are not adjudicated clinical facts.',
+        ],
+        'authoring_script_sha256': sha(Path(__file__).read_bytes()),
+    }
+    write(RECEIPTS / 'authoring-receipt.json', receipt)
+    print(json.dumps({'counts': counts, 'total_source_rows': receipt['total_source_rows'],
+                      'casebook_canonical_sha256': receipt['casebook_canonical_sha256'],
+                      'casebook_file_sha256': raw_hash}, indent=2))
+
+
+if __name__ == '__main__':
+    main()

@@ -224,7 +224,7 @@ class EnsembleJudge:
             # Do not count it and do not cache it: this judge abstains, so the
             # error is retried on the next run instead of poisoning the cache
             # as a permanent False vote (nondeterministic false-FAIL).
-            if result.evidence.startswith("Judge error:"):
+            if result.error is not None or result.evidence.startswith("Judge error:"):
                 continue
             per_judge[judge_model] = bool(result.satisfied)
             per_judge_evidence[judge_model] = result.evidence
@@ -299,14 +299,15 @@ class EnsembleJudge:
             logger.warning("Corrupt ensemble cache %s: %s — ignoring", path, exc)
             return None
 
-        if data.get("prompt_version") != self._prompt_version:
+        if not isinstance(data, dict) or data.get("prompt_version") != self._prompt_version:
             return None
-        if "satisfied" not in data:
+        if not isinstance(data.get("satisfied"), bool):
             return None
-        # Treat any previously-cached transient judge error as a cache MISS so
+        # Treat any previously-cached judge or parser error as a cache MISS so
         # an already-poisoned cache (written before the write-side guard) is
         # never resurrected as a genuine False vote.
-        if str(data.get("evidence", "")).startswith("Judge error:"):
+        evidence = str(data.get("evidence", ""))
+        if evidence.startswith("Judge error:") or "PARSE FAILURE" in evidence:
             return None
         return data
 

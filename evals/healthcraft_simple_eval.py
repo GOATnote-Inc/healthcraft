@@ -47,6 +47,10 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.llm.checkpoint import (  # noqa: E402
+    selected_trajectory_paths,
+    trajectory_attempt,
+)
 
 # ---------------------------------------------------------------------------
 # Types
@@ -116,12 +120,12 @@ def _iter_trajectory_files(root: Path) -> list[Path]:
         tdir = root
     if not tdir.exists():
         return []
-    return sorted(tdir.rglob("*.json"))
+    return selected_trajectory_paths(tdir)
 
 
 def _parse_trial_from_path(path: Path) -> int:
     """Best-effort: extract trial number from a ``..._tN.json`` filename."""
-    stem = path.stem
+    stem = trajectory_attempt(path)[0].stem
     # Trajectories from the orchestrator end with ``_<seed>_t<N>``.
     parts = stem.rsplit("_t", 1)
     if len(parts) == 2:
@@ -194,13 +198,19 @@ def _run_replay(
     orchestrator path.
     """
     from healthcraft.tasks.evaluator import replay_from_trajectory
-    from healthcraft.tasks.loader import load_tasks
+    from healthcraft.tasks.loader import load_tasks, require_task_criteria
 
     # Load task definitions once so we have the full rubric for replay.
     all_tasks = load_tasks(_PROJECT_ROOT / "configs" / "tasks")
     task_map = {t.id: t for t in all_tasks}
 
     dataset_ids = {t.task_id for t in dataset_tasks}
+    # The authored Task is the actual replay rubric; the dataset criteria field
+    # is not used for grading. Validate the declared selection before any replay
+    # or intentional limit can conceal an empty later rubric.
+    for task in all_tasks:
+        if task.id in dataset_ids:
+            require_task_criteria(task)
     trajectory_paths = _iter_trajectory_files(replay_root)
 
     verdicts: list[_TrialVerdict] = []
@@ -406,13 +416,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: --replay-from path does not exist: {args.replay_from}", file=sys.stderr)
         return 1
 
-    verdicts = _run_replay(
-        dataset_tasks,
-        args.replay_from,
-        rubric_channel=args.rubric_channel,
-        trials=args.trials,
-        limit=args.limit,
-    )
+    try:
+        verdicts = _run_replay(
+            dataset_tasks,
+            args.replay_from,
+            rubric_channel=args.rubric_channel,
+            trials=args.trials,
+            limit=args.limit,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     if not verdicts:
         print(
             f"ERROR: no replayable trajectories under {args.replay_from} for the given dataset",

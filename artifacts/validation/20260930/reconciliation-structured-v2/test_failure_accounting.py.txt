@@ -1,0 +1,133 @@
+"""Offline coordinator-failure accounting controls; no model/network/container access."""
+
+import copy
+import json
+from pathlib import Path
+
+import pytest
+from failure_accounting import finalize_unfinished
+
+ROSTER = [
+    {"id": name, "arm": arm, "model": model, "order": index}
+    for index, (name, arm, model) in enumerate(
+        [
+            ("nano-direct-01", "direct", "nano"),
+            ("nano-harbor-01", "harbor", "nano"),
+            ("medgemma-harbor-01", "harbor", "medgemma"),
+            ("medgemma-direct-01", "direct", "medgemma"),
+        ],
+        1,
+    )
+]
+ERROR = {"type": "RuntimeError", "message": "offline build or coordinator failure"}
+
+
+def saved_result(item, *, passed=False):
+    return {
+        **item,
+        "status": "completed",
+        "completion": {"status": "completed"},
+        "oracle": {"mechanical_passed": passed},
+        "actual_call_count": 10,
+        "stored_note_count": 1,
+    }
+
+
+def write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=1) + "\n")
+
+
+def test_build_failure_keeps_all_four_scheduled_attempts_without_invented_evidence(tmp_path):
+    original = copy.deepcopy(ROSTER)
+    summary = finalize_unfinished(tmp_path, ROSTER, ERROR)
+    assert summary["roster"] == original == ROSTER
+    assert summary["scheduled_attempts"] == 4
+    assert summary["all_attempts_recorded"] is True
+    assert [r["id"] for r in summary["results"]] == [r["id"] for r in ROSTER]
+    assert all(r["status"] == "not_started" for r in summary["results"])
+    for item in summary["results"]:
+        assert item["completion"] is None and item["oracle"] is None
+        assert item["actual_call_count"] is None and item["stored_note_count"] is None
+        assert item["accounting_state"] == "no_attempt_directory"
+        assert not (tmp_path / item["id"] / "result.json").exists()
+        assert (tmp_path / item["id"] / "coordinator-failure.json").is_file()
+    assert json.loads((tmp_path / "summary.json").read_text()) == summary
+
+
+def test_partial_failure_preserves_two_raw_results_and_unknown_active_attempt(tmp_path):
+    originals = {}
+    for item in ROSTER[:2]:
+        path = tmp_path / item["id"] / "result.json"
+        write_json(path, saved_result(item, passed=item == ROSTER[0]))
+        originals[path] = path.read_bytes()
+    partial = tmp_path / ROSTER[2]["id"]
+    partial.mkdir()
+    evidence = partial / "model-events.jsonl"
+    evidence.write_text('{"event":"model_request_dispatched"}\n')
+    summary = finalize_unfinished(tmp_path, ROSTER, ERROR)
+    assert summary["results"][:2] == [saved_result(ROSTER[0], passed=True), saved_result(ROSTER[1])]
+    assert all(path.read_bytes() == raw for path, raw in originals.items())
+    assert summary["results"][2]["status"] == "execution_unknown"
+    assert summary["results"][2]["accounting_state"] == "partial_execution"
+    assert summary["results"][2]["oracle"] is None
+    assert summary["results"][3]["status"] == "not_started"
+    assert evidence.read_text() == '{"event":"model_request_dispatched"}\n'
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "{broken",
+        '{"id":"nano-direct-01","id":"other","status":"failed"}',
+        '{"id":"nano-direct-01","status":"failed","value":NaN}',
+        '{"id":"nano-direct-01","status":"failed","value":1e999}',
+        '{"id":"other","status":"completed","completion":{"status":"completed"}}',
+        '{"id":"nano-direct-01","status":"scheduled","completion":null}',
+    ],
+)
+def test_bad_raw_results_stay_unchanged_and_cannot_be_counted_as_valid(tmp_path, raw):
+    path = tmp_path / ROSTER[0]["id"] / "result.json"
+    path.parent.mkdir()
+    path.write_text(raw)
+    summary = finalize_unfinished(tmp_path, ROSTER, ERROR)
+    row = summary["results"][0]
+    assert path.read_text() == raw
+    assert row["status"] == "execution_unknown"
+    assert row["accounting_state"] == "invalid_result"
+    assert row["result_diagnostic"]["type"]
+    assert row["oracle"] is None and row["completion"] is None
+    assert row["actual_call_count"] is None and row["stored_note_count"] is None
+
+
+def test_existing_summary_and_existing_failure_receipts_are_never_rewritten(tmp_path):
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_text('{"original":"preserved, not replaced"}\n')
+    first = finalize_unfinished(tmp_path, ROSTER, ERROR)
+    files_before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    second = finalize_unfinished(tmp_path, ROSTER, {"type": "OtherError", "message": "later"})
+    assert first["results"] == second["results"]
+    assert all(p.read_bytes() == data for p, data in files_before.items())
+    assert json.loads(summary_path.read_text()) == {"original": "preserved, not replaced"}
+
+
+def test_real_v1_result_is_preserved_without_regrading_or_mutation(tmp_path):
+    root = Path(
+        "/Users/kiteboard/healthcraft/artifacts/reconciliation/20260930/local-model-pilot-v1"
+    )
+    roster = json.loads((root / "roster.json").read_text())["roster"]
+    source = root / roster[0]["id"] / "result.json"
+    destination = tmp_path / roster[0]["id"] / "result.json"
+    destination.parent.mkdir()
+    destination.write_bytes(source.read_bytes())
+    summary = finalize_unfinished(tmp_path, roster, ERROR)
+    assert summary["results"][0] == json.loads(source.read_text())
+    assert destination.read_bytes() == source.read_bytes()
+    assert not (destination.parent / "coordinator-failure.json").exists()
+
+
+def test_invalid_roster_rejected_before_any_output(tmp_path):
+    for roster in ([ROSTER[0], ROSTER[0]], [{**ROSTER[0], "id": "../escape"}]):
+        with pytest.raises(ValueError):
+            finalize_unfinished(tmp_path, roster, ERROR)
+    assert list(tmp_path.iterdir()) == []

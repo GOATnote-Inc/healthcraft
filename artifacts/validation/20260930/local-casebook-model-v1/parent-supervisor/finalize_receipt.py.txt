@@ -1,0 +1,28 @@
+import hashlib,json,subprocess
+from datetime import datetime,timezone
+from pathlib import Path
+root=Path('/Users/kiteboard/healthcraft')
+out=Path('/private/tmp/healthcraft-model-case')
+paths=['src/healthcraft/reconciliation/model_case.py','tests/test_reconciliation/test_model_case.py']
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+owned={p:sha(root/p) for p in paths}
+testfiles=['tests/test_reconciliation/test_model_case.py','tests/test_reconciliation/test_model_worker.py','tests/test_reconciliation/test_public_case.py','tests/test_reconciliation/test_controller.py']
+runtimes=[('py310','/private/tmp/healthcraft-check-py310/bin/python'),('py312','/private/tmp/healthcraft-check-py312/bin/python'),('py314',str(root/'.venv/bin/python'))]
+lint=subprocess.run([str(root/'.venv/bin/ruff'),'check',*paths],cwd=root,capture_output=True,text=True)
+fmt=subprocess.run([str(root/'.venv/bin/ruff'),'format','--check',*paths],cwd=root,capture_output=True,text=True)
+(out/'lint.log').write_text(lint.stdout+lint.stderr+fmt.stdout+fmt.stderr)
+receipt={
+'schema_version':'healthcraft-model-case-validation/v1','time':datetime.now(timezone.utc).isoformat(),
+'status':'passed','owned_source_sha256':owned,
+'api':['validate_model_config(config)->detached dict','run_model_case(case,model_config,output_dir,*,worker_target=None)->dict'],
+'commands':[{ 'command':'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src '+py+' -m pytest '+' '.join(testfiles)+' -q', 'python':subprocess.check_output([py,'--version'],text=True).strip(),'log':f'green-{tag}.log','passed':172,'exit_code':0} for tag,py in runtimes],
+'red_controls':[{'log':'red.log','failed':28,'reason':'supervisor module absent before implementation'}, {'log':'journal-red.log','failed':3,'passed':29,'reason':'success accepted missing, truncated or duplicate-key mandatory model capture'}, {'log':'partial-frame-red.log','failed':1,'reason':'recv_bytes blocked parent beyond configured deadline; external process-group bound terminated test'}, {'log':'blocked-reply-red.log','failed':1,'reason':'send blocked parent after actual native write; external process-group bound terminated test'}],
+'final_own_suite':{'passed':34,'log':'green-final-own.log'},
+'lint':{'exit_code':lint.returncode,'format_exit_code':fmt.returncode,'log':'lint.log'},
+'limits':['All worker tests are scripted or native-client fake envelopes; zero actual model or hosted requests.','Completion proves worker termination and consistent captured identities, not mechanical or clinical success.','Model-call counts are durable native request attempts, not guaranteed server inference executions.','The parent controls native actions; I/O-only daemon threads bound partial receive frames and blocked replies without later dispatch.','The process deadline does not cancel an already dispatched Ollama daemon request.','Native handlers execute synchronously in the parent with deadline checks before and after; this is not a general arbitrary-code supervisor.','Child receives public instruction/schema/config only; process separation is not a hostile-code filesystem sandbox.','172-test counts overlap 34 owned tests and peer-owned compatibility tests; counts across runtime repetitions are not independent features.','Expected pytest warning: asyncio_mode option unknown with plugin autoload disabled.'],
+'files_sha256':{p.name:sha(p) for p in sorted(out.iterdir()) if p.is_file() and p.name!='receipt.json'},
+}
+assert lint.returncode==fmt.returncode==0
+for p,h in owned.items(): assert sha(root/p)==h
+with (out/'receipt.json').open('x') as f: json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps(owned,indent=2))

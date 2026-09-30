@@ -1,0 +1,54 @@
+import hashlib,json,sys
+from pathlib import Path
+sys.path.insert(0,'/Users/kiteboard/healthcraft/src')
+from healthcraft.reconciliation.casebook import load_cases
+from healthcraft.reconciliation.oracle_v2 import verify_case
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-casebook-runner-review')
+artifact=ROOT/'artifacts/reconciliation/20260930/casebook-native-v2'
+read=lambda p:json.loads(p.read_text())
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+files=lambda folder:{p.relative_to(folder).as_posix():sha(p) for p in folder.rglob('*') if p.is_file()}
+before=files(artifact)
+wrapper=read(artifact/'manifest.json'); run=read(artifact/'run/manifest.json')
+checks=[]
+def check(name,p):
+ assert p,name
+ checks.append(name)
+check('wrapper identity matches frozen announcement',sha(artifact/'manifest.json')=='6a64f95b4ec01d0720706492dfb90b78acc7540181b5486399992ab973f3431d')
+check('wrapper inventories every retained artifact',wrapper['files']=={p:d for p,d in before.items() if p!='manifest.json'})
+check('run manifest digest bound',sha(artifact/'run/manifest.json')==wrapper['run_manifest_sha256'])
+check('run inventory exact',run['files']=={p:d for p,d in files(artifact/'run').items() if p!='manifest.json'})
+check('all36 candidate hashes match current source',{p:sha(ROOT/p) for p in wrapper['candidate_inputs']}==wrapper['candidate_inputs'])
+identity=read(artifact/'run/source-identity.json')
+check('source before and after match',identity['before']==identity['after'] and identity['error'] is None)
+check('captured source matches current bytes',{p:sha(ROOT/p) for p in identity['before']}==identity['before'])
+check('CLI actually exited zero outside repository',read(artifact/'cli-receipt.json')['exit_code']==0 and read(artifact/'cli-receipt.json')['cwd']=='/private/tmp' and (artifact/'cli.stderr.log').read_bytes()==b'')
+check('all16 matched with no errors',run['counts']=={'scheduled':16,'attempted':16,'recorded':16,'matched':16,'mismatched':0,'errors':0})
+check('modelclinicalscore scope not claimed',run['model_calls']==0 and run['clinical_validated'] is False and run['benchmark_score'] is None)
+loaded={c['case_id']:c for c in load_cases()}
+patterns={'valid':'TTTTT','wrong_exclusion':'TFFFT','wrong_target':'TFFFT','ack_without_storage':'TTFFT','duplicate_notes':'TTFFT','incorrect_content_readback':'TFFFT','interrupted_after_write':'TTTFF','incomplete_capture':'FFFFF'}
+axes=('provenance','source_fidelity','persisted_action','readback','execution_complete')
+rows=[]
+for outcome in run['outcomes']:
+ folder=artifact/'run'/outcome['id']
+ case=read(folder.parent/'case.json')
+ check(outcome['id']+' source case equals pinned casebook',case==loaded[outcome['case_id']])
+ evidence=read(folder/'execution.json'); actual=verify_case(case,evidence)
+ check(outcome['id']+' saved oracle exactly reproduced',actual==read(folder/'verification.json'))
+ check(outcome['id']+' independently fixed mechanical pattern',''.join('T' if actual['checks'][a] else 'F' for a in axes)==patterns[outcome['control']])
+ check(outcome['id']+' attempt receipt unchanged',read(folder/'attempt.json')==outcome)
+ events=[json.loads(line) for line in (folder/'journal.jsonl').read_text().splitlines()]
+ check(outcome['id']+' every actual dispatch retained',len(events)==2*len(evidence['calls']) and len(evidence['audit'])==len(evidence['calls'])-(outcome['control']=='incomplete_capture'))
+ if outcome['control']=='incomplete_capture':
+  original=read(folder/'original-execution.json'); original_check=verify_case(case,original)
+  check('omission keeps independently valid original',original_check==read(folder/'original-verification.json') and all(original_check['checks'].values()) and original['completion']['status']=='completed')
+  control=read(folder/'control.json')
+  check('omission is disclosed not actual interruption',control['capture_transformation']['kind']=='deliberate_capture_omission' and control['capture_transformation']['actual_execution_interrupted'] is False and events[-1]['call']['response']==original['calls'][-1]['response'])
+ rows.append({'id':outcome['id'],'control':outcome['control'],'checks':actual['checks'],'completion':evidence['completion']['status'],'captured_calls':len(evidence['calls'])})
+check('original artifact bytes unchanged',before==files(artifact))
+peer=read(OUT/'peer-review.json')
+peer.update({'runtime_probes':[{'python':'3.10','passed':45},{'python':'3.12','passed':45},{'python':'3.14','passed':45}],'focused_runner_control_tests':52,'artifact_review':{'path':str(artifact),'wrapper_manifest_sha256':sha(artifact/'manifest.json'),'checks_passed':len(checks),'checks':checks,'outcomes':rows,'artifact_input_sha256':before,'unchanged':True}})
+peer['test_logs_sha256']={p.name:sha(p) for p in OUT.glob('*.log')}
+(OUT/'peer-review.json').write_text(json.dumps(peer,sort_keys=True,indent=2)+'\n')
+print(json.dumps({'artifact_checks_passed':len(checks),'receipt_sha256':sha(OUT/'peer-review.json')}))

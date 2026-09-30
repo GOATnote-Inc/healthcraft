@@ -9,10 +9,14 @@ Each handler takes (world: WorldState, params: dict) -> dict.
 
 from __future__ import annotations
 
+import json
+import math
 import uuid
+from copy import deepcopy
 from dataclasses import asdict, replace
 from typing import Any
 
+from healthcraft.temporal import instant_key
 from healthcraft.world.state import WorldState
 
 # --- Known transfer facilities (hardcoded registry) ---
@@ -73,10 +77,14 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
         params: Dict containing:
             - encounter_id (str, required)
             - diagnosis (str, required)
-            - discharge_instructions (str, optional)
-            - follow_up_plan (str, optional)
-            - medications_prescribed (list[dict], optional) — each dict has
-              name, dose, route, frequency.
+            - instructions (str, optional)
+            - follow_up (list[dict], optional)
+            - medications (list[dict], optional)
+            - return_precautions (list[str], optional)
+            - patient_language (str, optional) — recorded preference;
+              no translation is performed.
+            Legacy discharge_instructions, follow_up_plan (str), and
+            medications_prescribed remain supported.
 
     Returns:
         Standard response dict with ``status`` and ``data`` or error fields.
@@ -87,8 +95,46 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
         return _error("missing_param", "encounter_id is required")
 
     diagnosis = params.get("diagnosis")
-    if not diagnosis:
+    if diagnosis is None or diagnosis == "":
         return _error("missing_param", "diagnosis is required")
+
+    # Validate and resolve documentation before changing encounter state.
+    for field in (
+        "encounter_id",
+        "diagnosis",
+        "instructions",
+        "discharge_instructions",
+        "follow_up_plan",
+        "patient_language",
+    ):
+        if field in params and not isinstance(params[field], str):
+            return _error("invalid_param", f"{field} must be a string")
+    for field in ("medications", "medications_prescribed", "follow_up"):
+        if field in params and (
+            not isinstance(params[field], list)
+            or any(not isinstance(item, dict) for item in params[field])
+        ):
+            return _error("invalid_param", f"{field} must be an array of objects")
+    if "return_precautions" in params and (
+        not isinstance(params["return_precautions"], list)
+        or any(not isinstance(item, str) for item in params["return_precautions"])
+    ):
+        return _error("invalid_param", "return_precautions must be an array of strings")
+    for canonical, legacy in (
+        ("instructions", "discharge_instructions"),
+        ("medications", "medications_prescribed"),
+    ):
+        if canonical in params and legacy in params and params[canonical] != params[legacy]:
+            return _error("conflicting_params", f"{canonical} conflicts with {legacy}")
+    if params.get("follow_up") and params.get("follow_up_plan"):
+        return _error("conflicting_params", "Supply follow_up or follow_up_plan, not both")
+
+    discharge_instructions = params.get("instructions", params.get("discharge_instructions", ""))
+    follow_up_plan = params.get("follow_up_plan", "")
+    follow_up_arrangements = deepcopy(params.get("follow_up", []))
+    prescribed_meds = deepcopy(params.get("medications", params.get("medications_prescribed", [])))
+    return_precautions = list(params.get("return_precautions", []))
+    patient_language = params.get("patient_language", "")
 
     # --- (a) Verify encounter and patient ---
     encounter = world.get_entity("encounter", encounter_id)
@@ -114,30 +160,33 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
                 }
             )
 
-    # --- (c) Update encounter disposition ---
+    # Prepare documentation before committing the state transition.
     from healthcraft.entities.encounters import Disposition
 
     now = world.timestamp
-    updated_encounter = replace(
-        encounter,
-        disposition=Disposition.DISCHARGED,
-        updated_at=now,
-    )
-    world.put_entity("encounter", encounter_id, updated_encounter)
 
     # --- (d) Generate discharge documentation ---
-    discharge_instructions = params.get("discharge_instructions", "")
-    follow_up_plan = params.get("follow_up_plan", "")
-    medications_prescribed = params.get("medications_prescribed", [])
-
-    # Build treatments summary from meds administered during encounter
+    # Keep normalized administration records distinct from authored care context.
     treatments: list[str] = []
     for med_admin in encounter.meds_administered:
         treatments.append(f"{med_admin.medication_name} {med_admin.dose} {med_admin.route}")
 
     treatments_text = (
-        "; ".join(treatments) if treatments else "No medications administered during visit"
+        "; ".join(treatments)
+        if treatments
+        else "Medication administration not established by available records"
     )
+    authored_care = getattr(encounter, "authored_care", ())
+    care_text = "\n".join(
+        f"{record.source_collection} ({record.source_path}): "
+        + json.dumps(record.source_data, ensure_ascii=False, default=str)
+        for record in authored_care
+    )
+    if care_text:
+        care_text = (
+            "\nAuthored care context (source assertions; not confirmation of administration):\n"
+            + care_text
+        )
 
     patient_name = f"{patient.first_name} {patient.last_name}"
     discharge_summary = (
@@ -145,36 +194,41 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
         f"Encounter: {encounter_id}\n"
         f"Chief Complaint: {encounter.chief_complaint}\n"
         f"Diagnosis: {diagnosis}\n"
-        f"Treatments During Visit: {treatments_text}\n"
-        f"Discharge Instructions: {discharge_instructions or 'Standard discharge instructions provided'}\n"
+        f"Treatments During Visit: {treatments_text}{care_text}\n"
+        f"Discharge Instructions: {discharge_instructions or 'No discharge instructions supplied'}\n"
         f"Disposition: Discharged"
     )
 
     # Medication reconciliation: compare prescribed vs home medications
     home_meds = list(patient.medications) if patient.medications else []
-    prescribed_meds = medications_prescribed or []
     reconciliation_lines: list[str] = []
 
     if home_meds:
         reconciliation_lines.append("Home Medications:")
         for med in home_meds:
-            reconciliation_lines.append(f"  - {med} [CONTINUE]")
+            reconciliation_lines.append(f"  - {med} [continuation not specified]")
 
     if prescribed_meds:
         reconciliation_lines.append("New Prescriptions:")
         for med in prescribed_meds:
-            name = med.get("name", "Unknown")
-            dose = med.get("dose", "")
-            route = med.get("route", "")
-            frequency = med.get("frequency", "")
-            reconciliation_lines.append(f"  - {name} {dose} {route} {frequency}".strip())
+            # The schema permits additional fields (duration, instructions,
+            # etc.). Preserve them all instead of silently dropping content.
+            reconciliation_lines.append(
+                f"  - {json.dumps(med, ensure_ascii=False, sort_keys=True)}"
+            )
 
     if not reconciliation_lines:
         reconciliation_lines.append("No medications to reconcile")
 
     medication_reconciliation = "\n".join(reconciliation_lines)
 
-    follow_up_text = follow_up_plan or "Follow up with primary care provider within 48-72 hours"
+    follow_up_text = (
+        "\n".join(
+            json.dumps(item, ensure_ascii=False, sort_keys=True) for item in follow_up_arrangements
+        )
+        if follow_up_arrangements
+        else follow_up_plan or "No follow-up plan supplied"
+    )
 
     # --- (e) Store discharge note as clinical_note entity ---
     from healthcraft.entities.base import Entity, EntityType
@@ -183,7 +237,9 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
     full_note_content = (
         f"{discharge_summary}\n\n"
         f"--- Medication Reconciliation ---\n{medication_reconciliation}\n\n"
-        f"--- Follow-Up Plan ---\n{follow_up_text}"
+        f"--- Follow-Up Plan ---\n{follow_up_text}\n\n"
+        f"--- Return Precautions ---\n{chr(10).join(return_precautions)}\n\n"
+        f"Patient language preference: {patient_language or 'not recorded'}"
     )
 
     # Create a generic Entity for the clinical_note since there is no
@@ -204,7 +260,19 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
         "content": full_note_content,
         "diagnosis": diagnosis,
         "author": encounter.attending_id or "system",
+        "instructions": discharge_instructions,
+        "medications_prescribed": prescribed_meds,
+        "follow_up_arrangements": follow_up_arrangements,
+        "return_precautions": return_precautions,
+        "patient_language": patient_language,
     }
+    updated_encounter = replace(
+        encounter,
+        disposition=Disposition.DISCHARGED,
+        updated_at=now,
+        clinical_notes=(*encounter.clinical_notes, ("discharge_summary", full_note_content)),
+    )
+    world.put_entity("encounter", encounter_id, updated_encounter)
     world.put_entity("clinical_note", note_id, note_record)
 
     # --- (f) Build and return discharge package ---
@@ -213,11 +281,17 @@ def process_discharge(world: WorldState, params: dict[str, Any]) -> dict[str, An
     data: dict[str, Any] = {
         "encounter_id": encounter_id,
         "patient_id": patient_id,
+        "discharge_id": note_id,
+        "status": "discharged",
+        "instructions_generated": bool(discharge_instructions),
         "disposition": "discharged",
         "diagnosis": diagnosis,
         "discharge_summary": discharge_summary,
-        "medications_prescribed": prescribed_meds,
+        "medications_prescribed": deepcopy(prescribed_meds),
         "follow_up": follow_up_text,
+        "follow_up_arrangements": deepcopy(follow_up_arrangements),
+        "return_precautions": list(return_precautions),
+        "patient_language": patient_language,
         "discharged_at": discharged_at,
     }
 
@@ -350,10 +424,13 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
         patient = world.get_entity("patient", patient_id)
         if patient is not None:
             patient_name = f"{patient.first_name} {patient.last_name}"
+            esi_level = (
+                encounter.esi_level.value if encounter.esi_level is not None else "not recorded"
+            )
             clinical_summary = (
                 f"Patient {patient_name} (MRN: {getattr(patient, 'mrn', 'N/A')}) "
                 f"presenting with {encounter.chief_complaint}. "
-                f"ESI Level: {encounter.esi_level.value}. "
+                f"ESI Level: {esi_level}. "
                 f"Transfer reason: {reason}."
             )
         else:
@@ -426,34 +503,54 @@ def process_transfer(world: WorldState, params: dict[str, Any]) -> dict[str, Any
 
 
 def _assess_stabilization(encounter: Any) -> bool:
-    """Heuristic stabilization assessment based on the encounter's most recent vitals.
+    """Apply existing thresholds only to an unambiguous, complete latest reading.
 
-    A patient is considered stabilized if their most recent vital signs are
-    within broad acceptable ranges.  If no vitals are available, we
-    conservatively assume **not** stabilized.
-
-    Returns:
-        True if the patient appears hemodynamically stable.
+    Storage order does not establish chronology. Unknown observation times,
+    conflicting latest readings, and unknown relevant values cannot support
+    the heuristic's positive result. This does not establish clinical stability.
     """
     vitals = getattr(encounter, "vitals", ())
     if not vitals:
         return False
 
-    latest = vitals[-1]
+    timed = []
+    for observation in vitals:
+        if getattr(observation, "timing_status", "") not in ("", "explicit"):
+            return False
+        try:
+            timestamp = instant_key(getattr(observation, "timestamp", None))
+        except (TypeError, ValueError, OverflowError):
+            return False
+        timed.append((timestamp, observation))
+
+    latest_time = max(timestamp for timestamp, _ in timed)
+    latest_values = []
+    for timestamp, observation in timed:
+        if timestamp != latest_time:
+            continue
+        values = tuple(
+            getattr(observation, field, None)
+            for field in ("heart_rate", "systolic_bp", "spo2", "gcs")
+        )
+        if any(
+            type(value) not in (int, float) or (type(value) is float and not math.isfinite(value))
+            for value in values
+        ):
+            return False
+        latest_values.append(values)
+    if any(values != latest_values[0] for values in latest_values[1:]):
+        return False
 
     # Check for gross instability indicators
-    hr = getattr(latest, "heart_rate", None)
-    sbp = getattr(latest, "systolic_bp", None)
-    spo2 = getattr(latest, "spo2", None)
-    gcs = getattr(latest, "gcs", None)
+    hr, sbp, spo2, gcs = latest_values[0]
 
-    if hr is not None and (hr < 50 or hr > 140):
+    if hr < 50 or hr > 140:
         return False
-    if sbp is not None and sbp < 80:
+    if sbp < 80:
         return False
-    if spo2 is not None and spo2 < 88:
+    if spo2 < 88:
         return False
-    if gcs is not None and gcs < 9:
+    if gcs < 9:
         return False
 
     return True

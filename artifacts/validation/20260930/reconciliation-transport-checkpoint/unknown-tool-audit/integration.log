@@ -1,0 +1,37 @@
+........................................................................ [ 16%]
+........................................................................ [ 32%]
+........................................................................ [ 48%]
+........................................................F............... [ 64%]
+........................................................................ [ 80%]
+........................................................................ [ 96%]
+......sssssss..                                                          [100%]
+=================================== FAILURES ===================================
+_________ test_world_record_audit_entry_count_matches_successful_calls _________
+
+    def test_world_record_audit_entry_count_matches_successful_calls() -> None:
+        """Every successful tool call writes one world.audit_log entry.
+    
+        Errors (unknown tool, validation failure) write only to the server's audit
+        logger; the world audit log is the substrate for evaluator scoring, so
+        failed dispatches must NOT appear there or the negative-check criteria
+        will flip incorrectly.
+        """
+        from healthcraft.mcp.server import create_server
+    
+        ws = WorldState()
+        server = create_server(ws)
+        server.call_tool("searchPatients", {})  # ok
+        server.call_tool("nonexistentTool", {})  # unknown -> world log NOT touched
+        server.call_tool("createClinicalOrder", {})  # missing params -> error
+    
+        world_tool_names = [e.tool_name for e in ws.audit_log]
+        # searchPatients should be there; nonexistentTool should NOT be
+        # (server skips world.record_audit on unknown tool).
+        assert "searchPatients" in world_tool_names
+>       assert "nonexistentTool" not in world_tool_names
+E       AssertionError: assert 'nonexistentTool' not in ['searchPatients', 'nonexistentTool', 'createClinicalOrder']
+
+tests/test_evaluator_integrity/test_audit_log_invariants.py:179: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_evaluator_integrity/test_audit_log_invariants.py::test_world_record_audit_entry_count_matches_successful_calls
+1 failed, 439 passed, 7 skipped in 14.47s

@@ -1,0 +1,484 @@
+FFFFFFFFFFFFFFFFFFFFFFFFF                                                [100%]
+=================================== FAILURES ===================================
+_______ test_same_false_oracle_has_distinct_actual_readback_diagnostics ________
+
+    def test_same_false_oracle_has_distinct_actual_readback_diagnostics():
+        absent, present = case(mutate=wrong_exclusions, readback="none"), case(mutate=wrong_exclusions)
+        before_absent, before_present = verify_reconciliation(*absent), verify_reconciliation(*present)
+        assert before_absent == before_present
+>       left, right = explain(absent), explain(present)
+                      ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...tEncounterDetails', ...}, {'audit_end': 4, 'audit_start': 3, 'id': 'call-0004', 'name': 'updateEncounter', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_______ test_exact_missing_unexpected_exclusions_have_no_guessed_pairing _______
+
+    def test_exact_missing_unexpected_exclusions_have_no_guessed_pairing():
+>       result = explain(case(mutate=wrong_exclusions))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_matching_id_descriptor_differences_preserve_null_type_and_missing_fields _
+
+    def test_matching_id_descriptor_differences_preserve_null_type_and_missing_fields():
+        def mutate(note):
+            row = note["scope_exclusions"][0]
+            row["patient_id"] = None
+            row["encounter_id"] = True
+            del row["reason"]
+            row["extra/claim~"] = 1
+    
+>       result = explain(case(mutate=mutate))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+________________ test_duplicate_exclusion_ids_are_not_collapsed ________________
+
+    def test_duplicate_exclusion_ids_are_not_collapsed():
+        def mutate(note):
+            note["scope_exclusions"].append(deepcopy(note["scope_exclusions"][0]))
+>       issues = explain(case(mutate=mutate))["notes"][0]["scope_exclusions"]["issues"]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[none] __
+
+mode = 'none'
+
+    @pytest.mark.parametrize("mode", ["none", "wrong", "failed"])
+    def test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback(mode):
+>       report = explain(case(mutate=wrong_exclusions, readback=mode))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...tEncounterDetails', ...}, {'audit_end': 4, 'audit_start': 3, 'id': 'call-0004', 'name': 'updateEncounter', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[wrong] _
+
+mode = 'wrong'
+
+    @pytest.mark.parametrize("mode", ["none", "wrong", "failed"])
+    def test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback(mode):
+>       report = explain(case(mutate=wrong_exclusions, readback=mode))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[failed] _
+
+mode = 'failed'
+
+    @pytest.mark.parametrize("mode", ["none", "wrong", "failed"])
+    def test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback(mode):
+>       report = explain(case(mutate=wrong_exclusions, readback=mode))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+____________ test_acknowledged_write_without_storage_stays_distinct ____________
+
+    def test_acknowledged_write_without_storage_stays_distinct():
+>       report = explain(case(ack=True))
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+________ test_idempotent_retry_is_observed_separately_and_aliases_match ________
+
+    def test_idempotent_retry_is_observed_separately_and_aliases_match():
+>       report = explain(case(retry=True, alias=True))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:165: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...ate_encounter', ...}, {'audit_end': 6, 'audit_start': 5, 'id': 'call-0006', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_____ test_malformed_notes_explain_failure_without_hiding_real_storage[{] ______
+
+raw = '{'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":[],"scope_exclusions":[]}] _
+
+raw = '{"scope_exclusions":[],"scope_exclusions":[]}'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":NaN}] _
+
+raw = '{"scope_exclusions":NaN}'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":1e999}] _
+
+raw = '{"scope_exclusions":1e999}'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_____ test_malformed_notes_explain_failure_without_hiding_real_storage[[]] _____
+
+raw = '[]'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":null}] _
+
+raw = '{"scope_exclusions":null}'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":[{}]}] _
+
+raw = '{"scope_exclusions":[{}]}'
+
+    @pytest.mark.parametrize("raw", ["{", '{"scope_exclusions":[],"scope_exclusions":[]}', '{"scope_exclusions":NaN}', '{"scope_exclusions":1e999}', '[]', '{"scope_exclusions":null}', '{"scope_exclusions":[{}]}'])
+    def test_malformed_notes_explain_failure_without_hiding_real_storage(raw):
+>       result = explain(case(raw=raw))
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[scenario] _
+
+where = 'scenario'
+
+    @pytest.mark.parametrize("where", ["scenario", "expectations", "audit"])
+    def test_invalid_provenance_unavailable_no_authoritative_content_diagnosis(where):
+        values = case()
+        if where == "scenario":
+            values[0]["clock"] = "2000-01-01T00:00:00Z"
+        elif where == "expectations":
+            values[1]["sources"][0]["source"]["status"] = "administered"
+        else:
+            values[2]["audit"][0]["params"] = {}
+>       result = explain(values)
+                 ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2000-01-01T00:00:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[expectations] _
+
+where = 'expectations'
+
+    @pytest.mark.parametrize("where", ["scenario", "expectations", "audit"])
+    def test_invalid_provenance_unavailable_no_authoritative_content_diagnosis(where):
+        values = case()
+        if where == "scenario":
+            values[0]["clock"] = "2000-01-01T00:00:00Z"
+        elif where == "expectations":
+            values[1]["sources"][0]["source"]["status"] = "administered"
+        else:
+            values[2]["audit"][0]["params"] = {}
+>       result = explain(values)
+                 ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_ test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[audit] _
+
+where = 'audit'
+
+    @pytest.mark.parametrize("where", ["scenario", "expectations", "audit"])
+    def test_invalid_provenance_unavailable_no_authoritative_content_diagnosis(where):
+        values = case()
+        if where == "scenario":
+            values[0]["clock"] = "2000-01-01T00:00:00Z"
+        elif where == "expectations":
+            values[1]["sources"][0]["source"]["status"] = "administered"
+        else:
+            values[2]["audit"][0]["params"] = {}
+>       result = explain(values)
+                 ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+_______ test_malformed_inputs_fail_closed_to_json_safe_unavailable[None] _______
+
+value = None
+
+    @pytest.mark.parametrize("value", [None, {"bad": float("nan")}, {1: "invalid key"}, {"bad": (1,)}])
+    def test_malformed_inputs_fail_closed_to_json_safe_unavailable(value):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:200: ModuleNotFoundError
+______ test_malformed_inputs_fail_closed_to_json_safe_unavailable[value1] ______
+
+value = {'bad': nan}
+
+    @pytest.mark.parametrize("value", [None, {"bad": float("nan")}, {1: "invalid key"}, {"bad": (1,)}])
+    def test_malformed_inputs_fail_closed_to_json_safe_unavailable(value):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:200: ModuleNotFoundError
+______ test_malformed_inputs_fail_closed_to_json_safe_unavailable[value2] ______
+
+value = {1: 'invalid key'}
+
+    @pytest.mark.parametrize("value", [None, {"bad": float("nan")}, {1: "invalid key"}, {"bad": (1,)}])
+    def test_malformed_inputs_fail_closed_to_json_safe_unavailable(value):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:200: ModuleNotFoundError
+______ test_malformed_inputs_fail_closed_to_json_safe_unavailable[value3] ______
+
+value = {'bad': (1,)}
+
+    @pytest.mark.parametrize("value", [None, {"bad": float("nan")}, {1: "invalid key"}, {"bad": (1,)}])
+    def test_malformed_inputs_fail_closed_to_json_safe_unavailable(value):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:200: ModuleNotFoundError
+______ test_bindings_determinism_detachment_and_explicit_limited_coverage ______
+
+    def test_bindings_determinism_detachment_and_explicit_limited_coverage():
+        values = case()
+        before = deepcopy(values)
+>       result = explain(values)
+                 ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:210: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+______ test_every_reference_resolves_to_original_document_and_note_index _______
+
+    def test_every_reference_resolves_to_original_document_and_note_index():
+        def mutate(note):
+            note["scope_exclusions"].reverse()
+            note["scope_exclusions"][0]["encounter_id"] = "ENC-DDDDDDDD"
+            note["scope_exclusions"][0]["extra/claim~"] = None
+        values = case(mutate=mutate)
+>       result = explain(values)
+                 ^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_diagnostics.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+values = ({'clock': '2026-09-30T14:30:00Z', 'encounters': [{'arrival_time': '2026-09-30T14:30:00Z', 'chief_complaint': 'Synthet...dateEncounter', ...}, {'audit_end': 5, 'audit_start': 4, 'id': 'call-0005', 'name': 'getEncounterDetails', ...}], ...})
+
+    def explain(values):
+>       from healthcraft.reconciliation.diagnostics import explain_reconciliation
+E       ModuleNotFoundError: No module named 'healthcraft.reconciliation.diagnostics'
+
+tests/test_reconciliation/test_diagnostics.py:77: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_diagnostics.py::test_same_false_oracle_has_distinct_actual_readback_diagnostics
+FAILED tests/test_reconciliation/test_diagnostics.py::test_exact_missing_unexpected_exclusions_have_no_guessed_pairing
+FAILED tests/test_reconciliation/test_diagnostics.py::test_matching_id_descriptor_differences_preserve_null_type_and_missing_fields
+FAILED tests/test_reconciliation/test_diagnostics.py::test_duplicate_exclusion_ids_are_not_collapsed
+FAILED tests/test_reconciliation/test_diagnostics.py::test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[none]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[wrong]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_prewrite_wrong_target_and_failed_reads_are_not_matching_readback[failed]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_acknowledged_write_without_storage_stays_distinct
+FAILED tests/test_reconciliation/test_diagnostics.py::test_idempotent_retry_is_observed_separately_and_aliases_match
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":[],"scope_exclusions":[]}]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":NaN}]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":1e999}]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[[]]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":null}]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_notes_explain_failure_without_hiding_real_storage[{"scope_exclusions":[{}]}]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[scenario]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[expectations]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_invalid_provenance_unavailable_no_authoritative_content_diagnosis[audit]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_inputs_fail_closed_to_json_safe_unavailable[None]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_inputs_fail_closed_to_json_safe_unavailable[value1]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_inputs_fail_closed_to_json_safe_unavailable[value2]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_malformed_inputs_fail_closed_to_json_safe_unavailable[value3]
+FAILED tests/test_reconciliation/test_diagnostics.py::test_bindings_determinism_detachment_and_explicit_limited_coverage
+FAILED tests/test_reconciliation/test_diagnostics.py::test_every_reference_resolves_to_original_document_and_note_index
+25 failed in 0.26s

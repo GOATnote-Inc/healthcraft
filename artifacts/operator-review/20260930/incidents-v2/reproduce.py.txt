@@ -1,0 +1,121 @@
+"""Fresh offline CLI demonstration; synthetic forms are not human judgments."""
+from pathlib import Path
+import hashlib
+import json
+import subprocess
+import sys
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=ROOT/'artifacts/operator-review/20260930/incidents-v2'
+PYTHON=ROOT/'.venv/bin/python'
+CLI=ROOT/'scripts/operator_incidents.py'
+CODE=['src/healthcraft/operator_incidents.py','src/healthcraft/operator_adjudication.py','src/healthcraft/operator_incident_report.py','src/healthcraft/reconciliation/incident_evidence.py','scripts/operator_incidents.py']
+
+def sha(raw): return hashlib.sha256(raw).hexdigest()
+def load(path): return json.loads(path.read_text())
+def save(name,value):
+    p=OUT/name;p.parent.mkdir(parents=True,exist_ok=True)
+    with p.open('x') as f: json.dump(value,f,indent=2,allow_nan=False);f.write('\n')
+    return p
+
+def run(label,args,expected=0):
+    proc=subprocess.run([str(PYTHON),str(CLI),*map(str,args)],cwd=ROOT,text=True,capture_output=True)
+    save('commands/'+label+'.json',{'argv':[str(PYTHON),str(CLI),*map(str,args)],'exit_code':proc.returncode,'stdout':proc.stdout,'stderr':proc.stderr})
+    assert proc.returncode==expected,(label,proc.stdout,proc.stderr)
+    return json.loads(proc.stdout)
+
+OUT.mkdir(parents=True,exist_ok=False)
+code={name:sha((ROOT/name).read_bytes()) for name in CODE}
+sources={
+ 'native': ROOT/'artifacts/reconciliation/20260930/casebook-native-v2/run/manifest.json',
+ 'model': ROOT/'artifacts/reconciliation/20260930/local-casebook-pilot-v1/run/manifest.json',
+}
+selections={
+ 'native':{'review-a':'REC2-003/designated','review-b':'REC2-004/designated','review-c':'REC2-007/designated','review-d':'REC2-008/designated'},
+ 'model':{'review-a':'REC2-001/medgemma','review-b':'REC2-002/medgemma','review-c':'REC2-007/nano'},
+}
+packets={}
+for cohort in sources:
+ for mode in ['raw','assisted']:
+    name=cohort+'-'+mode
+    conf=save('coordinator/config-'+name+'.json',{
+      'expected_sha256':sha(sources[cohort].read_bytes()),'selections':selections[cohort],
+      'protocol':{'protocol_id':'synthetic-cli-development-v2','purpose':'engineering_development'},
+      'assignment':{'assignment_id':name,'operator_id':'synthetic-development-operator','presentation':mode},
+    })
+    run(name,['build',sources[cohort],'--config',conf,'--output-dir',OUT/name])
+    packets[name]=load(OUT/name/'public/packet.json')
+for cohort in sources:
+ assert [c['documents'] for c in packets[cohort+'-raw']['cases']]==[c['documents'] for c in packets[cohort+'-assisted']['cases']]
+ assert all(c['assistance'] is None for c in packets[cohort+'-raw']['cases'])
+
+base=OUT/'native-assisted'
+blank=base/'public/response-template.json'
+run('blank-import',['import',base/'manifest.json',blank,'--output-dir',OUT/'blank-import'])
+assert load(OUT/'blank-import/receipt.json')['counts']['pending_cases']==4
+bad=OUT/'coordinator/invalid-response.bin';bad.write_bytes(b'{"cases": [\xff')
+run('invalid-import',['import',base/'manifest.json',bad,'--output-dir',OUT/'invalid-import'],expected=1)
+assert (OUT/'invalid-import/submission.json').read_bytes()==bad.read_bytes()
+assert load(OUT/'invalid-import/receipt.json')['counts']['pending_cases']==4
+
+value=load(blank)
+row=value['cases'][0]
+ref=[{'document':'task','pointer':'/target/patient_id'}]
+row['identified_target'].update(status='identified',patient_id='PAT-DELIBERATELY-WRONG',encounter_id='ENC-DELIBERATELY-WRONG',rationale='Synthetic incorrect claim to exercise import without answer repair.',evidence_refs=ref)
+for axis in row['axes']:
+ axis.update(judgment='yes',rationale='Synthetic assertion for plumbing only; not a reviewer conclusion.',evidence_refs=ref)
+row['incident_assessment'].update(status='none_identified',summary='Synthetic unsupported claim for workflow testing.',evidence_refs=ref)
+row['timing']={'method':'self_reported','elapsed_seconds':-1,'active_seconds':None,'note':'Deliberately invalid timing; preserve the report.'}
+response=save('coordinator/synthetic-operator-response.json',value)
+run('synthetic-operator-import',['import',base/'manifest.json',response,'--output-dir',OUT/'synthetic-operator-import'])
+receipt=load(OUT/'synthetic-operator-import/receipt.json')
+assert receipt['counts']['submitted_cases']==1 and receipt['counts']['pending_cases']==3 and receipt['counts']['timing_errors']==1
+assert receipt['cases'][0]['response']['identified_target']['patient_id']=='PAT-DELIBERATELY-WRONG'
+
+records={}
+for reviewer,decision in [('synthetic-reviewer-a','valid'),('synthetic-reviewer-b','invalid')]:
+ conf=save('coordinator/config-'+reviewer+'.json',{'assignment':{'assignment_id':reviewer,'adjudicator_id':reviewer,'role':'initial'},'prior_records':None})
+ run(reviewer+'-build',['adjudication-build',base/'manifest.json',response,'--config',conf,'--output-dir',OUT/reviewer])
+ adj=load(OUT/reviewer/'public/response-template.json')
+ adj['reviewer_declaration']={'independent_review':False,'qualifications':'SCRIPT-GENERATED DEVELOPMENT FIXTURE. No person reviewed these reports.','conflicts':'Both conflicting declarations were created by the same test script.'}
+ ar=adj['cases'][0]
+ ar.update(overall=decision,rationale='Synthetic opposing declaration to test preservation of disagreement.')
+ for check in ar['checks']:
+  check.update(judgment='supported',rationale='Synthetic plumbing assertion, not a human assessment.',evidence_refs=ref,response_pointers=['/identified_target/patient_id'])
+ if decision=='invalid':ar['checks'][0]['judgment']='unsupported'
+ answer=save('coordinator/'+reviewer+'-response.json',adj)
+ run(reviewer+'-import',['adjudication-import',OUT/reviewer/'manifest.json',answer,'--output-dir',OUT/(reviewer+'-import')])
+ records[reviewer]=str(OUT/(reviewer+'-import')/'manifest.json')
+roster=save('coordinator/initial-records.json',records)
+run('disputed-summary',['summary',OUT/'synthetic-reviewer-a/manifest.json','--records',roster,'--output-dir',OUT/'disputed-summary'])
+summary=load(OUT/'disputed-summary/summary.json')
+assert summary['assigned_opportunities']==8 and summary['cases'][0]['status']=='disputed'
+resolver='synthetic-resolver'
+conf=save('coordinator/config-resolver.json',{'assignment':{'assignment_id':resolver,'adjudicator_id':resolver,'role':'resolver'},'prior_records':records})
+run('resolver-build',['adjudication-build',base/'manifest.json',response,'--config',conf,'--output-dir',OUT/resolver])
+adj=load(OUT/resolver/'public/response-template.json')
+assert len(adj['cases'])==1 and adj['cases'][0]['overall'] is None
+adj['reviewer_declaration']={'independent_review':False,'qualifications':'SCRIPT-GENERATED TEST. No human adjudication.','conflicts':'Same script as both initial fixture judgments.'}
+ar=adj['cases'][0];ar.update(overall='invalid',rationale='Synthetic explicit resolver declaration; no human review.')
+for check in ar['checks']:
+ check.update(judgment='supported',rationale='Synthetic plumbing assertion.',evidence_refs=ref,response_pointers=['/identified_target/patient_id'])
+ar['checks'][0]['judgment']='unsupported'
+answer=save('coordinator/resolver-response.json',adj)
+run('resolver-import',['adjudication-import',OUT/resolver/'manifest.json',answer,'--output-dir',OUT/'resolver-import'])
+run('resolved-summary',['summary',OUT/'synthetic-reviewer-a/manifest.json','--records',roster,'--resolver-record',OUT/'resolver-import/manifest.json','--output-dir',OUT/'resolved-summary'])
+summary=load(OUT/'resolved-summary/summary.json')
+assert summary['assigned_opportunities']==8 and summary['counts']=={'declared':2,'pending':6,'unassessed':0,'abstained':0}
+assert summary['cases'][0]['status']=='resolved_invalid'
+assert [x['decision'] for x in summary['cases'][0]['initial_judgments']]==['valid','invalid']
+assert summary['resolution']['assigned_opportunities']==1
+assert all(sha((ROOT/name).read_bytes())==value for name,value in code.items())
+save('demonstration-receipt.json',{'schema_version':'healthcraft-operator-incident-cli-demonstration/v2','code_sha256':code,
+ 'source_manifest_sha256':{key:sha(value.read_bytes()) for key,value in sources.items()},
+ 'operator_packets':4,'selected_native_attempts':4,'selected_model_attempts':3,
+ 'raw_assisted_documents_identical':True,'blank_pending_cases':4,'invalid_pending_cases':4,
+ 'synthetic_submitted_cases':1,'synthetic_pending_cases':3,'synthetic_timing_errors':1,
+ 'synthetic_initial_assigned_opportunities':8,'synthetic_initial_declared':2,'synthetic_initial_pending':6,
+ 'synthetic_resolver_opportunities':1,'human_participants':0,'human_validity_judgments':0,
+ 'new_model_calls':0,'browser_visual_qa':False,'clinical_validation':'not_established',
+ 'limitations':['Selected exposed development cases, not a representative comparison.','All filled forms are explicitly script-generated test inputs, not operator or independent reviewer outcomes.','No timing or superiority estimate.']})
+print(json.dumps({'status':'verified','output_dir':str(OUT),'command_count':len(list((OUT/'commands').glob('*.json')))},indent=2))

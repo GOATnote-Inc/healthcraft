@@ -1,0 +1,112 @@
+....................F......FF                                            [100%]
+=================================== FAILURES ===================================
+_______ test_preparation_identity_is_durable_before_first_public_request _______
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x10a008ad0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-358/test_preparation_identity_is_d0')
+
+    def test_preparation_identity_is_durable_before_first_public_request(api, service, tmp_path):
+        output = tmp_path / "trial"
+        processes, instances = [], []
+        underlying = bridge(service, processes)
+    
+        def run(argv, **kwargs):
+            prepared = json.loads((output / "prepared.json").read_text())
+            assert prepared["config"] == config()
+            assert prepared["source_hashes_before"]
+            assert prepared["instruction"] == "public"
+            return underlying(argv, **kwargs)
+    
+        receipt = api.run_trial(
+            model_config=config(),
+            instruction="public",
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=run,
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+>       assert receipt["status"] == "terminated"
+E       AssertionError: assert 'failed' == 'terminated'
+E         
+E         - terminated
+E         + failed
+
+tests/test_scripts/test_reconciliation_model_trial.py:341: AssertionError
+____ test_primary_interrupt_remains_interrupted_when_postflight_also_fails _____
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x109e8c7d0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-358/test_primary_interrupt_remains0')
+
+    def test_primary_interrupt_remains_interrupted_when_postflight_also_fails(api, service, tmp_path):
+        instances, processes = [], []
+        factory = fake_model_factory(
+            [KeyboardInterrupt("stopped")], instances, post_error=ValueError("postflight unavailable")
+        )
+        result = api.run_trial(
+            model_config=config(),
+            instruction="public",
+            output_dir=tmp_path / "trial",
+            backend_container="owned-backend",
+            process_runner=bridge(service, processes),
+            client_factory=factory,
+        )
+>       assert result["status"] == "interrupted"
+E       AssertionError: assert 'failed' == 'interrupted'
+E         
+E         - interrupted
+E         + failed
+
+tests/test_scripts/test_reconciliation_model_trial.py:422: AssertionError
+______ test_real_shared_client_capture_through_runner_has_no_native_tools ______
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x109e8c1d0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-358/test_real_shared_client_captur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a0860d0>
+
+    def test_real_shared_client_capture_through_runner_has_no_native_tools(
+        api, service, tmp_path, monkeypatch
+    ):
+        from healthcraft.reconciliation.controller import RecordingOllamaClient
+    
+        native_requests = []
+    
+        def transport(self, path, payload=None):
+            if path == "/api/tags":
+                return {"models": [{"name": "local-test:latest", "digest": "a" * 64}]}
+            if path == "/api/show":
+                return {"capabilities": ["completion"], "details": {"family": "gemma3"}}
+            if path == "/api/version":
+                return {"version": "0.34.4"}
+            assert path == "/api/chat"
+            assert (tmp_path / "trial" / "identity-before.json").exists()
+            native_requests.append(deepcopy(payload))
+            return {
+                "model": "local-test:latest",
+                "done": True,
+                "done_reason": "stop",
+                "message": {"role": "assistant", "content": '{"action":"finish"}'},
+            }
+    
+        monkeypatch.setattr(RecordingOllamaClient, "_transport_request", transport)
+        result = api.run_trial(
+            model_config=config(),
+            instruction="same public instruction",
+            output_dir=tmp_path / "trial",
+            backend_container="owned-backend",
+            process_runner=bridge(service, []),
+        )
+>       assert result["status"] == "terminated"
+E       AssertionError: assert 'failed' == 'terminated'
+E         
+E         - terminated
+E         + failed
+
+tests/test_scripts/test_reconciliation_model_trial.py:460: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_preparation_identity_is_durable_before_first_public_request
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_primary_interrupt_remains_interrupted_when_postflight_also_fails
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_real_shared_client_capture_through_runner_has_no_native_tools
+3 failed, 26 passed in 0.16s

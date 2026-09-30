@@ -3,17 +3,18 @@
 The orchestrator builds the agent's system prompt by concatenating four
 files (base.txt + mercy_point.txt + policies.txt + tool_reference.txt) joined
 by `\\n\\n`. A silent edit to any of those files changes agent behavior in
-ways that won't show up in unit tests; the V8 snapshot in
-`tests/fixtures/prompt_snapshots/base_composed.txt` is the diff line in CI.
+ways that won't show up in unit tests. The development snapshot is the diff
+line in CI; the original V8 snapshot remains an immutable historical fixture.
 
 When this test fails it means a system-prompts/*.txt edit has happened.
-That is intentional in some cases — when it is, regenerate the snapshot
-with `_regenerate_snapshot()` below and update the whitepaper appendix
-that quotes the prompt.
+Intentional changes require an explicit current-snapshot update. Publication
+and manuscript alignment follow docs/RELEASE_EVIDENCE_PLAN.md; development
+must not rewrite a historical prompt or imply that it was used in old runs.
 """
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,8 @@ from healthcraft.llm.orchestrator import _load_system_prompt
 from healthcraft.tasks.loader import Task
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SNAPSHOT = REPO_ROOT / "tests" / "fixtures" / "prompt_snapshots" / "base_composed.txt"
+SNAPSHOT_DIR = REPO_ROOT / "tests" / "fixtures" / "prompt_snapshots"
+SNAPSHOT = SNAPSHOT_DIR / "source_fidelity_composed.txt"
 SYSTEM_PROMPT_DIR = REPO_ROOT / "system-prompts"
 
 
@@ -52,17 +54,17 @@ def _placeholder_task() -> Task:
 
 
 def test_composed_prompt_matches_snapshot() -> None:
-    """The composed default prompt is byte-identical to the V8 snapshot.
+    """The composed default prompt is byte-identical to its development snapshot.
 
     To regenerate after an intentional edit, run:
 
         from healthcraft.llm.orchestrator import _load_system_prompt
         from healthcraft.tasks.loader import Task
         # build a placeholder Task as in this module
-        Path('tests/fixtures/prompt_snapshots/base_composed.txt') \\
+        Path('tests/fixtures/prompt_snapshots/source_fidelity_composed.txt') \\
             .write_text(_load_system_prompt(t))
 
-    AND update the whitepaper appendix so the published prompt matches.
+    Preserve base_composed.txt; paper changes require the release evidence gate.
     """
     composed = _load_system_prompt(_placeholder_task())
     expected = SNAPSHOT.read_text(encoding="utf-8")
@@ -86,10 +88,18 @@ def test_composed_prompt_matches_snapshot() -> None:
         if len(diff) > max_chars:
             diff = diff[:max_chars] + "\n... [truncated]"
         pytest.fail(
-            "Composed system prompt differs from the V8 snapshot. "
+            "Composed system prompt differs from the development snapshot. "
             "Either revert the system-prompts/*.txt edit or regenerate "
-            "the snapshot AND update the whitepaper appendix.\n\n" + diff
+            "current snapshot. Preserve historical prompts and follow the publication gate.\n\n"
+            + diff
         )
+
+
+def test_historical_v8_prompt_snapshot_is_preserved() -> None:
+    """New tool semantics must not silently relabel the historical prompt."""
+    assert hashlib.sha256((SNAPSHOT_DIR / "base_composed.txt").read_bytes()).hexdigest() == (
+        "e54f7453610138797fb5a91857e1361ba14d59525ac362f5136b7b3cd670a227"
+    )
 
 
 # ---------------------------------------------------------------------------

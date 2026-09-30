@@ -1,0 +1,82 @@
+"""Freeze this development candidate and retain lint/full-suite exit evidence."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-casebook-final')
+NAMES = [
+    'src/healthcraft/reconciliation/casebook.py',
+    'src/healthcraft/reconciliation/case_controls.py',
+    'src/healthcraft/reconciliation/casebook_runner.py',
+    'src/healthcraft/reconciliation/fixture_v2.py',
+    'src/healthcraft/reconciliation/execution_v2.py',
+    'src/healthcraft/reconciliation/oracle.py',
+    'src/healthcraft/reconciliation/oracle_v2.py',
+    'scripts/reconciliation_casebook.py',
+    'tests/test_reconciliation/test_casebook.py',
+    'tests/test_reconciliation/test_case_controls.py',
+    'tests/test_reconciliation/test_casebook_runner.py',
+    'tests/test_reconciliation/test_fixture_v2.py',
+    'tests/test_reconciliation/test_execution_v2.py',
+    'tests/test_reconciliation/test_completion_contract.py',
+    'tests/test_reconciliation/test_oracle_v2.py',
+    'docs/RECONCILIATION_CASEBOOK.md',
+    'docs/SYNTHETIC_RECONCILIATION.md',
+    'docs/RELEASE_EVIDENCE_PLAN.md',
+    'README.md',
+]
+NAMES += [str(p.relative_to(ROOT)) for p in sorted((ROOT/'configs/evaluation/reconciliation_v2').rglob('*.json'))]
+
+def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def save(name, value):
+    with (OUT/name).open('x') as stream:
+        json.dump(value, stream, indent=2, allow_nan=False)
+        stream.write('\n')
+
+mode=sys.argv[1]
+if mode=='lint':
+    OUT.mkdir(exist_ok=False)
+    candidate={name:digest(ROOT/name) for name in NAMES}
+    save('candidate-inputs.json',candidate)
+    prior=ROOT/'artifacts/validation/20260930/operator-review-v1/validation/lint-inputs.json'
+    names=sorted(set(json.loads(prior.read_text()))|set(NAMES))
+    inventory={name:digest(ROOT/name) for name in names}
+    save('lint-inputs.json',inventory)
+    snapshot=Path(tempfile.mkdtemp(prefix='healthcraft-casebook-lint-',dir='/private/tmp'))
+    for name in names:
+        dest=snapshot/name
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(ROOT/name,dest)
+        assert digest(dest)==inventory[name]
+    command=['make','lint','PYTHON='+str(ROOT/'.venv/bin/python')]
+    codes={}
+    for label,cwd in [('root',ROOT),('isolated',snapshot)]:
+        with (OUT/(label+'-make-lint.log')).open('x') as log:
+            codes[label]=subprocess.run(command,cwd=cwd,stdout=log,stderr=subprocess.STDOUT).returncode
+    receipt={'command':command,'snapshot':str(snapshot),'inputs':len(names),
+             'python_files':sum(n.endswith('.py') for n in names),'exit_codes':codes,
+             'excluded':'Immutable artifacts/results and unrelated untracked directories; every lint input is inventoried.'}
+    save('lint-receipt.json',receipt)
+    assert all(digest(ROOT/name)==value for name,value in inventory.items())
+    print(json.dumps(receipt,indent=2))
+    raise SystemExit(codes['isolated'])
+elif mode=='test':
+    inventory=json.loads((OUT/'candidate-inputs.json').read_text())
+    assert all(digest(ROOT/name)==value for name,value in inventory.items())
+    command=['make','test']
+    with (OUT/'full-suite.log').open('x') as log:
+        code=subprocess.run(command,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT).returncode
+    assert all(digest(ROOT/name)==value for name,value in inventory.items())
+    receipt={'command':command,'exit_code':code,'log_sha256':digest(OUT/'full-suite.log'),
+             'candidate_inputs':inventory,
+             'python':subprocess.check_output([str(ROOT/'.venv/bin/python'),'--version'],text=True).strip()}
+    save('full-suite-receipt.json',receipt)
+    print(json.dumps(receipt,indent=2))
+    raise SystemExit(code)
+else:
+    raise ValueError(mode)

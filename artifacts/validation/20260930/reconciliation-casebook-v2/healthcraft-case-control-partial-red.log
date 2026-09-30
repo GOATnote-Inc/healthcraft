@@ -1,0 +1,77 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_failed_original_is_retained_when_capture_omission_cannot_be_applied ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1097b3bb0>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-550/test_failed_original_is_retain0')
+
+    def test_failed_original_is_retained_when_capture_omission_cannot_be_applied(monkeypatch, tmp_path):
+        module = importlib.import_module("healthcraft.reconciliation.case_controls")
+        native_run = module.run_case
+        from healthcraft.mcp.server import create_server
+    
+        observed = []
+    
+        def failed_readback_server(world):
+            server = create_server(world)
+    
+            class FailingReadback:
+                def call_tool(self, name, params):
+                    if name == "getEncounterDetails" and world.list_entities("clinical_note"):
+                        raise RuntimeError("Deliberate readback transport failure after stored write")
+                    return server.call_tool(name, params)
+    
+            return FailingReadback()
+    
+        def capture_actual_failure(case, **kwargs):
+            kwargs["server_factory"] = failed_readback_server
+            evidence = native_run(case, **kwargs)
+            observed.append(deepcopy(evidence))
+            return evidence
+    
+        monkeypatch.setattr(module, "run_case", capture_actual_failure)
+>       capture = run(load_cases()[-1], journal_path=tmp_path / "journal.jsonl")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_case_controls.py:134: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_reconciliation/test_case_controls.py:13: in run
+    return importlib.import_module("healthcraft.reconciliation.case_controls").run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+case = {'case_id': 'REC2-008', 'casebook_sha256': '39f8bcbc16e011cf10b79c78c70e39cf165b44d245fb92417f9688972d0d5cdb', 'design...0b9a2fc54ab13c4e9c2cba281077a9048189ecd5cc', 'schema_version': 'healthcraft-reconciliation-expectations/v2', ...}, ...}
+
+    def run_control(
+        case: dict,
+        *,
+        control: str | None = None,
+        journal_path: Path | None = None,
+    ) -> dict:
+        """Run one explicit development control without accessing expectation rows."""
+        selected = case.get("designated_control") if control is None else control
+        if type(selected) is not str or selected not in CONTROLS:
+            raise ValueError("Unknown development control")
+    
+        def controller(recorder, *, target):
+            execute_reference(_ControlledCalls(recorder, selected), target=target)
+    
+        evidence = run_case(
+            case,
+            controller=controller,
+            journal_path=journal_path,
+            server_factory=_acknowledgement_only_server
+            if selected == "ack_without_storage"
+            else create_server,
+        )
+        original, transformation = None, None
+        if selected == "incomplete_capture":
+            if evidence["completion"]["status"] != "completed" or not evidence["calls"]:
+>               raise ValueError(
+                    "Cannot demonstrate capture omission without a completed original capture"
+                )
+E               ValueError: Cannot demonstrate capture omission without a completed original capture
+
+src/healthcraft/reconciliation/case_controls.py:119: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_case_controls.py::test_failed_original_is_retained_when_capture_omission_cannot_be_applied
+1 failed, 17 deselected in 0.07s

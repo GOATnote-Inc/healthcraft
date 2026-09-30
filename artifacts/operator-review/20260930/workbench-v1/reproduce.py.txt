@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Build, verify, and seal six additional offline views with the real CLI.
+
+Run only after source/peer freeze. Existing issuer artifacts remain authoritative.
+This script does not import responses, invent judgments, or execute models/browsers.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from datetime import datetime, timezone
+import hashlib
+from html.parser import HTMLParser
+import json
+from pathlib import Path
+import platform
+import subprocess
+import sys
+
+ROSTER = (
+    'native-raw', 'native-assisted', 'model-raw', 'model-assisted',
+    'synthetic-reviewer-a', 'synthetic-resolver',
+)
+SOURCES = (
+    'scripts/operator_workbench.py',
+    'src/healthcraft/operator_workbench.py',
+    'src/healthcraft/operator_workbench_report.py',
+    'src/healthcraft/operator_workbench_drafts.py',
+    'src/healthcraft/operator_incidents.py',
+    'src/healthcraft/operator_adjudication.py',
+    'src/healthcraft/operator_incident_report.py',
+    'src/healthcraft/operator_review.py',
+)
+
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def strict(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError('Duplicate JSON key: ' + key)
+            result[key] = value
+        return result
+    def nonfinite(value):
+        raise ValueError('Nonfinite JSON: ' + value)
+    return json.loads(raw, object_pairs_hook=pairs, parse_constant=nonfinite)
+
+
+def write(path, value):
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False)
+    with path.open('x', encoding='utf-8') as stream:
+        stream.write(raw + '\n')
+
+
+def tree_hashes(root):
+    result = {}
+    for path in sorted(root.rglob('*')):
+        if path.is_symlink():
+            raise ValueError('Symlink is outside this evidence helper contract: ' + str(path))
+        if path.is_file():
+            result[path.relative_to(root).as_posix()] = sha(path.read_bytes())
+    return result
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+class Markup(HTMLParser):
+    def __init__(self, raw):
+        super().__init__()
+        self.tags = Counter()
+        self.ids = []
+        self.source_roots = self.controls = self.assistance_links = 0
+        self.scripts = {}
+        self.active_script = None
+        self.feed(raw.decode('utf-8'))
+        self.close()
+
+    def handle_starttag(self, tag, attributes):
+        attrs = dict(attributes)
+        self.tags[tag] += 1
+        self.source_roots += 'data-source-document' in attrs
+        self.controls += tag in ('input', 'textarea', 'select', 'button')
+        self.assistance_links += 'data-source-ref' in attrs
+        if 'id' in attrs:
+            self.ids.append(attrs['id'])
+        if tag == 'script':
+            self.active_script = attrs.get('id')
+            if self.active_script:
+                self.scripts[self.active_script] = ''
+
+    def handle_data(self, data):
+        if self.active_script:
+            self.scripts[self.active_script] += data
+
+    def handle_endtag(self, tag):
+        if tag == 'script':
+            self.active_script = None
+
+    def metrics(self, raw):
+        return {
+            'bytes': len(raw), 'html_start_tags': sum(self.tags.values()),
+            'start_tags_by_name': dict(sorted(self.tags.items())),
+            'document_root_controls': self.source_roots,
+            'initial_form_controls': self.controls,
+            'assistance_reference_links': self.assistance_links,
+            'duplicate_ids': sorted(k for k, n in Counter(self.ids).items() if n > 1),
+        }
+
+
+def run_command(command, cwd, prefix):
+    record = {'argv': command, 'cwd': str(cwd), 'timeout_seconds': 120}
+    write(prefix.with_suffix('.command.json'), record)
+    try:
+        proc = subprocess.run(command, cwd=cwd, capture_output=True, timeout=120)
+        stdout, stderr, code = proc.stdout, proc.stderr, proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        stdout, stderr, code = exc.stdout or b'', exc.stderr or b'', None
+        record['error'] = 'subprocess_timeout'
+    with prefix.with_suffix('.stdout.txt').open('xb') as stream:
+        stream.write(stdout)
+    with prefix.with_suffix('.stderr.txt').open('xb') as stream:
+        stream.write(stderr)
+    record.update(returncode=code, stdout_sha256=sha(stdout), stderr_sha256=sha(stderr))
+    write(prefix.with_suffix('.result.json'), record)
+    require(code == 0, 'CLI failed; inspect ' + str(prefix) + ' logs')
+    value = strict(stdout.decode('utf-8'))
+    return record, value
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--repo-root', type=Path, default=Path.cwd())
+    parser.add_argument('--python', type=Path, default=Path(sys.executable))
+    parser.add_argument('--output-dir', type=Path, required=True,
+                        help='New exclusive directory; e.g. artifacts/operator-review/20260930/workbench-v1')
+    args = parser.parse_args()
+    repo, output, python = args.repo_root.resolve(), args.output_dir.resolve(), args.python.resolve()
+    original = repo / 'artifacts/operator-review/20260930/incidents-v2'
+    require(not output.exists(), 'Output already exists')
+    require(not output.is_relative_to(original), 'Output cannot be inside the original artifact')
+    for ancestor in output.parents:
+        require(not (ancestor / 'manifest.json').is_file(), 'Do not append under a sealed outer manifest')
+    before = tree_hashes(original)
+    outer = strict((original / 'manifest.json').read_text())
+    require(set(before) == set(outer['files']) | {'manifest.json'}, 'Original outer inventory differs')
+    require(all(before[name] == value for name, value in outer['files'].items()),
+            'Original outer manifest hash mismatch')
+    source_before = {name: sha((repo / name).read_bytes()) for name in SOURCES}
+    planned = []
+    for label in ROSTER:
+        packet = strict((original / label / 'public/packet.json').read_text())
+        planned.append({
+            'view': label, 'issuer_manifest': str(original / label / 'manifest.json'),
+            'issuer_manifest_sha256': before[label + '/manifest.json'],
+            'cases': [{'review_case_id': case['review_case_id'],
+                       'scenario_family_id': case.get('scenario_family_id')}
+                      for case in packet['cases']],
+        })
+    output.mkdir(parents=True, exist_ok=False)
+    logs = output / 'commands'
+    logs.mkdir()
+    with (output / 'reproduce.py.txt').open('xb') as stream:
+        stream.write(Path(__file__).read_bytes())
+    preparation = {
+        'schema_version': 'healthcraft-workbench-demonstration-preparation/v1',
+        'created_utc': datetime.now(timezone.utc).isoformat(),
+        'scheduled_views': len(ROSTER), 'roster': planned,
+        'source_sha256': source_before, 'original_files_sha256': before,
+        'original_manifest_sha256': before['manifest.json'],
+        'helper_sha256': sha(Path(__file__).read_bytes()),
+        'host_runtime': {'python': sys.version, 'platform': platform.platform()},
+        'cli_python': str(python),
+        'scope': 'Additional offline views of unchanged exposed development assignments; no imported responses or new outcomes.',
+        'outer_manifest': 'Written last, after all views, CLI logs, receipts and README.',
+    }
+    write(output / 'preparation.json', preparation)
+    results = []
+    for planned_view in planned:
+        label = planned_view['view']
+        row = {**planned_view, 'status': 'failed', 'commands': []}
+        try:
+            issuer = original / label
+            destination = output / label
+            build = [str(python), 'scripts/operator_workbench.py', 'build',
+                     str(issuer / 'manifest.json'), '--output-dir', str(destination)]
+            record, cli_result = run_command(build, repo, logs / (label + '-build'))
+            row['commands'].append(record)
+            row['build_result'] = cli_result
+            require(cli_result['status'] == 'created', 'Unexpected build CLI status')
+            verify = [str(python), 'scripts/operator_workbench.py', 'verify',
+                      str(destination / 'manifest.json')]
+            record, cli_result = run_command(verify, repo, logs / (label + '-verify'))
+            row['commands'].append(record)
+            row['verify_result'] = cli_result
+            require(cli_result['status'] == 'verified', 'Unexpected verify CLI status')
+            identity = {}
+            for name in ('packet.json', 'response-template.json'):
+                old = (issuer / 'public' / name).read_bytes()
+                new = (destination / 'public' / name).read_bytes()
+                require(old == new, 'Original public bytes changed: ' + name)
+                identity[name] = {'identical_bytes': True, 'sha256': sha(new), 'bytes': len(new)}
+            packet = strict((destination / 'public/packet.json').read_text())
+            template = strict((destination / 'public/response-template.json').read_text())
+            report = (destination / 'public/report.html').read_bytes()
+            old_report = (issuer / 'public/report.html').read_bytes()
+            markup, old_markup = Markup(report), Markup(old_report)
+            require(strict(markup.scripts['incident-packet']) == packet, 'Embedded packet differs')
+            require(strict(markup.scripts['incident-template']) == template, 'Embedded template differs')
+            require(not markup.metrics(report)['duplicate_ids'], 'Duplicate HTML IDs')
+            require(cli_result['assigned_cases'] == len(planned_view['cases']), 'Case denominator differs')
+            row.update(status='verified', exact_public_byte_identity=identity,
+                       original_html=old_markup.metrics(old_report), workbench_html=markup.metrics(report),
+                       output_files_sha256=tree_hashes(destination))
+        except Exception as exc:
+            row['error'] = {'type': type(exc).__name__, 'message': str(exc)}
+        results.append(row)
+        write(output / (label + '-receipt.json'), row)
+    source_after = {name: sha((repo / name).read_bytes()) for name in SOURCES}
+    after = tree_hashes(original)
+    stable = before == after and source_before == source_after
+    receipt = {
+        'schema_version': 'healthcraft-workbench-demonstration-receipt/v1',
+        'status': 'verified' if stable and all(r['status'] == 'verified' for r in results) else 'failed',
+        'scheduled_views': len(ROSTER), 'recorded_views': len(results),
+        'verified_views': sum(r['status'] == 'verified' for r in results),
+        'results': results, 'original_files_unchanged': before == after,
+        'implementation_unchanged': source_before == source_after,
+        'source_sha256_before': source_before, 'source_sha256_after': source_after,
+        'original_files_sha256_after': after,
+        'measurement_scope': 'Serialized UTF-8 bytes and HTMLParser start tags only; not browser DOM allocation, render speed, usability or human timing.',
+        'limitations': ['No browser or visual QA.', 'No new model or human outcomes.',
+                        'Synthetic reviewer/resolver declarations remain software demonstration fixtures.',
+                        'Original issuer manifests/importers remain authoritative.',
+                        'Only public/ within each view should be distributed.',
+                        'The outer manifest is written only after every view, log, receipt and README.'],
+    }
+    write(output / 'receipt.json', receipt)
+    lines = [
+        '# Offline operator workbench demonstration', '',
+        'These are additional views of six unchanged, exposed development assignments. '
+        'No operator responses were imported and no models were called. The original '
+        'issuer manifests and response importers remain authoritative.', '',
+        'Distribute only the `public/` directory within a chosen view. Open its '
+        '`report.html`. Draft preview/apply/undo works locally; download responses '
+        'to preserve work. There is no autosave, network service or activity timer.', '',
+        '| View | Cases | Original bytes | Workbench bytes | Original start tags | Workbench start tags |',
+        '|---|---:|---:|---:|---:|---:|',
+    ]
+    for row in results:
+        old, new = row.get('original_html', {}), row.get('workbench_html', {})
+        lines.append('| ' + row['view'] + ' | ' + str(len(row['cases'])) + ' | ' +
+                     ' | '.join(str(value) for value in (
+                         old.get('bytes', 'unavailable'), new.get('bytes', 'unavailable'),
+                         old.get('html_start_tags', 'unavailable'),
+                         new.get('html_start_tags', 'unavailable'))) + ' |')
+    lines.extend([
+        '', 'The table measures serialized UTF-8 bytes and HTMLParser start tags. '
+        'It is not a browser speed, memory, visual-quality or intended-user study. '
+        'Browser visual QA remains unavailable. The synthetic reviewer and resolver '
+        'views retain software-authored demonstration declarations, not human review.', '',
+        '`receipt.json` records the six-view denominator, exact original packet/template '
+        'byte identity, CLI verification, source hashes and original-artifact preservation. '
+        '`commands/` retains the exact CLI argv and stdout/stderr. Each view has its own '
+        'manifest. No frozen original artifact is replaced.', '',
+        'Reproduce in a fresh directory using the same recorded implementation and runtime:', '',
+        '```sh',
+        str(python) + ' ' + str(output / 'reproduce.py.txt') + ' --repo-root ' +
+        str(repo) + ' --python ' + str(python) + ' --output-dir /private/tmp/healthcraft-workbench-reproduction',
+        '```', '',
+        'The destination must not exist or lie within an already sealed manifest inventory. '
+        'The reproducibility script calls the real build and verify CLI for each view, '
+        'then writes the outer manifest after all content is complete.', '',
+    ])
+    with (output / 'README.md').open('x', encoding='utf-8') as stream:
+        stream.write('\n'.join(lines))
+    write(output / 'manifest.json', {
+        'schema_version': 'healthcraft-operator-workbench-demonstration-manifest/v1',
+        'files': tree_hashes(output),
+    })
+    print(json.dumps({key: receipt[key] for key in
+                      ('status', 'scheduled_views', 'recorded_views', 'verified_views')}, sort_keys=True))
+    return 0 if receipt['status'] == 'verified' else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

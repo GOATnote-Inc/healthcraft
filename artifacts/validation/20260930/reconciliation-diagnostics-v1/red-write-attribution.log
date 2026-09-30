@@ -1,0 +1,43 @@
+.........................F                                               [100%]
+=================================== FAILURES ===================================
+_ test_later_real_write_does_not_retroactively_attribute_storage_to_ack_only_call _
+
+    def test_later_real_write_does_not_retroactively_attribute_storage_to_ack_only_call():
+        scenario, expected = load_scenario(), load_expectations()
+        text = canonical(note_document())
+    
+        def server_factory(world):
+            server = create_server(world)
+            original = server._handlers["update_encounter"]
+            calls = 0
+    
+            def first_ack_only(world, params):
+                nonlocal calls
+                calls += 1
+                return get_encounter_details(world, params) if calls == 1 else original(world, params)
+    
+            server._handlers["update_encounter"] = first_ack_only
+            return server
+    
+        def controller(recorder, *, target):
+            for identifier in ("ENC-AAAAAAAA", "ENC-BBBBBBBB", "ENC-CCCCCCCC"):
+                recorder.call("getEncounterDetails", {"encounter_id": identifier})
+            recorder.call("updateEncounter", {"encounter_id": target["encounter_id"], "notes": text})
+            recorder.call("getEncounterDetails", {"encounter_id": target["encounter_id"]})
+            recorder.call("updateEncounter", {"encounter_id": target["encounter_id"], "notes": text})
+            recorder.call("getEncounterDetails", {"encounter_id": target["encounter_id"]})
+    
+        evidence = run_reconciliation_trial(scenario=scenario, controller=controller, server_factory=server_factory)
+        result = explain((scenario, expected, evidence))
+        assert len(result["observed_execution"]["successful_writes"]) == 2
+        assert len(result["observed_execution"]["new_stored_notes"]) == 1
+>       assert result["notes"][0]["stored_note_ids"] == []
+E       AssertionError: assert ['NOTE-037737C4'] == []
+E         
+E         Left contains one more item: 'NOTE-037737C4'
+E         Use -v to get more diff
+
+tests/test_reconciliation/test_diagnostics.py:340: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_diagnostics.py::test_later_real_write_does_not_retroactively_attribute_storage_to_ack_only_call
+1 failed, 25 passed in 0.14s

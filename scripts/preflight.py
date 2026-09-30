@@ -7,8 +7,12 @@ Runs seven checks in <30 seconds:
   4. Parameter Qualifier Coverage — qualifiers in check strings are parseable
   5. Enum Exhaustiveness — schema enums are subsets of handler accepted values
   6. Protocol Name Matching — protocol names from schema match seeded world
-  7. Task Satisfiability — every world_state criterion is reachable through the
-     same compound-AND/OR split + qualifier parse the runtime uses
+  7. Verifier Syntax Reachability — world_state clauses name registered tools
+     and accepted enum values after the runtime's compound/qualifier parse
+
+These structural checks do not establish that the required patient facts are
+available, tool calls can complete a task, or checks prove their assertions.
+Use scripts/grade_challenges.py for the selected semantic counterexamples.
 
 Usage:
     python scripts/preflight.py
@@ -446,7 +450,7 @@ def main() -> int:
         ("Parameter Qualifier Coverage", check_parameter_qualifier_coverage),
         ("Enum Exhaustiveness", check_enum_exhaustiveness),
         ("Protocol Name Matching", check_protocol_name_matching),
-        ("Task Satisfiability", check_task_satisfiability),
+        ("Verifier Syntax Reachability", check_task_satisfiability),
     ]
 
     total_failures = 0
@@ -468,6 +472,7 @@ def main() -> int:
         return 1
     else:
         print("  PREFLIGHT PASSED: all checks green")
+        print("  Structural checks only; task solvability and clinical validity remain unverified.")
         return 0
 
 

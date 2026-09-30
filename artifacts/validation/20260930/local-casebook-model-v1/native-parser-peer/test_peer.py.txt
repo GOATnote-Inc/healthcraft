@@ -1,0 +1,185 @@
+"""Offline ordinary review probes; no model/server or repository writes."""
+import base64
+import hashlib
+import io
+import json
+from copy import deepcopy
+
+import pytest
+
+from healthcraft.llm.local_models import LocalModelError, OllamaClient
+from healthcraft.reconciliation.controller import CommandController, RecordingOllamaClient
+from healthcraft.reconciliation.public_case import public_tools
+
+
+class Opener:
+    def __init__(self, body):
+        self.body = body
+        self.requests = []
+    def open(self, request, timeout):
+        self.requests.append(request)
+        return io.BytesIO(self.body)
+
+
+def recorder(body, sink=None):
+    client = RecordingOllamaClient(model='local', expected_digest='a'*64, expected_runtime='test', event_sink=sink)
+    client._opener = Opener(body)
+    client._info = {'capabilities':['completion'], 'model_digest':'a'*64, 'runtime_version':'test'}
+    client.identity_before = deepcopy(client._info)
+    return client
+
+
+INVALID = [
+    b'{"done":false,"done":true}',
+    b'{"done":true,"\\u0064one":false}',
+    b'{"done_reason":"length","done_reason":"stop"}',
+    b'{"message":{"role":"user","role":"assistant"}}',
+    b'{"x":[{"a":1,"a":2}]}',
+    b'{"x":[{"a":1,"\\u0061":2}]}',
+    b'{"x":NaN}', b'{"x":Infinity}', b'{"x":-Infinity}',
+    b'{"x":1e400}', b'{"x":-1e400}',
+    b'{"x":1.7976931348623159e308}',
+    b'{"x":"\xff"}', b'\xff', '{"x":1}'.encode('utf-16'),
+    '{"x":1}'.encode('utf-32'),
+    b'{"x":1}garbage', b'{"x":}', b'', b'[]', b'null',
+]
+
+
+@pytest.mark.parametrize('body', INVALID)
+def test_malformed_response_is_captured_verbatim_before_rejection(body):
+    events=[]
+    client=recorder(body,events.append)
+    with pytest.raises(LocalModelError):
+        client._request('/api/chat',{'model':'local'})
+    exchange=client.exchanges[0]
+    assert base64.b64decode(exchange['response_body_b64'],validate=True)==body
+    assert exchange['response_body_sha256']==hashlib.sha256(body).hexdigest()
+    assert exchange['response'] is None
+    assert exchange['error']['type']=='LocalModelError'
+    assert [event['event'] for event in events]==['model_dispatched','model_response_received','model_failed']
+    assert events[1]['exchange']['response'] is None
+    assert events[1]['exchange']['error'] is None
+    assert len(client._opener.requests)==1
+
+
+@pytest.mark.parametrize('value', [
+    {'literal':'é 日本語 🩺','unknown':None,'bool':False},
+    {'positive':10**100,'negative':-(10**100),'zero':0},
+    {'small':5e-324,'large':1.7976931348623157e308,'fraction':1.25,'negative_zero':-0.0},
+    {'nested':[1,2,{'line':'\n','slash':'\\','quoted':'"'}]},
+])
+def test_valid_native_values_and_exact_body_preserved(value):
+    body=(' \n'+json.dumps(value,ensure_ascii=False,indent=2)+'\n ').encode()
+    events=[]
+    client=recorder(body,events.append)
+    result=client._request('/api/chat',{'model':'local'})
+    assert result==value
+    assert type(result)==dict
+    assert base64.b64decode(client.exchanges[0]['response_body_b64'])==body
+    assert events[-1]['event']=='model_returned'
+    result.clear()
+    assert client.exchanges[0]['response']==value
+
+
+@pytest.mark.parametrize('path',['/api/tags','/api/show','/api/version'])
+def test_identity_metadata_also_uses_strict_parser(path):
+    client=OllamaClient('local')
+    client._opener=Opener(b'{"identity":"first","identity":"second"}')
+    with pytest.raises(LocalModelError,match='invalid JSON'):
+        client._request(path)
+
+
+def valid_body(content='{"action":"finish"}'):
+    return json.dumps({'model':'local','done':True,'done_reason':'stop','message':{'role':'assistant','content':content}}).encode()
+
+
+@pytest.mark.parametrize('failure_event',['model_dispatched','model_response_received','model_returned'])
+def test_sink_error_prevents_followup_command_or_model_access(failure_event):
+    events=[]
+    def sink(event):
+        events.append(deepcopy(event))
+        if event['event']==failure_event:
+            raise OSError('evidence sink unavailable')
+    client=recorder(valid_body('{"action":"call","name":"getPatientHistory","params":{"patient_id":"PAT-AAAAAAAA"}}'),sink)
+    controller=CommandController('Source retrieval only',public_tools())
+    with pytest.raises(OSError,match='evidence sink unavailable'):
+        controller.next_command(client)
+    assert controller.snapshot()['completion']['status']=='failed'
+    assert controller.snapshot()['calls']==[]
+    requests=len(client._opener.requests)
+    assert requests==(0 if failure_event=='model_dispatched' else 1)
+    with pytest.raises(RuntimeError,match='terminated'):
+        controller.next_command(client)
+    assert len(client._opener.requests)==requests
+    if failure_event=='model_response_received':
+        assert client.exchanges[0]['response'] is None
+        assert client.exchanges[0]['error']['type']=='OSError'
+        assert base64.b64decode(client.exchanges[0]['response_body_b64'])==valid_body('{"action":"call","name":"getPatientHistory","params":{"patient_id":"PAT-AAAAAAAA"}}')
+
+
+def test_invalid_body_cannot_be_followed_by_another_model_command():
+    client=recorder(b'{"done":false,"done":true}')
+    controller=CommandController('Source retrieval only',public_tools())
+    with pytest.raises(LocalModelError):controller.next_command(client)
+    assert controller.snapshot()['completion']['status']=='failed'
+    with pytest.raises(RuntimeError):controller.next_command(client)
+    assert len(client._opener.requests)==1
+    assert controller.snapshot()['calls']==[]
+
+
+def test_valid_finish_captures_body_then_terminates_without_action():
+    body=valid_body()
+    client=recorder(body)
+    controller=CommandController('Source retrieval only',public_tools())
+    assert controller.next_command(client)=={'action':'finish'}
+    assert controller.snapshot()['completion']=={'status':'terminated','reason':'model_finish'}
+    assert base64.b64decode(client.exchanges[0]['response_body_b64'])==body
+    assert controller.snapshot()['calls']==[]
+    with pytest.raises(RuntimeError):controller.next_command(client)
+    assert len(client._opener.requests)==1
+
+
+def test_deep_valid_json_fails_closed_if_parser_or_copy_depth_is_exceeded():
+    body=b'{"x":'+b'['*2000+b'0'+b']'*2000+b'}'
+    events=[]
+    client=recorder(body,events.append)
+    with pytest.raises((LocalModelError,RecursionError)):
+        client._request('/api/chat',{'model':'local'})
+    exchange=client.exchanges[0]
+    assert base64.b64decode(exchange['response_body_b64'])==body
+    assert exchange['response'] is None
+    assert exchange['error']['type'] in {'LocalModelError','RecursionError'}
+    assert events[-1]['event']=='model_failed'
+
+
+@pytest.mark.parametrize('arguments',[
+    '{"encounter_id":"ENC-AAAAAAAA","encounter_id":"ENC-BBBBBBBB"}',
+    '{"encounter_id":"ENC-AAAAAAAA","\\u0065ncounter_id":"ENC-BBBBBBBB"}',
+    '{"nested":[{"value":1,"value":2}]}',
+    '{"value":NaN}','{"value":Infinity}','{"value":-Infinity}',
+    '{"value":1e400}','{"value":-1e400}',
+])
+def test_native_tool_argument_strings_are_also_strict(arguments):
+    body=json.dumps({'model':'local','done':True,'done_reason':'stop','message':{
+        'role':'assistant','content':'','tool_calls':[{'function':{'name':'updateEncounter','arguments':arguments}}]
+    }}).encode()
+    client=OllamaClient('local')
+    client._opener=Opener(body)
+    client._info={'capabilities':['completion','tools']}
+    with pytest.raises(LocalModelError,match='not valid JSON'):
+        client.chat([{'role':'user','content':'test'}])
+    assert len(client._opener.requests)==1
+
+
+def test_valid_encoded_tool_arguments_keep_values_and_generate_normal_call():
+    arguments={'encounter_id':'ENC-AAAAAAAA','notes':'Unicode é 日本語','nested':{'unknown':None,'n':10**100,'fraction':1.25}}
+    body=json.dumps({'model':'local','done':True,'done_reason':'stop','message':{
+        'role':'assistant','content':'','tool_calls':[{'function':{'name':'updateEncounter','arguments':json.dumps(arguments,ensure_ascii=False)}}]
+    }},ensure_ascii=False).encode()
+    client=OllamaClient('local')
+    client._opener=Opener(body)
+    client._info={'capabilities':['completion','tools']}
+    result=client.chat([{'role':'user','content':'test'}])
+    assert result['tool_calls']==[{'id':'ollama-1-0','name':'updateEncounter','arguments':arguments}]
+    assert result['stop_reason']=='tool_calls'
+    assert len(client._opener.requests)==1

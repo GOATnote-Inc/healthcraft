@@ -23,7 +23,7 @@ WORKDIR /app
 
 # Install only the runtime deps. We rely on the package's pyproject for the
 # transitive set so we never drift from the in-tree source.
-COPY pyproject.toml requirements-lock.txt ./
+COPY pyproject.toml constraints-security.txt ./
 COPY src ./src
 # The Superpower seeds a world from configs/world/ at startup (default
 # --world-config is relative), so the configs must live in the image — there
@@ -31,7 +31,7 @@ COPY src ./src
 COPY configs ./configs
 
 RUN pip install --upgrade pip && \
-    pip install -e .
+    pip install -c constraints-security.txt -e .
 
 # Drop privileges. The Superpower has no need for root inside the container.
 RUN useradd --create-home --uid 10001 superpower

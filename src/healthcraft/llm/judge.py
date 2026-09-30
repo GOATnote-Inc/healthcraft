@@ -350,6 +350,12 @@ Respond with JSON: {{"satisfied": true/false, "evidence": "...", "confidence": "
                 max_tokens=max_tokens,
             )
 
+            stop_reason = response.get("stop_reason", "stop")
+            if stop_reason not in ("stop", "end_turn", "stop_sequence") or response.get(
+                "tool_calls"
+            ):
+                raise ValueError(f"Judge response did not complete normally ({stop_reason})")
+
             content = response.get("content", "")
             result = _parse_judge_response(content)
 
@@ -379,10 +385,16 @@ Respond with JSON: {{"satisfied": true/false, "evidence": "...", "confidence": "
                 if self._prompt_version != "v1"
                 else f"[{self._judge_model}]"
             )
+            parse_error = (
+                "Failed to parse a valid judge verdict" if result.get("_parse_failure") else None
+            )
             return CriterionResult(
                 criterion_id=criterion.id,
                 satisfied=satisfied,
-                evidence=f"{tag} {evidence_field}",
+                # Preserve the error prefix understood by existing ensemble
+                # caches, while exposing a typed field to new consumers.
+                evidence=f"{'Judge error: ' if parse_error else ''}{tag} {evidence_field}",
+                error=parse_error,
             )
 
         except Exception as e:
@@ -391,6 +403,7 @@ Respond with JSON: {{"satisfied": true/false, "evidence": "...", "confidence": "
                 criterion_id=criterion.id,
                 satisfied=False,
                 evidence=f"Judge error: {e}",
+                error=f"{type(e).__name__}: {e}",
             )
 
     def evaluate_criteria(
@@ -494,11 +507,17 @@ def _parse_judge_response(content: str) -> dict[str, Any]:
             "_parse_failure": True,
         }
 
-    # Normalize: guarantee "satisfied" key exists and is bool.
-    if "satisfied" not in parsed:
-        parsed["satisfied"] = False
-    else:
-        parsed["satisfied"] = bool(parsed["satisfied"])
+    # Valid JSON is not necessarily a valid verdict. In particular,
+    # bool("false") is True and would silently bypass a safety gate.
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("satisfied"), bool):
+        return {
+            "satisfied": False,
+            "evidence": (
+                "PARSE FAILURE (fail-closed): expected a JSON object; satisfied must be a boolean"
+            ),
+            "confidence": "low",
+            "_parse_failure": True,
+        }
     return parsed
 
 

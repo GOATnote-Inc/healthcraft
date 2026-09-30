@@ -2,9 +2,10 @@
 
 Every quantitative claim in `content.tex` and `appendix.tex` MUST be tagged
 with a `% CN:<tag>` LaTeX comment that maps to a row in this file.
-`scripts/verify_canonical_numbers.py` enforces correspondence on every
-build. A bare number in the prose without a corresponding `% CN` tag is
-a CI failure.
+`scripts/verify_canonical_numbers.py` checks that cited tags are defined
+and cited repository source paths exist (or are explicitly deferred).
+It does not detect untagged numbers or compare prose values with this
+table; those require a separate numerical review.
 
 ## Schema
 
@@ -22,8 +23,9 @@ a CI failure.
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
-| `CN:entity_types` | FHIR entity types in world state | 14 | n/a | `docs/ENTITY_MAPPING.md` |
-| `CN:entities_seeded` | Entities at seed=42 | 4,075 | n/a | `src/healthcraft/world/seed.py` (measured 2026-08-31: `WorldSeeder(seed=42).seed_world(configs/world/mercy_point_v1.yaml)`; guarded by `tests/test_release/test_readme_counts.py`) |
+| `CN:entity_types` | Populated synthetic entity collections in world state | 14 | n/a | `docs/ENTITY_MAPPING.md` |
+| `CN:entities_seeded` | Base-install entities at seed=42 (OpenEM unavailable) | 4,075 | n/a | `src/healthcraft/world/seed.py` (verified 2026-09-30 with the OpenEM loader disabled); guarded by `tests/test_release/test_readme_counts.py` |
+| `CN:entities_seeded_openem` | Entities at seed=42 with the 370-condition OpenEM source corpus | 4,450 | n/a | `src/healthcraft/world/seed.py` (verified 2026-09-30 using the installed source corpus); guarded by `tests/test_release/test_readme_counts.py` |
 | `CN:n_tools` | MCP tools exposed | 24 | n/a | `configs/mcp-tools.json` |
 | `CN:tool_waves` | Tool waves (read/compute/mutate/workflow) | 4 | n/a | `docs/TOOL_MAPPING.md` |
 | `CN:openem_conditions` | OpenEM conditions covered | 370 | n/a | OpenEM v0.5.1 `openem-corpus` |
@@ -32,9 +34,9 @@ a CI failure.
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
-| `CN:n_tasks` | Total evaluation tasks | 195 | n/a | `configs/tasks/` aggregate |
-| `CN:n_criteria` | Total binary criteria | 2,255 | n/a | `configs/tasks/` aggregate |
-| `CN:n_safety_critical` | Safety-critical criteria | 515 | n/a | `configs/tasks/` aggregate |
+| `CN:n_tasks` | Frozen V8 evaluation tasks | 195 | n/a | `results/pilot-v8-claude-opus/summary.json` |
+| `CN:n_criteria` | Frozen V8 binary criteria | 2,255 | n/a | `docs/V8_ANALYSIS.md` (historical snapshot) |
+| `CN:n_safety_critical` | Frozen V8 safety-critical criteria | 515 | n/a | `docs/V8_ANALYSIS.md` (historical snapshot) |
 | `CN:n_categories` | Task categories | 6 | n/a | `docs/TASK_DESIGN.md` |
 | `CN:n_confusion_pairs` | OpenEM confusion pairs used | 152 | n/a | OpenEM v0.5.1 |
 | `CN:n_decision_rules` | Decision rules used | 45 | n/a | `configs/tasks/` |
@@ -187,8 +189,9 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 
 | Tag | Claim | Value | 95% CI | Source |
 |---|---|---|---|---|
-| `CN:goldset_n` | EM-adjudicated gold-set trajectories | 55 | n/a | `evals/grader_goldset/goldset.yaml` |
-| `CN:goldset_safety_false_pass` | Gold-set safety-critical false-PASS | 0 | [0, ~20%] | `src/healthcraft/evals/grader_goldset.py` |
+| `CN:goldset_n` | Curated regression cases (world-state and judge-parser cases) | 55 | n/a | `evals/grader_goldset/goldset.yaml` |
+| `CN:goldset_safety_false_pass` | Gold-set safety-critical false-PASS count | 0 | n/a (count, not a population error-rate estimate) | `src/healthcraft/evals/grader_goldset.py` |
+| `CN:goldset_v10_negative_cases` | True-violation cases in the v10 world-state stratum | 15 | For 0 false passes in this stratum: [0, ~20%] | `evals/grader_goldset/goldset.yaml`; `src/healthcraft/evals/grader_goldset.py` |
 | `CN:goldset_false_pass` | Gold-set false-PASS (all) | 0 | n/a | `grader_goldset.py` |
 | `CN:goldset_false_fail` | Gold-set false-FAIL (all) | 0 | n/a | `grader_goldset.py` |
 | `CN:channel_lock_trajectories` | Channel verdict-lock trajectories | 88 | n/a | `tests/fixtures/golden_trajectories/index_channels.json` |
@@ -212,6 +215,40 @@ reported in Appendix F. Numbers reflect the corpus state as committed; the
 | `CN:v2_gpt55_reward` | gpt-5.5 avg reward | 0.570 | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
 | `CN:v2_gpt55_safety_fail` | gpt-5.5 safety failures | 32.0% | n/a | `results/acct-full-gpt55-grok-v10/summary.json` |
 
+
+### Automated engineering checkpoint and local development cohort (2026-09-30)
+
+These are descriptive, source-bound engineering counts, not benchmark/clinical
+scores. The model cohort is one attempt per model/case pair on exposed, jointly
+authored development cases. Test counts belong to a later software checkpoint
+and are not measures of model quality. The checker verifies the existence of
+cited repository paths, including `artifacts/`, but does not resolve JSON
+fragments or compare numeric values. These values were separately checked
+against the named frozen receipts.
+
+| Tag | Claim | Value | 95% CI | Source |
+|---|---|---|---|---|
+| `CN:local_cases` | Exposed synthetic reconciliation cases | 8 | n/a | `configs/evaluation/reconciliation_model_v2/local-pilot-plan.json#$.cases` |
+| `CN:local_attempts` | Scheduled/attempted local model executions | 16 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.counts.scheduled` |
+| `CN:local_completed` | Completed local executions | 15 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.counts.completed` |
+| `CN:local_failed` | Tool-error terminations | 1 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.counts.failed` |
+| `CN:local_requests` | Recorded native model request attempts | 116 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.totals.model_request_attempts` |
+| `CN:local_tool_calls` | Actual native tool calls | 101 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.totals.native_tool_calls` |
+| `CN:local_stored_notes` | Physically stored notes regardless of content correctness | 15 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.totals.stored_note_count` |
+| `CN:local_literal_readbacks` | Actual stored-text readbacks regardless of content correctness | 2 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.totals.stored_note_readback_count` |
+| `CN:local_mechanical_passed` | Attempts meeting full mechanical conjunction | 0 | n/a | `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.counts.mechanical_passed` |
+| `CN:local_nano_summary` | Nano completed/scheduled; tools; notes; literal readbacks; full contract | 8/8; 44; 8; 0; 0 | n/a | Sum Nano rows in `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.outcomes` |
+| `CN:local_medgemma_summary` | MedGemma completed/scheduled; tools; notes; literal readbacks; full contract | 7/8; 57; 7; 2; 0 | n/a | Sum MedGemma rows in `artifacts/reconciliation/20260930/local-casebook-pilot-v1/capture-summary.json#$.outcomes` |
+| `CN:local_token_limits` | Context/output token limits in both model configurations | 32,768 / 4,096 | n/a | `configs/evaluation/reconciliation_model_v2/local-pilot-plan.json#$.models` |
+| `CN:local_sampling` | Seed; temperature; thinking | 42; 0; false | n/a | `configs/evaluation/reconciliation_model_v2/local-pilot-plan.json#$.models` |
+| `CN:local_execution_limits` | Max model responses; request timeout; attempt timeout | 16; 240 seconds; 900 seconds | n/a | `configs/evaluation/reconciliation_model_v2/local-pilot-plan.json#$.models` |
+| `CN:engineering_tests_passed` | Full test suite passed at frozen workbench checkpoint | 4,588 | n/a | `artifacts/validation/20260930/operator-workbench-v1/validation-receipt.json#$.full_suite.passed` |
+| `CN:engineering_tests_skipped` | Full test suite skipped at same checkpoint | 58 | n/a | `artifacts/validation/20260930/operator-workbench-v1/validation-receipt.json#$.full_suite.skipped` |
+| `CN:engineering_archive_lint` | Unrelated archive findings in wider workspace lint | 115 | n/a | `artifacts/validation/20260930/operator-workbench-v1/validation-receipt.json#$.lint.known_unrelated_archive_errors` |
+| `CN:fhir_source_bundles` | Frozen roster-source bundles checked by official validator | 6 | n/a | `artifacts/fhir/20260930/roster-source-v1/validation/README.md` |
+| `CN:fhir_source_resources` | Resources in those exact bundles | 99 | n/a | `artifacts/fhir/20260930/roster-source-v1/validation/README.md` |
+| `CN:fhir_source_errors` | Errors/fatals from bounded offline structural/FHIRPath check | 0 | n/a | `artifacts/fhir/20260930/roster-source-v1/validation/README.md` |
+| `CN:fhir_source_notices` | Retained warnings/information issues, terminology disabled | 99 / 33 | n/a | `artifacts/fhir/20260930/roster-source-v1/validation/README.md` |
 
 ## Deferred artifacts
 

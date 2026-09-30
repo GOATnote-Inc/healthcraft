@@ -1,0 +1,25 @@
+from pathlib import Path
+import hashlib, importlib.util, json, sys, tempfile
+ROOT=Path('/Users/kiteboard/healthcraft');sys.path.insert(0,str(ROOT/'src'))
+from healthcraft import operator_incidents as api
+spec=importlib.util.spec_from_file_location('incident_tests',ROOT/'tests/test_operator_incidents.py')
+t=importlib.util.module_from_spec(spec);spec.loader.exec_module(t)
+OUT=Path('/private/tmp/healthcraft-operator-incidents-peer')
+results=[]
+for mode in ('scenario_private','runtime_original'):
+ d=Path(tempfile.mkdtemp(prefix=mode+'-',dir=OUT));manifest,attempt=t.source(d,model=mode=='runtime_original',case='REC2-001')
+ if mode=='scenario_private':
+  path=manifest.parent/'REC2-001/case.json';v=json.loads(path.read_text());v['scenario']['expectations']={'secret':'PRIVATE_EXPECTATION_SENTINEL'};t.write(path,v)
+ else:
+  path=manifest.parent/attempt/'receipt.json';v=json.loads(path.read_text());v['original_evidence']={'secret':'PRIVATE_COUNTERFACTUAL_SENTINEL'};t.write(path,v)
+ t.repin(manifest)
+ for presentation in ('raw','assisted'):
+  try:
+   packet=api.build_incident_packet(manifest,d/presentation,expected_sha256=t.sha(manifest),selections={'review-1':attempt},protocol=t.PROTOCOL,assignment={**t.ASSIGNMENT,'presentation':presentation})
+   public=(d/presentation/'public/packet.json').read_bytes()
+   results.append({'mode':mode,'presentation':presentation,'accepted':True,'private_sentinel_in_public':b'PRIVATE_' in public,'packet':str(d/presentation/'public/packet.json')})
+  except Exception as exc:
+   results.append({'mode':mode,'presentation':presentation,'accepted':False,'error':f'{type(exc).__name__}: {exc}'})
+result={'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'src/healthcraft/operator_incidents.py',ROOT/'tests/test_operator_incidents.py']},'results':results,'scope':'Copied source manifests repinned deliberately. No original source mutated. This tests public projection validation, not source authenticity.'}
+(OUT/'public-boundary-recheck.json').write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps(results,indent=2))

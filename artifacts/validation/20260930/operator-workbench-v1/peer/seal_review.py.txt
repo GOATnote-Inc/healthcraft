@@ -1,0 +1,26 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-workbench-peer')
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+paths=['src/healthcraft/operator_workbench.py','scripts/operator_workbench.py','tests/test_operator_workbench.py','tests/test_operator_workbench_cli.py']
+frozen=['src/healthcraft/operator_incidents.py','src/healthcraft/operator_adjudication.py','src/healthcraft/operator_incident_report.py','src/healthcraft/operator_review.py','src/healthcraft/reconciliation/incident_evidence.py']
+original={p:{'sha256':sha(ROOT/p),'matches_HEAD':hashlib.sha256(subprocess.check_output(['git','show','HEAD:'+p],cwd=ROOT)).hexdigest()==sha(ROOT/p)} for p in frozen}
+assert all(v['matches_HEAD'] for v in original.values())
+recheck=json.loads((OUT/'containment-recheck-result.json').read_text())
+assert recheck['build']=='rejected' and recheck['prior_import_after']=='valid' and not recheck['new_files']
+assert recheck['workbench_source_sha256']==sha(ROOT/paths[0])
+receipt={
+ 'schema_version':'healthcraft-workbench-development-peer-review/v1',
+ 'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+ 'scope':'Read-only ordinary development review of new workbench core/CLI and their two tests. Active renderer/draft semantics are excluded; renderer and composite implementation inventory were deliberately stubbed in boundary probes.',
+ 'status':'no_remaining_finding_in_reviewed_scope',
+ 'source_files_sha256':{p:sha(ROOT/p) for p in paths},
+ 'existing_issuer_implementations':original,
+ 'finding':{'original':'Workbench issuance beneath a prior reviewer import added five files and invalidated its complete immutable inventory. Existing payload bytes were unchanged.','repaired':'Resolved-parent inventory guard rejects before writes, including symlink aliases covered by root tests.','original_reproduction':'check_containment.py','original_result':'containment-result.json','original_regression':'initial-boundaries.log: 1 failed, 16 passed','exact_recheck':'containment-recheck-result.json: rejected, no new files, original import remains valid'},
+ 'validation':{'python':sys.version.split()[0],'command':'PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest /private/tmp/healthcraft-operator-workbench-peer/test_boundaries.py tests/test_operator_workbench.py tests/test_operator_workbench_cli.py -q','passed':36,'independent_boundary_cases':17,'repository_tests':19,'log':'recheck-green.log'},
+ 'covered':['All six existing raw/assisted native/model/initial-adjudication/resolver issuer fixtures retain every original assignment and exact packet/template bytes.','Public view has no coordinator payloads.','Self-rehashed altered packet, dropped assignment, prefilled template, altered HTML and extra file rejected.','Unsupported issuer/view versions rejected.','Exact issuer/source relocation accepted; changed source and missing original rejected.','Detached return values cannot mutate saved view.','Existing files are exclusive and original manifests remain authoritative for response import.','Initial prior-import containment defect is rejected without altering old inventory.'],
+ 'limits':['No review or execution of active new renderer/draft modules.','No actual browser, human participant, timing or clinical validation.','Hash bindings prove byte consistency, not identity authenticity.','No formal red team, inference, network, repository edits or artifact regeneration.'],
+ 'evidence_files_sha256':{name:sha(OUT/name) for name in ['check_containment.py','check_containment_recheck.py','containment-result.json','containment-recheck-result.json','test_boundaries.py','initial-boundaries.log','recheck-green.log','value-gap-audit.json','save_gap_audit.py']}
+}
+with (OUT/'peer-review.json').open('x') as f:json.dump(receipt,f,indent=2,ensure_ascii=False,allow_nan=False);f.write('\n')
+print(json.dumps({'receipt':str(OUT/'peer-review.json'),'sha256':sha(OUT/'peer-review.json'),'source_files_sha256':receipt['source_files_sha256']}))

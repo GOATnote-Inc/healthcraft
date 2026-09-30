@@ -1,0 +1,71 @@
+"""Validate only this new workbench candidate; retain earlier bundles unchanged."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-workbench-final')
+NAMES = ['README.md', 'docs/OPERATOR_WORKBENCH.md', 'scripts/operator_workbench.py',
+         'src/healthcraft/operator_workbench.py', 'src/healthcraft/operator_workbench_report.py',
+         'src/healthcraft/operator_workbench_drafts.py', 'tests/test_operator_workbench.py',
+         'tests/test_operator_workbench_cli.py', 'tests/test_operator_workbench_report.py',
+         'tests/test_operator_workbench_drafts.py']
+TESTS = [n for n in NAMES if n.startswith('tests/')] + ['tests/test_operator_incident_report.py']
+def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+def save(name, value):
+    with (OUT/name).open('x') as f: json.dump(value, f, indent=2); f.write('\n')
+def stable(inventory):
+    assert all(sha(ROOT/n) == h for n,h in inventory.items()), 'Candidate changed'
+def command(label, cmd, cwd=ROOT, env=None):
+    with (OUT/(label+'.log')).open('x') as f:
+        code = subprocess.run(cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT, env=env).returncode
+    return {'command':cmd, 'exit_code':code, 'log':label+'.log', 'log_sha256':sha(OUT/(label+'.log'))}
+def history():
+    old = json.loads(Path('/private/tmp/healthcraft-operator-incidents-history/receipt.json').read_text())
+    bundles = []
+    for b in old['bundles']:
+        bundles.append({'path':b['path'], 'manifest_sha256':b['manifest_sha256'], 'payload_sha256':b['payload_sha256']})
+    for name in ['artifacts/operator-review/20260930/incidents-v2', 'artifacts/validation/20260930/operator-incidents-v2']:
+        p=ROOT/name; m=json.loads((p/'manifest.json').read_text())
+        bundles.append({'path':name, 'manifest_sha256':sha(p/'manifest.json'), 'payload_sha256':m['files']})
+    for b in bundles:
+        p=ROOT/b['path']
+        assert sha(p/'manifest.json')==b['manifest_sha256']
+        actual={x.relative_to(p).as_posix():sha(x) for x in p.rglob('*') if x.is_file() and x != p/'manifest.json'}
+        assert actual==b['payload_sha256'], b['path']
+    return {'all_stable':True, 'bundle_count':len(bundles), 'files':sum(1+len(b['payload_sha256']) for b in bundles), 'bundles':bundles}
+
+mode=sys.argv[1]
+if mode=='prepare':
+    OUT.mkdir(exist_ok=False)
+    candidate={n:sha(ROOT/n) for n in NAMES}; save('candidate-inputs.json',candidate)
+    prior=ROOT/'artifacts/validation/20260930/operator-incidents-v2/final-validation/lint-inputs.json'
+    names=sorted(set(json.loads(prior.read_text()))|set(NAMES))
+    inventory={n:sha(ROOT/n) for n in names}; save('lint-inputs.json',inventory)
+    snapshot=Path(tempfile.mkdtemp(prefix='healthcraft-workbench-lint-',dir='/private/tmp'))
+    for n in names:
+        target=snapshot/n; target.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(ROOT/n,target)
+        assert sha(target)==inventory[n]
+    cmd=['make','lint','PYTHON='+str(ROOT/'.venv/bin/python')]
+    reports=[command('root-make-lint',cmd), command('isolated-make-lint',cmd,cwd=snapshot)]
+    stable(inventory); save('lint-receipt.json',{'input_count':len(names),'snapshot':str(snapshot),'reports':reports})
+    save('history-before.json',history())
+    print(json.dumps({'lint':reports,'history':'15 bundles checked'},indent=2)); sys.exit(reports[-1]['exit_code'])
+elif mode=='test':
+    candidate=json.loads((OUT/'candidate-inputs.json').read_text()); stable(candidate)
+    report=command('full-suite',['make','test']); stable(candidate)
+    save('full-suite-receipt.json',report); save('history-after.json',history())
+    print(json.dumps(report,indent=2));sys.exit(report['exit_code'])
+elif mode=='compat':
+    candidate=json.loads((OUT/'candidate-inputs.json').read_text()); stable(candidate); reports=[]
+    for label,exe in [('py310','/private/tmp/healthcraft-check-py310/bin/python'),('py312','/private/tmp/healthcraft-check-py312/bin/python'),('py314',str(ROOT/'.venv/bin/python'))]:
+        env={**os.environ,'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1','PYTHONPATH':'src'}
+        row=command(label,[exe,'-m','pytest',*TESTS,'-q'],env=env)
+        row['python']=subprocess.check_output([exe,'--version'],text=True).strip(); reports.append(row)
+    stable(candidate);save('compatibility-receipt.json',{'reports':reports});print(json.dumps(reports,indent=2));sys.exit(any(r['exit_code'] for r in reports))
+else: raise ValueError(mode)

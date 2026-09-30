@@ -1,0 +1,44 @@
+.............................F                                           [100%]
+=================================== FAILURES ===================================
+_________ test_backend_and_exact_fixed_argv_are_bound_before_dispatch __________
+
+api = <module 'scripts.reconciliation_model_trial' from '/Users/kiteboard/healthcraft/scripts/reconciliation_model_trial.py'>
+service = <healthcraft.reconciliation.service.ReconciliationSession object at 0x10b95e990>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-363/test_backend_and_exact_fixed_a0')
+
+    def test_backend_and_exact_fixed_argv_are_bound_before_dispatch(api, service, tmp_path):
+        output = tmp_path / "trial"
+        instances, processes = [], []
+        underlying = bridge(service, processes)
+        expected_argv = ["docker", "exec", "-i", "owned-backend", "python", "-c", api.BRIDGE_SCRIPT]
+    
+        def run(argv, **kwargs):
+            events = [
+                json.loads(line) for line in (output / "transport.jsonl").read_text().splitlines()
+            ]
+            assert events[-1]["event"] == "requested"
+            assert events[-1]["exchange"]["argv"] == argv == expected_argv
+            assert (
+                json.loads((output / "prepared.json").read_text())["backend_container"]
+                == "owned-backend"
+            )
+            return underlying(argv, **kwargs)
+    
+        result = api.run_trial(
+            model_config=config(),
+            instruction="public",
+            output_dir=output,
+            backend_container="owned-backend",
+            process_runner=run,
+            client_factory=fake_model_factory(['{"action":"finish"}'], instances),
+        )
+>       assert result["status"] == "terminated"
+E       AssertionError: assert 'failed' == 'terminated'
+E         
+E         - terminated
+E         + failed
+
+tests/test_scripts/test_reconciliation_model_trial.py:498: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_scripts/test_reconciliation_model_trial.py::test_backend_and_exact_fixed_argv_are_bound_before_dispatch
+1 failed, 29 passed in 0.16s

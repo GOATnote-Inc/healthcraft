@@ -20,9 +20,18 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+
+from healthcraft.llm.checkpoint import (  # noqa: E402
+    load_latest_summary,
+    selected_experiment_entries,
+)
+from healthcraft.trajectory import is_unassessed_experiment  # noqa: E402
+
 
 def load_experiments(results_dir: Path) -> list[dict]:
-    """Load experiment entries from a results directory."""
+    """Load each trial's newest attempt, retaining its original log position."""
     log_path = results_dir / "experiments.jsonl"
     if not log_path.exists():
         return []
@@ -30,6 +39,12 @@ def load_experiments(results_dir: Path) -> list[dict]:
     for line in log_path.read_text().strip().split("\n"):
         if line.strip():
             entries.append(json.loads(line))
+    entries = selected_experiment_entries(entries)
+    # Early profile logs did not retain their markers. A flagged run summary
+    # must still prevent their compatibility zeros becoming benchmark scores.
+    summary = load_latest_summary(results_dir)
+    if summary is not None and is_unassessed_experiment(summary):
+        entries = [dict(entry, benchmark_comparable=False) for entry in entries]
     return entries
 
 
@@ -47,10 +62,60 @@ def compute_pass_k(task_trials: list[bool], k: int) -> float:
     return 1.0 if all(task_trials[:k]) else 0.0
 
 
-def analyze_model(entries: list[dict], model_name: str) -> dict:
+def analyze_model(
+    entries: list[dict], model_name: str, *, scheduled_runs: int | None = None
+) -> dict:
     """Analyze results for a single model."""
     if not entries:
         return {"model": model_name, "error": "No data"}
+
+    counts = {
+        "scheduled_runs": scheduled_runs,
+        # Entries have already selected each trial's latest attempt. These
+        # counts include failed starts, not just successful executions.
+        "attempted_runs": len(entries),
+        "completed_runs": sum(
+            entry.get("execution_completed") is True and entry.get("error") is None
+            for entry in entries
+        ),
+        "unknown_completion_runs": sum(
+            entry.get("execution_completed") is None and entry.get("error") is None
+            for entry in entries
+        ),
+        "error_runs": sum(entry.get("error") is not None for entry in entries),
+        "unassessed_runs": sum(is_unassessed_experiment(entry) for entry in entries),
+    }
+    if counts["unassessed_runs"]:
+        # Do not silently discard unassessed trials and improve the denominator
+        # of a mixed cohort. The entire requested cohort remains unscored.
+        return {
+            "model": model_name,
+            "total_tasks": len({entry["task_id"] for entry in entries}),
+            "total_trials": len(entries),
+            **counts,
+            "benchmark_comparable": False,
+            "grading_complete": False,
+            "benchmark_score": None,
+            **dict.fromkeys(
+                (
+                    "total_passed",
+                    "pass_rate",
+                    "pass_at_1",
+                    "pass_at_3",
+                    "pass_5",
+                    "avg_reward",
+                    "safety_failures",
+                    "safety_failure_rate",
+                    "safety_failures_excl_errors",
+                    "safety_failure_rate_excl_errors",
+                )
+            ),
+            "n_error": counts["error_runs"],
+            "tasks_with_safety_failures": [],
+            "dimension_scores": {},
+            "per_task": [],
+            "per_category": [],
+        }
 
     # Group by task
     by_task: dict[str, list[dict]] = defaultdict(list)
@@ -163,6 +228,7 @@ def analyze_model(entries: list[dict], model_name: str) -> dict:
 
     return {
         "model": model_name,
+        **counts,
         "total_tasks": total_tasks,
         "total_trials": total_trials,
         "total_passed": total_passed,
@@ -199,6 +265,12 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
     metrics = [
         ("Tasks", "total_tasks"),
         ("Trials", "total_trials"),
+        ("Scheduled trials", "scheduled_runs"),
+        ("Attempted trials", "attempted_runs"),
+        ("Completed trials", "completed_runs"),
+        ("Completion unknown", "unknown_completion_runs"),
+        ("Execution errors", "error_runs"),
+        ("Unassessed trials", "unassessed_runs"),
         ("Pass Rate", "pass_rate"),
         ("Pass@1", "pass_at_1"),
         ("Pass@3", "pass_at_3"),
@@ -211,7 +283,9 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
         vals = []
         for a in analyses:
             v = a.get(key, 0)
-            if isinstance(v, float):
+            if v is None:
+                vals.append("Unknown" if key == "scheduled_runs" else "Not assessed")
+            elif isinstance(v, float):
                 if key in ("pass_rate", "pass_at_1", "pass_at_3", "pass_5", "safety_failure_rate"):
                     vals.append(f"{v * 100:.1f}%")
                 else:
@@ -219,6 +293,25 @@ def generate_report(analyses: list[dict], output_path: Path | None = None) -> st
             else:
                 vals.append(str(v))
         lines.append(f"| {label} | " + " | ".join(vals) + " |")
+
+    if any(a.get("benchmark_comparable") is False for a in analyses):
+        lines.extend(
+            [
+                "",
+                "Cohorts containing unassessed trials have no benchmark or safety metrics. "
+                "All selected attempts, including execution errors, remain in the counts; "
+                "no unassessed trials were dropped to improve a score. Completed trials "
+                "require recorded execution-completion evidence. Scheduled counts are "
+                "unknown when no run plan is available.",
+            ]
+        )
+    analyses = [a for a in analyses if a.get("benchmark_comparable") is not False]
+    if not analyses:
+        report = "\n".join(lines)
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(report, encoding="utf-8")
+        return report
 
     lines.extend(["", "## Corecraft Table 1 Comparison", ""])
     lines.append("| Model | Pass Rate | Corecraft Reference |")
@@ -343,9 +436,8 @@ def main() -> None:
             continue
         entries = load_experiments(results_dir)
 
-        summary_path = results_dir / "summary.json"
-        if summary_path.exists():
-            summary = json.loads(summary_path.read_text())
+        summary = load_latest_summary(results_dir)
+        if summary is not None:
             model_name = summary.get("agent_model", results_dir.name)
         elif entries:
             model_name = entries[0].get("model", results_dir.name)
@@ -355,7 +447,14 @@ def main() -> None:
             print(f"Warning: no experiments in {d}, skipping", file=sys.stderr)
             continue
 
-        analysis = analyze_model(entries, model_name)
+        scheduled = None
+        if summary is not None:
+            scheduled = summary.get("scheduled_runs")
+            if scheduled is None:
+                tasks, trials = summary.get("total_tasks"), summary.get("trials")
+                if type(tasks) is int and type(trials) is int and tasks >= 0 and trials >= 0:
+                    scheduled = tasks * trials
+        analysis = analyze_model(entries, model_name, scheduled_runs=scheduled)
         analyses.append(analysis)
 
     if not analyses:

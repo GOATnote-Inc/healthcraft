@@ -1,0 +1,77 @@
+import hashlib,io,json,sys
+from pathlib import Path
+sys.path.insert(0,'/Users/kiteboard/healthcraft/src')
+from healthcraft.reconciliation.controller import CommandController,RecordingOllamaClient,PilotSettings,PUBLIC_TOOLS,command_format_identity
+from healthcraft.reconciliation.casebook import load_cases
+from healthcraft.reconciliation.execution import execute_reference
+from healthcraft.reconciliation.execution_v2 import run_case
+from healthcraft.reconciliation.oracle_v2 import verify_case
+ROOT=Path('/Users/kiteboard/healthcraft'); OUT=Path('/private/tmp/healthcraft-casebook-model-completion-review')
+paths=['src/healthcraft/reconciliation/controller.py','src/healthcraft/reconciliation/execution.py','src/healthcraft/reconciliation/execution_v2.py','src/healthcraft/reconciliation/oracle_v2.py','src/healthcraft/llm/local_models.py','scripts/reconciliation_model_trial.py']
+hashes=lambda:{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths}
+before=hashes(); tools=[t for t in json.loads((ROOT/'configs/mcp-tools.json').read_text())['tools'] if t['name'] in PUBLIC_TOOLS]
+case=load_cases()[0]
+class Native(RecordingOllamaClient):
+ def __init__(self,envelopes,events,settings=None):
+  self.queue=iter(envelopes); self.transport_chats=0
+  super().__init__(model='test:latest',expected_digest='a'*64,expected_runtime='0.34.4',settings=settings,event_sink=events.append,command_format=command_format_identity())
+ def _transport_request(self,path,payload=None):
+  if path=='/api/tags': return {'models':[{'name':'test:latest','digest':'a'*64}]}
+  if path=='/api/show': return {'capabilities':['completion'],'details':{}}
+  if path=='/api/version': return {'version':'0.34.4'}
+  self.transport_chats+=1; response=next(self.queue)
+  if isinstance(response,BaseException): raise response
+  return response
+
+def native(content='{"action":"finish"}',reason='stop'):
+ return {'model':'test:latest','done':True,'done_reason':reason,'message':{'role':'assistant','content':content},'eval_count':1,'prompt_eval_count':5}
+
+rows=[]
+for mode,envelopes,prewrite,settings in [
+ ('valid_finish',[native()],True,PilotSettings()),
+ ('truncated_after_full_valid_actions',[native(reason='length')],True,PilotSettings()),
+ ('malformed_command',[native('not JSON')],False,PilotSettings()),
+ ('transport_timeout',[TimeoutError('fixture timeout')],False,PilotSettings()),
+ ('interruption',[KeyboardInterrupt('fixture interrupt')],True,PilotSettings()),
+ ('response_cap',[native(json.dumps({'action':'call','name':'getPatientHistory','params':{'patient_id':case['scenario']['target']['patient_id']}}))],False,PilotSettings(max_model_responses=1)),
+]:
+ events=[]; client=Native(envelopes,events,settings); control=CommandController('Synthetic public exercise',tools,settings=settings,command_format=command_format_identity()); returned={}
+ def bridge(recorder,*,target):
+  if prewrite: execute_reference(recorder,target=target)
+  try:
+   while True:
+    command=control.next_command(client)
+    if command['action']=='finish': break
+    control.accept_result(recorder.call(command['name'],command['params']))
+  except (Exception,KeyboardInterrupt):
+   pass # Common receipt-returning adapter pattern: failure retained, not re-raised.
+  returned.update(control.snapshot())
+  return returned
+ evidence=run_case(case,controller=bridge,journal_path=OUT/(mode+'.tools.jsonl'))
+ verdict=verify_case(case,evidence)
+ rows.append({'case':mode,'controller_completion':returned['completion'],'native_transport_calls':client.transport_chats,'recorded_native_exchanges':len(client.exchanges),'world_calls':len(evidence['calls']),'captured_execution_completion':evidence['completion'],'oracle_checks':verdict['checks'],'mechanical_passed':verdict['mechanical_passed']})
+ (OUT/(mode+'.json')).write_text(json.dumps({'controller':returned,'model_events':events,'evidence':evidence,'verification':verdict},indent=2)+'\n')
+# Existing capture creates an exchange before attempting the synchronous journal.
+events=[]; client=Native([native()],events)
+def fail_sink(event): raise OSError('journal unavailable before dispatch')
+client.event_sink=fail_sink
+try: client.chat([{'role':'user','content':'x'}])
+except OSError: pass
+rows.append({'case':'journal_failure_before_native_dispatch','native_transport_calls':client.transport_chats,'recorded_native_exchanges':len(client.exchanges),'exchange':client.exchanges[0]})
+# Production provider JSON parsing currently collapses duplicate envelope keys.
+client=RecordingOllamaClient(model='test:latest',expected_digest='a'*64,expected_runtime='0.34.4',command_format=command_format_identity())
+class Opener:
+ def open(self,request,timeout=None):
+  path=request.full_url.split(':11434')[-1]
+  if path=='/api/tags': data=json.dumps({'models':[{'name':'test:latest','digest':'a'*64}]}).encode()
+  elif path=='/api/show': data=b'{"capabilities":["completion"],"details":{}}'
+  elif path=='/api/version': data=b'{"version":"0.34.4"}'
+  else: data=b'{"model":"test:latest","done":true,"done_reason":"length","done_reason":"stop","message":{"role":"assistant","content":"{\\"action\\":\\"finish\\"}"}}'
+  return io.BytesIO(data)
+client._opener=Opener(); control=CommandController('Synthetic public exercise',tools,command_format=command_format_identity())
+command=control.next_command(client)
+rows.append({'case':'duplicate_native_done_reason','returned_command':command,'controller_completion':control.snapshot()['completion'],'saved_normalized_native_response':client.exchanges[0]['response']})
+assert before==hashes()
+report={'scope':'Offline integration boundary review; no inference','source_sha256_before':before,'source_sha256_after':hashes(),'reproductions':rows,'no_source_changes':True,'model_calls':0,'network_calls':0}
+(OUT/'reproduction.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+print(json.dumps(rows,indent=2))

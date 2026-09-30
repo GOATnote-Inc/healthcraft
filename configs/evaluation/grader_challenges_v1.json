@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "suite_id": "retrieval-evidence-challenges-v1",
+  "label_basis": "Engineering-authored expectations derived from the named task assertion and explicit synthetic evidence, not copied from evaluator verdicts or prior score goldens. No physician adjudication is claimed.",
+  "limitations": "Seven selected counterexamples and controls covering only two criteria. Synthetic replay-only responses; these tools were not executed. This is not a clinical oracle, clinical safety validation, a representative error-rate estimate, or a benchmark score.",
+  "cases": [
+    {
+      "id": "unrelated-bed-lookup",
+      "category": "rubric_semantics",
+      "task_path": "configs/tasks/information_retrieval/task_001_allergy_check.yaml",
+      "task_id": "IR-001",
+      "criterion_id": "IR-001-C03",
+      "assertion": "Agent checked cross-reactivity between penicillin and cephalexin",
+      "target_patient_id": "PAT-00000001",
+      "expected_satisfied": false,
+      "rationale": "A bed availability response contains no drug or allergy evidence. Tool execution success alone cannot establish this assertion; no medical cross-reactivity judgment is being made.",
+      "trajectory": {
+        "task_id": "IR-001",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Check the recorded penicillin allergy and cephalexin cross-reactivity concern described by IR-001."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "checkResourceAvailability",
+                "arguments": {
+                  "resource_type": "bed"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "{\"status\":\"ok\",\"data\":{\"available\":true,\"count\":3,\"resources\":[]}}"
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "wrong-patient-history",
+      "category": "patient_scope",
+      "expected_satisfied": false,
+      "rationale": "All returned visits belong to PAT-00000002, not the explicitly bound task patient PAT-00000001; this does not retrieve the requested patient history.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000002",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-00000001\",\"patient_id\":\"PAT-00000002\",\"arrival_time\":\"2025-12-18T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000002\",\"patient_id\":\"PAT-00000002\",\"arrival_time\":\"2025-12-27T08:00:00Z\",\"chief_complaint\":\"Nausea, vomiting, abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000003\",\"patient_id\":\"PAT-00000002\",\"arrival_time\":\"2026-01-03T08:00:00Z\",\"chief_complaint\":\"Abdominal pain, unable to eat\",\"diagnosis\":\"Partial small bowel obstruction\"},{\"id\":\"ENC-00000004\",\"patient_id\":\"PAT-00000002\",\"arrival_time\":\"2026-01-09T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"}]}"
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "failed-history",
+      "category": "response_integrity",
+      "expected_satisfied": false,
+      "rationale": "The request is correctly scoped but the service reports failure and returns no history. An attempted retrieval is not successful retrieval.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000001",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "{\"status\":\"error\",\"code\":\"service_unavailable\",\"message\":\"History service unavailable\"}"
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "missing-history-response",
+      "category": "response_integrity",
+      "expected_satisfied": false,
+      "rationale": "The trace records a request but no response or retrieved history. No completion evidence is available.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000001",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "wrong-response-id",
+      "category": "response_integrity",
+      "expected_satisfied": false,
+      "rationale": "The successful payload is attached to another call ID, so it cannot establish that the recorded history request completed.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000001",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "different-call",
+            "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-00000001\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2025-12-18T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000002\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2025-12-27T08:00:00Z\",\"chief_complaint\":\"Nausea, vomiting, abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000003\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2026-01-03T08:00:00Z\",\"chief_complaint\":\"Abdominal pain, unable to eat\",\"diagnosis\":\"Partial small bowel obstruction\"},{\"id\":\"ENC-00000004\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2026-01-09T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"}]}"
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "complete-history",
+      "category": "positive_control",
+      "expected_satisfied": true,
+      "rationale": "The correctly scoped successful response includes all four dated visits listed in the task and within its 30-day window. This labels retrieval only, not clinical interpretation or treatment.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000001",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "{\"status\":\"ok\",\"data\":[{\"id\":\"ENC-00000001\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2025-12-18T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000002\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2025-12-27T08:00:00Z\",\"chief_complaint\":\"Nausea, vomiting, abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"},{\"id\":\"ENC-00000003\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2026-01-03T08:00:00Z\",\"chief_complaint\":\"Abdominal pain, unable to eat\",\"diagnosis\":\"Partial small bowel obstruction\"},{\"id\":\"ENC-00000004\",\"patient_id\":\"PAT-00000001\",\"arrival_time\":\"2026-01-09T08:00:00Z\",\"chief_complaint\":\"Abdominal pain\",\"diagnosis\":\"Chronic pancreatitis flare\"}]}"
+          }
+        ]
+      }
+    },
+    {
+      "task_path": "configs/tasks/information_retrieval/task_002_encounter_lookup.yaml",
+      "task_id": "IR-002",
+      "criterion_id": "IR-002-C01",
+      "assertion": "Agent retrieved patient encounter history for the last 30 days",
+      "target_patient_id": "PAT-00000001",
+      "id": "empty-history",
+      "category": "rubric_semantics",
+      "expected_satisfied": false,
+      "rationale": "The task explicitly lists four prior visits, but this successful empty response retrieves none of them. A success envelope does not establish retrieval of that history.",
+      "trajectory": {
+        "task_id": "IR-002",
+        "turns": [
+          {
+            "role": "user",
+            "content": "For this synthetic replay, the task patient is PAT-00000001. Retrieve this patient's last 30 days of encounter history."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "name": "searchEncounters",
+                "arguments": {
+                  "patient_id": "PAT-00000001",
+                  "date_from": "2025-12-16T08:45:00Z",
+                  "date_to": "2026-01-15T08:45:00Z",
+                  "limit": 10
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "{\"status\":\"ok\",\"data\":[]}"
+          }
+        ]
+      }
+    }
+  ]
+}

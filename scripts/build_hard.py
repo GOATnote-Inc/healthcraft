@@ -61,7 +61,9 @@ import yaml
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.llm.checkpoint import selected_trajectory_paths  # noqa: E402
 from healthcraft.tasks.loader import Task, load_tasks  # noqa: E402
+from healthcraft.trajectory import is_unassessed_experiment  # noqa: E402
 
 _TASKS_DIR = _PROJECT_ROOT / "configs" / "tasks"
 _HARDNESS_GATE = 0.35  # HealthBench-Hard parity: o3 ~ 32%
@@ -96,8 +98,7 @@ def _iter_trajectory_files(results_dirs: Iterable[Path]) -> list[Path]:
         if not tdir.exists():
             print(f"[warn] no trajectories dir under {rd}", file=sys.stderr)
             continue
-        for path in sorted(tdir.rglob("*.json")):
-            paths.append(path)
+        paths.extend(selected_trajectory_paths(tdir))
     return paths
 
 
@@ -110,12 +111,15 @@ def _load_trajectory(
 
     Status is one of: ``"ok"``, ``"unreadable"``, ``"error_flag"``,
     ``"missing_reward"``. ``data`` is returned on ``"ok"`` only.
+    Explicitly unassessed experimental inputs raise before any filtering.
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
         print(f"[warn] skipping {path}: {e}", file=sys.stderr)
         return None, "unreadable"
+    if is_unassessed_experiment(data):
+        raise ValueError(f"{path}: unassessed experimental trajectory cannot define HARD tasks")
     if exclude_error and data.get("error"):
         return None, "error_flag"
     if data.get("reward") is None:
@@ -434,7 +438,11 @@ def main(argv: list[str] | None = None) -> int:
     }
     for path in trajectory_paths:
         trajectory_stats["seen"] += 1
-        data, status = _load_trajectory(path, exclude_error=args.exclude_error)
+        try:
+            data, status = _load_trajectory(path, exclude_error=args.exclude_error)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
         if status == "unreadable":
             trajectory_stats["unreadable"] += 1
             continue

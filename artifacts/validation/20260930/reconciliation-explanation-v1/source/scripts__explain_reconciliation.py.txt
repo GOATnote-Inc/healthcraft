@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Create an offline, source-bound review report from recorded synthetic evidence."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+
+from healthcraft.reconciliation.diagnostics import explain_reconciliation
+from healthcraft.reconciliation.explanation_report import render_reconciliation_explanation
+from healthcraft.reconciliation.oracle import verify_reconciliation
+from healthcraft.reconciliation.terminal import _json_object
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _json_bytes(value: dict) -> bytes:
+    return (
+        json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+    ).encode("utf-8")
+
+
+def _sha(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def write_explanation_bundle(
+    *,
+    scenario: Path,
+    expectations: Path,
+    evidence: Path,
+    output_dir: Path,
+    verification: Path | None = None,
+    title: str = "Reconciliation evidence report",
+) -> dict:
+    """Preserve exact inputs and render a new report, without re-running a model.
+
+    Existing output directories are refused, including empty ones. A supplied
+    earlier verification must match the current oracle exactly. The report may
+    describe failed reconciliation; report generation itself is not a task pass.
+    Filesystem failure after output creation leaves an incomplete directory
+    without a completion manifest; it is never silently replaced on retry.
+    """
+    paths = {"scenario": scenario, "expectations": expectations, "evidence": evidence}
+    if verification is not None:
+        paths["verification"] = verification
+    raw = {name: path.read_bytes() for name, path in paths.items()}
+    values = {name: _json_object(content) for name, content in raw.items()}
+    arguments = [values[name] for name in ("scenario", "expectations", "evidence")]
+    oracle = verify_reconciliation(*arguments)
+    if verification is not None and _json_bytes(values["verification"]) != _json_bytes(oracle):
+        raise ValueError("Supplied verification does not match the recomputed oracle")
+    explanation = explain_reconciliation(*arguments)
+    bindings = {
+        name + "_sha256": _sha(
+            json.dumps(
+                value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+            ).encode("utf-8")
+        )
+        for name, value in {
+            **{key: values[key] for key in paths if key != "verification"},
+            "oracle": oracle,
+        }.items()
+    }
+    if explanation["bindings"] != bindings:
+        raise ValueError("Explanation bindings do not match the supplied inputs and oracle")
+    # Both consumers must agree before an output directory is created.
+    if explanation["oracle_checks"] != oracle["checks"]:
+        raise ValueError("Explanation and verification disagree")
+    html = render_reconciliation_explanation(explanation, title=title)
+    payloads = {
+        **{f"inputs/{name}.json": content for name, content in raw.items()},
+        "explanation.json": _json_bytes(explanation),
+        "verification.json": _json_bytes(oracle),
+        "report.html": html.encode("utf-8"),
+    }
+    source_paths = [Path(__file__).resolve(), *sorted((ROOT / "src/healthcraft").rglob("*.py"))]
+    manifest = {
+        "schema_version": "healthcraft-reconciliation-explanation-bundle/v1",
+        "status": "complete",
+        "explanation_status": explanation["status"],
+        "files": {name: _sha(content) for name, content in payloads.items()},
+        "source_files": {
+            str(path.relative_to(ROOT)): _sha(path.read_bytes()) for path in source_paths
+        },
+        "input_paths": {name: str(path.resolve()) for name, path in paths.items()},
+        "bindings": explanation["bindings"],
+        "supplied_verification_matched": verification is not None,
+        "model_calls": 0,
+        "limitations": [
+            "Derived offline from supplied evidence; no new model or tool execution.",
+            "Hashes establish content identity, not execution authenticity.",
+            "Source inventory covers Python source, not a complete reproducible runtime.",
+            "The report explains selected checks; it is not clinical validation.",
+        ],
+    }
+    output_dir.mkdir(parents=True, exist_ok=False)
+    (output_dir / "inputs").mkdir()
+    for name, content in payloads.items():
+        with (output_dir / name).open("xb") as stream:
+            stream.write(content)
+    # Only a fully written payload receives a completion manifest.
+    with (output_dir / "manifest.json").open("xb") as stream:
+        stream.write(_json_bytes(manifest))
+    return {
+        "output_dir": str(output_dir.resolve()),
+        "status": explanation["status"],
+        "model_calls": 0,
+        "report": "report.html",
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ("scenario", "expectations", "evidence", "output-dir"):
+        parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument(
+        "--verification", type=Path, help="Optional earlier oracle result to verify"
+    )
+    parser.add_argument("--title", default="Reconciliation evidence report")
+    args = parser.parse_args(argv)
+    try:
+        summary = write_explanation_bundle(**vars(args))
+    except (OSError, ValueError) as exc:
+        parser.exit(2, f"Report could not be created: {exc}\n")
+    print(json.dumps(summary, sort_keys=True))
+    return 0 if summary["status"] == "available" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

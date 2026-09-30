@@ -1,0 +1,111 @@
+"""Read-only input audit; writes synthetic copies and receipts only under /private/tmp."""
+import copy
+import datetime
+import hashlib
+import importlib.util
+import json
+import socket
+import ssl
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from healthcraft.clinical_review import build_review_packet, import_review_response, _markdown, _digest
+from healthcraft.reconciliation.diagnostics import explain_reconciliation
+from healthcraft.reconciliation.oracle import verify_reconciliation
+from healthcraft.reconciliation.explanation_report import render_reconciliation_explanation
+from healthcraft.reconciliation.terminal import _json_object
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-operator-input-audit')
+BASE=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1'
+
+def forbidden(*args,**kwargs): raise AssertionError('No network permitted')
+socket.socket=forbidden
+socket.create_connection=forbidden
+
+def canonical(x):
+ return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+def digest(x): return hashlib.sha256(canonical(x).encode('utf-8')).hexdigest()
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def load(p):return _json_object(p.read_bytes())
+def save(p,x):p.write_text(json.dumps(x,indent=2)+'\n')
+source_names=['src/healthcraft/clinical_review.py','scripts/clinical_review.py','scripts/explain_reconciliation.py','src/healthcraft/reconciliation/diagnostics.py','src/healthcraft/reconciliation/oracle.py','src/healthcraft/reconciliation/explanation_report.py','src/healthcraft/reconciliation/terminal.py']
+source_before={f:sha(ROOT/f)for f in source_names}
+inputs_before={str(p.relative_to(ROOT)):sha(p)for p in BASE.rglob('*')if p.is_file()}
+results={'source_before':source_before,'source_bundle_root':str(BASE),'actual_cases':[],'boundary_controls':[]}
+for name in ['nano-direct-01','nano-harbor-01','medgemma-harbor-01','medgemma-direct-01']:
+ case=BASE/name;m=load(case/'manifest.json')
+ docs={k:load(case/'inputs'/(k+'.json'))for k in ['scenario','expectations','evidence']}
+ docs['oracle']=load(case/'verification.json');explanation=load(case/'explanation.json')
+ actual=set(str(p.relative_to(case))for p in case.rglob('*')if p.is_file())
+ oracle=verify_reconciliation(docs['scenario'],docs['expectations'],docs['evidence'])
+ diagnostic=explain_reconciliation(docs['scenario'],docs['expectations'],docs['evidence'])
+ result={'name':name,'manifest_sha256':sha(case/'manifest.json'),'payload_count':len(m['files']),
+  'exact_file_inventory':actual==set(m['files'])|{'manifest.json'},
+  'all_payload_bytes_match':all(sha(case/f)==h for f,h in m['files'].items()),
+  'no_bundle_symlinks':not any(p.is_symlink()for p in case.rglob('*')),
+  'canonical_bindings_match':m['bindings']=={k+'_sha256':digest(v)for k,v in docs.items()}==explanation['bindings'],
+  'supplied_oracle_matches_recomputed':canonical(oracle)==canonical(docs['oracle']),
+  'supplied_diagnostic_matches_recomputed':canonical(diagnostic)==canonical(explanation),
+  'original_supplied_verification_matches':canonical(load(case/'inputs/verification.json'))==canonical(oracle),
+  'report_matches_controlled_regeneration':(case/'report.html').read_text()==render_reconciliation_explanation(explanation,source_context=True,source_documents=docs),
+  'has_explicit_attempt_identity_in_evidence':any(k in docs['evidence']for k in ['attempt_id','case_id','trial_id']),
+ }
+ assert all(result[k] for k in ['exact_file_inventory','all_payload_bytes_match','no_bundle_symlinks','canonical_bindings_match','supplied_oracle_matches_recomputed','supplied_diagnostic_matches_recomputed','original_supplied_verification_matches','report_matches_controlled_regeneration'])
+ results['actual_cases'].append(result)
+ if name=='nano-direct-01':
+  changed=copy.deepcopy(explanation)
+  changed['notes'][0]['scope_exclusions']={'status':'matched','issues':[]}
+  html=render_reconciliation_explanation(changed,source_context=True,source_documents=docs)
+  assert 'Exclusion records match supplied expectations.'in html
+  assert canonical(changed)!=canonical(diagnostic)
+  results['boundary_controls'].append({'name':'supplied_sidecar_derivation_not_proved_by_input_bindings','renderer_accepts_internally_valid_changed_sidecar':True,'four_input_bindings_unchanged':changed['bindings']==explanation['bindings'],'recomputed_diagnostic_detects_difference':True,'classification':'Expected renderer scope, new importer must recompute; not a renderer authentication claim.'})
+  changed_html=(case/'report.html').read_bytes()+b'\n<p>Changed appended display</p>\n'
+  changed_manifest=copy.deepcopy(m);changed_manifest['files']['report.html']=hashlib.sha256(changed_html).hexdigest()
+  results['boundary_controls'].append({'name':'manifest_and_changed_report_can_be_self_consistent','new_report_byte_hash_matches_new_manifest':hashlib.sha256(changed_html).hexdigest()==changed_manifest['files']['report.html'],'canonical_source_bindings_unchanged':changed_manifest['bindings']==m['bindings'],'classification':'Hashes alone are content identity, not display derivation or authorship.'})
+  results['boundary_controls'].append({'name':'portable_bundle_original_paths_are_not_loading_authority','all_required_sources_present_inside_bundle':True,'absolute_original_input_paths_recorded':list(m['input_paths'].values()),'recommendation':'Never dereference input_paths/source_files during ordinary bundle import; copy/hash only fixed bundle payloads.'})
+
+value={'label':'é🧪'}
+assert digest(value)!=_digest(value)
+results['boundary_controls'].append({'name':'canonicalization_policies_differ_on_unicode','reconciliation_sha256':digest(value),'clinical_packet_sha256':_digest(value),'recommendation':'Use reconciliation ensure_ascii=False policy for source bindings; version packet hashing independently.'})
+for raw in [b'{"case_id":"first","case_id":"last"}',b'{"x":NaN}',b'{"x":1e400}']:
+ try:_json_object(raw)
+ except ValueError:pass
+ else:raise AssertionError('Strict source parser accepted invalid JSON')
+results['boundary_controls'].append({'name':'existing_strict_source_json_parser','duplicate_keys_nan_and_overflow_rejected':True})
+
+# Reuse an existing wholly synthetic test fixture to inspect clinical-review
+# boundaries; no inference and no fixture/repository edits.
+spec=importlib.util.spec_from_file_location('clinical_fixture',ROOT/'tests/test_clinical_review.py')
+fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
+with TemporaryDirectory(prefix='clinical-boundaries-',dir=OUT)as directory:
+ temp=Path(directory);src=fixture.source.__wrapped__(temp);protocol=fixture.protocol.__wrapped__()
+ duplicate=temp/'copied-trajectory.json';duplicate.write_bytes(src.read_bytes())
+ manifest=build_review_packet([src,duplicate],temp/'duplicate-case-packet',protocol=protocol,reviewer_assignment={'reviewer_id':'synthetic-reviewer','role':'independent'})
+ assert len(manifest['sources'])==2 and len({r['trajectory_sha256']for r in manifest['sources']})==1
+ results['boundary_controls'].append({'name':'clinical_builder_only_deduplicates_resolved_paths','two_distinct_paths_with_identical_bytes_accepted':True,'sources':len(manifest['sources']),'unique_source_bytes':1,'recommendation':'New operator cohort must explicitly detect same source evidence assigned as copied attempts; reject ambiguity rather than silently count or deduplicate.'})
+ packetroot=temp/'packet'
+ manifest=build_review_packet([src],packetroot,protocol=protocol,reviewer_assignment={'reviewer_id':'reviewer-1','role':'independent'})
+ response=fixture.response_for(packetroot);responsepath=temp/'response.json';save(responsepath,response)
+ a=import_review_response(packetroot/'coordinator/manifest.json',responsepath,temp/'receipt-a')
+ b=import_review_response(packetroot/'coordinator/manifest.json',responsepath,temp/'receipt-b')
+ assert a['assignment_id']==b['assignment_id']and a['packet_id']==b['packet_id']
+ results['boundary_controls'].append({'name':'clinical_duplicate_receipts_are_not_independent_reviewers','same_submission_imported_to_two_new_dirs':True,'assignment_identity_same':True,'recommendation':'Aggregation must key packet+assignment+reviewer identity and preserve exact duplicate/conflicting revision status, never count directories as people.'})
+ packet=load(packetroot/'reviewer/packet.json');packet['items'].append(copy.deepcopy(packet['items'][0]));save(packetroot/'reviewer/packet.json',packet)
+ markdown=_markdown(packet);(packetroot/'reviewer/packet.md').write_text(markdown)
+ manifest['items'].append(copy.deepcopy(manifest['items'][0]))
+ manifest['packet_sha256']=_digest(packet);manifest['markdown_sha256']=hashlib.sha256(markdown.encode()).hexdigest();manifest.pop('manifest_sha256');manifest['manifest_sha256']=_digest(manifest)
+ save(packetroot/'coordinator/manifest.json',manifest)
+ response['packet_sha256']=manifest['packet_sha256'];save(responsepath,response)
+ imported=import_review_response(packetroot/'coordinator/manifest.json',responsepath,temp/'duplicate-id-receipt')
+ assert len(packet['items'])==3 and imported['counts']['assigned']==2
+ results['boundary_controls'].append({'name':'clinical_import_does_not_structurally_reject_self_consistent_duplicate_item_ids','packet_item_rows':3,'receipt_assigned':2,'classification':'Self-rehashed malformed imported artifact; not an authorship/authentication bypass claim. New importer must reject duplicate case/attempt/assignment/item IDs before dictionary indexing.'})
+
+results['source_after']={f:sha(ROOT/f)for f in source_names};assert results['source_before']==results['source_after']
+results['source_stable']=True
+results['saved_source_files_unchanged']=all(sha(ROOT/f)==h for f,h in inputs_before.items());assert results['saved_source_files_unchanged']
+results['saved_source_file_count']=len(inputs_before)
+results['recorded_at']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+results['scope']='Read-only ordinary input-contract audit; current cases are tutorial engineering evidence, not operator/participant outcomes, clinical review or formal red team.'
+results['probe_sha256']=sha(Path(__file__))
+with (OUT/'audit.json').open('x')as f:json.dump(results,f,indent=2);f.write('\n')
+print(json.dumps({'actual_cases':len(results['actual_cases']),'boundary_controls':len(results['boundary_controls']),'source_stable':True,'saved_source_files_unchanged':True},indent=2))

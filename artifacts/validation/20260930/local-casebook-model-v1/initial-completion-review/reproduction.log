@@ -1,0 +1,237 @@
+[
+  {
+    "case": "valid_finish",
+    "controller_completion": {
+      "reason": "model_finish",
+      "status": "terminated"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 10,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": true,
+      "persisted_action": true,
+      "readback": true,
+      "execution_complete": true
+    },
+    "mechanical_passed": true
+  },
+  {
+    "case": "truncated_after_full_valid_actions",
+    "controller_completion": {
+      "error": {
+        "message": "Native response did not explicitly complete one assistant text command",
+        "type": "ValueError"
+      },
+      "reason": "model_error",
+      "status": "failed"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 10,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": true,
+      "persisted_action": true,
+      "readback": true,
+      "execution_complete": true
+    },
+    "mechanical_passed": true
+  },
+  {
+    "case": "malformed_command",
+    "controller_completion": {
+      "error": {
+        "message": "Expecting value: line 1 column 1 (char 0)",
+        "type": "JSONDecodeError"
+      },
+      "reason": "model_error",
+      "status": "failed"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 0,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": false,
+      "persisted_action": false,
+      "readback": false,
+      "execution_complete": true
+    },
+    "mechanical_passed": false
+  },
+  {
+    "case": "transport_timeout",
+    "controller_completion": {
+      "error": {
+        "message": "fixture timeout",
+        "type": "TimeoutError"
+      },
+      "reason": "model_error",
+      "status": "failed"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 0,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": false,
+      "persisted_action": false,
+      "readback": false,
+      "execution_complete": true
+    },
+    "mechanical_passed": false
+  },
+  {
+    "case": "interruption",
+    "controller_completion": {
+      "error": {
+        "message": "fixture interrupt",
+        "type": "KeyboardInterrupt"
+      },
+      "reason": "model_error",
+      "status": "failed"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 10,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": true,
+      "persisted_action": true,
+      "readback": true,
+      "execution_complete": true
+    },
+    "mechanical_passed": true
+  },
+  {
+    "case": "response_cap",
+    "controller_completion": {
+      "error": {
+        "message": "Model response limit reached before finish",
+        "type": "RuntimeError"
+      },
+      "reason": "model_response_limit",
+      "status": "failed"
+    },
+    "native_transport_calls": 1,
+    "recorded_native_exchanges": 1,
+    "world_calls": 1,
+    "captured_execution_completion": {
+      "status": "completed"
+    },
+    "oracle_checks": {
+      "provenance": true,
+      "source_fidelity": false,
+      "persisted_action": false,
+      "readback": false,
+      "execution_complete": true
+    },
+    "mechanical_passed": false
+  },
+  {
+    "case": "journal_failure_before_native_dispatch",
+    "native_transport_calls": 0,
+    "recorded_native_exchanges": 1,
+    "exchange": {
+      "index": 1,
+      "request": {
+        "messages": [
+          {
+            "content": "x",
+            "role": "user"
+          }
+        ],
+        "model": "test:latest",
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 4096,
+          "seed": 42,
+          "temperature": 0.0
+        },
+        "stream": false,
+        "keep_alive": 0,
+        "format": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "const": "call"
+                },
+                "name": {
+                  "enum": [
+                    "getEncounterDetails",
+                    "getPatientHistory",
+                    "searchEncounters",
+                    "searchPatients",
+                    "updateEncounter"
+                  ]
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "action",
+                "name",
+                "params"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "const": "finish"
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "response": null,
+      "error": null
+    }
+  },
+  {
+    "case": "duplicate_native_done_reason",
+    "returned_command": {
+      "action": "finish"
+    },
+    "controller_completion": {
+      "reason": "model_finish",
+      "status": "terminated"
+    },
+    "saved_normalized_native_response": {
+      "model": "test:latest",
+      "done": true,
+      "done_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "{\"action\":\"finish\"}"
+      }
+    }
+  }
+]

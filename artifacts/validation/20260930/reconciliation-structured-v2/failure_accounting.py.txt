@@ -1,0 +1,148 @@
+"""Account for scheduled attempts when the exploratory coordinator itself fails.
+
+This filesystem-only fallback never grades evidence, retries execution, rewrites
+raw result files, or treats missing results as successful model/tool execution.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+
+SCHEMA = "reconciliation-coordinator-failure/v1"
+
+
+def _pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _float(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError("Non-finite JSON number")
+    return value
+
+
+def _constant(_text):
+    raise ValueError("Non-finite JSON constant")
+
+
+def _read(path):
+    value = json.loads(
+        path.read_text(),
+        object_pairs_hook=_pairs,
+        parse_float=_float,
+        parse_constant=_constant,
+    )
+    if not isinstance(value, dict):
+        raise ValueError("Expected JSON object")
+    return value
+
+
+def _copy(value):
+    return json.loads(json.dumps(value, allow_nan=False))
+
+
+def _write(path, value):
+    encoded = json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    with path.open("x") as handle:
+        handle.write(encoded)
+
+
+def _result(path, item):
+    value = _read(path)
+    if value.get("id") != item["id"]:
+        raise ValueError("Result ID does not match scheduled attempt")
+    if value.get("status") not in {"completed", "failed"}:
+        raise ValueError("Result is not a terminal coordinator result")
+    completion = value.get("completion")
+    if not isinstance(completion, dict) or completion.get("status") != value["status"]:
+        raise ValueError("Result completion status is missing or inconsistent")
+    if value.get("oracle") is not None and not isinstance(value["oracle"], dict):
+        raise ValueError("Malformed recorded oracle envelope")
+    return value
+
+
+def finalize_unfinished(output_dir, roster, error):
+    """Preserve existing outcomes and explicitly account for every missing one.
+
+    An absent attempt directory proves only that this coordinator did not create
+    its attempt workspace. An existing partial directory leaves execution/tool
+    outcomes unknown. Previously recorded oracle results are retained verbatim;
+    no new oracle verdict, zero-call count, or successful completion is inferred.
+    Existing summary.json and every existing receipt are kept byte-for-byte.
+    """
+    roster = _copy(roster)
+    error = _copy(error)
+    if not isinstance(roster, list) or not roster or not isinstance(error, dict):
+        raise ValueError("Expected nonempty roster and error object")
+    seen = set()
+    for item in roster:
+        name = item.get("id") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+            raise ValueError("Invalid scheduled attempt ID")
+        if name in seen:
+            raise ValueError("Duplicate scheduled attempt ID")
+        seen.add(name)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    results = []
+    for item in roster:
+        trial = output_dir / item["id"]
+        existed = trial.exists()
+        result_path = trial / "result.json"
+        diagnostic = None
+        if result_path.exists():
+            try:
+                results.append(_result(result_path, item))
+                continue
+            except (OSError, ValueError, TypeError) as exc:
+                diagnostic = {"type": type(exc).__name__, "message": str(exc)}
+        receipt_path = trial / "coordinator-failure.json"
+        if receipt_path.exists():
+            receipt = _read(receipt_path)
+            if receipt.get("id") != item["id"] or receipt.get("schema_version") != SCHEMA:
+                raise ValueError("Existing coordinator failure receipt has invalid identity")
+        else:
+            trial.mkdir(parents=True, exist_ok=True)
+            receipt = {
+                **item,
+                "schema_version": SCHEMA,
+                "status": "execution_unknown" if existed else "not_started",
+                "accounting_state": "invalid_result"
+                if diagnostic
+                else ("partial_execution" if existed else "no_attempt_directory"),
+                "completion": None,
+                "oracle": None,
+                "actual_call_count": None,
+                "stored_note_count": None,
+                "benchmark_score": None,
+                "clinical_criteria": 0,
+                "safety_criteria": 0,
+                "coordinator_error": error,
+            }
+            if diagnostic is not None:
+                receipt["result_diagnostic"] = diagnostic
+            _write(receipt_path, receipt)
+        results.append(receipt)
+    summary = {
+        "schema_version": "reconciliation-coordinator-failure-summary/v1",
+        "roster": roster,
+        "results": results,
+        "scheduled_attempts": len(roster),
+        "all_attempts_recorded": [r["id"] for r in results] == [r["id"] for r in roster],
+        "coordinator_error": error,
+        "benchmark_score": None,
+        "no_superiority_claim": True,
+    }
+    summary_path = output_dir / "summary.json"
+    if not summary_path.exists():
+        _write(summary_path, summary)
+    return _copy(summary)

@@ -1,0 +1,209 @@
+"""Read-only casebook boundary review; mutations are isolated temporary copies."""
+
+import hashlib
+import json
+import shutil
+import sys
+import tempfile
+import traceback
+from copy import deepcopy
+from pathlib import Path
+
+REPO = Path('/Users/kiteboard/healthcraft')
+sys.path.insert(0, str(REPO / 'src'))
+from healthcraft.reconciliation.casebook import DEFAULT_CASEBOOK_SHA256, load_case, load_cases
+
+ROOT = REPO / 'configs/evaluation/reconciliation_v2'
+OUT = Path('/private/tmp/healthcraft-casebook-review')
+FILES = [REPO / 'src/healthcraft/reconciliation/casebook.py',
+         REPO / 'src/healthcraft/reconciliation/fixture_v2.py',
+         REPO / 'tests/test_reconciliation/test_casebook.py',
+         *sorted(ROOT.rglob('*.json'))]
+
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def encode(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'),
+                      allow_nan=False).encode()
+
+
+def digest(value):
+    return sha(encode(value))
+
+
+def read(path):
+    return json.loads(path.read_bytes())
+
+
+def write(path, value):
+    path.write_bytes(encode(value) + b'\n')
+
+
+def hashes():
+    return {str(p.relative_to(REPO)): sha(p.read_bytes()) for p in FILES}
+
+
+def refresh(directory, book, field, number):
+    entry = book['cases'][number]
+    raw = (directory / entry[field]).read_bytes()
+    book['files'][entry[field]] = sha(raw)
+    entry[field + '_sha256'] = digest(json.loads(raw))
+
+
+results = []
+
+
+def check(name, fn):
+    try:
+        details = fn()
+        results.append({'check': name, 'passed': True, 'details': details})
+    except Exception as exc:
+        results.append({'check': name, 'passed': False,
+                        'error': repr(exc), 'traceback': traceback.format_exc()})
+
+
+def rejected(name, mutation, *, book_pin=None):
+    def run():
+        with tempfile.TemporaryDirectory(prefix='casebook-peer-', dir=OUT) as temp:
+            directory = Path(temp) / 'book'
+            shutil.copytree(ROOT, directory)
+            book = read(directory / 'casebook.json')
+            mutation(directory, book)
+            if (directory / 'casebook.json').exists():
+                write(directory / 'casebook.json', book)
+            pin = digest(book) if book_pin is None else book_pin
+            try:
+                load_case(directory / 'casebook.json', 'REC2-001', expected_sha256=pin)
+            except (ValueError, OSError) as exc:
+                return {'rejection': type(exc).__name__, 'message': str(exc)}
+            raise AssertionError('Invalid copied casebook was accepted')
+    check(name, run)
+
+
+def expectation(change, number):
+    def mutate(directory, book):
+        path = directory / book['cases'][number]['expectations']
+        value = read(path)
+        change(value)
+        write(path, value)
+        refresh(directory, book, 'expectations', number)
+    return mutate
+
+
+def malformed_payload(raw):
+    def mutate(directory, book):
+        name = book['cases'][-1]['scenario']
+        (directory / name).write_bytes(raw)
+        book['files'][name] = sha(raw)
+    return mutate
+
+
+def main():
+    before = hashes()
+
+    def all_real():
+        cases = load_cases()
+        assert len(cases) == 8
+        assert DEFAULT_CASEBOOK_SHA256 == digest(read(ROOT / 'casebook.json'))
+        assert len({case['scenario_family_id'] for case in cases}) == 8
+        assert [len(case['expectations']['sources']) for case in cases] == [6,5,6,5,6,7,4,11]
+        assert sum(len(case['expectations']['sources']) for case in cases) == 50
+        assert sum(len(case['scenario']['patients']) for case in cases) == 15
+        assert sum(len(case['scenario']['encounters']) for case in cases) == 22
+        all_patients = [row for case in cases for row in case['scenario']['patients']]
+        assert len({row['id'] for row in all_patients}) == 15
+        assert all(row['date_of_birth'] is None for row in all_patients)
+        assert all(case['exposure'] == 'development' and case['label_status'] ==
+                   'engineering_authored_independent_review_pending' for case in cases)
+        names = [{(p['first_name'], p['last_name']) for p in case['scenario']['patients']}
+                 for case in cases]
+        assert all(len(value) == 1 for value in names) and len(set.union(*names)) == 8
+        cases[0]['expectations']['sources'][0]['source']['status'] = 'altered'
+        assert load_cases()[0]['expectations']['sources'][0]['source']['status'] == 'planned'
+        return {'cases': 8, 'sources': 50, 'patients': 15, 'encounters': 22,
+                'families': 8, 'detached': True}
+    check('all eight real cases, cardinality, identity, disclosure and detached return', all_real)
+
+    for value in [None, True, '', 'A' * 64, '0' * 64]:
+        def pin_probe(value=value):
+            try:
+                load_cases(ROOT / 'casebook.json', expected_sha256=value)
+            except ValueError as exc:
+                return str(exc)
+            raise AssertionError('Bad/missing explicit trust pin accepted')
+        check('reject explicit trust pin ' + repr(value), pin_probe)
+
+    rejected('old trusted digest rejects self-rehashed book',
+             lambda d,b: b['cases'][0].update(scenario_family_id='changed-family/v2'),
+             book_pin=DEFAULT_CASEBOOK_SHA256)
+    rejected('unselected missing last file',
+             lambda d,b: (d / b['cases'][-1]['scenario']).unlink())
+    rejected('unlisted ordinary file', lambda d,b: (d / 'extra.json').write_text('{}'))
+    rejected('unlisted empty directory', lambda d,b: (d / 'extra').mkdir())
+    rejected('case directory symlink',
+             lambda d,b: ((d / 'REC2-008').rename(d.parent / 'moved'),
+                          (d / 'REC2-008').symlink_to(d.parent / 'moved')))
+    rejected('payload file symlink',
+             lambda d,b: ((d / b['cases'][-1]['scenario']).rename(d.parent / 'outside.json'),
+                          (d / b['cases'][-1]['scenario']).symlink_to(d.parent / 'outside.json')))
+    rejected('path traversal', lambda d,b: b['cases'][-1].update(scenario='../outside.json'))
+    rejected('absolute input path', lambda d,b: b['cases'][-1].update(scenario=str(d/'REC2-008/scenario.json')))
+    rejected('extra inventory key', lambda d,b: b['files'].update({'extra.json': '0'*64}))
+    rejected('malformed raw digest', lambda d,b: b['files'].update({'REC2-008/scenario.json': True}))
+    rejected('duplicate case identity', lambda d,b: b['cases'][-1].update(case_id='REC2-001'))
+    rejected('false clinical-label status', lambda d,b: b.update(label_status='clinician_validated'))
+    rejected('unsupported heldout claim', lambda d,b: b.update(exposure='held_out'))
+
+    for raw in [b'not JSON', b'[]', b'{"id":NaN}', b'{"id":1e400}', b'\xff',
+                b'{"id":1,"id":2}', b'{"nested":{"x":1,"x":2}}',
+                b'{"nested":{"x":1,"\\u0078":2}}']:
+        rejected('malformed last payload ' + repr(raw), malformed_payload(raw))
+
+    rejected('self-rehashed invented raw status', expectation(
+        lambda e: e['sources'][0]['source'].update(status='administered'), 1))
+    rejected('self-rehashed removed target observation', expectation(
+        lambda e: e['observation_source_ids'].pop(), 1))
+    rejected('self-rehashed duplicate observation', expectation(
+        lambda e: e['observation_source_ids'].append(e['observation_source_ids'][0]), 1))
+    rejected('self-rehashed other-encounter as other-patient', expectation(
+        lambda e: e['scope_exclusions'][0].update(reason='other_patient'), 1))
+    rejected('self-rehashed missing third report from conflict', expectation(
+        lambda e: e['unresolved_conflicts'][0]['source_ids'].pop(), 3))
+    rejected('self-rehashed cross-patient conflict', expectation(
+        lambda e: e['unresolved_conflicts'].append({'source_ids':['SRC-A02','SRC-A05'],
+                     'event_id':'EVENT-301', 'field':'reported_status'}), 2))
+    rejected('self-rehashed equal-time distinct events conflated', expectation(
+        lambda e: e['unresolved_conflicts'].append({'source_ids':['SRC-A02','SRC-A03'],
+                     'event_id':'EVENT-501', 'field':'reported_status'}), 4))
+    rejected('self-rehashed normalized literal offset', expectation(
+        lambda e: e['sources'][2]['source'].update(event_time='2026-11-06T12:00:00Z'), 5))
+    rejected('self-rehashed missing unknown time', expectation(
+        lambda e: e['sources'][0]['source'].pop('time'), 0))
+    rejected('self-rehashed escaped path points elsewhere', expectation(
+        lambda e: e['sources'][2].update(source_path='/imaging_pending/order/~pending'), 1))
+
+    after = hashes()
+    result = {'scope': 'Ordinary bounded development review; no clinical or formal red-team claims',
+              'checks': results, 'passed': sum(row['passed'] for row in results),
+              'failed': sum(not row['passed'] for row in results),
+              'source_hashes_before': before, 'source_hashes_after': after,
+              'source_stable': before == after,
+              'script_sha256': sha(Path(__file__).read_bytes()),
+              'limits': ['No authentication or independence inferred from explicit caller-provided pins.',
+                         'No task execution, models, external APIs, browsers or network calls.',
+                         'Data author reviewing engineering structure is not independent label adjudication.',
+                         'No malformed input or copied fixture replaced repository files.']}
+    output = OUT / ('probe-' + str(sys.version_info.major) + str(sys.version_info.minor) + '.json')
+    with output.open('x') as stream:
+        json.dump(result, stream, indent=2)
+        stream.write('\n')
+    print(json.dumps({'passed':result['passed'],'failed':result['failed'],
+                      'source_stable':before == after,'receipt':str(output)}))
+    return bool(result['failed']) or before != after
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,234 @@
+"""Read-only review of a completed, frozen live development cohort.
+
+Never invokes a model, controller, handler, subprocess, or changes evidence.
+Only the explicit completed-run CLI performs artifact reads. All output stays
+in this private review directory. Preparation/tests use authored local fixtures.
+"""
+from __future__ import annotations
+import argparse, base64, hashlib, json, math, sys
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path('/private/tmp/healthcraft-local-casebook-live-peer')
+PLAN_PATH = ROOT/'configs/evaluation/reconciliation_model_v2/local-pilot-plan.json'
+AXES = ('provenance','source_fidelity','persisted_action','readback','execution_complete')
+
+
+def canonical(value):
+    return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+
+
+def digest(value):
+    return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def pairs(rows):
+    value={}
+    for key,item in rows:
+        if key in value: raise ValueError('Duplicate JSON key: '+key)
+        value[key]=item
+    return value
+
+
+def strict(raw):
+    def invalid(value): raise ValueError('Nonfinite JSON constant: '+value)
+    value=json.loads(raw,object_pairs_hook=pairs,parse_constant=invalid)
+    canonical(value).encode('utf-8')
+    return value
+
+
+def read(path):
+    return strict(path.read_bytes().decode('utf-8'))
+
+
+def inventory(folder):
+    found={}
+    for p in sorted(folder.rglob('*')):
+        if p.is_symlink(): raise ValueError('Unexpected evidence symlink: '+str(p))
+        if p.is_file(): found[p.relative_to(folder).as_posix()]=sha(p)
+    return found
+
+
+def source_inventory():
+    paths=set((ROOT/'src').rglob('*.py'))
+    paths.update({ROOT/'configs/mcp-tools.json',ROOT/'scripts/reconciliation_local_cohort.py'})
+    return {p.relative_to(ROOT).as_posix():sha(p) for p in sorted(paths)}
+
+
+def identity_diff(expected,observed,key):
+    """Order-insensitive row IDs, exact source scalar/array types and multiplicity."""
+    if type(observed) is not list:
+        return {'malformed':'Expected an array','observed':deepcopy(observed)}
+    result={'missing':[],'unexpected':[],'duplicates':[],'changed':[],'malformed':[]}
+    ids=[]; by_id={}
+    for i,row in enumerate(observed):
+        if type(row) is not dict or type(row.get(key)) is not str:
+            result['malformed'].append({'index':i,'observed':deepcopy(row)});continue
+        identifier=row[key];ids.append(identifier);by_id.setdefault(identifier,[]).append((i,row))
+    expected_map={row[key]:(i,row) for i,row in enumerate(expected)}
+    result['missing']=[{'id':k,'expected_index':i,'expected':deepcopy(row)} for k,(i,row) in expected_map.items() if k not in by_id]
+    result['unexpected']=[{'id':k,'observed_indices':[i for i,_ in rows]} for k,rows in by_id.items() if k not in expected_map]
+    result['duplicates']=[{'id':k,'count':n} for k,n in Counter(ids).items() if n>1]
+    for identifier,rows in by_id.items():
+        if identifier not in expected_map:continue
+        ei,wanted=expected_map[identifier]
+        for oi,actual in rows:
+            if canonical(actual)!=canonical(wanted):
+                result['changed'].append({'id':identifier,'expected_index':ei,'observed_index':oi,'expected':deepcopy(wanted),'observed':deepcopy(actual)})
+    return result
+
+
+def note_analysis(text,expected):
+    try:note=strict(text)
+    except (ValueError,TypeError,UnicodeError) as exc:return {'available':False,'parse_error':str(exc)}
+    if type(note) is not dict:return {'available':False,'parse_error':'Note must be an object'}
+    wanted_keys={'schema_version','patient_id','encounter_id','observations','unresolved_conflicts','scope_exclusions'}
+    rows={r['source_id']:r for r in expected['sources']}
+    expected_observations=[rows[key] for key in expected['observation_source_ids']]
+    conflict_expected=deepcopy(expected['unresolved_conflicts'])
+    conflict_actual=deepcopy(note.get('unresolved_conflicts'))
+    for group in (conflict_expected,conflict_actual):
+        if type(group) is list:
+            for row in group:
+                if type(row) is dict and type(row.get('source_ids')) is list and all(type(v) is str for v in row['source_ids']):
+                    row['source_ids'].sort()
+    return {
+        'available':True,
+        'top_level_missing':sorted(wanted_keys-note.keys()),
+        'top_level_unexpected':sorted(note.keys()-wanted_keys),
+        'schema_matches':note.get('schema_version')=='healthcraft-reconciliation-note/v1',
+        'target_matches':all(type(note.get(k)) is str and note[k]==v for k,v in expected['target'].items()),
+        'observations':identity_diff(expected_observations,note.get('observations'),'source_id'),
+        'scope_exclusions':identity_diff(expected['scope_exclusions'],note.get('scope_exclusions'),'source_id'),
+        'unresolved_conflicts':identity_diff(conflict_expected,conflict_actual,'event_id'),
+        'pointer_base':'/after/entities/clinical_note/{note_id}/content (decode strict JSON)',
+        'expected_pointer_base':'case.json#/expectations',
+        'expected_source_refs':{r['source_id']:'case.json#/expectations/sources/'+str(i) for i,r in enumerate(expected['sources'])},
+    }
+
+
+def actions(evidence):
+    """Literal new final-state notes and later returned exact text; no correctness award."""
+    before=evidence['before']['entities']['clinical_note'];after=evidence['after']['entities']['clinical_note']
+    notes=[row for identifier,row in after.items() if identifier not in before]
+    stored=Counter((n['patient_id'],n['encounter_id'],n['content']) for n in notes)
+    acks=[];reads=[];read_counts=Counter()
+    for i,call in enumerate(evidence['calls']):
+        response=call.get('response',{});params=call.get('params',{})
+        if response.get('status')!='ok':continue
+        if call.get('name')=='updateEncounter' and type(params.get('notes')) is str:
+            acks.append({'call_index':i,'call_id':call['id'],'encounter_id':params.get('encounter_id'),'content':params['notes'],'deduplicated':response.get('deduplicated') is True})
+        if call.get('name')!='getEncounterDetails':continue
+        data=response.get('data',{})
+        if type(data) is not dict:continue
+        returned=Counter(row[1] for row in data.get('clinical_notes',[]) if type(row) is list and len(row)==2 and row[0]=='Progress Note' and type(row[1]) is str)
+        match=0
+        for key,n in stored.items():
+            patient,encounter,content=key
+            prior=any(a['call_index']<i and a['encounter_id']==encounter and a['content']==content for a in acks)
+            if prior and (data.get('patient_id'),data.get('id'))==(patient,encounter):
+                count=min(n,returned[content]);match+=count;read_counts[key]=max(read_counts[key],count)
+        reads.append({'call_index':i,'call_id':call['id'],'patient_id':data.get('patient_id'),'encounter_id':data.get('id'),'matching_stored_text_count':match})
+    return {'successful_write_acknowledgements':len(acks),'deduplicated_write_acknowledgements':sum(a['deduplicated'] for a in acks),'stored_note_count':len(notes),'stored_note_readback_count':sum(read_counts.values()),'reads':reads,'notes':notes,'unique_write_attribution_claimed':False}
+
+
+def native_analysis(worker,folder,config,prompt_hash,check):
+    result={'available':worker is not None,'requests':[],'raw_response_count':0}
+    path=folder/'worker/model.jsonl'
+    if path.exists():
+        try: events=[strict(line) for line in path.read_text().splitlines()]
+        except ValueError as exc:result['journal_error']=str(exc);events=None
+    else:events=None;result['journal_error']='Unavailable'
+    if events is not None:
+        result['journal_dispatch_count']=sum(row.get('event')=='model_dispatched' for row in events)
+    if worker is None:return result
+    if type(worker.get('config')) is not dict:
+        result.update(available=False,reason='Worker failed before validated public configuration');return result
+    check('worker public config excludes private context',set(worker['config'])=={'model','expected_digest','expected_runtime','settings','instruction','tools','initial_messages_sha256','command_format'})
+    check('worker prompt identity bound',worker['initial_messages_sha256_expected']==worker['initial_messages_sha256_actual']==prompt_hash)
+    exchanges=worker['model_exchanges'];check('native count within frozen cap',len(exchanges)==worker['model_calls'] and len(exchanges)<=config['settings']['max_model_responses'])
+    if events is not None:check('model journal agrees with receipt',result['journal_dispatch_count']==len(exchanges))
+    for i,row in enumerate(exchanges):
+        request=row['request'];check('sequential native request index',row['index']==i+1)
+        check('frozen native model',request['model']==config['model'])
+        check('frozen native settings',canonical(request['options'])==canonical({'temperature':config['settings']['temperature'],'seed':config['settings']['seed'],'num_ctx':config['settings']['num_ctx'],'num_predict':config['settings']['max_output_tokens']}) and request['stream'] is False and request['keep_alive']==0 and 'tools' not in request)
+        check('schema identity bound',digest(request['format'])==config['command_format']['sha256'])
+        if i==0:check('initial messages exact hash',digest(request['messages'])==prompt_hash)
+        if 'think' in request:check('thinking disabled',request['think'] is False)
+        response=row.get('response'); raw=None; rawerror=None
+        if 'response_body_b64' in row:
+            body=base64.b64decode(row['response_body_b64'],validate=True);check('raw native bytes match digest',hashlib.sha256(body).hexdigest()==row['response_body_sha256']);result['raw_response_count']+=1
+            try:raw=strict(body.decode('utf-8'))
+            except (ValueError,UnicodeError) as exc:rawerror=str(exc)
+            if response is not None:check('parsed native response agrees exact raw bytes',canonical(raw)==canonical(response))
+        command=None; parseerror=None
+        if type(response) is dict and type(response.get('message')) is dict:
+            content=response['message'].get('content')
+            try:command=strict(content)
+            except (ValueError,TypeError,UnicodeError) as exc:parseerror=str(exc)
+        result['requests'].append({'index':i+1,'raw_body_available':'response_body_b64' in row,'raw_parse_error':rawerror,'native_error':row.get('error'),'done':response.get('done') if type(response) is dict else None,'done_reason':response.get('done_reason') if type(response) is dict else None,'eval_count':response.get('eval_count') if type(response) is dict else None,'prompt_eval_count':response.get('prompt_eval_count') if type(response) is dict else None,'command':command,'command_parse_error':parseerror})
+    if worker['status']=='terminated':
+        check('terminated worker explicit finish',worker['controller']['completion']=={'status':'terminated','reason':'model_finish'} and result['requests'][-1]['command']=={'action':'finish'})
+        check('terminated worker fresh identities',worker['postflight_status']=='matched' and all(worker[k]['model_digest']==config['expected_digest'] and worker[k]['runtime_version']==config['expected_runtime'] for k in ('identity_before','identity_after')))
+    return result
+
+
+def analyze(run):
+    # Caller must wait for the producer's completion message; no polling here.
+    sys.path.insert(0,str(ROOT/'src'))
+    from healthcraft.reconciliation.oracle_v2 import verify_case
+    checks=[];issues=[]
+    def check(name,p):
+        checks.append({'name':name,'satisfied':bool(p)})
+        if not p:issues.append(name)
+    before=inventory(run);manifest=read(run/'manifest.json');prepared=read(OUT/'prepared.json')
+    plan=read(run/'plan.json');cases={c['case_id']:c for c in read(run/'cases.json')};models={m['id']:m['config'] for m in plan['models']}
+    check('frozen plan canonical identity',digest(plan)==prepared['plan_sha256']==manifest['plan_sha256'])
+    check('source snapshot before and after',read(run/'source-identity.json')['before']==read(run/'source-identity.json')['after']==prepared['source_sha256'])
+    check('verification implementation unchanged',source_inventory()==prepared['source_sha256'])
+    check('complete output inventory',manifest['files']=={p:h for p,h in before.items() if p!='manifest.json'})
+    check('all16 scheduled rows in exact order',[{k:o[k] for k in ('id','case_id','model_id')} for o in manifest['outcomes']]==plan['roster'] and len(plan['roster'])==16)
+    rows=[]
+    for outcome in manifest['outcomes']:
+        label=outcome['id'];folder=run/label;case=cases[outcome['case_id']];config=models[outcome['model_id']]
+        row={'id':label,'status':outcome['status'],'attempted':outcome['attempted'],'recorded_model_calls':outcome['model_calls'],'error':outcome['error'],'grading_error':outcome['grading_error'],'unassessed_clinical_criteria':True}
+        bound=lambda name,p:check(label+': '+name,p)
+        if not outcome['attempted']:
+            row['evidence_status']='not_attempted';rows.append(row);continue
+        for name in ('execution.json','receipt.json'):
+            if not (folder/name).exists():row.setdefault('unavailable_files',[]).append(name)
+        if row.get('unavailable_files'):rows.append(row);continue
+        receipt=read(folder/'receipt.json');evidence=read(folder/'execution.json')
+        bound('attempt model/case exact binding',canonical(receipt['model_config'])==canonical(config) and receipt['case_binding']==evidence['case_binding'] and receipt['case_binding']['case_id']==case['case_id'])
+        bound('completion reflects supervisor',evidence['completion']['status']==receipt['status'])
+        actual=verify_case(case,evidence);row['verification']=actual
+        if (folder/'verification.json').exists():bound('saved verification reproduced',canonical(actual)==canonical(read(folder/'verification.json')))
+        elif outcome['grading_error'] is None:bound('missing verification accounted',False)
+        if outcome['grading_error'] is None:bound('cohort boolean matches verification',outcome['mechanical_passed'] is actual['mechanical_passed'])
+        literal=actions(evidence);notes=literal.pop('notes');row['observed_actions']=literal
+        if outcome.get('observed_actions') is not None:
+            bound('literal storage/readback agrees',all(outcome['observed_actions'][k]==literal[k] for k in ('stored_note_count','stored_note_readback_count')))
+        row['note_content']=[{'note_id':n['id'],'patient_id':n['patient_id'],'encounter_id':n['encounter_id'],'evidence_pointer':'/after/entities/clinical_note/'+n['id'],'analysis':note_analysis(n['content'],case['expectations']) if actual['checks']['provenance'] else {'available':False,'reason':'provenance_unavailable'}} for n in notes]
+        prompt=next(c['initial_messages_sha256'] for c in plan['cases'] if c['case_id']==case['case_id'])
+        try:row['native']=native_analysis(receipt.get('worker_receipt'),folder,config,prompt,bound)
+        except (ValueError,TypeError,KeyError,IndexError,AttributeError) as exc:
+            row['native']={'available':False,'analysis_error':str(exc)};bound('native evidence shape supports complete analysis',False)
+        row['native_tool_calls']=len(evidence['calls']);row['audit_entries']=len(evidence['audit']);row['worker_cleanup']=receipt['worker_cleanup']
+        rows.append(row)
+    counts={'scheduled':len(rows),'attempted':sum(r['attempted'] for r in rows),**{s:sum(r['status']==s for r in rows) for s in ('completed','failed','interrupted','not_attempted')},'grading_errors':sum(r['grading_error'] is not None for r in rows),'mechanical_passed':sum(r.get('verification',{}).get('mechanical_passed') is True and r['grading_error'] is None for r in rows),'mechanical_not_verified':sum(r.get('verification',{}).get('mechanical_passed') is False and r['grading_error'] is None for r in rows)}
+    check('whole roster counts match producer',counts==manifest['counts'])
+    check('source artifact bytes unchanged',before==inventory(run))
+    return {'schema_version':'healthcraft-live-development-peer-review/v1','path':str(run),'counts':counts,'checks':checks,'findings':issues,'outcomes':rows,'input_file_sha256':before,'source_sha256':prepared['source_sha256'],'limitations':['Exposed development cases; shared authored source/expectation ledger, independent review pending.','No model ranking, healthcare value, clinical safety, reliability, superiority or authenticated-execution claim.','Model calls count recorded native request attempts; daemon execution is not independently attested.','Mechanical source-content diagnoses are exact JSON comparisons, not clinical labels.']}
+
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser();parser.add_argument('--completed-run',required=True,type=Path);args=parser.parse_args()
+    result=analyze(args.completed_run)
+    with (OUT/'peer-review.json').open('x') as f:json.dump(result,f,ensure_ascii=False,sort_keys=True,indent=2,allow_nan=False);f.write('\n')
+    print(canonical({'counts':result['counts'],'findings':result['findings'],'checks':len(result['checks'])}))

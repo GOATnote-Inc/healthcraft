@@ -1,0 +1,41 @@
+"""Exercise collision rejection through the real CLI with no provider credentials."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = Path(tempfile.mkdtemp(prefix='healthcraft-grading-cli-', dir='/private/tmp'))
+source = ROOT / 'src/healthcraft/llm/evaluator.py'
+source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+records = []
+for collision in ['grade', 'summary']:
+    case = OUT / collision
+    tasks, original, grades = case / 'tasks', case / 'original', case / 'grades'
+    for path in [tasks, original, grades]:
+        path.mkdir(parents=True)
+    (tasks / 'task.yaml').write_text('id: CLI-001\ncategory: test\nlevel: 1\ntitle: Synthetic\ndescription: Synthetic test.\ncriteria:\n  - id: C1\n    assertion: Said done\n    verification: pattern\n    check: done\n')
+    trajectory = original / 'CLI-001_offline_42_t1.json'
+    trajectory.write_text(json.dumps({'task_id': 'CLI-001', 'model': 'offline', 'seed': 42,
+        'system_prompt': 'Synthetic', 'turns': [], 'criteria_results': [], 'reward': 0.0,
+        'passed': False, 'safety_gate_passed': True, 'timestamp': '2026-09-30T00:00:00Z'}))
+    existing = grades / (trajectory.stem + '_grading.json' if collision == 'grade' else 'evaluation_summary.json')
+    existing.write_bytes(b'prior synthetic grading evidence\n')
+    before = {str(p.relative_to(case)): hashlib.sha256(p.read_bytes()).hexdigest() for p in case.rglob('*') if p.is_file()}
+    command = [str(ROOT / '.venv/bin/python'), '-m', 'healthcraft.llm.evaluator',
+               '--trajectory', str(trajectory), '--tasks-dir', str(tasks), '--output-dir', str(grades)]
+    result = subprocess.run(command, cwd=ROOT, env={'PATH': '/usr/bin:/bin', 'PYTHONPATH': str(ROOT / 'src'), 'PYTHONDONTWRITEBYTECODE': '1'}, capture_output=True, text=True)
+    after = {str(p.relative_to(case)): hashlib.sha256(p.read_bytes()).hexdigest() for p in case.rglob('*') if p.is_file()}
+    assert result.returncode == 2 and not result.stdout
+    assert 'Output already exists' in result.stderr and 'fresh --output-dir' in result.stderr
+    assert 'No API key' not in result.stderr and before == after
+    (OUT / (collision + '.stderr.log')).write_text(result.stderr)
+    records.append({'collision': collision, 'command': command, 'exit_code': result.returncode,
+                    'inputs_and_previous_output_unchanged': before == after, 'input_sha256': before})
+assert hashlib.sha256(source.read_bytes()).hexdigest() == source_hash
+receipt = {'source_sha256': source_hash, 'invocations': records, 'provider_credentials': 'none; minimal subprocess environment',
+           'model_calls': 0, 'note': 'No judge construction: real CLI refused occupied output before API-key resolution.'}
+(OUT / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+print(json.dumps({'directory': str(OUT), 'cases': len(records)}))

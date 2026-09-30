@@ -1,0 +1,83 @@
+FFF.                                                                     [100%]
+=================================== FAILURES ===================================
+____ test_verifier_failure_after_real_execution_is_not_a_preparation_error _____
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-312/test_verifier_failure_after_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107e05810>
+
+    def test_verifier_failure_after_real_execution_is_not_a_preparation_error(tmp_path, monkeypatch):
+        import healthcraft.reconciliation.oracle as oracle
+    
+        one_reference(monkeypatch)
+    
+        def unavailable(*args, **kwargs):
+            raise RuntimeError("Independent verifier failed after execution")
+    
+        monkeypatch.setattr(oracle, "verify_reconciliation", unavailable)
+        directory = tmp_path / "grader-failure"
+        bundle = bundle_module.run_development_suite(directory)
+        evidence = json.loads((directory / "reference/evidence.json").read_text())
+        assert evidence["completion"]["status"] == "completed"
+        assert len(evidence["after"]["entities"]["clinical_note"]) == 1
+        assert len(evidence["calls"]) > 0
+        assert len(bundle["trials"]) == len(bundle["roster"]) == 1
+        assert bundle["trials"][0]["verification"] is None
+>       assert bundle["trials"][0]["status"] != "preparation_error"
+E       AssertionError: assert 'preparation_error' != 'preparation_error'
+
+tests/test_reconciliation/test_execution_review.py:31: AssertionError
+_____________ test_source_drift_is_visible_to_static_report_reader _____________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-312/test_source_drift_is_visible_t0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107e05220>
+
+    def test_source_drift_is_visible_to_static_report_reader(tmp_path, monkeypatch):
+        one_reference(monkeypatch)
+        captured = iter([{"fixture.py": "before"}, {"fixture.py": "after"}])
+        monkeypatch.setattr(bundle_module, "_hashes", lambda: next(captured))
+        directory = tmp_path / "drift"
+        bundle = bundle_module.run_development_suite(directory)
+        assert bundle["sources_unchanged"] is False
+        assert bundle["trials"][0]["verification"]["mechanical_passed"] is True
+        report = (directory / "report.html").read_text()
+>       assert "Source identity changed" in report
+E       assert 'Source identity changed' in '<!doctype html>\n<html lang="en"><meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-sc...cords file hashes; hashes are not execution attestations.\nVisual browser QA is not recorded.</footer>\n</main></html>'
+
+tests/test_reconciliation/test_execution_review.py:43: AssertionError
+___________ test_initial_source_hashes_survive_finalization_failure ____________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-312/test_initial_source_hashes_sur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107e2e8d0>
+
+    def test_initial_source_hashes_survive_finalization_failure(tmp_path, monkeypatch):
+        one_reference(monkeypatch)
+        initial = {"fixture.py": "source-identity-before-the-only-trial"}
+        reads = 0
+    
+        def hashes():
+            nonlocal reads
+            reads += 1
+            if reads == 1:
+                return initial
+            raise OSError("Final source identity capture failed")
+    
+        monkeypatch.setattr(bundle_module, "_hashes", hashes)
+        directory = tmp_path / "finalization-failure"
+        with pytest.raises(OSError, match="Final source identity"):
+            bundle_module.run_development_suite(directory)
+        # Real completed action evidence is already durable; its execution-time
+        # code identity must not have existed solely in lost coordinator memory.
+        evidence = json.loads((directory / "reference/evidence.json").read_text())
+        assert evidence["completion"]["status"] == "completed"
+        assert (directory / "reference/trial.json").is_file()
+        json_files = list(directory.rglob("*.json"))
+>       assert any(initial["fixture.py"] in path.read_text() for path in json_files)
+E       assert False
+E        +  where False = any(<generator object test_initial_source_hashes_survive_finalization_failure.<locals>.<genexpr> at 0x107f690e0>)
+
+tests/test_reconciliation/test_execution_review.py:68: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_execution_review.py::test_verifier_failure_after_real_execution_is_not_a_preparation_error
+FAILED tests/test_reconciliation/test_execution_review.py::test_source_drift_is_visible_to_static_report_reader
+FAILED tests/test_reconciliation/test_execution_review.py::test_initial_source_hashes_survive_finalization_failure
+3 failed, 1 passed in 0.09s

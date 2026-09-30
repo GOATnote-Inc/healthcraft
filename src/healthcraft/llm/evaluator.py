@@ -42,8 +42,9 @@ from pathlib import Path
 from typing import Any
 
 from healthcraft.llm.agent import create_client
+from healthcraft.llm.checkpoint import selected_trajectory_paths
 from healthcraft.llm.judge import LLMJudge
-from healthcraft.tasks.loader import Task, load_task
+from healthcraft.tasks.loader import Task, load_task, require_task_criteria
 from healthcraft.tasks.rubrics import (
     Criterion,
     CriterionResult,
@@ -118,9 +119,66 @@ class GradingResult:
         return json.dumps(self.to_dict(), indent=indent, default=str)
 
     def save(self, path: Path) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.to_json(), encoding="utf-8")
+        _require_new_output(path)
+        _write_new_output(path, self.to_json())
         return path
+
+
+def _grading_path(trajectory_path: Path, output_dir: Path | None) -> Path:
+    return (output_dir or trajectory_path.parent) / f"{trajectory_path.stem}_grading.json"
+
+
+def _require_new_output(path: Path) -> None:
+    """Check a planned destination without creating any directory or file."""
+    try:
+        path.lstat()  # Unlike exists(), this also detects dangling symlinks.
+    except FileNotFoundError:
+        pass
+    else:
+        raise FileExistsError(f"Output already exists: {path}. Choose a fresh --output-dir.")
+    for parent in path.parents:
+        try:
+            parent.lstat()
+        except FileNotFoundError:
+            continue
+        if not parent.is_dir():
+            raise NotADirectoryError(
+                f"Output parent is not a directory: {parent}. Choose a fresh --output-dir."
+            )
+        break
+
+
+def _preflight_outputs(
+    trajectory_paths: list[Path], output_dir: Path | None, summary_path: Path
+) -> None:
+    """Reject all known collisions before judging or writing the first grade."""
+    destinations = [_grading_path(path, output_dir) for path in trajectory_paths]
+    destinations.append(summary_path)
+    seen: dict[str, Path] = {}
+    for path in destinations:
+        # Resolve directory symlinks and lexical aliases; casefold additionally
+        # rejects collisions on case-insensitive filesystems before any write.
+        identity = str(path.resolve()).casefold()
+        if identity in seen:
+            raise ValueError(
+                f"Output destinations alias (canonical, case-insensitive comparison): "
+                f"{seen[identity]} and {path}. Choose a fresh --output-dir with unique "
+                "input filenames, or grade these inputs separately."
+            )
+        seen[identity] = path
+        _require_new_output(path)
+
+
+def _write_new_output(path: Path, payload: str) -> None:
+    """Exclusive creation is the final guard against post-preflight races."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(payload)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"Output already exists: {path}. Choose a fresh --output-dir."
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +196,27 @@ def _find_task(task_id: str, tasks_dir: Path) -> Task | None:
         except (ValueError, FileNotFoundError):
             continue
     return None
+
+
+def _preflight_task_rubrics(trajectory_paths: list[Path], tasks_dir: Path) -> None:
+    """Reject an empty selected rubric before constructing a judge or writing grades.
+
+    Missing/corrupt trajectories and unresolved task IDs retain the file
+    evaluator's existing handling. A resolved task with no rubric is an invalid
+    assessment configuration, including when its trajectory is interrupted.
+    """
+    checked: set[str] = set()
+    for path in trajectory_paths:
+        try:
+            trajectory = Trajectory.load(path)
+        except Exception:
+            continue
+        if trajectory.task_id in checked:
+            continue
+        task = _find_task(trajectory.task_id, tasks_dir)
+        if task is not None:
+            require_task_criteria(task)
+        checked.add(trajectory.task_id)
 
 
 def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]:
@@ -178,6 +257,7 @@ def evaluate_trajectory(
     Returns:
         A GradingResult with merged evaluation.
     """
+    require_task_criteria(task)
     criteria = _parse_criteria(task.criteria)
 
     # Index original results by criterion ID
@@ -265,6 +345,8 @@ def evaluate_trajectory_file(
         GradingResult, or None if the trajectory could not be evaluated.
     """
     tasks_dir = tasks_dir or _TASKS_DIR
+    grading_path = _grading_path(trajectory_path, output_dir)
+    _require_new_output(grading_path)
 
     # Load trajectory
     try:
@@ -273,14 +355,15 @@ def evaluate_trajectory_file(
         logger.error("Failed to load trajectory %s: %s", trajectory_path, e)
         return None
 
-    if trajectory.error is not None:
-        logger.warning("Skipping error trajectory %s: %s", trajectory_path, trajectory.error)
-        return None
-
     # Find task definition
     task = _find_task(trajectory.task_id, tasks_dir)
     if task is None:
         logger.error("Task %s not found in %s", trajectory.task_id, tasks_dir)
+        return None
+    require_task_criteria(task)
+
+    if trajectory.error is not None:
+        logger.warning("Skipping error trajectory %s: %s", trajectory_path, trajectory.error)
         return None
 
     # Evaluate
@@ -288,10 +371,6 @@ def evaluate_trajectory_file(
     result.trajectory_path = str(trajectory_path)
 
     # Save grading result
-    if output_dir:
-        grading_path = output_dir / f"{trajectory_path.stem}_grading.json"
-    else:
-        grading_path = trajectory_path.parent / f"{trajectory_path.stem}_grading.json"
     result.save(grading_path)
 
     logger.info(
@@ -441,31 +520,15 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level, logging.INFO))
 
-    # Resolve judge model and key
-    judge_model = args.judge_model or "gpt-5.4"
-    judge_key = args.judge_key or _resolve_api_key(judge_model)
-    if not judge_key:
-        logger.error("No API key for judge model. Set --judge-key or env var.")
-        sys.exit(1)
-
     tasks_dir = Path(args.tasks_dir) if args.tasks_dir else _TASKS_DIR
     output_dir = Path(args.output_dir) if args.output_dir else None
-
-    # Create judge with skepticism tuning
-    judge = create_skeptical_judge(judge_model, judge_key, args.skepticism)
-
-    logger.info(
-        "Standalone evaluator: judge=%s, skepticism=%s",
-        judge_model,
-        args.skepticism,
-    )
 
     # Collect trajectories
     if args.trajectory:
         traj_paths = [Path(args.trajectory)]
     else:
         traj_dir = Path(args.trajectory_dir)
-        traj_paths = sorted(traj_dir.rglob("*.json"))
+        traj_paths = selected_trajectory_paths(traj_dir)
         # Exclude grading result files
         traj_paths = [p for p in traj_paths if not p.stem.endswith("_grading")]
 
@@ -473,18 +536,46 @@ def main() -> None:
         logger.error("No trajectory files found")
         sys.exit(1)
 
+    try:
+        _preflight_task_rubrics(traj_paths, tasks_dir)
+        summary_dir = output_dir or (
+            Path(args.trajectory).parent if args.trajectory else Path(args.trajectory_dir)
+        )
+        summary_path = summary_dir / "evaluation_summary.json"
+        _preflight_outputs(traj_paths, output_dir, summary_path)
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
+
+    # Resolve/create a judge only after every selected known rubric validates.
+    judge_model = args.judge_model or "gpt-5.4"
+    judge_key = args.judge_key or _resolve_api_key(judge_model)
+    if not judge_key:
+        logger.error("No API key for judge model. Set --judge-key or env var.")
+        sys.exit(1)
+    judge = create_skeptical_judge(judge_model, judge_key, args.skepticism)
+    logger.info(
+        "Standalone evaluator: judge=%s, skepticism=%s",
+        judge_model,
+        args.skepticism,
+    )
+
     logger.info("Evaluating %d trajectories", len(traj_paths))
 
     # Evaluate
     results: list[GradingResult] = []
     for traj_path in traj_paths:
-        result = evaluate_trajectory_file(
-            traj_path,
-            judge,
-            tasks_dir=tasks_dir,
-            skepticism=args.skepticism,
-            output_dir=output_dir,
-        )
+        try:
+            result = evaluate_trajectory_file(
+                traj_path,
+                judge,
+                tasks_dir=tasks_dir,
+                skepticism=args.skepticism,
+                output_dir=output_dir,
+            )
+        except OSError as exc:
+            # Earlier newly created grades remain evidence; a batch is not a
+            # transaction, and no previous output is removed or replaced.
+            parser.error(f"Could not save grading output: {exc}")
         if result:
             results.append(result)
 
@@ -499,6 +590,26 @@ def main() -> None:
 
         # Compute reward delta
         changed = sum(1 for r in results if abs(r.reward - r.original_reward) > 0.001)
+
+        # Write summary
+        summary = {
+            "judge_model": judge_model,
+            "skepticism": args.skepticism,
+            "total_evaluated": total,
+            "passed": passed,
+            "pass_rate": round(passed / total, 4),
+            "avg_reward": round(avg_reward, 4),
+            "original_passed": orig_passed,
+            "original_pass_rate": round(orig_passed / total, 4),
+            "original_avg_reward": round(orig_avg_reward, 4),
+            "safety_failures": safety_fails,
+            "reward_changed_count": changed,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            _write_new_output(summary_path, json.dumps(summary, indent=2))
+        except OSError as exc:
+            parser.error(f"Could not save grading summary: {exc}")
 
         logger.info("=" * 60)
         logger.info("STANDALONE EVALUATION COMPLETE")
@@ -517,27 +628,6 @@ def main() -> None:
         logger.info("  Safety failures: %d", safety_fails)
         logger.info("  Reward changed: %d/%d trajectories", changed, total)
         logger.info("=" * 60)
-
-        # Write summary
-        summary = {
-            "judge_model": judge_model,
-            "skepticism": args.skepticism,
-            "total_evaluated": total,
-            "passed": passed,
-            "pass_rate": round(passed / total, 4),
-            "avg_reward": round(avg_reward, 4),
-            "original_passed": orig_passed,
-            "original_pass_rate": round(orig_passed / total, 4),
-            "original_avg_reward": round(orig_avg_reward, 4),
-            "safety_failures": safety_fails,
-            "reward_changed_count": changed,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        summary_dir = output_dir or (
-            Path(args.trajectory).parent if args.trajectory else Path(args.trajectory_dir)
-        )
-        summary_path = Path(summary_dir) / "evaluation_summary.json"
-        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         logger.info("Summary written to %s", summary_path)
 
         print(json.dumps(summary, indent=2))

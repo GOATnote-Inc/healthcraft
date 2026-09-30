@@ -14,6 +14,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+VALID_RUBRIC_CHANNELS: frozenset[str] = frozenset({"v8", "v9", "v10", "v11"})
+
+
+def validate_rubric_channel(channel: str) -> None:
+    """Reject typos instead of silently evaluating a different rubric."""
+    if not isinstance(channel, str) or channel not in VALID_RUBRIC_CHANNELS:
+        raise ValueError(
+            f"Invalid rubric_channel: {channel!r}. "
+            f"Must be one of {', '.join(sorted(VALID_RUBRIC_CHANNELS))}."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Layer 1: Binary criteria (PRIMARY — reward computation)
 # ---------------------------------------------------------------------------
@@ -45,11 +57,17 @@ class Criterion:
 
 @dataclass(frozen=True)
 class CriterionResult:
-    """Result of evaluating a single criterion."""
+    """Result of evaluating a single criterion.
+
+    ``error`` distinguishes unavailable or malformed grading evidence from a
+    valid negative verdict. Consumers must not count an errored result as a
+    clinical judgment, regardless of the legacy ``satisfied`` field.
+    """
 
     criterion_id: str
     satisfied: bool
     evidence: str = ""
+    error: str | None = None
 
 
 def compute_reward(

@@ -1,0 +1,27 @@
+"""Offline, synthetic blank imports of actual frozen tutorial packets only."""
+import datetime,hashlib,json,socket,ssl
+from pathlib import Path
+from healthcraft.operator_review import import_operator_response
+ROOT=Path('/Users/kiteboard/healthcraft')
+BASE=ROOT/'artifacts/reconciliation/20260930/operator-review-tutorial-v1'
+OUT=Path('/private/tmp/healthcraft-operator-peer/actual-tutorial-check')
+OUT.mkdir(exist_ok=False)
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def snapshot(p):return{str(f.relative_to(p)):sha(f)for f in p.rglob('*')if f.is_file()}
+def blocked(*args,**kwargs):raise AssertionError('No network permitted')
+socket.socket=blocked;socket.create_connection=blocked
+before=snapshot(BASE);assert sha(BASE/'manifest.json')=='b7e76ecd7437ba905a2d882a9817d6be955d2f27254a982ec8d7995ebb91f628'
+results=[]
+for mode in ['raw','assisted']:
+ packet=BASE/mode
+ result=import_operator_response(packet/'manifest.json',packet/'response-template.json',OUT/(mode+'-synthetic-blank-import'))
+ p=json.loads((packet/'packet.json').read_bytes())
+ assert result['status']=='recorded' and result['counts']['assigned_cases']==4 and result['counts']['assigned_axes']==24 and result['counts']['pending_cases']==4 and result['counts']['pending_axes']==24
+ assert result['counts']['submitted_cases']==0 and result['counts']['assessed_axes']==0 and result['counts']['unassessed_axes']==0
+ assert len({c['scenario_family_id']for c in p['cases']})==1
+ assert all(a['status']=='pending'for c in result['cases']for a in c['axes'])
+ results.append({'presentation':mode,'packet_sha256':result['packet_sha256'],'assignment_id':result['assignment_id'],'status':result['status'],'counts':result['counts'],'scenario_families':1,'synthetic_blank_test_only':True})
+after=snapshot(BASE);assert before==after
+report={'recorded_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'scope':'Independent ordinary integration check of two actual tutorial packets using their blank templates; not participant responses.','artifact_manifest_sha256':sha(BASE/'manifest.json'),'artifact_files':len(before),'original_bytes_unchanged':before==after,'checks':results,'source_sha256':{f:sha(ROOT/f)for f in ['src/healthcraft/operator_review.py','src/healthcraft/operator_review_report.py']},'no_browser_model_network_or_tool_calls':True,'limitations':['Recorded import status establishes contract consistency only; all24axes remainpending for each packet.','Four attempts share one exposed scenario; these are not eight independent cases or two human participants.']}
+(OUT/'receipt.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps({'artifact_files':len(before),'original_bytes_unchanged':True,'packet_checks':results},indent=2))

@@ -1,0 +1,37 @@
+from pathlib import Path
+from contextlib import redirect_stdout
+from unittest.mock import patch
+from types import SimpleNamespace
+import hashlib,io,json,tempfile
+from healthcraft import cli
+from healthcraft.llm import orchestrator as orch
+from healthcraft.trajectory import Trajectory
+base=Path('/private/tmp/healthcraft-cohort-selection-audit')
+work=Path(tempfile.mkdtemp(prefix='ordinary-rubric-failure-',dir=base))
+tasks=work/'tasks';tasks.mkdir()
+(tasks/'task.yaml').write_text('''id: AUDIT-001
+category: clinical_reasoning
+level: 1
+title: Offline output check
+description: Emit the requested marker.
+criteria:
+  - id: AUDIT-001-C01
+    assertion: Output includes the requested marker.
+    verification: pattern
+    dimension: documentation_quality
+    check: EXPECTED-MARKER
+''')
+def agent(client,task,server,prompt):
+ t=Trajectory(task_id=task.id,model='offline',seed=42,system_prompt=prompt)
+ t.add_turn('assistant','different text')
+ t.metadata.update(stop_reason='stop',termination_kind='complete')
+ return t
+stdout=io.StringIO()
+with patch.object(orch,'_api_preflight'), patch.object(orch,'create_client',return_value=SimpleNamespace(_model='offline')), patch.object(orch,'run_agent_task',agent), patch.object(orch,'environment_digest',return_value='offline-fixture-environment'), patch.object(orch,'_resolve_api_key',return_value=''),redirect_stdout(stdout):
+ exitcode=cli.main(['evaluate','--agent-model','ollama:offline','--tasks','all','--trials','1','--tasks-dir',str(tasks),'--results-dir',str(work/'output')])
+summary=json.loads(stdout.getvalue())
+traj=json.loads(next((work/'output').glob('trajectories/**/*.json')).read_text())
+assert summary['error_runs']==0 and summary['total_runs']==1 and summary['total_passed']==0 and summary['grading_complete'] is True and exitcode==0
+assert traj['error'] is None and traj['criteria_results'][0]['satisfied'] is False
+(base/'ordinary-rubric-failure-control.json').write_text(json.dumps({'exit_code':exitcode,'summary':summary,'trajectory_error':traj['error'],'criterion':traj['criteria_results'],'model_calls':0,'control_note':'Ordinary completed synthetic pattern failure; not a clinical judgement','input_sha256':hashlib.sha256((tasks/'task.yaml').read_bytes()).hexdigest()},indent=2)+'\n')
+print(json.dumps({'exit_code':exitcode,'error_runs':summary['error_runs'],'passed':traj['passed'],'trajectory_error':traj['error'],'grading_complete':summary['grading_complete']}))

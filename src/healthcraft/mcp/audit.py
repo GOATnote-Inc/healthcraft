@@ -6,6 +6,7 @@ to provide a complete audit trail for evaluation and safety review.
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -57,7 +58,7 @@ class AuditLogger:
             timestamp: When the call occurred. Defaults to now (UTC).
 
         Returns:
-            The created AuditEntry.
+            An isolated copy of the created AuditEntry.
         """
         ts = timestamp or datetime.now(timezone.utc)
         ts_str = ts.isoformat() if isinstance(ts, datetime) else str(ts)
@@ -76,7 +77,7 @@ class AuditLogger:
             session_id=self._session_id,
         )
         self._entries.append(entry)
-        return entry
+        return copy.deepcopy(entry)
 
     def get_audit_trail(self, session_id: str | None = None) -> list[AuditEntry]:
         """Retrieve audit entries, optionally filtered by session.
@@ -85,11 +86,11 @@ class AuditLogger:
             session_id: If provided, filter to this session only.
 
         Returns:
-            List of matching AuditEntry instances.
+            Isolated copies of matching AuditEntry instances.
         """
         if session_id is None:
-            return list(self._entries)
-        return [e for e in self._entries if e.session_id == session_id]
+            return copy.deepcopy(self._entries)
+        return copy.deepcopy([e for e in self._entries if e.session_id == session_id])
 
     def to_json(self, session_id: str | None = None) -> str:
         """Export audit trail as a JSON string.
@@ -123,12 +124,12 @@ def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
         params: Raw parameter dict.
 
     Returns:
-        Sanitized copy of the params.
+        Sanitized deep snapshot of the params.
     """
     sanitized: dict[str, Any] = {}
     for key, value in params.items():
         if isinstance(value, str) and len(value) > 500:
             sanitized[key] = value[:500] + "...[truncated]"
         else:
-            sanitized[key] = value
+            sanitized[key] = copy.deepcopy(value)
     return sanitized

@@ -8,14 +8,14 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy project files
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md LICENSE constraints-security.txt ./
 COPY src/ ./src/
 # Bake the world seed config into the image so it boots standalone (the
 # docker-compose bind-mount of ../configs is only a local-dev override).
 COPY configs/ ./configs/
 
 # Install healthcraft with MCP and Docker dependencies
-RUN pip install --no-cache-dir -e ".[mcp,docker]"
+RUN pip install --no-cache-dir -c constraints-security.txt -e ".[mcp,docker]"
 
 # Run as non-root (matches the agents-assemble image).
 RUN useradd --create-home --uid 10001 healthcraft

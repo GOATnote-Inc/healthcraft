@@ -1,5 +1,14 @@
 # Grader Fidelity Audit — 2026-05-31
 
+> Provenance correction, 2026-09-30: the repository does not establish
+> independent physician adjudication of the grader fixtures. The terms
+> “EM panel” and “EM-adjudicated” in this historical account must not be read
+> as verified clinician review. The current suite contains 47 synthetic audit
+> fixtures and eight canned judge-parser replies, with unchanged expected
+> labels. See [current validity findings](TASK_VALIDITY_FINDINGS.md) and the
+> [independent review workflow](CLINICAL_REVIEW.md). Their mechanical regression
+> results do not measure clinical calibration or population safety.
+
 > Status: corrections landed (PR #14 + this PR). Re-grade quantification and the
 > reproducibility lock are tracked as follow-ups below. This is a living record;
 > refine it as the gold-set harness produces measured FP/FN rates.

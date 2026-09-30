@@ -33,9 +33,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from healthcraft.llm.checkpoint import selected_experiment_entries
 from healthcraft.llm.judge import select_judge_model
 from healthcraft.llm.sprint_contract import SprintContract
 from healthcraft.tasks.loader import Task, load_task, load_tasks
+from healthcraft.trajectory import is_unassessed_experiment
 
 logger = logging.getLogger("healthcraft.planner")
 
@@ -56,6 +58,7 @@ class TaskPlan:
     contract: SprintContract
     trials: int
     seed: int
+    system_prompt_append: str | None = None
 
 
 @dataclass
@@ -118,19 +121,28 @@ def _load_historical_pass_rates(results_dir: Path) -> dict[str, float]:
     if not exp_path.exists():
         return {}
 
-    task_results: dict[str, list[bool]] = {}
+    entries = []
     for line in exp_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            entry = json.loads(line)
-            tid = entry.get("task_id", "")
-            passed = entry.get("passed", False)
-            if tid:
-                task_results.setdefault(tid, []).append(passed)
+            entries.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+
+    task_results: dict[str, list[bool]] = {}
+    for entry in selected_experiment_entries(entries):
+        tid = entry.get("task_id", "")
+        if is_unassessed_experiment(entry):
+            logger.warning(
+                "Excluding unassessed experiment for %s from historical pass rates (%s)",
+                tid or "unknown task",
+                entry.get("trajectory_path", "path not recorded"),
+            )
+            continue
+        if tid:
+            task_results.setdefault(tid, []).append(entry.get("passed", False))
 
     return {tid: sum(results) / len(results) for tid, results in task_results.items() if results}
 
@@ -225,6 +237,7 @@ def plan_evaluation(
                 contract=contract,
                 trials=trials,
                 seed=seed,
+                system_prompt_append=task.system_prompt_append,
             )
         )
 

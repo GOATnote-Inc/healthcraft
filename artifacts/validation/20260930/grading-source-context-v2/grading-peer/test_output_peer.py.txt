@@ -1,0 +1,232 @@
+"""Offline independent output-preservation checks; ordinary regression review."""
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+from healthcraft.llm import evaluator
+from healthcraft.tasks.loader import load_task
+from healthcraft.trajectory import CriterionEvalResult, Trajectory
+
+
+class NoCallJudge:
+    _judge_model = 'offline-peer-fixture'
+    def evaluate_criterion(self, *args, **kwargs):
+        pytest.fail('This deterministic peer fixture must not invoke a judge')
+
+
+def forbidden(*args, **kwargs):
+    pytest.fail('Existing output crossed the provider/grading boundary')
+
+
+def fixture(root, identifier='PEER-001', *, subdir='originals', filename=None):
+    tasks = root / 'tasks'; tasks.mkdir(exist_ok=True)
+    task_path = tasks / f'{identifier}.yaml'
+    if not task_path.exists():
+        row = {'id':identifier,'category':'clinical_reasoning','level':1,'title':'Synthetic output preservation','description':'Emit a synthetic token.','criteria':[{'id':identifier+'-C1','assertion':'Synthetic token recorded','verification':'pattern','dimension':'documentation_quality','check':'done'}]}
+        task_path.write_text(yaml.safe_dump(row))
+    task = load_task(task_path)
+    trajectory = Trajectory(task.id, 'offline-peer-fixture', 42, 'Synthetic fixture only')
+    trajectory.add_turn('assistant', 'done')
+    trajectory.criteria_results = [CriterionEvalResult(task.id+'-C1', True, 'Saved synthetic verdict')]
+    trajectory.reward = 1.0; trajectory.passed = True
+    path = root / subdir / (filename or f'{identifier}_offline_42_t1.json')
+    trajectory.save(path)
+    return task, trajectory, path
+
+
+def snapshot(root):
+    values = {}
+    for path in root.rglob('*'):
+        relative = str(path.relative_to(root))
+        if path.is_symlink():
+            values[relative] = ('symlink', os.readlink(path))
+        elif path.is_file():
+            values[relative] = ('file', path.read_bytes())
+        elif path.is_dir():
+            values[relative] = ('directory',)
+    return values
+
+
+def run_cli(monkeypatch, originals, tasks, output):
+    monkeypatch.setattr(sys, 'argv', ['evaluator','--trajectory-dir',str(originals),'--tasks-dir',str(tasks),'--output-dir',str(output),'--judge-key','offline-placeholder','--judge-model','offline-peer-fixture'])
+    return evaluator.main()
+
+
+def assert_cli_rejected(function):
+    with pytest.raises((ValueError, FileExistsError, SystemExit)) as result:
+        function()
+    if isinstance(result.value, SystemExit):
+        assert result.value.code != 0
+
+
+@pytest.mark.parametrize('kind', ['file', 'directory', 'dangling_link'])
+def test_direct_save_preserves_existing_path(tmp_path, kind):
+    task, trajectory, _ = fixture(tmp_path)
+    grade = evaluator.evaluate_trajectory(trajectory, task, NoCallJudge())
+    destination = tmp_path / 'grade.json'
+    if kind == 'file':
+        destination.write_bytes(b'original grade bytes\n')
+    elif kind == 'directory':
+        destination.mkdir()
+    else:
+        destination.symlink_to(tmp_path/'missing-target.json')
+    before = snapshot(tmp_path)
+    with pytest.raises((FileExistsError, ValueError, IsADirectoryError)):
+        grade.save(destination)
+    assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('alongside', [False, True])
+def test_file_collision_precedes_grading_and_preserves_inputs(monkeypatch, tmp_path, alongside):
+    _, _, original = fixture(tmp_path)
+    output = original.parent if alongside else tmp_path/'grading'
+    output.mkdir(exist_ok=True)
+    (output/(original.stem+'_grading.json')).write_bytes(b'original derived evidence')
+    before = snapshot(tmp_path)
+    monkeypatch.setattr(evaluator, 'evaluate_trajectory', forbidden)
+    with pytest.raises((FileExistsError, ValueError)):
+        evaluator.evaluate_trajectory_file(original, NoCallJudge(), tasks_dir=tmp_path/'tasks', output_dir=None if alongside else output)
+    assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('collision', ['first_grade', 'later_grade', 'summary'])
+def test_cli_all_outputs_checked_before_provider_or_first_write(monkeypatch, tmp_path, collision):
+    _, _, first = fixture(tmp_path, 'PEER-001')
+    _, _, later = fixture(tmp_path, 'PEER-002')
+    output = tmp_path/'grading'; output.mkdir()
+    name = {'first_grade':first.stem+'_grading.json','later_grade':later.stem+'_grading.json','summary':'evaluation_summary.json'}[collision]
+    (output/name).write_bytes(b'previous evidence stays byte-identical')
+    before = snapshot(tmp_path)
+    monkeypatch.setattr(evaluator, 'create_skeptical_judge', forbidden)
+    monkeypatch.setattr(evaluator, 'evaluate_trajectory', forbidden)
+    assert_cli_rejected(lambda:run_cli(monkeypatch, first.parent, tmp_path/'tasks', output))
+    assert snapshot(tmp_path) == before
+
+
+def test_duplicate_flat_destination_mapping_rejects_before_provider(monkeypatch, tmp_path):
+    fixture(tmp_path, 'PEER-001', subdir='originals/one', filename='same_offline_42_t1.json')
+    fixture(tmp_path, 'PEER-002', subdir='originals/two', filename='same_offline_42_t1.json')
+    output = tmp_path/'grading'
+    before = snapshot(tmp_path)
+    monkeypatch.setattr(evaluator, 'create_skeptical_judge', forbidden)
+    assert_cli_rejected(lambda:run_cli(monkeypatch, tmp_path/'originals', tmp_path/'tasks', output))
+    assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('target', ['grade', 'summary'])
+def test_cli_dangling_destination_symlink_is_collision(monkeypatch, tmp_path, target):
+    _, _, original = fixture(tmp_path)
+    output = tmp_path/'grading'; output.mkdir()
+    name = original.stem+'_grading.json' if target=='grade' else 'evaluation_summary.json'
+    (output/name).symlink_to(tmp_path/'missing-evidence.json')
+    before = snapshot(tmp_path)
+    monkeypatch.setattr(evaluator, 'create_skeptical_judge', forbidden)
+    assert_cli_rejected(lambda:run_cli(monkeypatch, original.parent, tmp_path/'tasks', output))
+    assert snapshot(tmp_path)==before
+    assert not (tmp_path/'missing-evidence.json').exists()
+
+
+def test_late_grade_writer_wins_without_overwrite(monkeypatch, tmp_path):
+    _, _, original = fixture(tmp_path)
+    output = tmp_path/'grading'; destination=output/(original.stem+'_grading.json')
+    original_bytes=original.read_bytes()
+    actual = evaluator.evaluate_trajectory
+    winner=b'concurrent writer owns this path'
+    def grade_then_race(*args, **kwargs):
+        result=actual(*args, **kwargs)
+        destination.parent.mkdir(exist_ok=True)
+        destination.write_bytes(winner)
+        return result
+    monkeypatch.setattr(evaluator, 'evaluate_trajectory', grade_then_race)
+    with pytest.raises((FileExistsError, ValueError)):
+        evaluator.evaluate_trajectory_file(original, NoCallJudge(), tasks_dir=tmp_path/'tasks', output_dir=output)
+    assert destination.read_bytes()==winner
+    assert original.read_bytes()==original_bytes
+
+
+def test_late_summary_writer_wins_without_overwrite(monkeypatch, tmp_path):
+    _, _, original=fixture(tmp_path)
+    output=tmp_path/'grading'; summary=output/'evaluation_summary.json'
+    actual = evaluator.evaluate_trajectory_file
+    winner=b'concurrent summary retained'
+    def grade_then_race(*args, **kwargs):
+        result=actual(*args, **kwargs)
+        summary.write_bytes(winner)
+        return result
+    monkeypatch.setattr(evaluator, 'create_skeptical_judge', lambda *args:NoCallJudge())
+    monkeypatch.setattr(evaluator, 'evaluate_trajectory_file', grade_then_race)
+    with pytest.raises((FileExistsError, ValueError, SystemExit)) as error:
+        run_cli(monkeypatch, original.parent, tmp_path/'tasks', output)
+    if isinstance(error.value,SystemExit):assert error.value.code!=0
+    assert summary.read_bytes()==winner
+    # Earlier exclusively written grade may remain: no cohort atomicity claim.
+    saved=json.loads((output/(original.stem+'_grading.json')).read_text())
+    assert saved['task_id']=='PEER-001'
+
+
+@pytest.mark.parametrize('alongside',[False,True])
+def test_fresh_file_grading_preserves_input_and_unrelated_files(tmp_path, alongside):
+    _, _, original=fixture(tmp_path)
+    original_bytes=original.read_bytes()
+    output=original.parent if alongside else tmp_path/'grading'
+    output.mkdir(exist_ok=True)
+    sentinel=output/'unrelated.txt'; sentinel.write_bytes(b'keep unrelated evidence')
+    result=evaluator.evaluate_trajectory_file(original,NoCallJudge(),tasks_dir=tmp_path/'tasks',output_dir=None if alongside else output)
+    saved=json.loads((output/(original.stem+'_grading.json')).read_text())
+    assert saved==result.to_dict()
+    assert saved['passed'] is True and saved['reward']==1.0
+    assert original.read_bytes()==original_bytes
+    assert sentinel.read_bytes()==b'keep unrelated evidence'
+
+
+def test_fresh_cli_writes_grade_and_summary_once(monkeypatch,tmp_path,capsys):
+    _, _, original=fixture(tmp_path)
+    original_bytes=original.read_bytes()
+    output=tmp_path/'grading'; calls=[]
+    monkeypatch.setattr(evaluator,'create_skeptical_judge',lambda *args:calls.append(args) or NoCallJudge())
+    run_cli(monkeypatch,original.parent,tmp_path/'tasks',output)
+    emitted=json.loads(capsys.readouterr().out)
+    saved=json.loads((output/'evaluation_summary.json').read_text())
+    assert emitted==saved and saved['total_evaluated']==1
+    assert len(calls)==1
+    assert original.read_bytes()==original_bytes
+    assert json.loads((output/(original.stem+'_grading.json')).read_text())['passed'] is True
+
+
+@pytest.mark.parametrize('kind',['file','dangling_link'])
+def test_known_non_directory_output_parent_rejected_before_provider(monkeypatch,tmp_path,kind):
+    _,_,original=fixture(tmp_path)
+    parent=tmp_path/'not-directory'
+    if kind=='file':parent.write_bytes(b'existing non-directory')
+    else:parent.symlink_to(tmp_path/'absent-directory')
+    output=parent/'grading'
+    before=snapshot(tmp_path)
+    monkeypatch.setattr(evaluator,'create_skeptical_judge',forbidden)
+    assert_cli_rejected(lambda:run_cli(monkeypatch,original.parent,tmp_path/'tasks',output))
+    assert snapshot(tmp_path)==before
+
+
+def test_unique_output_directory_symlink_is_allowed(tmp_path):
+    _,_,original=fixture(tmp_path)
+    actual=tmp_path/'actual-grades'; actual.mkdir()
+    alias=tmp_path/'linked-grades'; alias.symlink_to(actual,target_is_directory=True)
+    result=evaluator.evaluate_trajectory_file(original,NoCallJudge(),tasks_dir=tmp_path/'tasks',output_dir=alias)
+    assert result.passed is True
+    assert alias.is_symlink()
+    assert json.loads((actual/(original.stem+'_grading.json')).read_text())==result.to_dict()
+
+
+def test_case_only_flat_destination_alias_rejects_before_provider(monkeypatch,tmp_path):
+    fixture(tmp_path,'PEER-001',subdir='originals/one',filename='same_offline_42_t1.json')
+    fixture(tmp_path,'PEER-002',subdir='originals/two',filename='SAME_offline_42_t1.json')
+    output=tmp_path/'grading'
+    before=snapshot(tmp_path)
+    monkeypatch.setattr(evaluator,'create_skeptical_judge',forbidden)
+    assert_cli_rejected(lambda:run_cli(monkeypatch,tmp_path/'originals',tmp_path/'tasks',output))
+    assert snapshot(tmp_path)==before

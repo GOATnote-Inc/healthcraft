@@ -1,0 +1,14 @@
+from pathlib import Path
+import hashlib,importlib.util,json,tempfile
+from healthcraft import operator_incidents as incident,operator_adjudication as adj
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-adjudication-peer')
+spec=importlib.util.spec_from_file_location('incident_test_helpers',ROOT/'tests/test_operator_incidents.py');t=importlib.util.module_from_spec(spec);spec.loader.exec_module(t)
+d=Path(tempfile.mkdtemp(prefix='unavailable-',dir=OUT));manifest,attempt=t.source(d,model=True,case='REC2-001')
+(manifest.parent/attempt/'case.json').unlink();t.write(manifest.parent/'cases.json',[]);t.repin(manifest)
+p=incident.build_incident_packet(manifest,d/'operator',expected_sha256=t.sha(manifest),selections={'opaque-1':attempt},protocol=t.PROTOCOL,assignment=t.ASSIGNMENT)
+t.write(d/'response.json',incident.incident_response_template(p))
+r={'operator_packet_issued':True,'source_sha256':hashlib.sha256((ROOT/'src/healthcraft/operator_adjudication.py').read_bytes()).hexdigest(),'family':p['cases'][0]['scenario_family_id'],'scenario_availability':p['cases'][0]['availability']['scenario'],'output':str(d)}
+try:
+ a=adj.build_adjudication_packet(d/'operator/manifest.json',d/'response.json',d/'adjudication',assignment={'assignment_id':'review-1','adjudicator_id':'reviewer-1','role':'initial'});r['accepted']=True;r['assigned_cases']=len(a['cases'])
+except Exception as e:r['accepted']=False;r['error']=f'{type(e).__name__}: {e}'
+(OUT/'final-unavailable-case.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

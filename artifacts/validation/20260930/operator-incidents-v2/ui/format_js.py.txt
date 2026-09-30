@@ -1,0 +1,28 @@
+from pathlib import Path
+p=Path('src/healthcraft/operator_incident_report.py');s=p.read_text();start=s.index('_SCRIPT = r"""')+len('_SCRIPT = r"""');end=s.index('"""',start)
+script=Path('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-622/test_blank_export_is_exact_tem0/app.js').read_text()
+script=script.replace('if(overall==="valid")need(why===null&&judgments.every(j=>j==="supported"),"Valid requires all four checks supported.");', 'if(overall==="valid"){need(why===null&&judgments.every(j=>j==="supported"),"Valid requires all four checks supported.");need(sourcePacket.cases[ci].operator_report_status!=="pending","An unfinished operator report cannot be declared valid.");}')
+parts=[];i=0
+while i<len(script):
+ c=script[i]
+ if c in '\"\'`/':
+  j=i+1;cls=False
+  while j<len(script):
+   if script[j]=='\\': j+=2; continue
+   if c=='/':
+    if script[j]=='[': cls=True
+    elif script[j]==']': cls=False
+   if script[j]==c and not cls: break
+   j+=1
+  assert j<len(script),(i,script[i:i+100])
+  parts.append(script[i:j+1]);i=j+1
+ else:
+  parts.append(c+('\n' if c in '{};,' else ''));i+=1
+lines=[];indent=0
+for line in ''.join(parts).splitlines():
+ line=line.strip()
+ if not line:continue
+ if line.startswith('}'):indent=max(0,indent-1)
+ lines.append('  '*indent+line)
+ if line.endswith('{'):indent+=1
+p.write_text(s[:start]+'\n'+'\n'.join(lines)+'\n'+s[end:])

@@ -1,0 +1,336 @@
+"""Independent operator workflow regression review; no model/browser/network calls."""
+import copy
+import hashlib
+import json
+import shutil
+import socket
+import ssl
+from pathlib import Path
+import pytest
+from healthcraft.operator_review import build_operator_packet, import_operator_response
+from healthcraft.reconciliation.diagnostics import explain_reconciliation
+from healthcraft.reconciliation.oracle import verify_reconciliation
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+BASE=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1'
+PROTOCOL={'protocol_id':'peer-tutorial','purpose':'engineering_tutorial'}
+ASSIGN={'assignment_id':'peer-assignment','reviewer_id':'synthetic-reviewer','presentation':'assisted'}
+
+def encode(x):return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()
+def digest(x):return hashlib.sha256(encode(x)).hexdigest()
+def read(p):return json.loads(p.read_bytes())
+def write(p,x):p.write_bytes(encode(x)+b'\n')
+def snapshot(p):return{str(f.relative_to(p)):f.read_bytes()for f in p.rglob('*')if f.is_file()}
+def source(tmp_path,name='nano-direct-01',dirname='source'):
+ p=tmp_path/dirname;shutil.copytree(BASE/name,p);return p
+
+def build(src,tmp_path,destination=None,mapping=None):
+ dest=destination or tmp_path/'packet'
+ packet=build_operator_packet(mapping or {'case-a':src},dest,protocol=PROTOCOL,assignment=ASSIGN)
+ return dest,packet
+
+def answer(response,index=0,axis=0,judgment='yes',ref=None):
+ row=response['cases'][index]['axes'][axis]
+ row.update(judgment=judgment,unassessed_reason='reviewer_abstention' if judgment=='unassessed' else None,rationale='Synthetic manual response; no correctness assertion.')
+ row['evidence_refs']=[ref or {'document':'evidence','pointer':'/completion'}]
+
+def submit(packet,tmp_path,response=None,raw=None,dest=None):
+ p=tmp_path/'response.json';p.write_bytes(raw if raw is not None else encode(response))
+ return import_operator_response(packet/'manifest.json',p,dest or tmp_path/'receipt')
+
+def rehash(root):
+ p=root/'manifest.json';m=read(p);m['files']={k:hashlib.sha256(v).hexdigest()for k,v in snapshot(root).items()if k!='manifest.json'}
+ if 'manifest_sha256'in m:
+  del m['manifest_sha256'];m['manifest_sha256']=digest(m)
+ write(p,m)
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+ def no(*args,**kwargs):raise AssertionError('Network forbidden in operator peer tests')
+ monkeypatch.setattr(socket,'socket',no);monkeypatch.setattr(socket,'create_connection',no)
+
+@pytest.mark.parametrize('where',['source','source-alias','packet','packet-alias'])
+def test_destinations_inside_immutable_inputs_reject(tmp_path,where):
+ src=source(tmp_path)
+ if where.startswith('packet'):
+  packet,_=build(src,tmp_path);target=packet
+ else:target=src
+ before=snapshot(target)
+ if where.endswith('alias'):
+  alias=tmp_path/'alias';alias.symlink_to(target,target_is_directory=True);dest=alias/'new-output'
+ else:dest=target/'new-output'
+ with pytest.raises(ValueError):
+  if where.startswith('packet'):submit(packet,tmp_path,read(packet/'response-template.json'),dest=dest)
+  else:build(src,tmp_path,destination=dest)
+ assert snapshot(target)==before
+
+@pytest.mark.parametrize('kind',['same-path','copied-bytes','casefold-id','root-symlink'])
+def test_duplicate_case_opportunities_cannot_be_counted(tmp_path,kind):
+ src=source(tmp_path);other=src
+ if kind=='copied-bytes':other=source(tmp_path,dirname='copy')
+ elif kind=='root-symlink':
+  other=tmp_path/'linked-source';other.symlink_to(src,target_is_directory=True)
+ mapping={'Case-A':src,('case-a'if kind=='casefold-id'else'case-b'):other}
+ before=snapshot(src)
+ with pytest.raises(ValueError):build(src,tmp_path,mapping=mapping)
+ assert not(tmp_path/'packet').exists()and snapshot(src)==before
+
+@pytest.mark.parametrize('change',['duplicate-source','casefold-source','empty-sources','packet-duplicate-case','prefilled-template','changed-question','changed-display','snapshot-path'])
+def test_self_rehashed_packet_cannot_change_cohort_or_presented_evidence(tmp_path,change):
+ src=source(tmp_path);packet,_=build(src,tmp_path);response=read(packet/'response-template.json');m=read(packet/'manifest.json')
+ if change=='duplicate-source':m['sources'].append(copy.deepcopy(m['sources'][0]));write(packet/'manifest.json',m)
+ elif change=='casefold-source':
+  s=copy.deepcopy(m['sources'][0]);s['case_id']='CASE-A';m['sources'].append(s);write(packet/'manifest.json',m)
+ elif change=='empty-sources':m['sources']=[];write(packet/'manifest.json',m)
+ elif change=='snapshot-path':m['sources'][0]['snapshot_dir']='../source';write(packet/'manifest.json',m)
+ elif change=='prefilled-template':
+  value=read(packet/'response-template.json');answer(value);write(packet/'response-template.json',value)
+ elif change=='changed-display':(packet/'report.html').write_text('<p>Invented assessment</p>')
+ else:
+  value=read(packet/'packet.json')
+  if change=='packet-duplicate-case':value['cases'].append(copy.deepcopy(value['cases'][0]))
+  else:value['cases'][0]['axes'][0]['question']='Did this establish clinical readiness?'
+  write(packet/'packet.json',value)
+ rehash(packet);before=snapshot(packet)
+ with pytest.raises(ValueError):submit(packet,tmp_path,response)
+ assert not(tmp_path/'receipt').exists()and snapshot(packet)==before
+
+@pytest.mark.parametrize('change',['diagnostic','oracle-type','payload-duplicate-key','unlisted','file-link','directory-link','traversal-inventory'])
+def test_source_payloads_validate_before_packet_output(tmp_path,change):
+ src=source(tmp_path);m=read(src/'manifest.json')
+ if change=='diagnostic':
+  x=read(src/'explanation.json');x['notes'][0]['scope_exclusions']={'status':'matched','issues':[]};write(src/'explanation.json',x)
+ elif change=='oracle-type':
+  x=read(src/'verification.json');x['checks']['provenance']=1;write(src/'verification.json',x)
+ elif change=='payload-duplicate-key':(src/'inputs/evidence.json').write_bytes(b'{"calls":[],"calls":[]}')
+ elif change=='unlisted':(src/'unexpected.json').write_text('{}')
+ elif change=='file-link':
+  out=tmp_path/'outside.html';out.write_bytes((src/'report.html').read_bytes());(src/'report.html').unlink();(src/'report.html').symlink_to(out)
+ elif change=='directory-link':
+  (src/'inputs').rename(tmp_path/'outside-inputs');(src/'inputs').symlink_to(tmp_path/'outside-inputs',target_is_directory=True)
+ else:m['files']['../outside']='0'*64;write(src/'manifest.json',m)
+ if change in ['diagnostic','oracle-type','payload-duplicate-key']:rehash(src)
+ with pytest.raises(ValueError):build(src,tmp_path)
+ assert not(tmp_path/'packet').exists()
+
+
+def test_missing_original_paths_do_not_prevent_portable_import(tmp_path):
+ src=source(tmp_path);m=read(src/'manifest.json')
+ m['input_paths']={k:'/definitely-unavailable-original/'+k for k in m['input_paths']};write(src/'manifest.json',m)
+ before=snapshot(src);packet,p=build(src,tmp_path)
+ assert snapshot(src)==before
+ receipt=submit(packet,tmp_path,read(packet/'response-template.json'))
+ assert receipt['counts']['assigned_axes']==6 and receipt['counts']['pending_axes']==6
+
+
+def test_captured_html_is_copied_as_data_not_executed_or_trusted_display(tmp_path):
+ src=source(tmp_path);text='<script src="https://invalid.example/must-not-run"></script><p>UNTRUSTED-SOURCE-HTML</p>'
+ (src/'report.html').write_text(text);rehash(src);packet,_=build(src,tmp_path)
+ assert (packet/'sources/case-a/report.html').read_text()==text
+ assert 'UNTRUSTED-SOURCE-HTML'not in(packet/'report.html').read_text()
+
+
+def test_unavailable_case_remains_six_pending_axes_without_zero_event_claim(tmp_path):
+ src=source(tmp_path);s=read(src/'inputs/scenario.json');x=read(src/'inputs/expectations.json');e=read(src/'inputs/evidence.json')
+ e['scenario_sha256']='0'*64;v=verify_reconciliation(s,x,e);d=explain_reconciliation(s,x,e)
+ write(src/'inputs/evidence.json',e);write(src/'verification.json',v);write(src/'inputs/verification.json',v);write(src/'explanation.json',d)
+ m=read(src/'manifest.json');m['bindings']={k+'_sha256':digest(val)for k,val in {'scenario':s,'expectations':x,'evidence':e,'oracle':v}.items()};m['explanation_status']='unavailable';write(src/'manifest.json',m);rehash(src)
+ packet,p=build(src,tmp_path);assert p['cases'][0]['explanation']['status']=='unavailable'
+ assert 'recorded event counts are unknown'in(packet/'report.html').read_text()
+ r=submit(packet,tmp_path,read(packet/'response-template.json'))
+ assert r['status']=='recorded' and r['counts']['pending_axes']==6 and r['counts']['assigned_cases']==1
+
+
+@pytest.mark.parametrize('raw',[b'{"cases":[],"cases":[]}',b'{"x":NaN}',b'{"x":1e999}',b'\xff',b'[]'])
+def test_invalid_raw_response_preserves_bytes_and_all_pending(tmp_path,raw):
+ src=source(tmp_path);other=source(tmp_path,'medgemma-direct-01','other');packet,_=build(src,tmp_path,mapping={'case-a':src,'case-b':other})
+ before=snapshot(packet);r=submit(packet,tmp_path,raw=raw)
+ assert r['status']=='invalid_submission' and r['counts']['assigned_cases']==2 and r['counts']['pending_axes']==12 and r['counts']['assessed_axes']==0
+ assert(tmp_path/'receipt/submission.json').read_bytes()==raw and snapshot(packet)==before
+
+@pytest.mark.parametrize('change',['wrong-assignment','duplicate-case','duplicate-axis','foreign-case-ref','nonexistent-ref','newline-only-ref','duplicate-ref','partial-blank'])
+def test_invalid_late_response_does_not_import_earlier_valid_judgments(tmp_path,change):
+ src=source(tmp_path);packet,_=build(src,tmp_path);r=read(packet/'response-template.json');answer(r)
+ row=r['cases'][0]['axes'][1];answer(r,axis=1)
+ if change=='wrong-assignment':r['assignment_id']='another'
+ elif change=='duplicate-case':r['cases'].append(copy.deepcopy(r['cases'][0]))
+ elif change=='duplicate-axis':r['cases'][0]['axes'].append(copy.deepcopy(row))
+ elif change=='foreign-case-ref':row['evidence_refs'][0]['case_id']='case-other'
+ elif change=='nonexistent-ref':row['evidence_refs'][0]['pointer']='/missing'
+ elif change=='newline-only-ref':row['evidence_refs'][0]['pointer']='\n'
+ elif change=='duplicate-ref':row['evidence_refs'].append(copy.deepcopy(row['evidence_refs'][0]))
+ else:row['judgment']=None
+ receipt=submit(packet,tmp_path,r)
+ assert receipt['status']=='invalid_submission'and receipt['counts']['assessed_axes']==0 and receipt['counts']['pending_axes']==6
+ assert all(a['response']is None for a in receipt['cases'][0]['axes'])
+
+
+def test_wrong_answers_are_preserved_without_correctness_or_participant_claim(tmp_path):
+ src=source(tmp_path);packet,p=build(src,tmp_path);r=read(packet/'response-template.json')
+ assert p['cases'][0]['documents']['oracle']['checks']['execution_complete']is True
+ for axis in range(6):answer(r,axis=axis,judgment='no')
+ raw=json.dumps(r,indent=3).encode()+b'\n\n';receipt=submit(packet,tmp_path,raw=raw)
+ assert receipt['status']=='recorded'and receipt['counts']['submitted_cases']==1 and receipt['counts']['assessed_axes']==6
+ assert all(a['response']['judgment']=='no'for a in receipt['cases'][0]['axes'])
+ assert not{'correct','accuracy','score','passed','participants'}&set(receipt)
+ assert(tmp_path/'receipt/submission.json').read_bytes()==raw
+
+
+def test_partial_abstention_and_omitted_case_keep_full_denominator(tmp_path):
+ src=source(tmp_path);other=source(tmp_path,'medgemma-direct-01','other');packet,_=build(src,tmp_path,mapping={'case-a':src,'case-b':other})
+ r=read(packet/'response-template.json');r['cases']=r['cases'][:1];answer(r,axis=0);answer(r,axis=1,judgment='unassessed');r['cases'][0]['axes']=r['cases'][0]['axes'][:2]
+ r['cases'][0]['timing']={'method':'self_reported','elapsed_seconds':12.5,'active_seconds':None,'note':'Manual estimate; active time unknown.'}
+ result=submit(packet,tmp_path,r)
+ assert result['counts']['assigned_axes']==12 and result['counts']['assessed_axes']==1 and result['counts']['unassessed_axes']==1 and result['counts']['pending_axes']==10
+ assert result['counts']['pending_cases']==2 and result['counts']['partial_cases']==1
+ assert result['cases'][0]['timing']['active_seconds']is None and result['cases'][1]['timing']is None
+
+
+def test_repeat_submission_preserves_same_identity_not_new_operator(tmp_path):
+ src=source(tmp_path);packet,_=build(src,tmp_path);r=read(packet/'response-template.json');answer(r)
+ first=submit(packet,tmp_path,r);response=tmp_path/'response.json'
+ second=import_operator_response(packet/'manifest.json',response,tmp_path/'second-receipt')
+ assert first==second
+ assert first['assignment_id']==ASSIGN['assignment_id']and first['reviewer_id']==ASSIGN['reviewer_id']
+
+@pytest.mark.parametrize('kind',['file','directory','dangling-link'])
+def test_occupied_output_is_never_replaced(tmp_path,kind):
+ src=source(tmp_path);dest=tmp_path/'packet'
+ if kind=='file':dest.write_bytes(b'keep')
+ elif kind=='directory':dest.mkdir();(dest/'keep').write_bytes(b'keep')
+ else:dest.symlink_to(tmp_path/'missing')
+ with pytest.raises(FileExistsError):build(src,tmp_path)
+ if kind=='file':assert dest.read_bytes()==b'keep'
+ elif kind=='directory':assert snapshot(dest)=={'keep':b'keep'}
+ else:assert dest.is_symlink()and not(tmp_path/'missing').exists()
+
+
+def node_response(packet_path,values):
+ import subprocess
+ from html.parser import HTMLParser
+ class Scripts(HTMLParser):
+  def __init__(self,html):super().__init__();self.active=None;self.scripts={};self.feed(html)
+  def handle_starttag(self,tag,attrs):
+   if tag=='script':self.active=dict(attrs)['id'];self.scripts[self.active]=''
+  def handle_endtag(self,tag):
+   if tag=='script':self.active=None
+  def handle_data(self,text):
+   if self.active:self.scripts[self.active]+=text
+ scripts=Scripts((packet_path/'report.html').read_text()).scripts
+ assert set(scripts)=={'operator-app','operator-response-template'}
+ harness='''const vm=require('node:vm'),fs=require('node:fs');const p=JSON.parse(fs.readFileSync(0,'utf8'));
+const c={document:{getElementById(id){return{textContent:id==='operator-response-template'?p.template:'',addEventListener(){}}}}};
+vm.createContext(c);vm.runInContext(p.script,c);try{process.stdout.write(JSON.stringify({result:c.buildOperatorResponse(p.values,JSON.parse(p.template))}))}catch(e){process.stdout.write(JSON.stringify({error:e.message}))}'''
+ node='/Users/kiteboard/.nvm/versions/node/v22.17.1/bin/node'
+ result=subprocess.run([node,'-e',harness],input=json.dumps({'template':scripts['operator-response-template'],'script':scripts['operator-app'],'values':values}),capture_output=True,text=True,check=True,timeout=10)
+ return json.loads(result.stdout)
+
+
+def form_values(template):
+ return {'cases':[{'axes':[{'judgment':'','unassessed_reason':'','evidence_refs':'[]','rationale':''}for _ in case['axes']],'timing':{'method':'not_collected','elapsed_seconds':'','active_seconds':'','note':''}}for case in template['cases']]}
+
+@pytest.mark.parametrize('refs',[
+ '[{"document":"evidence","pointer":"/wrong-source","pointer":"/completion"}]',
+ '[{"document":"evidence","pointer":"/wrong-source","\\u0070ointer":"/completion"}]',
+ '[{"document":"evidence","pointer":"/completion","extra":{"x":1,"x":2}}]',
+])
+def test_manual_reference_export_never_discards_duplicate_json_keys(tmp_path,refs):
+ src=source(tmp_path);packet,_=build(src,tmp_path);template=read(packet/'response-template.json');values=form_values(template)
+ values['cases'][0]['axes'][0].update(judgment='yes',rationale='Synthetic interpretation',evidence_refs=refs)
+ exported=node_response(packet,values)
+ assert 'error'in exported and 'duplicate'in exported['error'].lower()
+
+@pytest.mark.parametrize('presentation',['raw','assisted'])
+def test_real_core_node_export_import_roundtrip_keeps_wrong_answers_and_unknown_time(tmp_path,presentation):
+ src=source(tmp_path);packet=tmp_path/'packet';assignment={**ASSIGN,'presentation':presentation}
+ build_operator_packet({'case-a':src},packet,protocol=PROTOCOL,assignment=assignment)
+ template=read(packet/'response-template.json');values=form_values(template)
+ for row in values['cases'][0]['axes']:
+  row.update(judgment='no',rationale='Synthetic intentionally incorrect completion assessment.',evidence_refs='[{"document":"evidence","pointer":"/completion"}]')
+ values['cases'][0]['timing']={'method':'self_reported','elapsed_seconds':'12.5','active_seconds':'','note':'Manual estimate; active time unknown.'}
+ response=node_response(packet,values)['result'];r=submit(packet,tmp_path,response)
+ assert r['status']=='recorded'and r['counts']['submitted_cases']==1 and r['counts']['assessed_axes']==6
+ assert r['cases'][0]['timing']['elapsed_seconds']==12.5 and r['cases'][0]['timing']['active_seconds']is None
+ assert all(a['response']['judgment']=='no'for a in r['cases'][0]['axes'])
+ assert not{'correct','score','accuracy','participants'}&set(r)
+
+
+def test_node_blank_export_preserves_original_template_and_denominator(tmp_path):
+ src=source(tmp_path);packet,_=build(src,tmp_path);template=read(packet/'response-template.json')
+ exported=node_response(packet,form_values(template))
+ assert exported=={'result':template}
+ r=submit(packet,tmp_path,exported['result']);assert r['counts']['pending_axes']==6
+
+
+def test_unassessed_evidence_and_reviewer_abstention_remain_distinct_cases(tmp_path):
+ src=source(tmp_path);other=source(tmp_path,'medgemma-direct-01','other');packet,_=build(src,tmp_path,mapping={'case-a':src,'case-b':other})
+ response=read(packet/'response-template.json')
+ for index in [0,1]:
+  for axis in range(6):answer(response,index=index,axis=axis,judgment='unassessed')
+ for row in response['cases'][1]['axes']:row['unassessed_reason']='insufficient_evidence'
+ r=submit(packet,tmp_path,response)
+ assert r['counts']['assigned_cases']==2 and r['counts']['abstained_cases']==1 and r['counts']['unassessed_cases']==1 and r['counts']['pending_cases']==0
+ assert r['counts']['assigned_axes']==12 and r['counts']['unassessed_axes']==12
+
+
+def test_resolvable_explicit_null_and_decoded_note_citations_are_valid(tmp_path):
+ src=source(tmp_path);packet,p=build(src,tmp_path);response=read(packet/'response-template.json')
+ index=next(i for i,c in enumerate(p['cases'][0]['documents']['evidence']['calls'])if c['name']=='updateEncounter')
+ answer(response,axis=0,ref={'document':'scenario','pointer':'/patients/0/date_of_birth'})
+ answer(response,axis=1,ref={'document':'evidence','pointer':f'/calls/{index}/params/notes','decoded_json_pointer':'/scope_exclusions/0/source_id'})
+ response['cases'][0]['axes'][0]['rationale']='é🧪 — explicit unknown is a real captured value.'
+ r=submit(packet,tmp_path,response)
+ assert r['status']=='recorded'and r['counts']['assessed_axes']==2
+ assert r['cases'][0]['axes'][0]['response']['rationale']==response['cases'][0]['axes'][0]['rationale']
+
+
+def test_same_canonical_evidence_with_different_file_bytes_is_still_duplicate(tmp_path):
+ src=source(tmp_path);other=source(tmp_path,dirname='copy')
+ raw=(other/'inputs/evidence.json').read_bytes();v=read(other/'inputs/evidence.json')
+ (other/'inputs/evidence.json').write_text(json.dumps(v,indent=7)+'\n\n');assert(other/'inputs/evidence.json').read_bytes()!=raw;rehash(other)
+ with pytest.raises(ValueError,match='Duplicate evidence'):build(src,tmp_path,mapping={'case-a':src,'case-b':other})
+ assert not(tmp_path/'packet').exists()
+
+
+def test_rehashed_issued_implementation_identity_mismatch_rejects(tmp_path):
+ src=source(tmp_path);packet,_=build(src,tmp_path);response=read(packet/'response-template.json');m=read(packet/'manifest.json')
+ assert m['implementation_sha256']
+ first=next(iter(m['implementation_sha256']));m['implementation_sha256'][first]='0'*64;write(packet/'manifest.json',m);rehash(packet)
+ with pytest.raises(ValueError,match='Implementation'):submit(packet,tmp_path,response)
+ assert not(tmp_path/'receipt').exists()
+
+@pytest.mark.parametrize('mode',['raw','assisted'])
+def test_static_navigation_references_exact_values_and_no_untrusted_markup(tmp_path,mode):
+ import re
+ from html.parser import HTMLParser
+ class Page(HTMLParser):
+  def __init__(self,html):
+   super().__init__();self.tags=[];self.values={};self.active=None;self.feed(html)
+  def handle_starttag(self,tag,attrs):
+   attrs=dict(attrs);self.tags.append((tag,attrs))
+   if tag=='pre'and 'data-source-value'in attrs:self.active=attrs['data-source-value'];self.values[self.active]=''
+  def handle_endtag(self,tag):
+   if tag=='pre':self.active=None
+  def handle_data(self,text):
+   if self.active:self.values[self.active]+=text
+ src=source(tmp_path);packet=tmp_path/'packet';hostile='</script><img src="https://invalid.example/never" onerror="boom">é🧪'
+ p=build_operator_packet({'case-a':src},packet,protocol=PROTOCOL,assignment={**ASSIGN,'presentation':mode,'reviewer_id':hostile})
+ page=Page((packet/'report.html').read_text());ids=[a['id']for _,a in page.tags if'id'in a]
+ assert len(ids)==len(set(ids))
+ assert not any(tag in {'img','iframe','object','embed','link','svg'}for tag,_ in page.tags)
+ for tag,attrs in page.tags:
+  assert not'src'in attrs and not any(k.startswith('on')for k in attrs)
+  if'href'in attrs:assert attrs['href'].startswith('#')and attrs['href'][1:]in ids
+ inputs=[attrs for tag,attrs in page.tags if tag=='input'and attrs.get('data-source-reference')=='true']
+ assert inputs
+ for attrs in inputs:
+  ref=json.loads(attrs['value']);value=p['cases'][0]['documents'][ref['document']]
+  if ref['pointer']:
+   assert ref['pointer'].startswith('/')
+   for part in ref['pointer'][1:].split('/'):
+    token=re.sub(r'~([01])',lambda m:'~'if m[1]=='0'else'/',part)
+    value=value[int(token)]if type(value)is list else value[token]
+  assert attrs['data-value-sha256']==digest(value)
+  pre=page.values[attrs['id'].removesuffix('-ref')]
+  assert encode(json.loads(pre))==encode(value)
+ assert read(packet/'response-template.json')['reviewer_id']==hostile

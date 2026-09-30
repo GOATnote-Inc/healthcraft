@@ -1,0 +1,74 @@
+"""Package this candidate's logs and explicitly synthetic offline demo once."""
+from pathlib import Path
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+CHECK=Path('/private/tmp/healthcraft-operator-incidents-final')
+OUT=ROOT/'artifacts/validation/20260930/operator-incidents-v2'
+DEMO=ROOT/'artifacts/operator-review/20260930/incidents-v2'
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def save(path,value):
+ path.parent.mkdir(parents=True,exist_ok=True)
+ with path.open('x') as f:json.dump(value,f,indent=2,allow_nan=False);f.write('\n')
+def copy(source,target):
+ target.parent.mkdir(parents=True,exist_ok=True)
+ with target.open('xb') as f:f.write(source.read_bytes())
+ assert target.read_bytes()==source.read_bytes()
+def inventory(root):return {p.relative_to(root).as_posix():sha(p.read_bytes()) for p in sorted(root.rglob('*')) if p.is_file()}
+report=json.loads((CHECK/'full-suite-receipt.json').read_text());assert report['exit_code']==0
+candidate=json.loads((CHECK/'candidate-inputs.json').read_text())
+assert all(sha((ROOT/name).read_bytes())==value for name,value in candidate.items())
+assert json.loads((CHECK/'compatibility-receipt.json').read_text())['candidate_inputs']==candidate
+history=json.loads(Path('/private/tmp/healthcraft-operator-incidents-history/receipt.json').read_text())
+for bundle in history['bundles']:
+ base=ROOT/bundle['path']
+ assert sha((base/'manifest.json').read_bytes())==bundle['manifest_sha256']
+ for name,expected in bundle['payload_sha256'].items():assert sha((base/name).read_bytes())==expected
+OUT.mkdir(parents=True,exist_ok=False)
+for p in CHECK.iterdir():
+ if p.is_file():copy(p,OUT/'final-validation'/p.name)
+for name in candidate:copy(ROOT/name,OUT/'candidate-source'/(name+'.txt'))
+collections={
+ 'core':Path('/private/tmp/healthcraft-operator-incidents-core'),
+ 'ui':Path('/private/tmp/healthcraft-operator-incidents-ui'),
+ 'assistance':Path('/private/tmp/healthcraft-operator-incident-evidence'),
+ 'core-peer':Path('/private/tmp/healthcraft-operator-incidents-peer'),
+ 'assistance-peer':Path('/private/tmp/healthcraft-incident-evidence-peer'),
+ 'adjudication-peer':Path('/private/tmp/healthcraft-operator-adjudication-peer'),
+ 'history':Path('/private/tmp/healthcraft-operator-incidents-history'),
+}
+provenance={}
+for label,folder in collections.items():
+ for p in sorted(folder.iterdir()):
+  if p.is_file() and p.suffix in ('.json','.log','.md','.py'):
+   target=OUT/label/(p.name+('.txt' if p.suffix=='.py' else ''))
+   copy(p,target);provenance[str(target.relative_to(OUT))]={'original_path':str(p),'sha256':sha(p.read_bytes())}
+for p in sorted(Path('/private/tmp').glob('healthcraft-operator-adjudication-*.log')):
+ copy(p,OUT/'adjudication-tdd'/p.name)
+for suffix in ['red','green']:
+ p=Path('/private/tmp/healthcraft-operator-incidents-cli-'+suffix+'.log');copy(p,OUT/'cli-tdd'/p.name)
+for name in ['healthcraft-operator-incidents-validate.py','healthcraft-operator-incidents-demo.py','healthcraft-operator-incidents-package.py']:
+ copy(Path('/private/tmp')/name,OUT/'scripts'/(name+'.txt'))
+copy(Path('/private/tmp/healthcraft-operator-incidents-demo.py'),DEMO/'reproduce.py.txt')
+text=(DEMO/'README.md').read_text().replace('Fifteen successful command executions cover','Fifteen command executions met their expected outcomes and cover')
+(DEMO/'README.md').write_text(text)
+save(DEMO/'manifest.json',{'schema_version':'healthcraft-operator-incident-demonstration-manifest/v2','files':inventory(DEMO)})
+full=(CHECK/'full-suite.log').read_text();match=re.search(r'(\d+) passed, (\d+) skipped.* in ([\d.]+)s',full);assert match
+receipt={'schema_version':'healthcraft-operator-incident-validation/v2','head_before_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+ 'candidate_sha256':candidate,'full_suite':{'passed':int(match[1]),'skipped':int(match[2]),'seconds':float(match[3]),'exit_code':0,'log_sha256':sha((CHECK/'full-suite.log').read_bytes())},
+ 'compatibility':{'tests_per_runtime':365,'python_versions':['3.10.18','3.12.8','3.14.3'],'all_exit_zero':True,'plugin_autoload_disabled':True,'known_warning':'asyncio_mode config without plugin in focused compatibility runs'},
+ 'lint':{'inventoried_inputs':811,'isolated_exit_code':0,'root_exit_code':2,'root_existing_unrelated_archive_errors':115},
+ 'historical_integrity':{'bundles':13,'files':2768,'all_stable':True},
+ 'demo_manifest_sha256':sha((DEMO/'manifest.json').read_bytes()),'copied_agent_evidence':provenance,
+ 'tdd_notes':['Initial missing-module failures establish requested interfaces, not defects in an existing implementation.','Root import renderer stub initially used unsorted JSON; fixed fixture canonical order.','Root builder fixture initially nested output under input parent; corrected fixture.','After source reconstruction enforcement, synthetic resolver fixtures were corrected to contain a real structurally valid original response, rather than injected metadata inconsistent with raw bytes.','Assistance initial fixture API typo is disclosed in the original agent receipt.','Superseded receipts/logs are retained; final candidate hashes and final suite identify the validated version.'],
+ 'limits':['No new inference, downloads, API keys, hosted calls, PHI, real participants, independent human validity labels, clinical validation, comparative outcome or superiority claim.','Node/static form checks are not browser visual/usability testing.','Only local development peer review; formal red team, remote main and manuscript/arXiv updates remain gated.','Hashes establish byte consistency, not identities, independent judgments or authentic execution.']}
+save(OUT/'validation-receipt.json',receipt)
+(OUT/'README.md').write_text(f'''# Operator incident workflow validation\n\nThe candidate adds source-bound operator forms, evidence-linked incident findings and\nseparate human report-validity declarations/resolution. No original result or earlier\nartifact bundle was changed. The candidate source snapshots and final validation\nreceipt identify the tested implementation.\n\n- Full repository suite: {match[1]} passed, {match[2]} skipped in {match[3]} seconds.\n- Focused compatibility: 365 checks on each of Python 3.10.18, 3.12.8 and 3.14.3.\n- Inventoried lint: 811 inputs pass. Workspace-root lint retains 115 unrelated archive errors.\n- Historical integrity: 2,768 files across 13 bundles unchanged.\n- Offline demo: 15 CLI outcomes, no new model calls, no real participant judgments.\n\nTDD evidence includes missing-module/interface failures and behavioral regressions\nfor draft/timing retention, raw/assisted private-data exclusion, unavailable readback\nlinkage, duplicate fallback citations, canonical HTML regeneration, unknown family,\noriginal source/report reconstruction, immutable-source containment, mandatory\noriginals and resolver provenance. Root/agent receipts disclose intermediate fixture\nerrors rather than presenting them as product bugs. Older receipts are preserved;\nthe final candidate hashes supersede their source hashes where a peer fix followed.\n\nThe demonstration contains deliberately incorrect and conflicting script-generated\nanswers to test recording behavior. None are actual operator or independent expert\noutcomes. There is no measured time, score, clinical validation or product ranking.\nBrowser layout, accessibility, rendering speed and usability remain untested.\n\nFormal red team and remote/main/manuscript/arXiv publication have not occurred.\nThe user's healthcare-value and superiority gate is still unmet.\n''')
+save(OUT/'manifest.json',{'schema_version':'healthcraft-operator-incident-validation-manifest/v2','files':inventory(OUT)})
+for folder in (OUT,DEMO):
+ manifest=json.loads((folder/'manifest.json').read_text());actual=inventory(folder);del actual['manifest.json'];assert actual==manifest['files']
+print(json.dumps({'validation_path':str(OUT),'validation_manifest_sha256':sha((OUT/'manifest.json').read_bytes()),'validation_payloads':len(inventory(OUT))-1,'demo_manifest_sha256':sha((DEMO/'manifest.json').read_bytes()),'demo_payloads':len(inventory(DEMO))-1,'full_suite':receipt['full_suite']},indent=2))

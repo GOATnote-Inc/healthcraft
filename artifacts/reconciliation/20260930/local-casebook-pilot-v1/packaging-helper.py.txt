@@ -1,0 +1,184 @@
+"""Seal the completed development captures; no inference or outcome rewriting."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+OUT = ROOT/'artifacts/reconciliation/20260930/local-casebook-pilot-v1'
+RUN = OUT/'run'
+FINAL = Path('/private/tmp/healthcraft-local-casebook-final')
+PEER = Path('/private/tmp/healthcraft-local-casebook-live-peer')
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def write(path, value):
+    with path.open('x') as stream:
+        json.dump(value, stream, indent=2, ensure_ascii=False, allow_nan=False)
+        stream.write('\n')
+
+candidate=json.loads((FINAL/'candidate-inputs.json').read_text())
+assert all(sha(ROOT/name)==value for name,value in candidate.items())
+run=json.loads((RUN/'manifest.json').read_text())
+assert run['sources_unchanged'] is True
+assert run['counts']['scheduled']==run['counts']['attempted']==16
+assert run['counts']['grading_errors']==0
+for name,value in run['files'].items():
+    assert sha(RUN/name)==value
+cli=json.loads((OUT/'cli-receipt.json').read_text())
+assert cli['exit_code']==1 and cli['candidate_unchanged'] is True
+peer=json.loads((PEER/'peer-review.json').read_text())
+assert peer['findings']==[] and peer['counts']==run['counts']
+sealed=json.loads((PEER/'sealed-inventory.json').read_text())
+assert sealed['complete'] is True
+assert all(sha(PEER/name)==value for name,value in sealed['files'].items())
+
+copied={}
+for label,source in [('independent-review',PEER),
+                     ('next-operator-contract',Path('/private/tmp/healthcraft-v2-operator-contract-proposal'))]:
+    for path in sorted(source.rglob('*')):
+        if not path.is_file() or any(part.startswith('.') or part=='__pycache__' for part in path.relative_to(source).parts):
+            continue
+        relative=path.relative_to(source)
+        if path.suffix=='.py':relative=relative.with_name(relative.name+'.txt')
+        dest=OUT/label/relative
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        with dest.open('xb') as stream:stream.write(path.read_bytes())
+        copied[str(dest.relative_to(OUT))]={'original':str(path),'sha256':sha(path)}
+write(OUT/'copied-originals.json',copied)
+with (OUT/'packaging-helper.py.txt').open('xb') as stream:
+    stream.write(Path(__file__).read_bytes())
+
+rows=[]
+for row in run['outcomes']:
+    folder=RUN/row['id']
+    execution=json.loads((folder/'execution.json').read_text())
+    worker=json.loads((folder/'worker/worker-receipt.json').read_text())
+    report=json.loads((folder/'verification.json').read_text())
+    rows.append({
+        'id':row['id'],'status':row['status'],'model_request_attempts':row['model_calls'],
+        'native_tool_calls':len(execution['calls']),
+        'stored_note_count':row['observed_actions']['stored_note_count'],
+        'stored_note_readback_count':row['observed_actions']['stored_note_readback_count'],
+        'checks':report['checks'],'mechanical_passed':row['mechanical_passed'],
+        'worker_error':worker['error'],'grading_error':row['grading_error'],
+    })
+totals={key:sum(r[key] for r in rows) for key in (
+    'model_request_attempts','native_tool_calls','stored_note_count','stored_note_readback_count')}
+assert totals==dict(model_request_attempts=116,native_tool_calls=101,stored_note_count=15,stored_note_readback_count=2)
+write(OUT/'capture-summary.json',{'counts':run['counts'],'totals':totals,'outcomes':rows,
+                               'clinical_assessment':'unassessed','benchmark_score':None})
+table='\n'.join('| '+r['id']+' | '+r['status']+' | '+str(r['model_request_attempts'])+' | '+str(r['native_tool_calls'])+' | '+str(r['stored_note_count'])+' | '+str(r['stored_note_readback_count'])+' |' for r in rows)
+readme='''# V2 casebook: first local-model development cohort
+
+All sixteen scheduled attempts ran once using installed Nemotron Nano and
+MedGemma weights. Fifteen executions completed; one ended on a tool lookup error.
+There were **116 recorded model requests, 101 native tool calls, 15 stored notes
+and two actual stored-text readbacks**. None met the full mechanical contract.
+Every attempt is retained, with zero grading errors or missing attempts.
+
+The CLI correctly exited 1 with cohort status `incomplete` because one execution
+failed. That status does not mean captures are missing. All sixteen provenance
+checks passed and source identities were unchanged. Mechanical content failure,
+normal execution, actual storage and actual readback are separate observations.
+Clinical and safety criteria remain unassessed; there is no benchmark score.
+
+## Fixed conditions and captured evidence
+
+The [plan](run/plan.json) was pinned before inference to canonical SHA-256
+`c6b21023c6eaac2ae1bf0dd764656cf109fc3d1e465fbe07d9347430afa82d49`.
+It uses all eight exposed v2 cases, each with Nano then MedGemma, exactly once.
+Both models receive identical initial public messages for a given target,
+containing target IDs, common rules and canonical tool schemas; private cases,
+expected answers and designated controls are absent from worker inputs.
+
+Both use Ollama 0.34.4, exact installed weight digests, a 32,768-token context,
+4,096-token output limit, seed 42, temperature zero, thinking disabled,
+16-response ceiling, 240-second request timeout and 900-second attempt deadline.
+MedGemma uses the same text-JSON command interface as Nano, not native tool calls
+or clinical judging. `keep_alive=0` is frozen; per-request reload overhead is not
+an operator-time endpoint. No keys, downloads, paid fallback, retries or response
+repairs were used. [Launch](launch.json) and [exit](cli-receipt.json) receipts
+record the actual external CLI command and minimal environment names.
+
+The parent ran real native handlers against fresh worlds and retained snapshots,
+audit and tool responses. Spawned workers retained fresh pre/postflight model
+identities, actual initial prompts, controller messages and exact successful
+HTTP response bodies before parsing. [The run manifest](run/manifest.json)
+binds all 260 payloads plus source and plan identities. Request counts describe
+recorded dispatch attempts, not independent attestation of daemon inference.
+
+## Complete roster
+
+| Attempt | Execution | Requests | Tools | Stored notes | Notes read back |
+| --- | --- | ---: | ---: | ---: | ---: |
+'''+table+'''
+
+All sixteen full mechanical verdicts are false. The strict `persisted_action`
+and `readback` axes require correct reconciliation content; a false value must
+not be interpreted as no physical write or retrieval. The table above counts
+those literal events independently and respects duplicate-note multiplicity.
+
+## Inspectable findings
+
+- [REC2-001/medgemma](run/REC2-001/medgemma/execution.json), call-0006, supplied
+  `PAT-20010002` as an encounter ID to `getEncounterDetails`. The native lookup
+  returned `not_found`; the controller stopped without retry or a note write.
+  The peer prose's "sixth getEncounterDetails call" refers to the sixth tool
+  command overall, identified as call-0006 in the raw capture.
+- [REC2-002/medgemma](run/REC2-002/medgemma/execution.json) retained all three
+  expected observation IDs and correctly listed both prior-encounter exclusions,
+  but gave incorrect source paths, including a `/patient` prefix. Preserving
+  values and supplying valid traceability are distinct requirements.
+- [REC2-004/nano](run/REC2-004/nano/execution.json) retained the expected
+  three-member conflict group. That partial success does not repair its other
+  source-fidelity defects or omitted readback.
+- [REC2-003/medgemma](run/REC2-003/medgemma/execution.json) and
+  [REC2-007/medgemma](run/REC2-007/medgemma/execution.json) actually retrieved
+  their stored note text. Both notes still fail the full reconciliation checks.
+
+The [independent review](independent-review/peer-review.json) recomputes each
+verdict and records source-literal differences, native request details, actual
+actions and unavailable evidence. It found no artifact or accounting discrepancy.
+Its [detailed findings](independent-review/findings.md) distinguish incorrect
+paths from unchanged raw values, omitted rows from prior-encounter misattribution,
+and a duplicate-key note from parseable notes. The copied source filenames in
+peer inventories are mapped to this package by `copied-originals.json`; Python
+helpers are preserved byte-for-byte as `.py.txt`.
+Those exact-JSON comparisons are engineering diagnoses, not clinical labels.
+The [capture summary](capture-summary.json) preserves all outcomes compactly.
+
+## Limits and next value work
+
+These eight exposed cases share an engineering authoring ledger with their
+expectations. One attempt per model/case cannot establish reliability, model
+ranking, operator benefit, clinical safety or superiority over other products.
+Model-independent clinical review and a registered comparative study remain
+absent. Content hashes prove consistency, not execution authenticity or reviewer
+independence. Prior model cohorts and results remain unchanged.
+
+The [next operator contract proposal](next-operator-contract/proposal.md) was
+prepared without inspecting this cohort's live outcomes. It is design only:
+target/incident identification, source citations, separate report-validity
+adjudication and explicit timing provenance. No interface, participant study,
+independent human judgment or measured operator endpoint is claimed by it.
+
+The [engineering validation checkpoint](../../../validation/20260930/local-casebook-model-v1/README.md)
+contains TDD repairs, 4,316 passed / 58 skipped, inventoried lint and ordinary peer
+review. Formal red team, remote main and manuscript updates remain behind the
+user's value-evidence gate. No remote or paper publication occurred.
+'''
+with (OUT/'README.md').open('x') as stream:stream.write(readme)
+manifest={
+    'schema_version':'healthcraft-reconciliation-local-casebook-pilot/v1',
+    'base_commit':'c9017652924e7f68e0b5a2ee27214fdd4b13bf27',
+    'capture_status':'all_scheduled_attempts_retained','cohort_status':run['status'],
+    'counts':run['counts'],'totals':totals,'candidate_inputs':candidate,
+    'run_manifest_sha256':sha(RUN/'manifest.json'),
+    'clinical_assessment':'unassessed','benchmark_score':None,'superiority':'not_demonstrated',
+    'formal_red_team':'not_started','remote_updated':False,'paper_updated':False,
+    'files':{p.relative_to(OUT).as_posix():sha(p) for p in sorted(OUT.rglob('*')) if p.is_file()},
+}
+write(OUT/'manifest.json',manifest)
+print(json.dumps({'output':str(OUT),'payloads':len(manifest['files']),
+                  'manifest_sha256':sha(OUT/'manifest.json')},indent=2))

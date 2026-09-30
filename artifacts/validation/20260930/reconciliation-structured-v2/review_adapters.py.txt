@@ -1,0 +1,87 @@
+"""Independent offline adapter/protocol review; no native inference or Docker."""
+import ast
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+import sys
+from types import MethodType
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+BASE=Path('/private/tmp/healthcraft-reconciliation-structured-v2')
+protocol=json.loads((BASE/'protocol.json').read_text())
+driver=BASE/'run_model_pilot.py';tree=ast.parse(driver.read_text())
+root_expr=next(n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='ROOT' for t in n.targets))
+candidate=Path(ast.literal_eval(root_expr.value.args[0]))
+sys.path[:0]=[str(candidate),str(candidate/'src')]
+from healthcraft.reconciliation.controller import CommandController,RecordingOllamaClient,PilotSettings,canonical_json,command_format_identity,command_format_schema
+from healthcraft.reconciliation.service import ReconciliationSession
+from scripts.reconciliation_model_trial import _model_config
+from scripts.harbor_reconciliation_model import validate_model_config
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+eq=lambda a,b:canonical_json(a)==canonical_json(b)
+manifest=json.loads((candidate/'manifest.json').read_text())
+owned=['src/healthcraft/reconciliation/controller.py','scripts/reconciliation_model_trial.py','scripts/harbor_reconciliation_model.py']
+files=[candidate/p for p in manifest]+[candidate/'manifest.json',BASE/'protocol.json',driver]+[ROOT/p for p in owned]+[ROOT/'tests/test_scripts/test_reconciliation_model_trial.py',ROOT/'tests/test_scripts/test_harbor_reconciliation_model.py']
+before={str(p):sha(p) for p in files};checks={}
+def check(name,value):checks[name]=bool(value)
+check('frozen_candidate_manifest_exact',all(sha(candidate/p)==v for p,v in manifest.items()))
+check('frozen_adapters_match_reviewed_worktree',all(sha(candidate/p)==sha(ROOT/p) for p in owned))
+check('protocol_identity_schema_matches_implementation',protocol['command_format']==command_format_identity() and protocol['command_schema']==command_format_schema())
+check('canonical_schema_hash',hashlib.sha256(canonical_json(protocol['command_schema']).encode()).hexdigest()==protocol['command_format']['sha256'])
+check('format_only_changed_decoding_budget',protocol['settings']==json.loads((ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v1/roster.json').read_text())['settings'] and protocol['retries']==protocol['automatic_format_repairs']==0 and protocol['scheduled_attempts']==4)
+config_assign=next(n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='model_config' for t in n.targets))
+check('driver_exact_six_field_config',set(ast.literal_eval(k) for k in config_assign.value.keys)=={'model','expected_digest','expected_runtime','settings','initial_messages_sha256','command_format'})
+format_expr=next(v for k,v in zip(config_assign.value.keys,config_assign.value.values) if ast.literal_eval(k)=='command_format')
+check('driver_supplies_protocol_format_identity',ast.unparse(format_expr)=="PROPOSAL['command_format']")
+session=ReconciliationSession(token='peer-offline-only')
+_,discovery=session.handle('GET','/tools',authorization='Bearer peer-offline-only')
+tools=discovery['tools'];instruction=(candidate/'configs/evaluation/reconciliation_v1/instruction.md').read_text()
+base_controller=CommandController(instruction,tools)
+base_messages=base_controller.snapshot()['messages']
+digest=hashlib.sha256(canonical_json(base_messages).encode()).hexdigest()
+check('same_initial_messages_as_v1',digest==protocol['common_interface']['initial_messages_sha256']==json.loads((ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v1/roster.json').read_text())['proposed_initial_messages_sha256'])
+wire=[];normalizations=[]
+for model in protocol['models']:
+    original={'model':model['alias'],'expected_digest':model['expected_digest'],'expected_runtime':model['expected_runtime'],'settings':protocol['settings'],'initial_messages_sha256':digest}
+    for structured in [False,True]:
+        config=deepcopy(original)
+        if structured:config['command_format']=deepcopy(protocol['command_format'])
+        direct,settings=_model_config(config);harbor=validate_model_config(config)
+        check(model['alias']+':config_equivalent_'+str(structured),direct==harbor==config)
+        normalizations.append({'model':model['alias'],'structured':structured,'keys':sorted(config)})
+        opts={'command_format':config['command_format']} if structured else {}
+        client=RecordingOllamaClient(model=config['model'],expected_digest=config['expected_digest'],expected_runtime=config['expected_runtime'],settings=settings,**opts)
+        captured=[]
+        def fake_transport(self,path,payload=None):
+            if path=='/api/tags':return {'models':[{'name':config['model'],'digest':config['expected_digest']}]}
+            if path=='/api/show':return {'capabilities':model['declared_capabilities'],'details':{}}
+            if path=='/api/version':return {'version':config['expected_runtime']}
+            assert path=='/api/chat';captured.append(deepcopy(payload))
+            return {'model':config['model'],'done':True,'done_reason':'stop','message':{'role':'assistant','content':'{"action":"finish"}'}}
+        client._transport_request=MethodType(fake_transport,client)
+        controller=CommandController(instruction,tools,settings=settings,**opts)
+        assert controller.next_command(client)=={'action':'finish'}
+        check(model['alias']+':initial_messages_unchanged_'+str(structured),eq(controller.snapshot()['messages'][:2],base_messages))
+        if structured:
+            check(model['alias']+':both_consumers_bind_format',client.command_format==controller.snapshot()['command_format']==protocol['command_format'])
+            check(model['alias']+':wire_schema_exact',captured[0]['format']==protocol['command_schema'])
+        else:check(model['alias']+':legacy_unchanged','format' not in captured[0] and 'command_format' not in controller.snapshot() and client.command_format is None)
+        wire.append({'model':model['alias'],'structured':structured,'payload':captured[0]})
+    left,right=[r['payload'] for r in wire if r['model']==model['alias']]
+    check(model['alias']+':only_format_changes_payload',eq(left,{k:v for k,v in right.items() if k!='format'}))
+invalid=[None,{},'json',{'version':protocol['command_format']['version']},{'sha256':protocol['command_format']['sha256']},{**protocol['command_format'],'sha256':'0'*64},{**protocol['command_format'],'version':'unknown'},{**protocol['command_format'],'schema':{}}]
+for index,value in enumerate(invalid):
+    config={**original,'command_format':value}
+    for label,validator in [('direct',_model_config),('harbor',validate_model_config)]:
+        try:validator(config);rejected=False
+        except ValueError:rejected=True
+        check(label+':reject_invalid_identity_'+str(index),rejected)
+session.close()
+log=BASE/'adapter-peer-tests.log'
+if log.exists():check('selected_adapter_regressions_pass', 'passed' in log.read_text() and 'failed' not in log.read_text())
+after={str(p):sha(p) for p in files};check('reviewed_inputs_unchanged',before==after)
+report={'schema_version':'healthcraft-structured-adapter-peer-review/v1','scope':'Bounded read-only integration review; fake native transport only; no inference/network/Docker','candidate':str(candidate),'checks':checks,'failed_checks':[k for k,v in checks.items() if not v],'command_format':protocol['command_format'],'initial_messages_sha256':digest,'normalizations':normalizations,'fake_native_payloads':wire,'source_hashes_before':before,'source_hashes_after':after,'test_log':str(log),'actual_model_calls':0,'benchmark_score':None,'limitations':['V1 artifacts remain immutable; v2 is a new declared decoding condition after observing v1.','Application parser/provider metadata checks remain authoritative even with format schema.','Schema compilation by the installed native binary is not established by these mocked requests.','Successful syntax or model finish is not independent source/persistence verification or clinical value.']}
+p=BASE/'adapter-peer-review.json'
+with p.open('x') as f:json.dump(report,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'receipt':str(p),'checks':len(checks),'failed':report['failed_checks'],'candidate_inputs':len(manifest),'mocked_payloads':len(wire)},indent=2))

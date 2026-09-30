@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_valid_bare_note_reference_includes_literal_readable_multiline_text ____
+
+captured = ({'bindings': {'evidence_sha256': '303fc0b3e0ed819d27d38e3946d9517558c1746227fe86c47c288e386c41e424', 'expectations_sh...'persisted_action': False, 'provenance': True, 'readback': False, ...}}, 'scenario': {'authored': 'Source assertion'}})
+
+    def test_valid_bare_note_reference_includes_literal_readable_multiline_text(captured):
+        explanation, documents = captured
+        raw = json.dumps(json.loads(documents["evidence"]["calls"][0]["params"]["notes"]), indent=2)
+        documents["evidence"]["calls"][0]["params"]["notes"] = raw
+        explanation["bindings"]["evidence_sha256"] = digest(documents["evidence"])
+        attrs, text = card(captured, "/calls/0/params/notes")
+        assert attrs["data-resolution"] == "available"
+        assert attrs["data-note-resolution"] == "available"
+        assert "Exact captured value" in text
+>       assert "Raw captured JSON note" in text and raw in text
+E       assert ('Raw captured JSON note' in 'Observed evidence Original pointer:  /calls/0/params/notes Exact captured value "{\\n  \\"scope_exclusions\\": [\\n  ...n      \\"value\\": null\\n    }\\n  ],\\n  \\"a/b\\": {\\n    \\"~key\\": [\\n      \\"exact\\"\\n    ]\\n  }\\n}"\n}')
+
+tests/test_reconciliation/test_explanation_sources.py:305: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_explanation_sources.py::test_valid_bare_note_reference_includes_literal_readable_multiline_text
+1 failed, 29 deselected in 0.07s

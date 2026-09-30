@@ -1,0 +1,55 @@
+F...                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_loaded_ids_survive_two_real_add_clicks_without_collision[identifiers0] __
+
+identifiers = ['finding-9007199254740991']
+
+    @pytest.mark.parametrize(
+        "identifiers",
+        [
+            ["finding-9007199254740991"],
+            ["finding-9007199254740992"],
+            ["finding-8"],
+            ["finding-1", "finding-3", "FINDING-4"],
+        ],
+    )
+    def test_loaded_ids_survive_two_real_add_clicks_without_collision(identifiers):
+        pair = ("incident", ui_helpers().incident.__wrapped__())
+        value = exported(pair)
+        value["cases"][0]["incident_assessment"]["findings"] = [
+            {
+                "finding_id": identifier,
+                "category": "source_uncertainty",
+                "claim": "Original draft",
+                "observed_target": {"patient_id": None, "encounter_id": None},
+                "source_ids": [],
+                "evidence_refs": [],
+            }
+            for identifier in identifiers
+        ]
+        action = """(()=>{
+    HealthcraftDrafts.preview(raw);HealthcraftDrafts.apply();
+    for(let i=0;i<2;i++){
+      ids['add-finding-0'].listeners.click();
+      const node=ids['findings-0'].children.at(-1);
+      node.querySelector('[data-field="category"]').value='source_uncertainty';
+      node.querySelector('[data-field="claim"]').value='New draft';
+    }
+    return buildIncidentResponse(readIncidentForm(),responseTemplate,packet);
+    })()"""
+        result = run_js(pair, value, action)
+>       assert "error" not in result, result
+E       AssertionError: {'changes': 45, 'error': 'Duplicate finding ID.'}
+E       assert 'error' not in {'changes': 45, 'error': 'Duplicate finding ID.'}
+
+tests/test_operator_workbench_drafts.py:724: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench_drafts.py::test_loaded_ids_survive_two_real_add_clicks_without_collision[identifiers0]
+1 failed, 3 passed, 39 deselected, 1 warning in 0.14s

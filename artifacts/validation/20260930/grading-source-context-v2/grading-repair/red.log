@@ -1,0 +1,536 @@
+FFFFFFFFFFFFFFFFF..                                                      [100%]
+=================================== FAILURES ===================================
+_____________ test_direct_save_refuses_occupied_destination[file] ______________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_refuses_occup0')
+occupied = 'file'
+
+    @pytest.mark.parametrize("occupied", ["file", "directory", "dangling_symlink"])
+    def test_direct_save_refuses_occupied_destination(tmp_path, occupied):
+        destination = tmp_path / "grade.json"
+        missing = tmp_path / "not-created.json"
+        if occupied == "file":
+            destination.write_bytes(b"earlier grade\n")
+        elif occupied == "directory":
+            destination.mkdir()
+        else:
+            destination.symlink_to(missing)
+>       with pytest.raises(FileExistsError, match="fresh.*output-dir"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:95: Failed
+___________ test_direct_save_refuses_occupied_destination[directory] ___________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_refuses_occup1')
+occupied = 'directory'
+
+    @pytest.mark.parametrize("occupied", ["file", "directory", "dangling_symlink"])
+    def test_direct_save_refuses_occupied_destination(tmp_path, occupied):
+        destination = tmp_path / "grade.json"
+        missing = tmp_path / "not-created.json"
+        if occupied == "file":
+            destination.write_bytes(b"earlier grade\n")
+        elif occupied == "directory":
+            destination.mkdir()
+        else:
+            destination.symlink_to(missing)
+        with pytest.raises(FileExistsError, match="fresh.*output-dir"):
+>           grading_result().save(destination)
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/llm/evaluator.py:123: in save
+    path.write_text(self.to_json(), encoding="utf-8")
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:809: in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_refuses_occup1/grade.json')
+mode = 'w', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IsADirectoryError: [Errno 21] Is a directory: '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_refuses_occup1/grade.json'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: IsADirectoryError
+_______ test_direct_save_refuses_occupied_destination[dangling_symlink] ________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_refuses_occup2')
+occupied = 'dangling_symlink'
+
+    @pytest.mark.parametrize("occupied", ["file", "directory", "dangling_symlink"])
+    def test_direct_save_refuses_occupied_destination(tmp_path, occupied):
+        destination = tmp_path / "grade.json"
+        missing = tmp_path / "not-created.json"
+        if occupied == "file":
+            destination.write_bytes(b"earlier grade\n")
+        elif occupied == "directory":
+            destination.mkdir()
+        else:
+            destination.symlink_to(missing)
+>       with pytest.raises(FileExistsError, match="fresh.*output-dir"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:95: Failed
+_________ test_file_api_collision_is_detected_before_judge_call[False] _________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_coll...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_collision_is_det0/grading'))
+alongside = False
+
+    @pytest.mark.parametrize("alongside", [False, True])
+    def test_file_api_collision_is_detected_before_judge_call(fixture, alongside):
+        tasks, originals, output = fixture
+        source = originals / "a.json"
+        before = source.read_bytes()
+        output = originals if alongside else output
+        output.mkdir(exist_ok=True)
+        destination = output / "a_grading.json"
+        destination.write_bytes(b"retained grade")
+        judge = CountingJudge()
+>       with pytest.raises(FileExistsError, match="fresh.*output-dir"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:115: Failed
+_________ test_file_api_collision_is_detected_before_judge_call[True] __________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_coll...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_collision_is_det1/grading'))
+alongside = True
+
+    @pytest.mark.parametrize("alongside", [False, True])
+    def test_file_api_collision_is_detected_before_judge_call(fixture, alongside):
+        tasks, originals, output = fixture
+        source = originals / "a.json"
+        before = source.read_bytes()
+        output = originals if alongside else output
+        output.mkdir(exist_ok=True)
+        destination = output / "a_grading.json"
+        destination.write_bytes(b"retained grade")
+        judge = CountingJudge()
+>       with pytest.raises(FileExistsError, match="fresh.*output-dir"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:115: Failed
+____________ test_file_api_dangling_destination_stops_before_judge _____________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_dang...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_file_api_dangling_destina0/grading'))
+
+    def test_file_api_dangling_destination_stops_before_judge(fixture):
+        tasks, originals, output = fixture
+        output.mkdir()
+        target = output / "missing-target"
+        destination = output / "a_grading.json"
+        destination.symlink_to(target)
+        judge = CountingJudge()
+>       with pytest.raises(FileExistsError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:128: Failed
+_ test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[False-b_grading.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflight...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflights_later_grad0/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107c7ab10>
+destination = 'b_grading.json', dangling = False
+
+    @pytest.mark.parametrize("destination", ["b_grading.json", "evaluation_summary.json"])
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_cli_preflights_later_grade_and_summary_before_any_judge_or_write(fixture, monkeypatch, destination, dangling):
+        _, originals, output = fixture
+        before = {p: p.read_bytes() for p in originals.glob("*.json")}
+        output.mkdir()
+        occupied = output / destination
+        target = output / "not-created"
+        if dangling:
+            occupied.symlink_to(target)
+        else:
+            occupied.write_bytes(b"previous evidence")
+        run, judge, constructed = invoke_cli(monkeypatch, fixture)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:146: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.832617+00:00"
+}
+_ test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[False-evaluation_summary.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflight...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflights_later_grad1/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107c7ad70>
+destination = 'evaluation_summary.json', dangling = False
+
+    @pytest.mark.parametrize("destination", ["b_grading.json", "evaluation_summary.json"])
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_cli_preflights_later_grade_and_summary_before_any_judge_or_write(fixture, monkeypatch, destination, dangling):
+        _, originals, output = fixture
+        before = {p: p.read_bytes() for p in originals.glob("*.json")}
+        output.mkdir()
+        occupied = output / destination
+        target = output / "not-created"
+        if dangling:
+            occupied.symlink_to(target)
+        else:
+            occupied.write_bytes(b"previous evidence")
+        run, judge, constructed = invoke_cli(monkeypatch, fixture)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:146: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.837473+00:00"
+}
+_ test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[True-b_grading.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflight...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflights_later_grad2/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107cc72f0>
+destination = 'b_grading.json', dangling = True
+
+    @pytest.mark.parametrize("destination", ["b_grading.json", "evaluation_summary.json"])
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_cli_preflights_later_grade_and_summary_before_any_judge_or_write(fixture, monkeypatch, destination, dangling):
+        _, originals, output = fixture
+        before = {p: p.read_bytes() for p in originals.glob("*.json")}
+        output.mkdir()
+        occupied = output / destination
+        target = output / "not-created"
+        if dangling:
+            occupied.symlink_to(target)
+        else:
+            occupied.write_bytes(b"previous evidence")
+        run, judge, constructed = invoke_cli(monkeypatch, fixture)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:146: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.842125+00:00"
+}
+_ test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[True-evaluation_summary.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflight...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_preflights_later_grad3/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107dede10>
+destination = 'evaluation_summary.json', dangling = True
+
+    @pytest.mark.parametrize("destination", ["b_grading.json", "evaluation_summary.json"])
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_cli_preflights_later_grade_and_summary_before_any_judge_or_write(fixture, monkeypatch, destination, dangling):
+        _, originals, output = fixture
+        before = {p: p.read_bytes() for p in originals.glob("*.json")}
+        output.mkdir()
+        occupied = output / destination
+        target = output / "not-created"
+        if dangling:
+            occupied.symlink_to(target)
+        else:
+            occupied.write_bytes(b"previous evidence")
+        run, judge, constructed = invoke_cli(monkeypatch, fixture)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:146: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.846939+00:00"
+}
+________ test_cli_rejects_two_inputs_mapping_to_same_grade_before_judge ________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_rejects_t...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_rejects_two_inputs_ma0/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107dee250>
+
+    def test_cli_rejects_two_inputs_mapping_to_same_grade_before_judge(fixture, monkeypatch):
+        _, originals, output = fixture
+        second = originals / "nested" / "a.json"
+        second.parent.mkdir()
+        second.write_bytes((originals / "a.json").read_bytes())
+        run, judge, constructed = invoke_cli(monkeypatch, fixture, paths=[originals / "a.json", second])
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:164: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.851532+00:00"
+}
+___ test_cli_rejects_canonical_alias_destinations_without_making_directories ___
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_rejects_c...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_rejects_canonical_ali0/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107cd3e50>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_rejects_canonical_ali0')
+
+    def test_cli_rejects_canonical_alias_destinations_without_making_directories(fixture, monkeypatch, tmp_path):
+        tasks, originals, output = fixture
+        alias = tmp_path / "originals-alias"
+        alias.symlink_to(originals, target_is_directory=True)
+        monkeypatch.setattr(sys, "argv", ["evaluator", "--trajectory-dir", str(originals), "--tasks-dir", str(tasks), "--judge-key", "not-a-key"])
+        monkeypatch.setattr(evaluator, "selected_trajectory_paths", lambda _: [originals / "a.json", alias / "a.json"])
+        constructed = []
+        monkeypatch.setattr(evaluator, "create_skeptical_judge", lambda *args: constructed.append(args) or CountingJudge())
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:178: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "gpt-5.4",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.856388+00:00"
+}
+______________ test_known_parent_file_rejected_before_judge[file] ______________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_file_rejecte0/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107e58650>
+api = 'file'
+
+    @pytest.mark.parametrize("api", ["file", "cli"])
+    def test_known_parent_file_rejected_before_judge(fixture, monkeypatch, api):
+        tasks, originals, output = fixture
+        output.write_bytes(b"not a directory")
+        if api == "file":
+            judge = CountingJudge()
+            with pytest.raises(OSError):
+                evaluator.evaluate_trajectory_file(originals / "a.json", judge, tasks_dir=tasks, output_dir=output)
+>           assert judge.calls == 0
+E           assert 1 == 0
+E            +  where 1 = <tests.test_evaluator_integrity.test_grading_output_preservation.CountingJudge object at 0x107e58350>.calls
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:192: AssertionError
+______________ test_known_parent_file_rejected_before_judge[cli] _______________
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_file_rejecte1/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107d968a0>
+api = 'cli'
+
+    @pytest.mark.parametrize("api", ["file", "cli"])
+    def test_known_parent_file_rejected_before_judge(fixture, monkeypatch, api):
+        tasks, originals, output = fixture
+        output.write_bytes(b"not a directory")
+        if api == "file":
+            judge = CountingJudge()
+            with pytest.raises(OSError):
+                evaluator.evaluate_trajectory_file(originals / "a.json", judge, tasks_dir=tasks, output_dir=output)
+            assert judge.calls == 0
+        else:
+            run, judge, constructed = invoke_cli(monkeypatch, fixture)
+            with pytest.raises(SystemExit) as caught:
+>               run()
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/healthcraft/llm/evaluator.py:507: in main
+    result = evaluate_trajectory_file(
+src/healthcraft/llm/evaluator.py:319: in evaluate_trajectory_file
+    result.save(grading_path)
+src/healthcraft/llm/evaluator.py:122: in save
+    path.parent.mkdir(parents=True, exist_ok=True)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_file_rejecte1/grading')
+mode = 511, parents = True, exist_ok = True
+
+    def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+        """
+        Create a new directory at this given path.
+        """
+        try:
+>           os.mkdir(self, mode)
+E           FileExistsError: [Errno 17] File exists: '/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_known_parent_file_rejecte1/grading'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:1011: FileExistsError
+__________________ test_direct_save_race_winner_is_preserved ___________________
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_direct_save_race_winner_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107d97b60>
+
+    def test_direct_save_race_winner_is_preserved(tmp_path, monkeypatch):
+        destination = tmp_path / "grade.json"
+        result = grading_result()
+        payload = result.to_json()
+    
+        def write_competing_result():
+            destination.write_bytes(b"race winner")
+            return payload
+    
+        monkeypatch.setattr(result, "to_json", write_competing_result)
+>       with pytest.raises(FileExistsError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'FileExistsError'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:211: Failed
+_ test_cli_write_time_race_never_overwrites_winner_or_emits_success[a_grading.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_write_tim...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_write_time_race_never0/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107de2190>
+capsys = <_pytest.capture.CaptureFixture object at 0x107d21be0>
+destination = 'a_grading.json'
+
+    @pytest.mark.parametrize("destination", ["a_grading.json", "evaluation_summary.json"])
+    def test_cli_write_time_race_never_overwrites_winner_or_emits_success(fixture, monkeypatch, capsys, destination):
+        _, _, output = fixture
+    
+        def create_race(judge):
+            output.mkdir(exist_ok=True)
+            (output / destination).write_bytes(b"race winner")
+            return judge
+    
+        run, judge, constructed = invoke_cli(monkeypatch, fixture, factory=create_race)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:226: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.884595+00:00"
+}
+_ test_cli_write_time_race_never_overwrites_winner_or_emits_success[evaluation_summary.json] _
+
+fixture = (PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_write_tim...r/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-490/test_cli_write_time_race_never1/grading'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107de1d30>
+capsys = <_pytest.capture.CaptureFixture object at 0x107ea9590>
+destination = 'evaluation_summary.json'
+
+    @pytest.mark.parametrize("destination", ["a_grading.json", "evaluation_summary.json"])
+    def test_cli_write_time_race_never_overwrites_winner_or_emits_success(fixture, monkeypatch, capsys, destination):
+        _, _, output = fixture
+    
+        def create_race(judge):
+            output.mkdir(exist_ok=True)
+            (output / destination).write_bytes(b"race winner")
+            return judge
+    
+        run, judge, constructed = invoke_cli(monkeypatch, fixture, factory=create_race)
+>       with pytest.raises(SystemExit) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'SystemExit'>
+
+tests/test_evaluator_integrity/test_grading_output_preservation.py:226: Failed
+----------------------------- Captured stdout call -----------------------------
+{
+  "judge_model": "offline-stub",
+  "skepticism": "default",
+  "total_evaluated": 2,
+  "passed": 2,
+  "pass_rate": 1.0,
+  "avg_reward": 1.0,
+  "original_passed": 0,
+  "original_pass_rate": 0.0,
+  "original_avg_reward": 0.0,
+  "safety_failures": 0,
+  "reward_changed_count": 2,
+  "timestamp": "2026-09-30T14:53:08.889541+00:00"
+}
+=========================== short test summary info ============================
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_direct_save_refuses_occupied_destination[file]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_direct_save_refuses_occupied_destination[directory]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_direct_save_refuses_occupied_destination[dangling_symlink]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_file_api_collision_is_detected_before_judge_call[False]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_file_api_collision_is_detected_before_judge_call[True]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_file_api_dangling_destination_stops_before_judge
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[False-b_grading.json]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[False-evaluation_summary.json]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[True-b_grading.json]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_preflights_later_grade_and_summary_before_any_judge_or_write[True-evaluation_summary.json]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_rejects_two_inputs_mapping_to_same_grade_before_judge
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_rejects_canonical_alias_destinations_without_making_directories
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_known_parent_file_rejected_before_judge[file]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_known_parent_file_rejected_before_judge[cli]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_direct_save_race_winner_is_preserved
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_write_time_race_never_overwrites_winner_or_emits_success[a_grading.json]
+FAILED tests/test_evaluator_integrity/test_grading_output_preservation.py::test_cli_write_time_race_never_overwrites_winner_or_emits_success[evaluation_summary.json]
+17 failed, 2 passed in 0.14s

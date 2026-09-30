@@ -1,0 +1,35 @@
+"""Capture one frozen scripted reconciliation roster with its optional CSV metric."""
+from pathlib import Path
+import datetime
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import time
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+CANDIDATE=json.loads(Path('/private/tmp/healthcraft-reconciliation-candidate.json').read_text())
+source=Path(CANDIDATE['candidate'])
+OUT=ROOT/'artifacts/reconciliation/20260930/native-verifier-v1'
+PYTHON='/private/tmp/healthcraft-reconciliation-upstream-runtime/bin/python'
+CORE='/private/tmp/healthcraft-check-py312/lib/python3.12/site-packages'
+env={'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','PYTHONPATH':str(source/'src'),'PYTHONUNBUFFERED':'1'}
+program="import sys,runpy; sys.path.append("+repr(CORE)+"); sys.argv=['scripts/reconcile_synthetic_ehr.py','--output-dir',"+repr(str(OUT))+",'--upstream']; runpy.run_path(sys.argv[0],run_name='__main__')"
+command=[PYTHON,'-c',program]
+receipt={'command':command,'cwd':str(source),'environment':env,'baseline_commit':CANDIDATE['baseline_commit'],'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'model_calls':0,'upstream_turn_count_unit':'recorded synchronous tool invocations; zero model turns','runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+started=time.monotonic()
+process=subprocess.run(command,cwd=source,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=90)
+receipt.update(exit_code=process.returncode,duration_seconds=round(time.monotonic()-started,3),ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+assert OUT.is_dir(),process.stdout.decode(errors='replace')
+with (OUT/'capture.log').open('xb') as stream:
+    stream.write(process.stdout)
+with (OUT/'capture.json').open('x') as stream:
+    json.dump(receipt,stream,indent=2)
+shutil.copyfile(__file__,OUT/'capture.py.txt')
+probe="import sys,json,platform,importlib.metadata as m; sys.path.append("+repr(CORE)+"); print(json.dumps({'python':platform.python_version(),'executable':sys.executable,'added_core_site':"+repr(CORE)+",'packages':{n:m.version(n) for n in ['pandas','numpy','python-dateutil','six','PyYAML','jsonschema','attrs','jsonschema-specifications','referencing','rpds-py','typing_extensions']}},indent=2))"
+runtime=subprocess.run([PYTHON,'-c',probe],env=env,cwd=source,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
+with (OUT/'runtime.json').open('xb') as stream:
+    stream.write(runtime.stdout)
+print(process.stdout.decode())
+raise SystemExit(process.returncode)

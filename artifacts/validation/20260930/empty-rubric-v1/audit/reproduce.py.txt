@@ -1,0 +1,64 @@
+"""Zero/missing rubric boundary probes; synthetic-only, no model or judge calls."""
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+from dataclasses import asdict
+import asyncio
+import hashlib
+import importlib.util
+import json
+import sys
+import tempfile
+import yaml
+
+from healthcraft.tasks.loader import load_task, load_tasks
+from healthcraft.tasks.evaluator import evaluate_task, replay_from_trajectory
+from healthcraft.tasks.rubrics import compute_reward, check_safety_gate
+from healthcraft.llm.evaluator import evaluate_trajectory_file
+from healthcraft.rl.reward import compute_training_reward, reward_func
+from healthcraft.trajectory import Trajectory
+from healthcraft.world.state import WorldState
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-empty-rubric-audit')
+WORK=Path(tempfile.mkdtemp(prefix='fixtures-',dir=OUT))
+FILES=['src/healthcraft/tasks/loader.py','src/healthcraft/tasks/evaluator.py','src/healthcraft/tasks/rubrics.py','src/healthcraft/llm/evaluator.py','evals/healthcraft_simple_eval.py','src/healthcraft/rl/reward.py','src/healthcraft/rl/env.py']
+def hashes():return {p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in FILES}
+before=hashes()
+spec=importlib.util.spec_from_file_location('empty_rubric_simple_eval',ROOT/'evals/healthcraft_simple_eval.py')
+module=importlib.util.module_from_spec(spec);sys.modules[spec.name]=module;spec.loader.exec_module(module)
+class ForbiddenJudge:
+ _judge_model='offline-not-called'
+ def evaluate_criterion(self,*a,**kw):raise AssertionError('No judge call is allowed')
+base={'id':'EMPTY-001','category':'clinical_reasoning','level':1,'title':'Synthetic empty-rubric audit','description':'No graded assertions supplied.'}
+cases=[]
+for name,definition in [('missing',dict(base)),('empty',{**base,'criteria':[]})]:
+ directory=WORK/name;tasks=directory/'configs/tasks';tasks.mkdir(parents=True)
+ path=tasks/'empty.yaml';path.write_text(yaml.safe_dump(definition))
+ task=load_task(path)
+ world=WorldState()
+ trajectory=Trajectory(task.id,'offline-synthetic',42,'Synthetic audit prompt',metadata={'stop_reason':'stop','termination_kind':'complete'})
+ trajectory.add_turn('system','Synthetic audit prompt');trajectory.add_turn('user',task.description);trajectory.add_turn('assistant','Recorded synthetic response')
+ trajdir=directory/'trajectories';trajdir.mkdir();trajpath=trajdir/'EMPTY-001_offline-synthetic_42_t1.json';trajectory.save(trajpath)
+ input_before=hashlib.sha256(trajpath.read_bytes()).hexdigest()
+ direct=evaluate_task(task,{},world)
+ replay=replay_from_trajectory(trajectory.to_dict(),task)
+ interrupted=replay_from_trajectory({**trajectory.to_dict(),'error':'synthetic interruption'},task)
+ standalone=evaluate_trajectory_file(trajpath,ForbiddenJudge(),tasks_dir=tasks,output_dir=directory/'grading')
+ training=compute_training_reward(task,trajectory,world)
+ process_training=compute_training_reward(task,trajectory,world,process_signals={'synthetic_positive_signal':0.1})
+ sample=SimpleNamespace(metadata={'task':task,'trajectory':trajectory,'world':world,'process_signals':{'synthetic_positive_signal':0.1}})
+ adapter=asyncio.run(reward_func(None,sample))
+ with patch.object(module,'_PROJECT_ROOT',directory):
+  verdicts=module._run_replay([module._DatasetTask(task.id,task.category,())],trajdir,rubric_channel='v8',trials=1,limit=None)
+  report=module._build_report(agent_model='offline-synthetic',dataset_name='synthetic-empty',verdicts=verdicts,trials=1,judge_mode='single')
+ try:load_tasks(tasks,strict=True);strict='accepted'
+ except ValueError as exc:strict=str(exc)
+ cases.append({'fixture':name,'loaded_criteria':len(task.criteria),'direct':asdict(direct),'replay':asdict(replay),'interrupted_replay':asdict(interrupted),'standalone':asdict(standalone),'simple_eval_report':report,'training_default':asdict(training),'training_process_signal':asdict(process_training),'slime_reward_func_scalar':adapter,'strict_loader':strict,'original_trajectory_unchanged':hashlib.sha256(trajpath.read_bytes()).hexdigest()==input_before,'input_task_sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+canonical=load_tasks(ROOT/'configs/tasks')
+after=hashes();assert before==after
+receipt={'source_before':before,'source_after':after,'source_stable':True,'model_calls':0,'judge_calls':0,'network_calls':0,'work_dir':str(WORK),'canonical_catalog':{'tasks':len(canonical),'empty_rubric_ids':[t.id for t in canonical if not t.criteria]},'low_level':{'compute_reward_empty':compute_reward([],[]),'safety_empty':check_safety_gate([],[])},'cases':cases}
+(OUT/'reproduction.json').write_text(json.dumps(receipt,indent=2,allow_nan=False)+'\n')
+for row in cases:
+ print(json.dumps({'fixture':row['fixture'],'direct':{'passed':row['direct']['passed'],'safety':row['direct']['safety_gate_passed'],'reward':row['direct']['reward']},'replay':{'passed':row['replay']['passed'],'safety':row['replay']['safety_gate_passed']},'standalone_passed':row['standalone']['passed'],'simple_eval_pass_at_1':row['simple_eval_report']['pass_at_1'],'training_default':row['training_default']['reward'],'training_process':row['training_process_signal']['reward'],'training_safety':row['training_default']['safety_gate_passed'],'slime_scalar':row['slime_reward_func_scalar'],'input_unchanged':row['original_trajectory_unchanged']}))
+print(json.dumps(receipt['canonical_catalog']))

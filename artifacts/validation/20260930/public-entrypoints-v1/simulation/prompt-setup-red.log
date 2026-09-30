@@ -1,0 +1,59 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_invalid_prompt_keeps_failed_trial_and_remaining_cohort __________
+
+sample_task = Task(id='CR-001', category='clinical_reasoning', level=4, title='The Mimic', description='A 52-year-old male presents ... check bilateral blood pressures in chest pain. A >20mmHg differential is aortic dissection until proven otherwise.'}})
+fake_server = <tests.test_eval_runner.fake_server.<locals>.Server object at 0x1075382f0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107511810>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-430/test_invalid_prompt_keeps_fail0')
+
+    def test_invalid_prompt_keeps_failed_trial_and_remaining_cohort(
+        sample_task, fake_server, monkeypatch, tmp_path
+    ):
+        override = tmp_path / "invalid-prompt.txt"
+        override.write_bytes(b"\xff")
+        tasks = [
+            replace(sample_task, id="SIM-001", expected_tools=()),
+            replace(
+                sample_task,
+                id="SIM-002",
+                expected_tools=(),
+                system_prompt_override=str(override),
+            ),
+            replace(sample_task, id="SIM-003", expected_tools=()),
+        ]
+        monkeypatch.setattr(eval_runner, "_select_tasks", lambda *args: tasks)
+        output = tmp_path / "prompt-failure"
+>       summary = run(output, tmp_path, task_filter="all")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_eval_runner.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_eval_runner.py:158: in run
+    return eval_runner.run_evaluation(
+src/healthcraft/eval_runner.py:222: in run_evaluation
+    traj = evaluate_and_capture(task, "simulated", trial_seed, trial, results_dir)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/eval_runner.py:130: in evaluate_and_capture
+    prompt = load_system_prompt(task)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/eval_runner.py:39: in load_system_prompt
+    return compose_system_prompt(task, _SYSTEM_PROMPT_DIR, ("base.txt",))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/tasks/prompts.py:35: in compose_system_prompt
+    override_path.read_text(encoding="utf-8")
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:788: in read_text
+    return f.read()
+           ^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <encodings.utf_8.IncrementalDecoder object at 0x10749c8f0>
+input = b'\xff', final = True
+
+>   ???
+E   UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+
+<frozen codecs>:325: UnicodeDecodeError
+=========================== short test summary info ============================
+FAILED tests/test_eval_runner.py::test_invalid_prompt_keeps_failed_trial_and_remaining_cohort
+1 failed, 35 deselected in 0.08s

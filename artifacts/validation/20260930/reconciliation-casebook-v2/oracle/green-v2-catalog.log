@@ -1,0 +1,31 @@
+................................................F....................... [ 46%]
+........................................................................ [ 92%]
+...........                                                              [100%]
+=================================== FAILURES ===================================
+_ test_conflict_labels_cannot_vote_drop_sources_or_merge_other_events[REC2-003-cross_patient] _
+
+case_id = 'REC2-003', mutation = 'cross_patient'
+
+    @pytest.mark.parametrize(
+        "case_id,mutation",
+        [("REC2-004", "drop_minority"), ("REC2-003", "cross_patient"), ("REC2-005", "merge_events")],
+    )
+    def test_conflict_labels_cannot_vote_drop_sources_or_merge_other_events(case_id, mutation):
+        case = catalog_case(case_id)
+        expected = case["expectations"]
+        if mutation == "drop_minority":
+            expected["unresolved_conflicts"][0]["source_ids"].pop(0)
+        elif mutation == "cross_patient":
+            other = next(
+                row
+                for row in expected["sources"]
+                if row["patient_id"] != expected["target"]["patient_id"] and "event_id" in row["source"]
+            )
+>           expected["unresolved_conflicts"][0]["source_ids"].append(other["source_id"])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: list index out of range
+
+tests/test_reconciliation/test_oracle_v2.py:539: IndexError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_oracle_v2.py::test_conflict_labels_cannot_vote_drop_sources_or_merge_other_events[REC2-003-cross_patient]
+1 failed, 154 passed in 0.42s

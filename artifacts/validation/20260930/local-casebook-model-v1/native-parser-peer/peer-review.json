@@ -1,0 +1,150 @@
+{
+  "checks": [
+    "Nested and escaped-equivalent duplicate native keys reject.",
+    "NaN, positive/negative Infinity and exponent overflow reject.",
+    "Non-UTF8 native HTTP bodies reject after exact capture.",
+    "Valid Unicode, null, booleans, finite floats and large integers retain decoded values.",
+    "Base64 and SHA256 match exact successful-HTTP body bytes before decode, including invalid JSON bodies.",
+    "Provider metadata uses strict parsing.",
+    "Sink errors before dispatch, after bytes received or after decode stop the controller without returning a tool command; a followup cannot dispatch.",
+    "Valid finish remains termination only.",
+    "Saved v1/v2/v3 file bytes match their existing manifests and stay unchanged; no historical oracle replay was performed."
+  ],
+  "finding": {
+    "detail": "String-encoded native tool arguments used plain json.loads, permitting duplicate-key overwrite and nonfinite values after strict envelope parsing. Owner now applies the same duplicate-key and finite-number checks; eight negative and one valid string-argument controls pass.",
+    "id": "native-string-arguments",
+    "original_reproduction": "/private/tmp/healthcraft-native-json-peer/string-tool-arguments-reproduction.json",
+    "status": "fixed and independently rechecked"
+  },
+  "legacy_cohorts_after": [
+    {
+      "all_match": true,
+      "checked_files": 172,
+      "manifest_sha256": "8aad5ccd2ee1e700a300a9124ce154b7f60053e5c5172f44f84bee48bf4f70d0",
+      "mismatches": [],
+      "version": 1
+    },
+    {
+      "all_match": true,
+      "checked_files": 170,
+      "manifest_sha256": "fff0ac99d5c4e3beb6acdecd4de8b922fa81cb73cbb25f214f62c195726597fe",
+      "mismatches": [],
+      "version": 2
+    },
+    {
+      "all_match": true,
+      "checked_files": 181,
+      "manifest_sha256": "816114ca43540db985d96e684f535696c3a234d1e38a405321afeed04bf1fba1",
+      "mismatches": [],
+      "version": 3
+    }
+  ],
+  "legacy_cohorts_before": [
+    {
+      "all_match": true,
+      "checked_files": 172,
+      "manifest_sha256": "8aad5ccd2ee1e700a300a9124ce154b7f60053e5c5172f44f84bee48bf4f70d0",
+      "mismatches": [],
+      "version": 1
+    },
+    {
+      "all_match": true,
+      "checked_files": 170,
+      "manifest_sha256": "fff0ac99d5c4e3beb6acdecd4de8b922fa81cb73cbb25f214f62c195726597fe",
+      "mismatches": [],
+      "version": 2
+    },
+    {
+      "all_match": true,
+      "checked_files": 181,
+      "manifest_sha256": "816114ca43540db985d96e684f535696c3a234d1e38a405321afeed04bf1fba1",
+      "mismatches": [],
+      "version": 3
+    }
+  ],
+  "legacy_cohorts_stable": true,
+  "limitations": [
+    "HTTPError still uses the pre-existing bounded decoded detail; the exact body capture hook covers successful HTTP responses, including decode/semantic failures, not all HTTP error bodies.",
+    "These are mocked-opener tests, not live Ollama binary/inference validation.",
+    "Deep valid JSON may exceed decoding or deepcopy depth depending on runtime; both paths fail closed with raw bytes retained.",
+    "One initial peer test incorrectly demanded LocalModelError for deep valid JSON; corrected expectation permits RecursionError from deepcopy. Original failed log is preserved."
+  ],
+  "peer_cases": 43,
+  "peer_checker_sha256": "7a9e1943bbaf081e2ea436ce3212cc4d2d97175d51dcbd7a5da79f3c5fb6a6f9",
+  "remaining_findings": [],
+  "runner_sha256": "3e277e5ab6cfcfcd8bd8cdb1d41c342f81037b0445053bf3b57dbb153700cb69",
+  "scope": "Ordinary bounded development review; no formal red team, network, inference, regrading or repository writes.",
+  "source_after": {
+    "src/healthcraft/llm/local_models.py": "72839443dde01e6538f834709d87ba55a0a4f14016a9ca210af3145b9ef09ccd",
+    "src/healthcraft/reconciliation/controller.py": "40b15954c361fac02eda9e01a2da87aa5b03b49dca178b3e2a6bd16f932fd099",
+    "tests/test_llm/test_local_native_json.py": "dc7e42851c284b35394117020d345ecc60881115fd4b132501e8b34e5a4dc7ca"
+  },
+  "source_before": {
+    "src/healthcraft/llm/local_models.py": "72839443dde01e6538f834709d87ba55a0a4f14016a9ca210af3145b9ef09ccd",
+    "src/healthcraft/reconciliation/controller.py": "40b15954c361fac02eda9e01a2da87aa5b03b49dca178b3e2a6bd16f932fd099",
+    "tests/test_llm/test_local_native_json.py": "dc7e42851c284b35394117020d345ecc60881115fd4b132501e8b34e5a4dc7ca"
+  },
+  "source_stable": true,
+  "tests": [
+    {
+      "command": [
+        "/Users/kiteboard/healthcraft/.venv/bin/python",
+        "-m",
+        "pytest",
+        "/private/tmp/healthcraft-native-json-peer/test_peer.py",
+        "tests/test_llm/test_local_native_json.py",
+        "tests/test_llm/test_local_models.py",
+        "tests/test_reconciliation/test_controller.py",
+        "-q"
+      ],
+      "environment_overrides": {
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTHONPATH": "/Users/kiteboard/healthcraft/src"
+      },
+      "exit_code": 0,
+      "log": "/private/tmp/healthcraft-native-json-peer/final-green-0.log",
+      "runtime": "Python 3.14.3",
+      "summary": "196 passed, 1 warning in 1.90s"
+    },
+    {
+      "command": [
+        "/private/tmp/healthcraft-check-py312/bin/python",
+        "-m",
+        "pytest",
+        "/private/tmp/healthcraft-native-json-peer/test_peer.py",
+        "tests/test_llm/test_local_native_json.py",
+        "tests/test_llm/test_local_models.py",
+        "tests/test_reconciliation/test_controller.py",
+        "-q"
+      ],
+      "environment_overrides": {
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTHONPATH": "/Users/kiteboard/healthcraft/src"
+      },
+      "exit_code": 0,
+      "log": "/private/tmp/healthcraft-native-json-peer/final-green-1.log",
+      "runtime": "Python 3.12.8",
+      "summary": "196 passed, 1 warning in 1.27s"
+    },
+    {
+      "command": [
+        "/private/tmp/healthcraft-check-py310/bin/python",
+        "-m",
+        "pytest",
+        "/private/tmp/healthcraft-native-json-peer/test_peer.py",
+        "tests/test_llm/test_local_native_json.py",
+        "tests/test_llm/test_local_models.py",
+        "tests/test_reconciliation/test_controller.py",
+        "-q"
+      ],
+      "environment_overrides": {
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTHONPATH": "/Users/kiteboard/healthcraft/src"
+      },
+      "exit_code": 0,
+      "log": "/private/tmp/healthcraft-native-json-peer/final-green-2.log",
+      "runtime": "Python 3.10.18",
+      "summary": "196 passed, 1 warning in 1.63s"
+    }
+  ]
+}

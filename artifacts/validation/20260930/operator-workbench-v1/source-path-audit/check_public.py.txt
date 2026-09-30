@@ -1,0 +1,62 @@
+"""Offline source-descriptor review using only captured public instructions/calls.
+No fixture, oracle, expectations, private snapshots, or model API imports.
+"""
+from pathlib import Path
+from copy import deepcopy
+import hashlib,json,re,collections
+ROOT=Path('/Users/kiteboard/healthcraft');BASE=ROOT/'artifacts/reconciliation/20260930/local-casebook-pilot-v1';OUT=Path('/private/tmp/healthcraft-source-path-attainability')
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def canon(v):return json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+def strict(raw):
+ def pairs(pairs):
+  d={}
+  for k,v in pairs:
+   if k in d:raise ValueError('Duplicate JSON key: '+k)
+   d[k]=v
+  return d
+ def bad(x):raise ValueError('Nonfinite JSON '+x)
+ return json.loads(raw,object_pairs_hook=pairs,parse_constant=bad)
+def escape(k):return str(k).replace('~','~0').replace('/','~1')
+def extract(detail,callid):
+ rows=[]
+ for kind in ['authored_care','imaging']:
+  for i,p in enumerate(detail[kind]):
+   path=p['source_path'];assert path.startswith('/patient/');base=path[len('/patient'):]
+   def walk(value,suffix):
+    if type(value) is dict and 'source_id' in value:
+     rows.append({'source_id':value['source_id'],'patient_id':detail['patient_id'],'encounter_id':detail['id'],'source_collection':p['source_collection'],'source_path':base+suffix,'source':deepcopy(value),'public_evidence':{'call_id':callid,'projection_pointer':f'/response/data/{kind}/{i}','projection_source_path':path,'source_data_relative_pointer':suffix}})
+    elif type(value) is list:
+     for j,row in enumerate(value):walk(row,suffix+'/'+str(j))
+    elif type(value) is dict:
+     for key,row in value.items():walk(row,suffix+'/'+escape(key))
+   walk(p['source_data'],'')
+ return rows
+results=[];hashes={};hist=collections.Counter();total={'attempts':0,'unique_returned_rows':0,'parseable_notes':0,'unparseable_notes':0,'notes_with_path_only_differences':0,'path_only_differences':0,'all_target_raw_matches':0}
+for context_path in sorted((BASE/'run').glob('REC2-*/*/public-context.json')):
+ folder=context_path.parent;attempt=folder.relative_to(BASE/'run').as_posix();ep=folder/'execution.json';hashes[str(context_path.relative_to(ROOT))]=sha(context_path);hashes[str(ep.relative_to(ROOT))]=sha(ep)
+ c=strict(context_path.read_text());e=strict(ep.read_text());inst=c['instruction'];target={'patient_id':re.search(r'^Target patient: (.+)$',inst,re.M)[1],'encounter_id':re.search(r'^Target encounter: (.+)$',inst,re.M)[1]};assert 'removing only the leading /patient namespace' in inst
+ rows={};callrows={};notes=[]
+ for call in e['calls']:
+  if call.get('response',{}).get('status')!='ok':continue
+  if call['name']=='getEncounterDetails':
+   decoded=extract(call['response']['data'],call['id']);callrows[call['id']]=len(decoded)
+   for row in decoded:rows[(row['patient_id'],row['encounter_id'],row['source_id'])]=row
+  if call['name']=='updateEncounter':notes.append((call['id'],call['params']['notes']))
+ failures=[];note_results=[]
+ for callid,text in notes:
+  try:n=strict(text)
+  except Exception as x:total['unparseable_notes']+=1;note_results.append({'write_call':callid,'parse_error':str(x)});continue
+  total['parseable_notes']+=1;diffs=[]
+  for i,obs in enumerate(n.get('observations',[])):
+   row=rows.get((target['patient_id'],target['encounter_id'],obs.get('source_id')))
+   if row is None or canon(obs.get('source'))!=canon(row['source']):continue
+   total['all_target_raw_matches']+=1
+   expected={k:v for k,v in row.items() if k!='public_evidence'}
+   if obs.get('source_path')!=row['source_path'] and canon({k:v for k,v in obs.items() if k!='source_path'})==canon({k:v for k,v in expected.items() if k!='source_path'}):
+    d={'source_id':obs['source_id'],'observed_path':obs.get('source_path'),'publicly_derived_path':row['source_path'],'source_collection':row['source_collection'],'raw_source_equal':True,**row['public_evidence']};diffs.append(d);hist[('care' if row['public_evidence']['source_data_relative_pointer'] else 'imaging',obs.get('source_path','').startswith('/patient/'))]+=1
+  if diffs:total['notes_with_path_only_differences']+=1
+  total['path_only_differences']+=len(diffs);note_results.append({'write_call':callid,'path_only_differences':diffs})
+ total['attempts']+=1;total['unique_returned_rows']+=len(rows)
+ results.append({'attempt':attempt,'target':target,'instruction_sha256':hashlib.sha256(inst.encode()).hexdigest(),'unique_returned_rows':len(rows),'detail_call_rows':callrows,'public_rows':list(rows.values()),'notes':note_results})
+receipt={'scope':'Captured instruction and public calls only; no fixture/oracle/expected data used by extractor. No models or tool dispatches, no repo edits. Raw row equality uses canonical exact-typed JSON.','totals':total,'path_classes':[{'kind':k[0],'has_patient_prefix':k[1],'count':v}for k,v in hist.items()],'attempts':results,'input_sha256':hashes,'input_unchanged':all(sha(ROOT/p)==h for p,h in hashes.items())}
+(OUT/'public-descriptor-review.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps({'totals':total,'path_classes':receipt['path_classes'],'rows':[{'attempt':r['attempt'],'rows':r['unique_returned_rows'],'bad_paths':sum(len(n.get('path_only_differences',[]))for n in r['notes'])}for r in results]},indent=2))

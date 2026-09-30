@@ -1,0 +1,170 @@
+"""Static HTML/data inspection only. No browser, external calls or evidence changes."""
+import copy
+import hashlib
+import json
+import socket
+from html.parser import HTMLParser
+from pathlib import Path
+
+ROOT = Path('/Users/kiteboard/healthcraft')
+WORK = Path('/private/tmp/healthcraft-reconciliation-explanation-report')
+
+
+def no_network(*args, **kwargs):
+    raise AssertionError('Network is forbidden during static report review')
+
+
+socket.create_connection = no_network
+socket.socket = no_network
+
+from healthcraft.reconciliation.diagnostics import explain_reconciliation
+from healthcraft.reconciliation.explanation_report import render_reconciliation_explanation
+from healthcraft.reconciliation.fixture import load_scenario
+from healthcraft.reconciliation.oracle import load_expectations
+
+
+class Document(HTMLParser):
+    def __init__(self, html):
+        super().__init__(convert_charrefs=True)
+        self.tags = []
+        self.stack = []
+        self.parts = []
+        self.counts = {}
+        self.feed(html)
+        self.close()
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        self.tags.append((tag, attrs))
+        if tag not in {'meta', 'br', 'hr', 'input', 'img', 'link'}:
+            self.stack.append((tag, attrs))
+        if 'data-count' in attrs:
+            self.counts[attrs['data-count']] = ''
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack)-1, -1, -1):
+            if self.stack[i][0] == tag:
+                del self.stack[i:]
+                break
+
+    def handle_data(self, data):
+        if not any(tag == 'style' for tag, _ in self.stack):
+            self.parts.append(data)
+        for _, attrs in self.stack:
+            if 'data-count' in attrs:
+                self.counts[attrs['data-count']] += data
+
+    @property
+    def text(self):
+        return ' '.join(self.parts)
+
+    @property
+    def inert(self):
+        blocked = {'script', 'iframe', 'object', 'embed', 'img', 'svg', 'math', 'a',
+                   'link', 'form', 'input', 'button', 'video', 'audio', 'base'}
+        return not any(tag in blocked or any(k.startswith('on') or k in {'href', 'src',
+            'srcdoc', 'action', 'formaction'} for k in attrs) for tag, attrs in self.tags)
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def refs(value):
+    if isinstance(value, dict):
+        if 'document' in value and 'pointer' in value:
+            yield value
+        for child in value.values():
+            yield from refs(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from refs(child)
+
+
+source_files = [ROOT/'src/healthcraft/reconciliation/explanation_report.py',
+                ROOT/'tests/test_reconciliation/test_explanation_report.py',
+                ROOT/'src/healthcraft/reconciliation/diagnostics.py',
+                ROOT/'src/healthcraft/reconciliation/oracle.py',
+                ROOT/'configs/evaluation/reconciliation_v1/scenario.json',
+                ROOT/'configs/evaluation/reconciliation_v1/expectations.json']
+source_before = {str(p.relative_to(ROOT)): sha(p) for p in source_files}
+scenario, expected = load_scenario(), load_expectations()
+checks = {}
+trials = []
+example = None
+for attempt in ['nano-direct-01','nano-harbor-01','medgemma-harbor-01','medgemma-direct-01']:
+    path = ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3'/attempt/'backend/session/evidence.json'
+    evidence_sha = sha(path)
+    evidence = json.loads(path.read_text())
+    evidence_before = copy.deepcopy(evidence)
+    explanation = explain_reconciliation(scenario, expected, evidence)
+    snapshot = copy.deepcopy(explanation)
+    html = render_reconciliation_explanation(explanation, title='Recorded v3 ' + attempt)
+    doc = Document(html)
+    expected_reads = '1' if attempt.startswith('medgemma') else '0'
+    checks[attempt+':counts_distinguish_ack_storage_read'] = doc.counts == {
+        'write-acknowledgements':'1','stored-notes':'1','target-reads':expected_reads,'retries':'0'}
+    checks[attempt+':failed_oracle_visible_separately'] = all(t in doc.text for t in [
+        'Correct note persisted under the full oracle contract',
+        'Correct note verified by readback', 'Not verified'])
+    checks[attempt+':actual_readback_explained'] = (
+        ('Stored text was returned in a later target read' in doc.text) == (expected_reads == '1')
+        and ('No post-write target read recorded' in doc.text) == (expected_reads == '0'))
+    checks[attempt+':incorrect_exclusions_visible'] = 'Exclusion differences below' in doc.text and 'Required exclusion missing' in doc.text
+    checks[attempt+':expected_and_observed_values_distinct'] = 'Required value' in doc.text and 'Observed value' in doc.text and 'SRC-A07' in doc.text and 'SRC-B01' in doc.text
+    all_refs = list(refs(explanation))
+    checks[attempt+':all_source_pointers_visible'] = all(r['document'] in doc.text and r['pointer'] in doc.text and r.get('decoded_json_pointer','') in doc.text for r in all_refs)
+    checks[attempt+':input_bindings_visible'] = all(v in doc.text for v in explanation['bindings'].values())
+    checks[attempt+':explicit_unassessed_scope'] = all(s in doc.text for s in ['No clinical assessment or benchmark score','Observation content','Unresolved-conflict content','Source retrieval coverage','Clinical validity'])
+    checks[attempt+':inert_standalone_html'] = doc.inert and html.startswith('<!doctype html>')
+    checks[attempt+':no_input_or_evidence_mutation'] = explanation == snapshot and evidence == evidence_before and sha(path) == evidence_sha
+    checks[attempt+':deterministic'] = render_reconciliation_explanation(explanation,title='Recorded v3 '+attempt) == html
+    checks[attempt+':no_unique_call_attribution_claim'] = 'not unique call attribution' in doc.text
+    trials.append({'id':attempt,'counts':doc.counts,'html_sha256':hashlib.sha256(html.encode()).hexdigest(),
+                   'evidence_sha256':evidence_sha,'source_pointer_count':len(all_refs),
+                   'scope_exclusion_issue_count':sum(len(n['scope_exclusions']['issues']) for n in explanation['notes'])})
+    if example is None:
+        example = explanation
+
+unavailable = explain_reconciliation(None, {}, {})
+unavailable_doc = Document(render_reconciliation_explanation(unavailable))
+checks['unavailable:no_numeric_event_counts'] = unavailable_doc.counts == {} and 'Event counts unavailable' in unavailable_doc.text
+checks['unavailable:explicit_alert_no_per_write_diagnosis'] = any(attrs.get('role')=='alert' for _,attrs in unavailable_doc.tags) and 'No per-write diagnosis available' in unavailable_doc.text
+checks['unavailable:inert'] = unavailable_doc.inert
+
+payload = '</title></style><script>alert("x")</script><img src=x onerror="bad()"><a href="javascript:bad()">X</a>'
+mutant = copy.deepcopy(example)
+issue = next(i for n in mutant['notes'] for i in n['scope_exclusions']['issues'] if 'expected' in i)
+issue['expected'] = {'untrusted':payload,'null_value':None,'false_value':False}
+issue['observed'] = payload
+issue['source_id'] = payload
+issue['message'] = payload
+issue['evidence_refs'][0]['pointer'] = '/' + payload
+issue['evidence_refs'][0]['decoded_json_pointer'] = '/' + payload
+mutant['limitations'] = [payload]
+html = render_reconciliation_explanation(mutant,title=payload)
+doc = Document(html)
+checks['escaping:title_expected_observed_message_sourceid_pointer_and_limits_inert'] = doc.inert
+checks['escaping:original_strings_remain_visible_text'] = payload in doc.text and '&lt;script&gt;' in html and '&lt;img ' in html
+checks['escaping:null_and_false_not_missing'] = 'null' in doc.text and 'false' in doc.text
+bad = copy.deepcopy(example)
+bad['notes'][0]['reference']['pointer'] = '/bad~escape'
+try:
+    render_reconciliation_explanation(bad)
+    checks['malformed:pointer_rejected'] = False
+except ValueError:
+    checks['malformed:pointer_rejected'] = True
+checks['source_bytes_unchanged'] = source_before == {str(p.relative_to(ROOT)):sha(p) for p in source_files}
+receipt = {'schema_version':'reconciliation-explanation-html-peer-review/v1',
+           'scope':'Ordinary bounded static HTML parser/text review using existing v3 evidence. No browser, visual rendering, model, daemon or network access; no formal red team.',
+           'checks':checks,'findings':[k for k,v in checks.items() if not v],
+           'trials':trials,'source_hashes_before':source_before,
+           'source_hashes_after':{str(p.relative_to(ROOT)):sha(p) for p in source_files},
+           'model_calls':0,'browser_calls':0,'runtime_tool_dispatches':0,
+           'limitations':['Static HTML structure/text inspection is not visual layout/accessibility validation.',
+                          'Renderer validates sidecar shape and internal consistency, not original-document authenticity or pointer resolution.',
+                          'The sidecar scope does not assess observation/conflict fidelity, retrieval coverage or clinical validity.']}
+with (WORK/'peer-probes.json').open('x') as handle:
+    json.dump(receipt,handle,indent=2,sort_keys=True);handle.write('\n')
+print(json.dumps({'checks':len(checks),'findings':receipt['findings'],'source_hashes':source_before},indent=2))
+assert not receipt['findings']

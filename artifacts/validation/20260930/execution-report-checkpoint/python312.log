@@ -1,0 +1,35 @@
+..........................ssssssssssss.................................. [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+....................................................ssssssssssssssssss.. [ 69%]
+...................s.................................................... [ 76%]
+F....................................................................... [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+______ test_equivalent_worlds_and_idempotent_retries_keep_one_exact_task _______
+
+    def test_equivalent_worlds_and_idempotent_retries_keep_one_exact_task():
+        outputs = []
+        for _ in range(2):
+            world, ids, recorder = scenario()
+            response = recorder.call("createClinicalOrder", order_params(ids))
+            task = world.get_entity("clinical_task", response["data"]["task_id"])
+            replay = recorder.call(
+                "createClinicalOrder", order_params(ids, priority="routine", indication="Changed retry")
+            )
+>           assert replay["deduplicated"] is True
+                   ^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'deduplicated'
+
+tests/test_mcp_tools/test_order_action_fidelity.py:160: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_mcp_tools/test_order_action_fidelity.py::test_equivalent_worlds_and_idempotent_retries_keep_one_exact_task
+1 failed, 998 passed, 32 skipped in 47.71s

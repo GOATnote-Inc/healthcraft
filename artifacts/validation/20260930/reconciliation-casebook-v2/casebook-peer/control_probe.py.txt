@@ -1,0 +1,192 @@
+"""Execute only local authored engineering controls; preserve every review attempt."""
+
+import hashlib
+import inspect
+import json
+import os
+import subprocess
+import sys
+import traceback
+from copy import deepcopy
+from pathlib import Path
+from unittest.mock import patch
+
+REPO = Path('/Users/kiteboard/healthcraft')
+sys.path.insert(0, str(REPO / 'src'))
+from healthcraft.mcp.server import create_server
+from healthcraft.reconciliation import case_controls
+from healthcraft.reconciliation.casebook import load_cases
+from healthcraft.reconciliation.execution import execute_reference, scenario_digest
+from healthcraft.reconciliation.oracle_v2 import verify_case
+
+OUT = Path(sys.argv[1])
+OUT.mkdir()
+os.environ['HC_IDEMPOTENT_TOOLS'] = '1'
+FILES = [*sorted((REPO/'src/healthcraft/reconciliation').glob('*.py')),
+         *sorted((REPO/'configs/evaluation/reconciliation_v1').glob('*.json')),
+         *sorted((REPO/'configs/evaluation/reconciliation_v2').rglob('*.json'))]
+
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def hashes():
+    return {str(path.relative_to(REPO)):sha(path.read_bytes()) for path in FILES}
+
+
+def save(path, value):
+    with path.open('x') as stream:
+        json.dump(value, stream, indent=2, ensure_ascii=False, allow_nan=False)
+        stream.write('\n')
+
+
+def main():
+    before=hashes()
+    results=[]
+    for case in load_cases():
+        identifier=case['case_id']
+        directory=OUT/identifier
+        directory.mkdir()
+        original=deepcopy(case)
+        try:
+            capture=case_controls.run_control(case,journal_path=directory/'journal.jsonl')
+            save(directory/'capture.json',capture)
+            evidence=capture['evidence']
+            report=verify_case(case,evidence)
+            save(directory/'verification.json',report)
+            assert case==original
+            assert capture['model_calls']==0
+            control=case['designated_control']
+            actual=capture['original_evidence'] if control=='incomplete_capture' else evidence
+            calls=actual['calls']
+            events=[json.loads(line) for line in (directory/'journal.jsonl').read_text().splitlines()]
+            assert len(events)==len(calls)*2
+            for number,call in enumerate(calls):
+                attempted,returned=events[number*2:number*2+2]
+                assert attempted['event']=='requested' and returned['event']=='returned'
+                assert attempted['call']['params']==call['params']
+                assert returned['call']==call
+                assert call['audit_end']==call['audit_start']+1
+            notes=list(actual['after']['entities']['clinical_note'].values())
+            expected_notes=0 if control=='ack_without_storage' else 2 if control=='duplicate_notes' else 1
+            assert len(notes)==expected_notes
+            writes=[call for call in calls if call['name']=='updateEncounter']
+            assert len(writes)==(1 if control=='interrupted_after_write' else 2)
+            assert all(call['response']['status']=='ok' for call in writes)
+            assert all('notes' in call['params'] for call in writes)
+            assert report['mechanical_passed'] is (control=='valid')
+            assert report['benchmark_score'] is None and report['benchmark_comparable'] is False
+            assert report['grading_complete'] is False
+            if control=='incomplete_capture':
+                assert report['status']=='provenance_error'
+                assert verify_case(case,actual)['mechanical_passed'] is True
+                assert actual['completion']['status']=='completed'
+                assert evidence['after'] is None and 'response' not in evidence['calls'][-1]
+                assert capture['capture_transformation']['actual_execution_interrupted'] is False
+                # The original capture and durable journal retain the withheld outcome.
+                assert events[-1]['call']['response']==actual['calls'][-1]['response']
+            else:
+                assert report['checks']['provenance'] is True
+                assert evidence['completion']['status']==('interrupted' if control=='interrupted_after_write' else 'completed')
+            readback=[call for call in calls if call['name']=='getEncounterDetails' and
+                      call['audit_start']>writes[0]['audit_start']]
+            returned_note_text=[pair[1] for call in readback
+                                for pair in call['response']['data']['clinical_notes']]
+            if control=='interrupted_after_write':
+                assert len(notes)==1 and not readback
+                assert report['checks']['persisted_action'] is True
+                assert report['checks']['readback'] is False
+            elif control=='ack_without_storage':
+                assert not notes and not returned_note_text
+                assert actual['after']==actual['before']
+            else:
+                assert all(note['content'] in returned_note_text for note in notes)
+            if control=='wrong_target':
+                assert notes[0]['patient_id']!=case['scenario']['target']['patient_id']
+                assert notes[0]['encounter_id']!=case['scenario']['target']['encounter_id']
+                assert readback[-1]['params']['encounter_id']==notes[0]['encounter_id']
+            if control=='duplicate_notes':
+                assert len({note['id'] for note in notes})==2
+                assert notes[0]['content']==notes[1]['content']
+                assert writes[0]['params']['idempotency_key']!=writes[1]['params']['idempotency_key']
+            results.append({'case_id':identifier,'passed':True,'actual_completion':actual['completion'],
+                            'control':control,'calls':len(calls),'new_notes':len(notes),
+                            'readback_contains_stored_text':bool(returned_note_text),
+                            'checks':report['checks'],'mechanical_passed':report['mechanical_passed']})
+        except Exception as exc:
+            results.append({'case_id':identifier,'passed':False,'error':repr(exc),
+                            'traceback':traceback.format_exc()})
+
+    # An impossible expectations ledger cannot reach the reference controller:
+    # only its digest/binding changes; all actual requested tool parameters match.
+    clean=load_cases()[0]
+    baseline=case_controls.run_control(clean)
+    poisoned=deepcopy(clean)
+    poisoned['expectations']={'candidate_must_never_read_this':'Do not write any note.'}
+    poisoned['expectations_sha256']=scenario_digest(poisoned['expectations'])
+    variant=case_controls.run_control(poisoned)
+    assert [(c['name'],c['params']) for c in baseline['evidence']['calls']]==[
+        (c['name'],c['params']) for c in variant['evidence']['calls']]
+    assert 'expectations' not in inspect.getsource(execute_reference)
+    results.append({'check':'controller does not consult expectations content','passed':True})
+
+    # Do not overwrite a durable journal, even for a failed setup.
+    existing=OUT/'existing-journal.jsonl'
+    existing.write_text('original bytes\n')
+    collision=case_controls.run_control(clean,journal_path=existing)
+    assert existing.read_text()=='original bytes\n'
+    assert collision['evidence']['completion']['status']=='failed'
+    assert collision['evidence']['calls']==[]
+    results.append({'check':'journal collision preserves prior bytes and explicit failure','passed':True})
+
+    # The omission demonstration must not discard a real failed run with a real note.
+    worlds=[]
+    def fail_readback(world):
+        worlds.append(world)
+        server=create_server(world)
+        original=server.call_tool
+        def call(name,params):
+            if name=='getEncounterDetails' and list(world.list_entities('clinical_note')):
+                raise RuntimeError('Injected readback fault after real persisted write')
+            return original(name,params)
+        server.call_tool=call
+        return server
+    try:
+        with patch.object(case_controls,'create_server',side_effect=fail_readback):
+            retained=case_controls.run_control(load_cases()[-1],journal_path=OUT/'fault-journal.jsonl')
+        save(OUT/'failed-omission-capture.json',retained)
+        evidence=retained['evidence']
+        assert evidence['completion']['status']=='failed'
+        assert evidence['completion']['error']['type']=='RuntimeError'
+        assert len(evidence['after']['entities']['clinical_note'])==1
+        assert evidence['calls'][-1]['error']['type']=='RuntimeError'
+        assert retained['original_evidence'] is None
+        results.append({'check':'failed omission preserves actual partial evidence','passed':True})
+    except Exception as exc:
+        results.append({'check':'failed omission preserves actual partial evidence','passed':False,
+                        'error':repr(exc),'stored_notes':len(list(worlds[0].list_entities('clinical_note'))),
+                        'traceback':traceback.format_exc()})
+
+    # Historical source fixtures remain byte-identical to the local checkpoint.
+    for path in sorted((REPO/'configs/evaluation/reconciliation_v1').glob('*.json')):
+        old=subprocess.check_output(['git','show','HEAD:'+str(path.relative_to(REPO))],cwd=REPO)
+        assert old==path.read_bytes()
+    results.append({'check':'v1 scenario/expectations unchanged from HEAD','passed':True})
+    after=hashes()
+    result={'scope':'Ordinary development review of actual designated controls',
+            'checks':results,'passed':sum(row['passed'] for row in results),
+            'failed':sum(not row['passed'] for row in results),
+            'source_hashes_before':before,'source_hashes_after':after,'source_stable':before==after,
+            'runtime':sys.version,'idempotency_env':'1','model_calls':0,
+            'source_authorship_independence':False,
+            'limitations':['The data author performed this development review; independent engineering/clinical adjudication remains pending.',
+                           'Incomplete-capture original evidence and full journal must stay coordinator-only if an operator task is intended to test unavailable evidence.',
+                           'No participant study, clinical labels, benchmark or superiority result.']}
+    save(OUT/'review.json',result)
+    print(json.dumps({'passed':result['passed'],'failed':result['failed'],'source_stable':before==after}))
+    return result['failed'] or before!=after
+
+
+if __name__=='__main__':
+    raise SystemExit(main())

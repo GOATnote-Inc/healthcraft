@@ -1,0 +1,217 @@
+"""Offline extraction checks; never execute the driver or launch a child process."""
+
+import ast
+import builtins
+import copy
+import hashlib
+import json
+import math
+import re
+import shutil
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+WORK = Path("/private/tmp/healthcraft-reconciliation-structured-v2")
+DRIVER = WORK / "run_model_pilot.py"
+PREPARATION = json.loads((WORK / "preparation.json").read_text())
+PROTOCOL = json.loads((WORK / "protocol.json").read_text())
+CANDIDATE = Path(PREPARATION["candidate"])
+TREE = ast.parse(DRIVER.read_text())
+FUNCTIONS = {
+    "_pairs",
+    "_float",
+    "_constant",
+    "_read",
+    "_copy",
+    "_write",
+    "_result",
+    "finalize_unfinished",
+    "write",
+    "_execute_roster",
+}
+DEFINITIONS = [
+    node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in FUNCTIONS
+]
+OUTER = next(
+    node
+    for node in TREE.body
+    if isinstance(node, ast.Try)
+    and any(
+        isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Name)
+        and child.func.id == "_execute_roster"
+        for child in ast.walk(node)
+    )
+)
+
+
+def setup_namespace(tmp_path, *, wrong_format=False, import_failure=False):
+    root = tmp_path / "candidate-copy"
+    shutil.copytree(CANDIDATE, root, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    output = tmp_path / "output"
+    output.mkdir()
+    events = []
+
+    def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+        allowed = {
+            "healthcraft.reconciliation." + module
+            for module in ("fixture", "oracle", "terminal", "controller")
+        }
+        if name not in allowed:
+            raise AssertionError("Unexpected import in isolated probe: " + name)
+        events.append({"kind": "project_import", "module": name, "fromlist": list(fromlist)})
+        if import_failure:
+            raise ModuleNotFoundError("offline injected project import failure")
+
+        def unexpected_execution(*args, **kwargs):
+            raise AssertionError("Unexpected model/tool/oracle execution in offline control")
+
+        return SimpleNamespace(
+            load_scenario=unexpected_execution,
+            load_expectations=unexpected_execution,
+            verify_reconciliation=unexpected_execution,
+            request_json=unexpected_execution,
+            reference_commands=unexpected_execution,
+            command_format_identity=lambda: (
+                {"unexpected": True} if wrong_format else copy.deepcopy(PROTOCOL["command_format"])
+            ),
+            command_format_schema=lambda: copy.deepcopy(PROTOCOL["command_schema"]),
+        )
+
+    namespace = {
+        "__builtins__": {**vars(builtins), "__import__": safe_import},
+        "__file__": str(DRIVER),
+        "ROOT": root,
+        "OUT": output,
+        "json": json,
+        "math": math,
+        "re": re,
+        "Path": Path,
+        "hashlib": hashlib,
+        "shutil": shutil,
+        "SCHEMA": "reconciliation-coordinator-failure/v1",
+        "PROPOSAL": copy.deepcopy(PROTOCOL),
+        "ROSTER": copy.deepcopy(PROTOCOL["schedule"]),
+        "RUN": "offline-review",
+    }
+    exec(
+        compile(
+            ast.Module(body=DEFINITIONS, type_ignores=[]), "<extracted-driver-definitions>", "exec"
+        ),
+        namespace,
+    )
+
+    def no_external_command(argv, where, **kwargs):
+        assert argv[:2] == ["docker", "build"], "Unexpected external dispatch attempted"
+        events.append({"kind": "stubbed_image_build", "argv": argv})
+        namespace["write"](
+            where,
+            {
+                "argv": argv,
+                "returncode": 19,
+                "stdout": "",
+                "stderr": "offline injected build failure",
+                "stubbed": True,
+            },
+        )
+        raise RuntimeError("Command failed; see " + where.name)
+
+    namespace["command"] = no_external_command
+    return namespace, events
+
+
+def execute_outer(namespace):
+    exec(
+        compile(
+            ast.Module(body=[OUTER], type_ignores=[]), "<extracted-driver-outer-handler>", "exec"
+        ),
+        namespace,
+    )
+
+
+def assert_four_not_started(namespace):
+    summary = json.loads((namespace["OUT"] / "summary.json").read_text())
+    assert summary["scheduled_attempts"] == 4 and summary["all_attempts_recorded"] is True
+    assert [r["id"] for r in summary["results"]] == [r["id"] for r in PROTOCOL["schedule"]]
+    for row in summary["results"]:
+        assert row["status"] == "not_started"
+        assert row["accounting_state"] == "no_attempt_directory"
+        assert row["completion"] is None and row["oracle"] is None
+        assert row["actual_call_count"] is None and row["stored_note_count"] is None
+        assert not (namespace["OUT"] / row["id"] / "result.json").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["file_changed", "file_added", "file_missing", "manifest_reformatted", "manifest_rebound"],
+)
+def test_frozen_manifest_drift_blocks_before_import_or_external_dispatch(tmp_path, mutation):
+    namespace, events = setup_namespace(tmp_path)
+    root = namespace["ROOT"]
+    target = root / "src/healthcraft/reconciliation/controller.py"
+    manifest = root / "manifest.json"
+    if mutation in {"file_changed", "manifest_rebound"}:
+        target.write_bytes(target.read_bytes() + b"\n# offline copy mutation\n")
+    if mutation == "file_added":
+        (root / "extra_importable.py").write_text("# offline added file\n")
+    if mutation == "file_missing":
+        target.unlink()
+    if mutation == "manifest_reformatted":
+        manifest.write_text(json.dumps(json.loads(manifest.read_text())))
+    if mutation == "manifest_rebound":
+        data = json.loads(manifest.read_text())
+        data["src/healthcraft/reconciliation/controller.py"] = hashlib.sha256(
+            target.read_bytes()
+        ).hexdigest()
+        manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(RuntimeError, match="Prepared candidate manifest differs"):
+        execute_outer(namespace)
+    assert events == []
+    assert_four_not_started(namespace)
+
+
+def test_image_build_failure_accounts_four_without_model_or_docker_access(tmp_path):
+    namespace, events = setup_namespace(tmp_path)
+    with pytest.raises(RuntimeError, match="Command failed; see build-backend.json"):
+        execute_outer(namespace)
+    assert [e["kind"] for e in events] == ["project_import"] * 5 + ["stubbed_image_build"]
+    assert_four_not_started(namespace)
+    receipt = json.loads((namespace["OUT"] / "build-backend.json").read_text())
+    assert receipt["returncode"] == 19 and receipt["stubbed"] is True
+    assert (namespace["OUT"] / "build-input-manifest.json").is_file()
+    assert (namespace["OUT"] / "host-input-manifest.json").is_file()
+
+
+def test_schema_identity_failure_accounts_four_before_build_or_models(tmp_path):
+    namespace, events = setup_namespace(tmp_path, wrong_format=True)
+    with pytest.raises(RuntimeError, match="Frozen command schema differs"):
+        execute_outer(namespace)
+    assert [e["kind"] for e in events] == ["project_import"] * 5
+    assert_four_not_started(namespace)
+
+
+def test_project_import_failure_accounts_four_before_build_or_models(tmp_path):
+    namespace, events = setup_namespace(tmp_path, import_failure=True)
+    with pytest.raises(ModuleNotFoundError, match="offline injected project import failure"):
+        execute_outer(namespace)
+    assert [e["kind"] for e in events] == ["project_import"]
+    assert_four_not_started(namespace)
+    assert (namespace["OUT"] / "host-input-manifest.json").is_file()
+    assert not (namespace["OUT"] / "build").exists()
+
+
+def test_preparation_binds_exact_frozen_driver_protocol_and_source_inventory():
+    assert hashlib.sha256(DRIVER.read_bytes()).hexdigest() == PREPARATION["driver_sha256"]
+    assert (
+        hashlib.sha256((WORK / "protocol.json").read_bytes()).hexdigest()
+        == PREPARATION["protocol_sha256"]
+    )
+    actual = {
+        str(p.relative_to(CANDIDATE)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in CANDIDATE.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p != CANDIDATE / "manifest.json"
+    }
+    assert actual == json.loads((CANDIDATE / "manifest.json").read_text())
+    assert len(actual) == PREPARATION["files"] == 442

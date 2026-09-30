@@ -1,0 +1,120 @@
+......................................FFFFF                              [100%]
+=================================== FAILURES ===================================
+_ test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[write_data] __
+
+missing = 'write_data'
+
+    @pytest.mark.parametrize("missing", ["write_data", "write_notes", "read_patient", "read_encounter"])
+    def test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero(missing):
+        docs = documents()
+        for call in docs["evidence"]["calls"]:
+            if call["name"] == "updateEncounter":
+                if missing == "write_data":
+                    del call["response"]["data"]
+                elif missing == "write_notes":
+                    del call["response"]["data"]["clinical_notes"]
+        if missing.startswith("read_"):
+            field = "patient_id" if missing == "read_patient" else "id"
+            del docs["evidence"]["calls"][-1]["response"]["data"][field]
+        report = describe(docs)
+        assert count(report, "new_note_count", "count") == 1
+>       assert count(report, "stored_text_readback_count", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'stored_text_readback_count', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:364: AssertionError
+_ test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[write_notes] _
+
+missing = 'write_notes'
+
+    @pytest.mark.parametrize("missing", ["write_data", "write_notes", "read_patient", "read_encounter"])
+    def test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero(missing):
+        docs = documents()
+        for call in docs["evidence"]["calls"]:
+            if call["name"] == "updateEncounter":
+                if missing == "write_data":
+                    del call["response"]["data"]
+                elif missing == "write_notes":
+                    del call["response"]["data"]["clinical_notes"]
+        if missing.startswith("read_"):
+            field = "patient_id" if missing == "read_patient" else "id"
+            del docs["evidence"]["calls"][-1]["response"]["data"][field]
+        report = describe(docs)
+        assert count(report, "new_note_count", "count") == 1
+>       assert count(report, "stored_text_readback_count", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'stored_text_readback_count', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:364: AssertionError
+_ test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[read_patient] _
+
+missing = 'read_patient'
+
+    @pytest.mark.parametrize("missing", ["write_data", "write_notes", "read_patient", "read_encounter"])
+    def test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero(missing):
+        docs = documents()
+        for call in docs["evidence"]["calls"]:
+            if call["name"] == "updateEncounter":
+                if missing == "write_data":
+                    del call["response"]["data"]
+                elif missing == "write_notes":
+                    del call["response"]["data"]["clinical_notes"]
+        if missing.startswith("read_"):
+            field = "patient_id" if missing == "read_patient" else "id"
+            del docs["evidence"]["calls"][-1]["response"]["data"][field]
+        report = describe(docs)
+        assert count(report, "new_note_count", "count") == 1
+>       assert count(report, "stored_text_readback_count", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'stored_text_readback_count', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:364: AssertionError
+_ test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[read_encounter] _
+
+missing = 'read_encounter'
+
+    @pytest.mark.parametrize("missing", ["write_data", "write_notes", "read_patient", "read_encounter"])
+    def test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero(missing):
+        docs = documents()
+        for call in docs["evidence"]["calls"]:
+            if call["name"] == "updateEncounter":
+                if missing == "write_data":
+                    del call["response"]["data"]
+                elif missing == "write_notes":
+                    del call["response"]["data"]["clinical_notes"]
+        if missing.startswith("read_"):
+            field = "patient_id" if missing == "read_patient" else "id"
+            del docs["evidence"]["calls"][-1]["response"]["data"][field]
+        report = describe(docs)
+        assert count(report, "new_note_count", "count") == 1
+>       assert count(report, "stored_text_readback_count", "count") is None
+E       AssertionError: assert 0 is None
+E        +  where 0 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'stored_text_readback_count', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:364: AssertionError
+_ test_unresolved_linkage_preserves_an_independently_observed_readback_subset __
+
+    def test_unresolved_linkage_preserves_an_independently_observed_readback_subset():
+        docs = documents()
+        case = next(row for row in load_cases() if row["case_id"] == "REC2-001")
+    
+        def controller(recorder, *, target):
+            for key, content in (("first", "alpha"), ("second", "beta")):
+                recorder.call("updateEncounter", {"encounter_id": target["encounter_id"], "notes": content, "idempotency_key": key})
+            recorder.call("getEncounterDetails", {"encounter_id": target["encounter_id"]})
+    
+        docs["evidence"] = run_case(case, controller=controller)
+        del docs["evidence"]["calls"][0]["response"]["data"]
+        report = describe(docs)
+>       assert count(report, "stored_text_readback_count", "count") is None
+E       AssertionError: assert 1 is None
+E        +  where 1 = count({'claims': [{'category': 'source_concordance', 'code': 'authored_source_row', 'id': 'claim-0001', 'observed': {'encoun...uely attribute creation to one write call.', 'Unavailable capture is not evidence that an action did not occur.'], ...}, 'stored_text_readback_count', 'count')
+
+tests/test_reconciliation/test_incident_evidence.py:382: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[write_data]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[write_notes]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[read_patient]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_missing_readback_linkage_is_unknown_not_an_exhaustive_zero[read_encounter]
+FAILED tests/test_reconciliation/test_incident_evidence.py::test_unresolved_linkage_preserves_an_independently_observed_readback_subset
+5 failed, 38 passed in 0.49s

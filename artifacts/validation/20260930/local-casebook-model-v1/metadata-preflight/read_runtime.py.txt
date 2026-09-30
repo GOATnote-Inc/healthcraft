@@ -1,0 +1,25 @@
+"""Only metadata endpoints; no generation, loading, unloading or downloads."""
+import hashlib,json,platform
+from datetime import datetime,timezone
+from pathlib import Path
+from healthcraft.llm.local_models import OllamaClient
+ROOT=Path('/Users/kiteboard/healthcraft'); OUT=Path('/private/tmp/healthcraft-casebook-model-preflight')
+requests=[]
+class MetadataOnly(OllamaClient):
+ def _request(self,path,payload=None):
+  assert path in {'/api/tags','/api/show','/api/version','/api/ps'}, path
+  call={'path':path,'request':payload}; requests.append(call)
+  try:
+   result=super()._request(path,payload);call['response']=result;return result
+  except Exception as exc:
+   call['error']={'type':type(exc).__name__,'message':str(exc),'cause':repr(exc.__cause__)};raise
+start=datetime.now(timezone.utc).isoformat();models=[]
+for model in ['counsel-nano-q5:latest','counsel-medgemma-27b-text-q5:latest']:
+ client=MetadataOnly(model,base_url='http://127.0.0.1:11434',seed=42,num_ctx=32768,timeout=10,think=False)
+ try:models.append({'model':model,'metadata':client.model_metadata()})
+ except Exception as exc:models.append({'model':model,'error':{'type':type(exc).__name__,'message':str(exc)}})
+try:residency=client._request('/api/ps')
+except Exception as exc:residency={'error':{'type':type(exc).__name__,'message':str(exc)}}
+report={'started_at':start,'ended_at':datetime.now(timezone.utc).isoformat(),'runtime_python':platform.python_version(),'model_calls':0,'operation':'Existing OllamaClient metadata only; fixed loopback and four allowed routes, no generation/load/download','models':models,'residency':residency,'source_sha256':hashlib.sha256((ROOT/'src/healthcraft/llm/local_models.py').read_bytes()).hexdigest(),'raw_requests':requests}
+with (OUT/'runtime-metadata-verified.json').open('x') as f:json.dump(report,f,indent=2);f.write('\n')
+print(json.dumps({'models':models,'residency':residency},indent=2))

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from copy import deepcopy
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,22 @@ class Task:
     system_prompt_override: str | None = None
     # Kept for backward compatibility / diagnostic analysis
     rubric: dict[str, Any] | None = None
+    # Literal task instructions appended after the selected default/override.
+    system_prompt_append: str | None = None
+    # Private authored input for explicit observation profiles. Never appended
+    # wholesale to an agent prompt: it also contains answers and rubric data.
+    source_data: dict[str, Any] = field(default_factory=dict)
+
+
+def require_task_criteria(task: Task) -> None:
+    """Reject a task that cannot support scoring or a training episode.
+
+    Legacy definitions remain loadable for inspection and ungraded diagnostics.
+    Assessment entry points call this before provider, world or output work.
+    This checks the rubric's presence, not full criterion/schema validity.
+    """
+    if not isinstance(task.criteria, (tuple, list)) or not task.criteria:
+        raise ValueError(f"Evaluation task {task.id!r} requires nonempty criteria")
 
 
 # --- Schema validation ---
@@ -58,6 +76,10 @@ def _validate_task_dict(data: dict[str, Any], source: str = "") -> list[str]:
         level = data["level"]
         if not isinstance(level, int) or not (1 <= level <= 5):
             errors.append(f"{prefix}level must be an integer 1-5, got: {level}")
+
+    append = data.get("system_prompt_append")
+    if append is not None and not isinstance(append, str):
+        errors.append(f"{prefix}system_prompt_append must be a string or null")
 
     # Validate criteria if present
     if "criteria" in data:
@@ -148,36 +170,68 @@ def load_task(path: Path) -> Task:
         patient=data.get("patient"),
         system_prompt_override=data.get("system_prompt_override"),
         rubric=data.get("rubric"),
+        system_prompt_append=data.get("system_prompt_append"),
+        source_data=deepcopy(data),
     )
 
 
-def load_tasks(directory: Path) -> list[Task]:
+def load_tasks(directory: Path, *, strict: bool = False) -> list[Task]:
     """Load all tasks from a directory (recursively).
 
     Searches for .yaml and .yml files and loads each as a Task.
 
     Args:
         directory: Root directory to search.
+        strict: Reject load/parse errors, empty criteria, and duplicate or unsafe
+            identities. This adds cohort integrity checks, not full JSON Schema
+            validation. Legacy callers retain warning-and-skip behavior by default.
 
     Returns:
         List of Task instances, sorted by id.
 
     Raises:
         FileNotFoundError: If the directory does not exist.
+        ValueError: If strict cohort validation fails.
     """
+    if strict and not directory.is_dir():
+        raise ValueError(f"Task directory not found or not a directory: {directory}")
     if not directory.exists():
         raise FileNotFoundError(f"Task directory not found: {directory}")
 
     tasks: list[Task] = []
     errors: list[str] = []
+    identifiers: set[str] = set()
+    folded_identifiers: dict[str, str] = {}
 
     for path in sorted(directory.rglob("*.y*ml")):
         if path.suffix not in (".yaml", ".yml"):
             continue
         try:
             task = load_task(path)
+            if strict:
+                require_task_criteria(task)
+                for field_name in ("id", "category"):
+                    value = getattr(task, field_name)
+                    if type(value) is not str or not re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9_-]*", value
+                    ):
+                        raise ValueError(f"Task {field_name} is not a safe output path component")
+                if task.id in identifiers:
+                    raise ValueError(f"Duplicate task ID: {task.id}")
+                folded = task.id.casefold()
+                if folded in folded_identifiers:
+                    raise ValueError(
+                        "Task IDs collide on case-insensitive output filesystems: "
+                        f"{folded_identifiers[folded]}, {task.id}"
+                    )
+                identifiers.add(task.id)
+                folded_identifiers[folded] = task.id
             tasks.append(task)
-        except (ValueError, FileNotFoundError) as e:
+        except (ValueError, OSError, TypeError, yaml.YAMLError) as e:
+            if strict:
+                raise ValueError(f"Invalid task file {path}: {e}") from e
+            if not isinstance(e, (ValueError, FileNotFoundError)):
+                raise
             errors.append(str(e))
 
     if errors:

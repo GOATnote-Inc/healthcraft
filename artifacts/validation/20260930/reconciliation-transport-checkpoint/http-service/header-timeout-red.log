@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_timeout_while_parsing_headers_is_retained_before_tool_dispatch ______
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-354/test_timeout_while_parsing_hea0')
+
+    def test_timeout_while_parsing_headers_is_retained_before_tool_dispatch(tmp_path):
+        # The request line exists, but the header block never completes. This
+        # timeout occurs inside BaseHTTPRequestHandler.parse_request, before _handle.
+        with running_server(tmp_path, socket_timeout=0.1) as (server, path):
+            raw = wire_bytes(server, b"GET /health HTTP/1.1\r\nHost: localhost")
+            assert finalize(server)[0] == 200
+            evidence = json.loads(path.read_text())
+            assert evidence["calls"] == evidence["audit"] == []
+>           assert evidence["completion"]["status"] == "failed"
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/test_reconciliation/test_http_service.py:438: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_http_service.py::test_timeout_while_parsing_headers_is_retained_before_tool_dispatch
+1 failed, 40 deselected in 0.18s

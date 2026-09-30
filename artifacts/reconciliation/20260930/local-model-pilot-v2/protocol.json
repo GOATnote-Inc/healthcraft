@@ -1,0 +1,144 @@
+{
+  "assessment": {
+    "benchmark_score": null,
+    "clinical_criteria": 0,
+    "mechanical_oracle": "existing independent source/persistence oracle",
+    "safety_criteria": 0
+  },
+  "attempts_per_model_per_arm": 1,
+  "automatic_format_repairs": 0,
+  "change_after_observing_v1": "Add native format JSON Schema only; no fence stripping, repair, retries, altered messages, clinical labels or expanded budget.",
+  "command_format": {
+    "sha256": "40c74bce3587de9fbd7385f81314f8f6d3d23e978b3024bba2d7b7a734b48794",
+    "version": "healthcraft-reconciliation-command/v2"
+  },
+  "command_schema": {
+    "anyOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "call"
+          },
+          "name": {
+            "enum": [
+              "getEncounterDetails",
+              "getPatientHistory",
+              "searchEncounters",
+              "searchPatients",
+              "updateEncounter"
+            ]
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "action",
+          "name",
+          "params"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "finish"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      }
+    ]
+  },
+  "common_interface": {
+    "initial_messages_sha256": "1a2e7eafc6eb84042fd4495a65d7c348f6e38e6c044d95801125cc8bec5fb6c7"
+  },
+  "coordinator_changes": "Check the prepared candidate manifest before model access and retain explicit missing-attempt accounting on coordinator setup failure.",
+  "created_at": "2026-09-30T12:49:51.142430+00:00",
+  "denominator": "Every scheduled attempt, including infrastructure, provider, command, tool, timeout and missing-evidence failures.",
+  "limits": "Open development fixture, no ranking/reliability estimate, held-out comparison, operator study, clinical validity or superiority claim.",
+  "models": [
+    {
+      "alias": "counsel-nano-q5:latest",
+      "declared_capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ],
+      "expected_digest": "36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8",
+      "expected_runtime": "0.34.4",
+      "metadata_observed_at": "2026-09-30T11:33:27.645075+00:00",
+      "quantization": "Q5_K_M",
+      "weight_file_bytes": 26149294833
+    },
+    {
+      "alias": "counsel-medgemma-27b-text-q5:latest",
+      "declared_capabilities": [
+        "completion"
+      ],
+      "expected_digest": "2b0cb8e40675a79615511f634e09bfe9f4ea3d36165ff1e357799ce749293f67",
+      "expected_runtime": "0.34.4",
+      "metadata_observed_at": "2026-09-30T11:33:27.645075+00:00",
+      "quantization": "Q5_K_M",
+      "weight_file_bytes": 19271393072
+    }
+  ],
+  "previous_cohort": "artifacts/reconciliation/20260930/local-model-pilot-v1",
+  "process_cap_limit": "The parent kills its directly supervised child at timeout; this is not a guarantee that every descendant or an in-flight Ollama request terminates. Uncertain execution remains incomplete, followed by private evidence capture and residency checks.",
+  "purpose": "Test whether explicitly constrained command envelopes permit the existing source-reconciliation workflow to execute.",
+  "retries": 0,
+  "schedule": [
+    {
+      "arm": "direct",
+      "execution_kind": "direct_http_via_coordinator",
+      "id": "nano-direct-01",
+      "mode": "model",
+      "model": "counsel-nano-q5:latest",
+      "order": 1
+    },
+    {
+      "arm": "harbor",
+      "execution_kind": "harbor_terminal",
+      "id": "nano-harbor-01",
+      "mode": "model",
+      "model": "counsel-nano-q5:latest",
+      "order": 2
+    },
+    {
+      "arm": "harbor",
+      "execution_kind": "harbor_terminal",
+      "id": "medgemma-harbor-01",
+      "mode": "model",
+      "model": "counsel-medgemma-27b-text-q5:latest",
+      "order": 3
+    },
+    {
+      "arm": "direct",
+      "execution_kind": "direct_http_via_coordinator",
+      "id": "medgemma-direct-01",
+      "mode": "model",
+      "model": "counsel-medgemma-27b-text-q5:latest",
+      "order": 4
+    }
+  ],
+  "scheduled_attempts": 4,
+  "schema_version": "reconciliation-structured-decoding-pilot/v2",
+  "settings": {
+    "attempt_timeout_seconds": 900,
+    "keep_alive": 0,
+    "max_model_responses": 16,
+    "max_output_tokens": 4096,
+    "num_ctx": 32768,
+    "request_timeout_seconds": 240,
+    "seed": 42,
+    "temperature": 0.0,
+    "think": false
+  },
+  "status": "frozen_before_this_cohort; local timestamp, not external registration",
+  "stop_rule": "Each attempt ends on first error, model finish, sixteen responses or parent 900-second cap; if residency is unresolved, remaining scheduled attempts are recorded as not started failures."
+}

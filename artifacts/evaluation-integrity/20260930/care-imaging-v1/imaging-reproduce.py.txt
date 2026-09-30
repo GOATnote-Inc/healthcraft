@@ -1,0 +1,51 @@
+import hashlib,json,sys,re
+from collections import Counter
+from copy import deepcopy
+from datetime import date,datetime
+from enum import Enum
+from pathlib import Path
+import yaml
+OUT=Path(__file__).resolve().parent;ROOT=OUT/'snapshot';sys.path.insert(0,str(ROOT/'src'))
+from healthcraft.tasks.inject import inject_task_patient
+from healthcraft.mcp.server import create_server
+from healthcraft.world.state import WorldState
+
+def norm(value):
+ def default(v):
+  if isinstance(v,(datetime,date)):return v.isoformat()
+  if isinstance(v,Enum):return v.value
+  raise TypeError(type(v).__name__)
+ return json.loads(json.dumps(value,default=default,allow_nan=False))
+
+def is_imaging_key(key):
+ tokens=set(key.lower().split('_'))
+ return key.startswith('imaging') or bool(tokens & {'ct','cta','mri','xray','ultrasound','echo','echocardiogram','pocus','cxr','fast'}) or 'x_ray' in key
+
+report={'tasks':0,'patient_tasks':0,'direct_imaging_keys':Counter(),'direct_shapes':Counter(),'imaging_entry_types':Counter(),'rows':[],'errors':[],'synthetic_controls':[]}
+for p in sorted((ROOT/'configs/tasks').rglob('*.yaml')):
+ raw=yaml.safe_load(p.read_text());report['tasks']+=1;patient=raw.get('patient') or {}
+ if not patient:continue
+ report['patient_tasks']+=1; selected={k:v for k,v in patient.items() if is_imaging_key(k)}
+ if not selected:continue
+ for key,value in selected.items():
+  report['direct_imaging_keys'][key]+=1;report['direct_shapes'][key+':'+type(value).__name__]+=1
+ for key,value in (patient.get('imaging') or {}).items() if isinstance(patient.get('imaging'),dict) else []:report['imaging_entry_types'][type(value).__name__]+=1
+ try:
+  world=WorldState();ids=inject_task_patient(world,raw['id'],deepcopy(patient),deepcopy(raw.get('setting',{})))
+  response=create_server(world).call_tool('getEncounterDetails',{'encounter_id':ids['encounter_id']})
+  labels={key.replace('_',' ').title() for key in selected}
+  report['rows'].append({'task':raw['id'],'source_file':str(p.relative_to(ROOT)),'setting_time':raw.get('setting',{}).get('time'),'selected_source':selected,'tool_status':response['status'],'returned_imaging':response['data']['imaging'],'related_notes':[note for note in response['data']['clinical_notes'] if note[0] in labels]})
+ except Exception as e:report['errors'].append({'task':raw['id'],'error':repr(e),'selected_source':selected})
+controls=[('missing_impression',{'ct_head':{'findings':'  Literal findings '+('x'*220)+'  ','time':'2026-01-15T10:50:00.123456789Z','modality':'CT','body_part':'head'}}),('string_result',{'ct_head':'Authored literal result'}),('unknown_result',{'ultrasound':{'findings':None,'impression':None,'modality':None,'body_part':None,'time':None}}),('nested_findings',{'scan':{'findings':{'left':'raw source'}}}),('explicit_metadata',{'cardiac_mri':{'findings':'literal','impression':'exact authored','modality':'MR','body_part':'heart','time_of_study':'2026-01-15T10:45:00Z','status':'preliminary'}})]
+for name,imaging in controls:
+ try:
+  world=WorldState();ids=inject_task_patient(world,'IMG-'+name,{'age':40,'sex':'M','imaging':imaging},{'time':'2026-01-15T13:15:00Z'})
+  response=create_server(world).call_tool('getEncounterDetails',{'encounter_id':ids['encounter_id']})
+  report['synthetic_controls'].append({'case':name,'source':imaging,'returned':response['data']['imaging']})
+ except Exception as e:report['synthetic_controls'].append({'case':name,'source':imaging,'error':repr(e)})
+report=norm(report);(OUT/'reproduction.json').write_text(json.dumps(report,indent=2)+'\n')
+manifest=json.loads((OUT/'snapshot-manifest.json').read_text())
+after={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in manifest['before']}
+assert after==manifest['before'];(OUT/'after-replay-sha256.json').write_text(json.dumps(after,indent=2)+'\n')
+print(json.dumps({k:report[k] for k in ('tasks','patient_tasks','direct_imaging_keys','direct_shapes','imaging_entry_types','errors')},indent=2))
+print('Selected task rows',len(report['rows']),'returned studies',sum(len(r['returned_imaging']) for r in report['rows']))

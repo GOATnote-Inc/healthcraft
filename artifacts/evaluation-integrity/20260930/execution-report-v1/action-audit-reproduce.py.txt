@@ -1,0 +1,93 @@
+"""Read-only evaluator QA against archived HEAD; actual synthetic tool execution."""
+import os
+os.environ['HEALTHCRAFT_POC_VALIDATOR_SHADOW']='0'
+import sys
+from pathlib import Path
+ROOT=Path(__file__).resolve().parent
+SNAPSHOT=ROOT/'snapshot'
+sys.path.insert(0,str(SNAPSHOT/'src'))
+import hashlib,json,platform
+from copy import deepcopy
+from dataclasses import asdict
+import yaml
+from jsonschema import validate
+from healthcraft.tasks.loader import load_task
+from healthcraft.tasks.inject import inject_task_patient
+from healthcraft.tasks.evaluator import evaluate_task,replay_from_trajectory
+from healthcraft.tasks.history_execution import ExecutionRecorder,_json_snapshot
+from healthcraft.mcp.server import create_server
+from healthcraft.world.state import WorldState
+
+tasks={}
+for path in (SNAPSHOT/'configs/tasks').rglob('*.yaml'):
+    raw=yaml.safe_load(path.read_text())
+    tasks[raw['id']]=(path,raw)
+schemas={t['name']:t['parameters'] for t in json.loads((SNAPSHOT/'configs/mcp-tools.json').read_text())['tools']}
+
+def execute(task_id,criterion_id,actions):
+    path,raw=tasks[task_id]
+    task=load_task(path)
+    world=WorldState()
+    ids=inject_task_patient(world,task_id,deepcopy(raw['patient']),deepcopy(raw.get('setting',{})))
+    recorder=ExecutionRecorder(create_server(world),world)
+    for name,params in actions:
+        params={'encounter_id':ids['encounter_id'],**params}
+        validate(params,schemas[name])
+        recorder.call(name,params)
+    trajectory={'task_id':task_id,'error':None,'metadata':{'stop_reason':'stop'},'turns':[]}
+    for call in recorder.calls:
+        trajectory['turns'].extend([
+            {'role':'assistant','content':'','tool_calls':[{'id':call['id'],'name':call['name'],'arguments':call['params']}]},
+            {'role':'tool','tool_call_id':call['id'],'content':json.dumps(call['response'])},
+        ])
+    trajectory['turns'].append({'role':'assistant','content':'Synthetic software exercise finished.'})
+    live=evaluate_task(task,{'tool_calls':[c['name'] for c in recorder.calls]},world)
+    replay=replay_from_trajectory(trajectory,task)
+    return _json_snapshot({
+        'task_id':task_id,'criterion':next(c for c in task.criteria if c['id']==criterion_id),
+        'actual_calls':recorder.calls,'world_audit':[asdict(a) for a in world.audit_log],
+        'final_encounter':asdict(world.get_entity('encounter',ids['encounter_id'])),
+        'orders':world.list_entities('order'),'clinical_tasks':{key:asdict(value) for key,value in world.list_entities('clinical_task').items()},
+        'live':asdict(next(c for c in live.criteria_results if c.criterion_id==criterion_id)),
+        'replay':asdict(next(c for c in replay.criteria_results if c.criterion_id==criterion_id)),
+        'live_safety_gate_passed':live.safety_gate_passed,'replay_safety_gate_passed':replay.safety_gate_passed,
+        'trajectory':trajectory,
+    })
+
+results={}
+results['canonical_admitted']=execute('NEG-001','NEG-001-C01',[
+    ('updateEncounter',{'disposition':'admitted'}),
+])
+results['discharged_control']=execute('NEG-001','NEG-001-C01',[
+    ('updateEncounter',{'disposition':'discharged'}),
+])
+key='11111111-1111-4111-8111-111111111111'
+results['changed_details_deduplicated']=execute('CR-030','CR-030-C05',[
+    ('createClinicalOrder',{'order_type':'medication','details':{'name':'acetaminophen'},'idempotency_key':key}),
+    ('createClinicalOrder',{'order_type':'medication','details':{'name':'phentolamine','route':'IV'},'idempotency_key':key}),
+])
+results['fresh_required_order_control']=execute('CR-030','CR-030-C05',[
+    ('createClinicalOrder',{'order_type':'medication','details':{'name':'phentolamine','route':'IV'},'idempotency_key':key}),
+])
+results['lab_indication_only']=execute('CR-030','CR-030-C05',[
+    ('createClinicalOrder',{'order_type':'lab','details':{'name':'basic metabolic panel'},'indication':'Avoid phentolamine; this is only a laboratory order.'}),
+])
+results['unrelated_order_control']=execute('CR-030','CR-030-C05',[
+    ('createClinicalOrder',{'order_type':'lab','details':{'name':'basic metabolic panel'},'indication':'Synthetic lab-only request.'}),
+])
+
+admit_criteria=[]
+for _,raw in tasks.values():
+    for criterion in raw.get('criteria',[]):
+        if criterion.get('check','').endswith('with disposition matching admit'):
+            admit_criteria.append({'task_id':raw['id'],**criterion})
+before=json.loads((ROOT/'source-before.json').read_text())
+after={str(p.relative_to(SNAPSHOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(SNAPSHOT.rglob('*')) if p.is_file() and '__pycache__' not in p.parts}
+assert before['files']==after,'Frozen source changed'
+report={'commit':before['commit'],'python':platform.python_version(),'source_hashes_before':before['files'],
+        'source_hashes_after':after,'source_stable':True,'actual_cases':results,'admit_criteria':admit_criteria,
+        'scope':'Ordinary offline mechanical evaluator QA, not clinical assessment or formal red team.'}
+with (ROOT/'reproduction.json').open('x') as f: json.dump(report,f,indent=2,allow_nan=False)
+print(json.dumps({'source_stable':True,'admit_criteria':len(admit_criteria),'cases':{
+    name:{'live':r['live']['satisfied'],'replay':r['replay']['satisfied'],'statuses':[c['response']['status'] for c in r['actual_calls']],
+          'orders':[(o['order_type'],o['details']) for o in r['orders'].values()]} for name,r in results.items()}},indent=2))

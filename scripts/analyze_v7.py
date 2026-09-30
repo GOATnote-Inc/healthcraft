@@ -91,6 +91,10 @@ def get_model_name(results_dir: Path, trajectories: list[dict]) -> str:
 
 def analyze_model(trajectories: list[dict], model_name: str, k: int = 3) -> dict:
     """Compute all metrics for a single model's results."""
+    from healthcraft.trajectory import is_unassessed_experiment
+
+    if any(is_unassessed_experiment(row) for row in trajectories):
+        raise ValueError("Unassessed trajectories cannot support benchmark comparisons")
     if not trajectories:
         return {"model": model_name, "error": "No data", "per_category": [], "per_task": {}}
 
@@ -562,7 +566,11 @@ def main() -> None:
             print(f"Warning: no trajectories in {d}, skipping", file=sys.stderr)
             continue
         model_name = get_model_name(results_dir, trajectories)
-        analysis = analyze_model(trajectories, model_name, k=args.k)
+        try:
+            analysis = analyze_model(trajectories, model_name, k=args.k)
+        except ValueError as exc:
+            print(f"Analysis refused: {exc}", file=sys.stderr)
+            sys.exit(2)
         analyses.append(analysis)
 
     if not analyses:
@@ -583,7 +591,11 @@ def main() -> None:
                 print(f"Warning: no trajectories in compare dir {d}, skipping", file=sys.stderr)
                 continue
             model_name = get_model_name(results_dir, trajectories)
-            analysis = analyze_model(trajectories, model_name, k=1)  # V6 has 1 trial
+            try:
+                analysis = analyze_model(trajectories, model_name, k=1)  # V6 has 1 trial
+            except ValueError as exc:
+                print(f"Comparison refused: {exc}", file=sys.stderr)
+                sys.exit(2)
             compare_analyses.append(analysis)
 
     report = generate_report(analyses, compare_analyses)

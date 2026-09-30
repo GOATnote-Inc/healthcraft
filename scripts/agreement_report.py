@@ -50,6 +50,7 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
+from healthcraft.llm.checkpoint import selected_trajectory_paths  # noqa: E402
 from healthcraft.llm.orchestrator import _load_overlay  # noqa: E402
 from healthcraft.tasks.evaluator import replay_from_trajectory  # noqa: E402
 from healthcraft.tasks.loader import load_tasks  # noqa: E402
@@ -141,7 +142,7 @@ def _collect_trajectories(results_dirs: list[Path]) -> list[tuple[Path, dict]]:
         if not tdir.exists():
             print(f"[warn] no trajectories dir under {rd}", file=sys.stderr)
             continue
-        for path in sorted(tdir.rglob("*.json")):
+        for path in selected_trajectory_paths(tdir):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError) as e:

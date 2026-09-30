@@ -1,0 +1,39 @@
+from pathlib import Path
+import hashlib,json,sys,tempfile
+ROOT=Path('/Users/kiteboard/healthcraft');sys.path.insert(0,str(ROOT/'src'))
+from healthcraft import operator_incidents as api
+OUT=Path('/private/tmp/healthcraft-operator-incidents-peer');work=Path(tempfile.mkdtemp(prefix='retention-',dir=OUT))
+source=ROOT/'artifacts/reconciliation/20260930/casebook-native-v2/run/manifest.json'
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+def tree(path):return {str(p.relative_to(path)):sha(p) for p in path.rglob('*') if p.is_file()}
+source_before=tree(source.parent);implementation_before=api._implementation();checks=[]
+def check(name, value):
+ checks.append({'name':name,'satisfied':bool(value)})
+ if not value:raise AssertionError(name)
+packet=api.build_incident_packet(source,work/'packet',expected_sha256=sha(source),selections={'draft-B':'REC2-008/designated','draft-A':'REC2-003/reference'},protocol={'protocol_id':'peer','purpose':'engineering_development'},assignment={'assignment_id':'peer','operator_id':'peer','presentation':'raw'})
+check('assigned order preserved',[r['review_case_id'] for r in packet['cases']]==['draft-B','draft-A'])
+check('actual null is available evidence',packet['cases'][0]['availability']['evidence']['status']=='available' and packet['cases'][0]['documents']['evidence']['after'] is None)
+response=api.incident_response_template(packet);row=response['cases'][0]
+row['identified_target']['patient_id']='partial-patient'
+row['incident_assessment']['summary']='Unfinished investigation.'
+row['axes'][0].update(judgment='yes',rationale='A human-authored declaration; not machine-adjudicated.',evidence_refs=[{'document':'evidence','pointer':'/completion'}])
+response['cases']=response['cases'][:1]
+raw=json.dumps(response,indent=1,ensure_ascii=False).encode();(work/'response.json').write_bytes(raw)
+packet_before=tree(work/'packet')
+receipt=api.import_incident_response(work/'packet/manifest.json',work/'response.json',work/'import')
+check('draft case still pending',receipt['cases'][0]['status']=='pending')
+check('partial declaration preserved',receipt['cases'][0]['response']==row)
+check('all assigned opportunities preserved',receipt['counts']['assigned_cases']==2 and receipt['counts']['assigned_axes']==12 and receipt['counts']['pending_cases']==2 and receipt['counts']['assessed_axes']==1 and receipt['counts']['pending_axes']==11)
+check('omitted case remains present',receipt['cases'][1]['response'] is None and receipt['cases'][1]['status']=='pending')
+check('response bytes preserved',(work/'import/submission.json').read_bytes()==raw)
+check('no machine adjudication',receipt['adjudication_status']=='pending' and all(c['adjudication_status']=='pending' for c in receipt['cases']))
+invalid=b'\xff{"partial":"original bytes"}';(work/'invalid.json').write_bytes(invalid)
+bad=api.import_incident_response(work/'packet/manifest.json',work/'invalid.json',work/'invalid-import')
+check('invalid bytes preserved',(work/'invalid-import/submission.json').read_bytes()==invalid)
+check('invalid has full pending denominator',bad['status']=='invalid_submission' and bad['counts']['assigned_cases']==2 and bad['counts']['pending_axes']==12 and bad['counts']['pending_cases']==2)
+check('packet unmodified',packet_before==tree(work/'packet'))
+check('original source unmodified',source_before==tree(source.parent))
+check('implementation stable',implementation_before==api._implementation())
+result={'checks':checks,'source_manifest_sha256':sha(source),'implementation_sha256':implementation_before,'working_directory':str(work),'original_source_sha256':source_before,'unassessed':['substantive correctness of declarations','execution authenticity','human identity','clinical validity']}
+(OUT/'retention-review.json').write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
+print(json.dumps({'checks':len(checks),'failed':[c['name'] for c in checks if not c['satisfied']]},indent=2))

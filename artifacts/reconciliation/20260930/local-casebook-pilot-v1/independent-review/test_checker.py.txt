@@ -1,0 +1,56 @@
+import importlib.util,json
+from copy import deepcopy
+from pathlib import Path
+import pytest
+P=Path('/private/tmp/healthcraft-local-casebook-live-peer/check_live.py')
+s=importlib.util.spec_from_file_location('live_checker',P);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+
+@pytest.mark.parametrize('raw',['{"x":0,"x":1}','{"x":NaN}','{"x":1e999}'])
+def test_strict_parser_rejects_ambiguous_or_nonfinite(raw):
+ with pytest.raises(ValueError):m.strict(raw)
+
+def test_raw_scalar_types_and_nested_list_order_preserved():
+ wanted=[{'source_id':'s','source':{'value':0,'unknown':None,'nested':[1,2]}}]
+ for changed in ({'value':False,'unknown':None,'nested':[1,2]},{'value':0,'unknown':'unknown','nested':[1,2]},{'value':0,'unknown':None,'nested':[2,1]}):
+  actual=[{'source_id':'s','source':changed}]
+  assert len(m.identity_diff(wanted,actual,'source_id')['changed'])==1
+
+def test_row_order_irrelevant_but_duplicates_missing_and_unexpected_retained():
+ expected=[{'source_id':'a','x':1},{'source_id':'b','x':2}]
+ assert not any(m.identity_diff(expected,list(reversed(expected)),'source_id').values())
+ actual=[{'source_id':'a','x':1},{'source_id':'a','x':1},{'source_id':'z','x':2}]
+ result=m.identity_diff(expected,actual,'source_id')
+ assert result['missing'][0]['id']=='b' and result['unexpected'][0]['id']=='z' and result['duplicates']==[{'id':'a','count':2}]
+
+def test_note_differences_are_exact_and_expectation_source_refs_resolve():
+ expected=m.read(m.ROOT/'configs/evaluation/reconciliation_v2/REC2-004/expectations.json')
+ source={r['source_id']:r for r in expected['sources']}
+ note={'schema_version':'healthcraft-reconciliation-note/v1',**expected['target'],'observations':[source[k] for k in expected['observation_source_ids']],'scope_exclusions':deepcopy(expected['scope_exclusions']),'unresolved_conflicts':deepcopy(expected['unresolved_conflicts'])}
+ note['unresolved_conflicts'][0]['source_ids'].reverse()
+ result=m.note_analysis(json.dumps(note),expected)
+ assert result['available'] and result['target_matches']
+ assert not any(result['unresolved_conflicts'].values())
+ for sid,pointer in result['expected_source_refs'].items():
+  assert expected['sources'][int(pointer.rsplit('/',1)[1])]['source_id']==sid
+ note['unresolved_conflicts'][0]['source_ids'].pop()
+ assert m.note_analysis(json.dumps(note),expected)['unresolved_conflicts']['changed']
+
+@pytest.mark.parametrize('text',['not json','[]','{"x":1,"x":2}'])
+def test_bad_note_is_unavailable_not_falsely_compared(text):
+ assert m.note_analysis(text,{})['available'] is False
+
+def test_actual_readback_requires_later_exact_text_and_preserves_multiplicity():
+ notes={x:{'id':x,'patient_id':'p','encounter_id':'e','content':'same'} for x in ('n1','n2')}
+ write={'id':'write','name':'updateEncounter','params':{'encounter_id':'e','notes':'same'},'response':{'status':'ok'}}
+ read={'id':'read','name':'getEncounterDetails','params':{'encounter_id':'e'},'response':{'status':'ok','data':{'id':'e','patient_id':'p','clinical_notes':[['Progress Note','same']]}}}
+ base={'before':{'entities':{'clinical_note':{}}},'after':{'entities':{'clinical_note':notes}},'calls':[read,write]}
+ assert m.actions(base)['stored_note_readback_count']==0
+ base['calls'].append(read)
+ assert m.actions(base)['stored_note_count']==2 and m.actions(base)['stored_note_readback_count']==1
+ base['calls'][-1]=deepcopy(read);base['calls'][-1]['response']['data']['patient_id']='other'
+ assert m.actions(base)['stored_note_readback_count']==0
+
+def test_source_and_note_inputs_not_mutated():
+ expected=m.read(m.ROOT/'configs/evaluation/reconciliation_v2/REC2-004/expectations.json');snapshot=deepcopy(expected)
+ m.note_analysis('{"observations":[],"scope_exclusions":[],"unresolved_conflicts":[]}',expected)
+ assert expected==snapshot

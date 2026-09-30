@@ -1,0 +1,11 @@
+from pathlib import Path
+import hashlib,importlib.util,json,tempfile,shutil
+from healthcraft import operator_adjudication as adj
+ROOT=Path('/Users/kiteboard/healthcraft');OUT=Path('/private/tmp/healthcraft-operator-adjudication-peer')
+spec=importlib.util.spec_from_file_location('binding_test_helpers',ROOT/'tests/test_operator_adjudication_binding.py');t=importlib.util.module_from_spec(spec);spec.loader.exec_module(t)
+d=Path(tempfile.mkdtemp(prefix='missing-original-',dir=OUT));source=t.source_backed.__wrapped__(d);folder=source['issued'];m=json.loads((folder/'manifest.json').read_text());m['source_bindings']['coordinator_files']={};m['files']={k:v for k,v in m['files'].items() if not k.startswith('coordinator/')};shutil.rmtree(folder/'coordinator');t._write(folder/'manifest.json',m)
+p=source['packet'];p['cases'][0]['documents']['response']['incident_assessment']['summary']='UNBOUND ALTERATION';t._rehash_presentation(folder,p)
+r={'source_sha256':hashlib.sha256((ROOT/'src/healthcraft/operator_adjudication.py').read_bytes()).hexdigest(),'output':str(d)}
+try:adj.validate_adjudication_packet(folder/'manifest.json');r['accepted']=True
+except Exception as e:r['accepted']=False;r['error']=f'{type(e).__name__}: {e}'
+(OUT/'missing-original-reproduction.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

@@ -1,0 +1,166 @@
+FFFFFF..F                                                                [100%]
+=================================== FAILURES ===================================
+_ test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[doesNotExist] _
+
+name = 'doesNotExist'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10baa8fc0>
+
+    @pytest.mark.parametrize("name", ["doesNotExist", "does_not_exist", "getencounterDetails"])
+    def test_unknown_tool_has_one_error_audit_with_exact_request_and_clock(name, monkeypatch):
+        clock = datetime(2031, 4, 5, 6, 7, tzinfo=timezone.utc)
+        world = WorldState(start_time=clock)
+        server = create_server(world)
+    
+        def forbidden_dispatch(*args):
+            pytest.fail("An unknown tool must not dispatch a registered handler")
+    
+        for registered in server._handlers:
+            monkeypatch.setitem(server._handlers, registered, forbidden_dispatch)
+        params = {"nested": {"values": [1, None, "authored"]}, "idempotency_key": "unknown-attempt"}
+        original = deepcopy(params)
+        result = server.call_tool(name, params)
+        assert result == {"status": "error", "code": "unknown_tool", "message": f"Unknown tool: {name}"}
+>       assert server.audit_logger.entry_count == len(world.audit_log) == 1
+E       assert 1 == 0
+E        +  where 1 = <healthcraft.mcp.audit.AuditLogger object at 0x10bae8440>.entry_count
+E        +    where <healthcraft.mcp.audit.AuditLogger object at 0x10bae8440> = <healthcraft.mcp.server.HealthcraftServer object at 0x10bae82f0>.audit_logger
+E        +  and   0 = len([])
+E        +    where [] = WorldState(time=2031-04-05T06:07:00+00:00, entities={}).audit_log
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:28: AssertionError
+_ test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[does_not_exist] _
+
+name = 'does_not_exist'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10baa9350>
+
+    @pytest.mark.parametrize("name", ["doesNotExist", "does_not_exist", "getencounterDetails"])
+    def test_unknown_tool_has_one_error_audit_with_exact_request_and_clock(name, monkeypatch):
+        clock = datetime(2031, 4, 5, 6, 7, tzinfo=timezone.utc)
+        world = WorldState(start_time=clock)
+        server = create_server(world)
+    
+        def forbidden_dispatch(*args):
+            pytest.fail("An unknown tool must not dispatch a registered handler")
+    
+        for registered in server._handlers:
+            monkeypatch.setitem(server._handlers, registered, forbidden_dispatch)
+        params = {"nested": {"values": [1, None, "authored"]}, "idempotency_key": "unknown-attempt"}
+        original = deepcopy(params)
+        result = server.call_tool(name, params)
+        assert result == {"status": "error", "code": "unknown_tool", "message": f"Unknown tool: {name}"}
+>       assert server.audit_logger.entry_count == len(world.audit_log) == 1
+E       assert 1 == 0
+E        +  where 1 = <healthcraft.mcp.audit.AuditLogger object at 0x10b4aa990>.entry_count
+E        +    where <healthcraft.mcp.audit.AuditLogger object at 0x10b4aa990> = <healthcraft.mcp.server.HealthcraftServer object at 0x10b4aa850>.audit_logger
+E        +  and   0 = len([])
+E        +    where [] = WorldState(time=2031-04-05T06:07:00+00:00, entities={}).audit_log
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:28: AssertionError
+_ test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[getencounterDetails] _
+
+name = 'getencounterDetails'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ba14ef0>
+
+    @pytest.mark.parametrize("name", ["doesNotExist", "does_not_exist", "getencounterDetails"])
+    def test_unknown_tool_has_one_error_audit_with_exact_request_and_clock(name, monkeypatch):
+        clock = datetime(2031, 4, 5, 6, 7, tzinfo=timezone.utc)
+        world = WorldState(start_time=clock)
+        server = create_server(world)
+    
+        def forbidden_dispatch(*args):
+            pytest.fail("An unknown tool must not dispatch a registered handler")
+    
+        for registered in server._handlers:
+            monkeypatch.setitem(server._handlers, registered, forbidden_dispatch)
+        params = {"nested": {"values": [1, None, "authored"]}, "idempotency_key": "unknown-attempt"}
+        original = deepcopy(params)
+        result = server.call_tool(name, params)
+        assert result == {"status": "error", "code": "unknown_tool", "message": f"Unknown tool: {name}"}
+>       assert server.audit_logger.entry_count == len(world.audit_log) == 1
+E       assert 1 == 0
+E        +  where 1 = <healthcraft.mcp.audit.AuditLogger object at 0x10b4ab610>.entry_count
+E        +    where <healthcraft.mcp.audit.AuditLogger object at 0x10b4ab610> = <healthcraft.mcp.server.HealthcraftServer object at 0x10b4aae90>.audit_logger
+E        +  and   0 = len([])
+E        +    where [] = WorldState(time=2031-04-05T06:07:00+00:00, entities={}).audit_log
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:28: AssertionError
+______ test_missing_registered_handler_is_audited_under_exact_camel_name _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bb1c050>
+
+    def test_missing_registered_handler_is_audited_under_exact_camel_name(monkeypatch):
+        world = WorldState()
+        server = create_server(world)
+        monkeypatch.delitem(server._handlers, "get_encounter_details")
+        response = server.call_tool("getEncounterDetails", {"encounter_id": "ENC-AAAAAAAA"})
+        assert response["code"] == "unknown_tool"
+>       assert len(world.audit_log) == server.audit_logger.entry_count == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = WorldState(time=2026-01-15T07:00:00+00:00, entities={}).audit_log
+E        +  and   1 = <healthcraft.mcp.audit.AuditLogger object at 0x10baa9cd0>.entry_count
+E        +    where <healthcraft.mcp.audit.AuditLogger object at 0x10baa9cd0> = <healthcraft.mcp.server.HealthcraftServer object at 0x10baa9ba0>.audit_logger
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:57: AssertionError
+_ test_unknown_retries_increment_existing_key_attempt_metadata_without_deduplication _
+
+    def test_unknown_retries_increment_existing_key_attempt_metadata_without_deduplication():
+        world = WorldState()
+        server = create_server(world)
+        params = {"idempotency_key": "shared-attempt-key"}
+        assert server.call_tool("searchPatients", params)["status"] == "ok"
+        assert server.call_tool("unknownOne", params)["code"] == "unknown_tool"
+        world.advance_time(3)
+        assert server.call_tool("unknownTwo", params)["code"] == "unknown_tool"
+        assert server.call_tool("search_patients", params)["status"] == "ok"
+>       assert [entry.attempt_number for entry in world.audit_log] == [1, 2, 3, 4]
+E       assert [1, 2] == [1, 2, 3, 4]
+E         
+E         Right contains 2 more items, first extra item: 3
+E         Use -v to get more diff
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:71: AssertionError
+_______ test_unknown_without_idempotency_key_has_normal_default_metadata _______
+
+    def test_unknown_without_idempotency_key_has_normal_default_metadata():
+        world = WorldState()
+        response = create_server(world).call_tool("unknown", {})
+        assert response["code"] == "unknown_tool"
+>       assert len(world.audit_log) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = WorldState(time=2026-01-15T07:00:00+00:00, entities={}).audit_log
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:85: AssertionError
+___ test_actual_unknown_response_can_be_captured_by_exact_one_audit_recorder ___
+
+    def test_actual_unknown_response_can_be_captured_by_exact_one_audit_recorder():
+        world = WorldState()
+        recorder = ExecutionRecorder(create_server(world), world)
+>       response = recorder.call("unknownExample", {"nested": {"values": []}})
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_tools/test_unknown_tool_audit.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <healthcraft.tasks.history_execution.ExecutionRecorder object at 0x10bae9400>
+name = 'unknownExample', params = {'nested': {'values': []}}
+
+    def call(self, name: str, params: dict[str, Any]) -> dict[str, Any]:
+        request = deepcopy(params)
+        audit_index = len(self._world.audit_log)
+        response = self._server.call_tool(name, deepcopy(request))
+        if len(self._world.audit_log) != audit_index + 1:
+>           raise ValueError("Tool dispatch must produce exactly one world audit entry")
+E           ValueError: Tool dispatch must produce exactly one world audit entry
+
+src/healthcraft/tasks/history_execution.py:63: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[doesNotExist]
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[does_not_exist]
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_unknown_tool_has_one_error_audit_with_exact_request_and_clock[getencounterDetails]
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_missing_registered_handler_is_audited_under_exact_camel_name
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_unknown_retries_increment_existing_key_attempt_metadata_without_deduplication
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_unknown_without_idempotency_key_has_normal_default_metadata
+FAILED tests/test_mcp_tools/test_unknown_tool_audit.py::test_actual_unknown_response_can_be_captured_by_exact_one_audit_recorder
+7 failed, 2 passed in 0.05s

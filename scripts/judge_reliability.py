@@ -27,6 +27,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+
+from healthcraft.llm.checkpoint import (  # noqa: E402
+    load_latest_summary,
+    selected_trajectory_paths,
+)
+
 # ── Cohen's kappa ───────────────────────────────────────────────────
 
 
@@ -102,16 +110,15 @@ def select_sample(
         if not traj_dir.exists():
             continue
 
-        summary_path = results_dir / "summary.json"
+        summary = load_latest_summary(results_dir)
         model = results_dir.name
-        if summary_path.exists():
-            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if summary is not None:
             model = summary.get("agent_model", model)
 
         for cat_dir in sorted(traj_dir.iterdir()):
             if not cat_dir.is_dir():
                 continue
-            for path in sorted(cat_dir.glob("*.json")):
+            for path in selected_trajectory_paths(cat_dir):
                 try:
                     traj = json.loads(path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):

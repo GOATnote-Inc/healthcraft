@@ -1,0 +1,88 @@
+"""Offline identity/roster/prompt check; never invokes a model or transport."""
+import hashlib
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+from healthcraft.reconciliation.controller import CommandController, PilotSettings, SYSTEM_PROMPT, canonical_json, command_format_identity, command_format_schema
+from healthcraft.reconciliation.public_case import public_case_context
+from healthcraft.reconciliation.model_cohort import load_plan
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-local-casebook-plan-peer')
+PLAN=ROOT/'configs/evaluation/reconciliation_model_v2/local-pilot-plan.json'
+META=Path('/private/tmp/healthcraft-casebook-model-preflight/runtime-metadata-verified.json')
+EXPECTED='c6b21023c6eaac2ae1bf0dd764656cf109fc3d1e465fbe07d9347430afa82d49'
+CASEBOOK=ROOT/'configs/evaluation/reconciliation_v2/casebook.json'
+SOURCES=[PLAN,CASEBOOK,META,ROOT/'src/healthcraft/reconciliation/public_case.py',ROOT/'src/healthcraft/reconciliation/controller.py',ROOT/'src/healthcraft/reconciliation/model_cohort.py',ROOT/'src/healthcraft/reconciliation/model_case.py',ROOT/'configs/mcp-tools.json']
+SOURCES+=sorted((ROOT/'configs/evaluation/reconciliation_v2').glob('REC2-*/*.json'))
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def digest(value):return hashlib.sha256(canonical_json(value).encode()).hexdigest()
+def inventory():return {str(p):sha(p) for p in SOURCES}
+before=inventory()
+checks=[]
+def check(name,truth,details=None):
+    checks.append({'name':name,'passed':bool(truth),**({'details':details} if details is not None else {})})
+    if not truth:raise AssertionError(name)
+plan=json.loads(PLAN.read_text())
+metadata=json.loads(META.read_text())
+casebook=json.loads(CASEBOOK.read_text())
+check('plan canonical pin',digest(plan)==EXPECTED)
+check('casebook canonical pin',digest(casebook)==plan['casebook_sha256'])
+check('development scope',plan['exposure']=='development' and casebook['exposure']=='development')
+check('independent label status pending',casebook['label_status']=='engineering_authored_independent_review_pending')
+check('saved metadata no generation',metadata['model_calls']==0)
+check('saved metadata no model resident',metadata['residency']=={'models':[]})
+check('metadata used only metadata routes',all(r['path'] in {'/api/tags','/api/show','/api/version','/api/ps'} for r in metadata['raw_requests']))
+models={entry['id']:entry['config'] for entry in plan['models']}
+check('models exactly ordered Nano and MedGemma',[m['id'] for m in plan['models']]==['nano','medgemma'])
+saved={m['model']:m['metadata'] for m in metadata['models']}
+expected_settings={'max_model_responses':16,'max_output_tokens':4096,'num_ctx':32768,'seed':42,'temperature':0.0,'think':False,'request_timeout_seconds':240,'attempt_timeout_seconds':900,'keep_alive':0}
+check('current defaults equal frozen common settings',asdict(PilotSettings())==expected_settings)
+for name,config in models.items():
+    info=saved[config['model']]
+    check(name+' saved identity matches',config['expected_digest']==info['model_digest'] and config['expected_runtime']==info['runtime_version']=='0.34.4',{'model':config['model'],'digest':config['expected_digest'],'runtime':config['expected_runtime']})
+    check(name+' completion capability','completion' in info['capabilities'])
+    check(name+' common settings',config['settings']==expected_settings)
+    check(name+' command format identity',config['command_format']==command_format_identity())
+check('format schema independently hashed',command_format_identity()['sha256']==digest(command_format_schema()))
+check('distinct weight identities',len({c['expected_digest'] for c in models.values()})==2)
+expected_ids=[f'REC2-{i:03}' for i in range(1,9)]
+check('all eight ordered cases',[case['case_id'] for case in plan['cases']]==expected_ids)
+expected_roster=[{'id':f'{case_id}/{model_id}','case_id':case_id,'model_id':model_id} for case_id in expected_ids for model_id in ['nano','medgemma']]
+check('16 fixed case-major attempt slots',plan['roster']==expected_roster)
+check('no repeat attempts',len({r['id'] for r in plan['roster']})==16)
+canonical_tools=json.loads((ROOT/'configs/mcp-tools.json').read_text())['tools']
+tool_names={'searchPatients','searchEncounters','getPatientHistory','getEncounterDetails','updateEncounter'}
+expected_tools=sorted([t for t in canonical_tools if t['name'] in tool_names],key=lambda t:t['name'])
+contexts=[]
+templates=set()
+for item in plan['cases']:
+    case_id=item['case_id']
+    scenario=json.loads((CASEBOOK.parent/case_id/'scenario.json').read_text())
+    target=scenario['target']
+    context=public_case_context(target)
+    expected_messages=[{'role':'system','content':SYSTEM_PROMPT},{'role':'user','content':canonical_json({'instruction':context['instruction'],'tools':expected_tools})}]
+    actual_messages=CommandController(context['instruction'],context['tools'],command_format=context['command_format']).snapshot()['messages']
+    check(case_id+' actual initial prompt binding',context['initial_messages']==actual_messages==expected_messages and digest(actual_messages)==item['initial_messages_sha256']==context['initial_messages_sha256'])
+    check(case_id+' canonical public schemas',context['tools']==expected_tools)
+    instruction=context['instruction']
+    templates.add(instruction.replace(target['patient_id'],'<patient_id>').replace(target['encounter_id'],'<encounter_id>'))
+    serialized=canonical_json(actual_messages)
+    private=[case_id,scenario['id'],scenario['clock'],'SRC-A','EVENT-','observation_source_ids','designated_control','scope_exclusions_sha256']
+    for patient in scenario['patients']:
+        private += [patient['mrn'],patient['first_name'],patient['last_name']]
+        if patient['id']!=target['patient_id']:private.append(patient['id'])
+    private += [row['id'] for row in scenario['encounters'] if row['id']!=target['encounter_id']]
+    private += [c['designated_control'] for c in casebook['cases'] if c['designated_control']!='valid']
+    private += [config['model'] for config in models.values()]
+    check(case_id+' no case answer/control/model alias in messages',all(value not in serialized for value in private))
+    contexts.append({'case_id':case_id,'initial_messages_sha256':digest(actual_messages),'instruction_sha256':context['instruction_sha256'],'tools_sha256':context['tools_sha256'],'initial_messages_utf8_bytes':len(canonical_json(actual_messages).encode())})
+check('same instruction template except target IDs',len(templates)==1)
+loaded,selected,normalized,raw_sha=load_plan(PLAN,expected_sha256=EXPECTED)
+check('actual loader accepts exact pinned plan',loaded==plan and list(selected)==expected_ids and normalized==models and raw_sha==sha(PLAN))
+after=inventory()
+check('source/plan/metadata inputs stable',before==after)
+receipt={'scope':'Read-only ordinary pre-inference plan review; no provider/network/model calls and no repository writes.','plan_canonical_sha256':EXPECTED,'plan_file_sha256':sha(PLAN),'source_before':before,'source_after':after,'checks':checks,'check_count':len(checks),'contexts':contexts,'remaining_findings':[],'limitations':['Saved metadata is a prior local observation, not a fresh runtime attestation by this check; execution still needs before/after identity checks.','This review authored public_case.py; source contracts were checked against independent canonical schemas and current controller messages, not independently clinically adjudicated.','Prompt purity here means no private case answers/counts/control labels or unrelated identities; generic task rules deliberately specify the mechanical expected behavior.','Sixteen slots are one attempt per model/case, not reliability estimates or held-out clinical evidence.','Context byte lengths are not token counts or proof of nontruncation.','Nano may emit think:false while completion-only MedGemma omits that unsupported field; same declared disabled-thinking condition is not cross-model byte-identical requests.']}
+with (OUT/'peer-review.json').open('x') as f:json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'checks':len(checks),'plan':EXPECTED,'slots':len(plan['roster']),'context_sha256s':[r['initial_messages_sha256'] for r in contexts],'receipt':str(OUT/'peer-review.json')}))

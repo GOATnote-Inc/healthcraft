@@ -1,0 +1,370 @@
+......................................EEE.EE............................ [ 83%]
+..............                                                           [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_explicit_resolver_only_sees_disputed_reports_and_preserves_initial_judgments _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-658/test_explicit_resolver_only_se0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a647ee0>
+
+    @pytest.fixture
+    def disputed(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(
+            core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True)
+        )
+        operator = {
+            "operator_id": "test-operator",
+            "protocol": packet["protocol"],
+            "cases": [
+                {
+                    "review_case_id": case["review_case_id"],
+                    "scenario_family_id": case["scenario_family_id"],
+                    "documents": {
+                        key: case["documents"][key]
+                        for key in ("task", "scenario", "evidence", "runtime")
+                    },
+                }
+                for case in packet["cases"]
+            ],
+        }
+        raw = b'{"synthetic_test_submission":true}'
+        received = {
+            "review-a": {"response": packet["cases"][0]["documents"]["response"], "status": "submitted"}
+        }
+        monkeypatch.setattr(
+            core, "_operator_inputs", lambda *a, **k: (operator, raw, received, b"{}", [])
+        )
+        imports, issued = {}, {}
+        for name, decision in [("reviewer-a", "valid"), ("reviewer-b", "invalid")]:
+            folder = tmp_path / name
+            value = core.build_adjudication_packet(
+                tmp_path / "source/manifest.json",
+                tmp_path / "response.json",
+                folder,
+                assignment={"assignment_id": name, "adjudicator_id": name, "role": "initial"},
+            )
+            answer = completed_response(core, value, decision=decision)
+            if decision == "invalid":
+                answer["cases"][0]["checks"][0]["judgment"] = "unsupported"
+>           submit(core, folder, tmp_path, answer, name=name + "-import")
+
+tests/test_operator_adjudication.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:219: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:660: in import_adjudication_response
+    packet, issued, raw_manifest = validate_adjudication_packet(manifest_path)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:414: in validate_adjudication_packet
+    _coordinator_bindings(packet, raw)
+src/healthcraft/operator_adjudication.py:474: in _coordinator_bindings
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Displayed report, source documents or roster differ from the original submission'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Displayed report, source documents or roster differ from the original submission
+
+src/healthcraft/operator_review.py:83: ValueError
+_ ERROR at setup of test_original_reviewer_cannot_also_resolve_their_disagreement _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-658/test_original_reviewer_cannot_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10aa00950>
+
+    @pytest.fixture
+    def disputed(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(
+            core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True)
+        )
+        operator = {
+            "operator_id": "test-operator",
+            "protocol": packet["protocol"],
+            "cases": [
+                {
+                    "review_case_id": case["review_case_id"],
+                    "scenario_family_id": case["scenario_family_id"],
+                    "documents": {
+                        key: case["documents"][key]
+                        for key in ("task", "scenario", "evidence", "runtime")
+                    },
+                }
+                for case in packet["cases"]
+            ],
+        }
+        raw = b'{"synthetic_test_submission":true}'
+        received = {
+            "review-a": {"response": packet["cases"][0]["documents"]["response"], "status": "submitted"}
+        }
+        monkeypatch.setattr(
+            core, "_operator_inputs", lambda *a, **k: (operator, raw, received, b"{}", [])
+        )
+        imports, issued = {}, {}
+        for name, decision in [("reviewer-a", "valid"), ("reviewer-b", "invalid")]:
+            folder = tmp_path / name
+            value = core.build_adjudication_packet(
+                tmp_path / "source/manifest.json",
+                tmp_path / "response.json",
+                folder,
+                assignment={"assignment_id": name, "adjudicator_id": name, "role": "initial"},
+            )
+            answer = completed_response(core, value, decision=decision)
+            if decision == "invalid":
+                answer["cases"][0]["checks"][0]["judgment"] = "unsupported"
+>           submit(core, folder, tmp_path, answer, name=name + "-import")
+
+tests/test_operator_adjudication.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:219: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:660: in import_adjudication_response
+    packet, issued, raw_manifest = validate_adjudication_packet(manifest_path)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:414: in validate_adjudication_packet
+    _coordinator_bindings(packet, raw)
+src/healthcraft/operator_adjudication.py:474: in _coordinator_bindings
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Displayed report, source documents or roster differ from the original submission'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Displayed report, source documents or roster differ from the original submission
+
+src/healthcraft/operator_review.py:83: ValueError
+_ ERROR at setup of test_resolution_cannot_be_reused_after_an_initial_submission_changes _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-658/test_resolution_cannot_be_reus0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10aa00b90>
+
+    @pytest.fixture
+    def disputed(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(
+            core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True)
+        )
+        operator = {
+            "operator_id": "test-operator",
+            "protocol": packet["protocol"],
+            "cases": [
+                {
+                    "review_case_id": case["review_case_id"],
+                    "scenario_family_id": case["scenario_family_id"],
+                    "documents": {
+                        key: case["documents"][key]
+                        for key in ("task", "scenario", "evidence", "runtime")
+                    },
+                }
+                for case in packet["cases"]
+            ],
+        }
+        raw = b'{"synthetic_test_submission":true}'
+        received = {
+            "review-a": {"response": packet["cases"][0]["documents"]["response"], "status": "submitted"}
+        }
+        monkeypatch.setattr(
+            core, "_operator_inputs", lambda *a, **k: (operator, raw, received, b"{}", [])
+        )
+        imports, issued = {}, {}
+        for name, decision in [("reviewer-a", "valid"), ("reviewer-b", "invalid")]:
+            folder = tmp_path / name
+            value = core.build_adjudication_packet(
+                tmp_path / "source/manifest.json",
+                tmp_path / "response.json",
+                folder,
+                assignment={"assignment_id": name, "adjudicator_id": name, "role": "initial"},
+            )
+            answer = completed_response(core, value, decision=decision)
+            if decision == "invalid":
+                answer["cases"][0]["checks"][0]["judgment"] = "unsupported"
+>           submit(core, folder, tmp_path, answer, name=name + "-import")
+
+tests/test_operator_adjudication.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:219: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:660: in import_adjudication_response
+    packet, issued, raw_manifest = validate_adjudication_packet(manifest_path)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:414: in validate_adjudication_packet
+    _coordinator_bindings(packet, raw)
+src/healthcraft/operator_adjudication.py:474: in _coordinator_bindings
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Displayed report, source documents or roster differ from the original submission'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Displayed report, source documents or roster differ from the original submission
+
+src/healthcraft/operator_review.py:83: ValueError
+___ ERROR at setup of test_dispute_waits_for_all_assigned_initial_reviewers ____
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-658/test_dispute_waits_for_all_ass0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109da3cd0>
+
+    @pytest.fixture
+    def disputed(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(
+            core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True)
+        )
+        operator = {
+            "operator_id": "test-operator",
+            "protocol": packet["protocol"],
+            "cases": [
+                {
+                    "review_case_id": case["review_case_id"],
+                    "scenario_family_id": case["scenario_family_id"],
+                    "documents": {
+                        key: case["documents"][key]
+                        for key in ("task", "scenario", "evidence", "runtime")
+                    },
+                }
+                for case in packet["cases"]
+            ],
+        }
+        raw = b'{"synthetic_test_submission":true}'
+        received = {
+            "review-a": {"response": packet["cases"][0]["documents"]["response"], "status": "submitted"}
+        }
+        monkeypatch.setattr(
+            core, "_operator_inputs", lambda *a, **k: (operator, raw, received, b"{}", [])
+        )
+        imports, issued = {}, {}
+        for name, decision in [("reviewer-a", "valid"), ("reviewer-b", "invalid")]:
+            folder = tmp_path / name
+            value = core.build_adjudication_packet(
+                tmp_path / "source/manifest.json",
+                tmp_path / "response.json",
+                folder,
+                assignment={"assignment_id": name, "adjudicator_id": name, "role": "initial"},
+            )
+            answer = completed_response(core, value, decision=decision)
+            if decision == "invalid":
+                answer["cases"][0]["checks"][0]["judgment"] = "unsupported"
+>           submit(core, folder, tmp_path, answer, name=name + "-import")
+
+tests/test_operator_adjudication.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:219: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:660: in import_adjudication_response
+    packet, issued, raw_manifest = validate_adjudication_packet(manifest_path)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:414: in validate_adjudication_packet
+    _coordinator_bindings(packet, raw)
+src/healthcraft/operator_adjudication.py:474: in _coordinator_bindings
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Displayed report, source documents or roster differ from the original submission'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Displayed report, source documents or roster differ from the original submission
+
+src/healthcraft/operator_review.py:83: ValueError
+_ ERROR at setup of test_unfinished_resolver_preserves_dispute_and_separate_denominator _
+
+core = <module 'healthcraft.operator_adjudication' from '/Users/kiteboard/healthcraft/src/healthcraft/operator_adjudication.py'>
+packet = {'adjudicator_id': 'synthetic-test-reviewer', 'assignment_id': 'assignment-1', 'cases': [{'documents': {'evidence': {'...w-b', 'scenario_family_id': 'test-family'}], 'limitations': ['Synthetic development fixture; no human judgment.'], ...}
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-658/test_unfinished_resolver_prese0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a1263f0>
+
+    @pytest.fixture
+    def disputed(core, packet, tmp_path, monkeypatch):
+        monkeypatch.setattr(core, "_implementation", lambda: {"synthetic-test-issuer": "a" * 64})
+        monkeypatch.setattr(
+            core, "_render", lambda packet, template: json.dumps([packet, template], sort_keys=True)
+        )
+        operator = {
+            "operator_id": "test-operator",
+            "protocol": packet["protocol"],
+            "cases": [
+                {
+                    "review_case_id": case["review_case_id"],
+                    "scenario_family_id": case["scenario_family_id"],
+                    "documents": {
+                        key: case["documents"][key]
+                        for key in ("task", "scenario", "evidence", "runtime")
+                    },
+                }
+                for case in packet["cases"]
+            ],
+        }
+        raw = b'{"synthetic_test_submission":true}'
+        received = {
+            "review-a": {"response": packet["cases"][0]["documents"]["response"], "status": "submitted"}
+        }
+        monkeypatch.setattr(
+            core, "_operator_inputs", lambda *a, **k: (operator, raw, received, b"{}", [])
+        )
+        imports, issued = {}, {}
+        for name, decision in [("reviewer-a", "valid"), ("reviewer-b", "invalid")]:
+            folder = tmp_path / name
+            value = core.build_adjudication_packet(
+                tmp_path / "source/manifest.json",
+                tmp_path / "response.json",
+                folder,
+                assignment={"assignment_id": name, "adjudicator_id": name, "role": "initial"},
+            )
+            answer = completed_response(core, value, decision=decision)
+            if decision == "invalid":
+                answer["cases"][0]["checks"][0]["judgment"] = "unsupported"
+>           submit(core, folder, tmp_path, answer, name=name + "-import")
+
+tests/test_operator_adjudication.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_operator_adjudication.py:219: in submit
+    return core.import_adjudication_response(issued / "manifest.json", path, tmp_path / name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:660: in import_adjudication_response
+    packet, issued, raw_manifest = validate_adjudication_packet(manifest_path)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/healthcraft/operator_adjudication.py:414: in validate_adjudication_packet
+    _coordinator_bindings(packet, raw)
+src/healthcraft/operator_adjudication.py:474: in _coordinator_bindings
+    _require(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+message = 'Displayed report, source documents or roster differ from the original submission'
+
+    def _require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: Displayed report, source documents or roster differ from the original submission
+
+src/healthcraft/operator_review.py:83: ValueError
+=========================== short test summary info ============================
+ERROR tests/test_operator_adjudication.py::test_explicit_resolver_only_sees_disputed_reports_and_preserves_initial_judgments
+ERROR tests/test_operator_adjudication.py::test_original_reviewer_cannot_also_resolve_their_disagreement
+ERROR tests/test_operator_adjudication.py::test_resolution_cannot_be_reused_after_an_initial_submission_changes
+ERROR tests/test_operator_adjudication.py::test_dispute_waits_for_all_assigned_initial_reviewers
+ERROR tests/test_operator_adjudication.py::test_unfinished_resolver_preserves_dispute_and_separate_denominator
+81 passed, 5 errors in 5.63s

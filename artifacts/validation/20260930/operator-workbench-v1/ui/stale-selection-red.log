@@ -1,0 +1,86 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_inspector_links_pages_and_literal_dom_are_not_eager ___________
+
+incident = ({'assignment_id': 'a1', 'axes': [{'axis_id': 'execution_completion', 'distinction': 'Observed is not correct.', 'ques...tus': None, 'summary': '', ...}, 'review_case_id': 'case-1', ...}], 'operator_id': 'operator', 'packet_id': 'p1', ...})
+examples = <module 'workbench_examples' from '/Users/kiteboard/healthcraft/tests/test_operator_incident_report.py'>
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-689/test_inspector_links_pages_and0')
+
+    def test_inspector_links_pages_and_literal_dom_are_not_eager(incident, examples, tmp_path):
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("Installed Node required for offline inspector DOM contracts")
+        packet, template = incident
+        packet["cases"][0]["documents"]["scenario"]["many"] = list(range(125))
+        packet["cases"][0]["availability"]["scenario"]["sha256"] = examples.digest(
+            packet["cases"][0]["documents"]["scenario"]
+        )
+        template["packet_sha256"] = examples.digest(packet)
+        page = examples.Page(render(incident))
+        harness = r"""
+    const fs=require('node:fs'),vm=require('node:vm'),p=JSON.parse(fs.readFileSync(0,'utf8'));
+    const nodes={};
+    function element(tag){return {tagName:tag,children:[],listeners:{},textContent:'',value:'',hidden:false,
+     appendChild(n){this.children.push(n);},replaceChildren(...items){this.children=items;},
+     addEventListener(k,fn){this.listeners[k]=fn;}};}
+    for(const [tag,attrs] of p.tags)if(attrs.id)nodes[attrs.id]=element(tag);
+    nodes['incident-packet'].textContent=p.packet_text;
+    nodes['incident-template'].textContent=p.template_text;
+    const openButton=element('button');openButton.dataset={sourceOpen:'0'};
+    const c={document:{getElementById(id){if(!nodes[id])throw Error('Missing '+id);return nodes[id];},
+     querySelectorAll(selector){return selector==='[data-source-open]'?[openButton]:[];},
+     createElement:element}};
+    vm.createContext(c);vm.runInContext(p.base,c);vm.runInContext(p.script,c);
+    const ref={document:'scenario',pointer:'/many'};
+    c.HealthcraftSources.open(0,ref);
+    const result={first:nodes['source-0-children'].children.length};
+    const next=nodes['source-0-context'].children.find(n=>n.textContent==='Next children');
+    next.listeners.click();result.second=nodes['source-0-children'].children.length;
+    result.second_label=nodes['source-0-children'].children[0].children[0].textContent;
+    nodes['source-0-children'].children[0].children[0].listeners.click();
+    result.value=nodes['source-0-value'].textContent;result.citation=nodes['source-0-citation'].value;
+    c.HealthcraftSources.open(0,{document:'scenario',pointer:'/nested/a~1b~0c/1/literal'});
+    result.literal=nodes['source-0-value'].textContent;
+    c.HealthcraftSources.open(0,{document:'evidence',pointer:'/bad_note',decoded_json_pointer:'/x'});
+    result.raw=nodes['source-0-raw'].textContent;result.status=nodes['source-0-status'].textContent;
+    result.children_after_error=nodes['source-0-children'].children.length;
+    nodes['source-0-query'].value='{';openButton.listeners.click();
+    result.invalid_query={raw:nodes['source-0-raw'].textContent,
+     citation:nodes['source-0-citation'].value,query:nodes['source-0-query'].value};
+    process.stdout.write(JSON.stringify(result));
+    """
+        completed = subprocess.run(
+            [node, "-e", harness],
+            check=True,
+            capture_output=True,
+            text=True,
+            input=json.dumps(
+                {
+                    "tags": page.tags,
+                    "packet_text": page.scripts["incident-packet"],
+                    "template_text": page.scripts["incident-template"],
+                    "base": page.scripts["incident-app"],
+                    "script": page.scripts["workbench-sources"],
+                }
+            ),
+        )
+        result = json.loads(completed.stdout)
+        assert result["first"] == result["second"] == 50
+        assert result["second_label"] == "50 · number" and result["value"] == "50"
+        assert json.loads(result["citation"]) == {"document": "scenario", "pointer": "/many/50"}
+        assert result["literal"] == "é\nline"
+        assert result["raw"] == '{"x":1,"x":2}' and "Duplicate" in result["status"]
+        assert result["children_after_error"] == 0
+>       assert result["invalid_query"] == {"raw": "", "citation": "", "query": "{"}
+E       assert {'citation': ..."x":1,"x":2}'} == {'citation': ...{', 'raw': ''}
+E         
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'raw': '{"x":1,"x":2}'} != {'raw': ''}
+E         {'citation': '{"document":"evidence","pointer":"/bad_note","decoded_json_pointer":"/x"}'} != {'citation': ''}
+E         Use -v to get more diff
+
+tests/test_operator_workbench_report.py:278: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_operator_workbench_report.py::test_inspector_links_pages_and_literal_dom_are_not_eager
+1 failed, 18 deselected in 0.07s
