@@ -1,12 +1,12 @@
 .PHONY: test lint smoke install format docker-up docker-down clean eval validate-tasks analyze preflight integrity v8-replay judge-tests v9-smoke v10-smoke v11-smoke ensemble-tests consensus hard release leaderboard release-tests agents-assemble-smoke rl-test rl-dryrun rl-train rl-integration grader-goldset channel-replay freeze-channels check-lint
 
 # Prefer the repo-local .venv when present; fall back to the active
-# interpreter so `pip install -e ".[dev]" && make test` works in any setup.
+# interpreter so `make install && make test` works in any setup.
 PYTHON ?= $(shell test -x .venv/bin/python3 && echo .venv/bin/python3 || echo python3)
 PYTEST ?= $(shell test -x .venv/bin/pytest && echo .venv/bin/pytest || echo pytest)
 
 install:
-	$(PYTHON) -m pip install -e ".[dev]"
+	$(PYTHON) -m pip install -c constraints-security.txt -e ".[dev]"
 
 test:
 	$(PYTEST) tests/ -q

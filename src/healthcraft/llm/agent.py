@@ -77,6 +77,7 @@ class ModelClient(Protocol):
 
         Returns:
             Dict with 'content' (str), 'tool_calls' (list[dict]), 'stop_reason' (str).
+            Explicit provider refusal text, when present, is retained as 'refusal'.
         """
         ...
 
@@ -366,11 +367,15 @@ class OpenAIClient:
                     }
                 )
 
-        return {
+        result = {
             "content": message.content or "",
             "tool_calls": tool_calls,
             "stop_reason": choice.finish_reason,
         }
+        refusal = getattr(message, "refusal", None)
+        if refusal:
+            result["refusal"] = refusal
+        return result
 
 
 class GrokClient(OpenAIClient):
@@ -771,8 +776,9 @@ def run_agent_task(
 
         content = response["content"]
         tool_calls = response["tool_calls"]
-        stop_reason = response.get("stop_reason", "tool_calls" if tool_calls else "stop")
+        stop_reason = response.get("stop_reason")
         traj.metadata["stop_reason"] = stop_reason
+        reason = stop_reason if isinstance(stop_reason, str) else None
 
         # Record assistant turn
         traj.add_turn(
@@ -794,13 +800,47 @@ def run_agent_task(
             assistant_msg["tool_calls"] = tool_calls
         messages.append(assistant_msg)
 
-        if stop_reason in {"length", "max_tokens", "max_output_tokens"}:
+        if response.get("refusal") or reason == "refusal":
+            traj.metadata["termination_kind"] = "provider_refusal"
+            if response.get("refusal"):
+                traj.metadata["provider_refusal"] = response["refusal"]
+            traj.error = f"Provider refusal on round {round_num + 1}; task execution incomplete"
+            break
+
+        if reason == "content_filter":
+            traj.metadata["termination_kind"] = "provider_filter"
+            traj.error = (
+                f"Provider content filter on round {round_num + 1}; task execution incomplete"
+            )
+            break
+
+        if reason in {"length", "max_tokens", "max_output_tokens"}:
+            traj.metadata["termination_kind"] = "truncated"
             traj.error = f"Agent response truncated ({stop_reason}) on round {round_num + 1}"
             break
 
-        # If no tool calls, the agent is done
+        # Only explicit natural completion can finish a tool-free turn.
         if not tool_calls:
+            if reason not in {"stop", "end_turn", "stop_sequence"}:
+                traj.metadata["termination_kind"] = "incomplete_provider_turn"
+                traj.error = (
+                    f"Provider termination {stop_reason!r} without tool calls on round "
+                    f"{round_num + 1}; task execution incomplete"
+                )
+            else:
+                traj.metadata["termination_kind"] = "complete"
             break
+
+        # A filtered, paused, unknown, or inconsistent response cannot dispatch
+        # pending actions merely because it happens to contain tool arguments.
+        if reason not in {"tool_calls", "tool_use"}:
+            traj.metadata["termination_kind"] = "incomplete_provider_turn"
+            traj.error = (
+                f"Provider termination {stop_reason!r} cannot authorize tool continuation "
+                f"on round {round_num + 1}; task execution incomplete"
+            )
+            break
+        traj.metadata["termination_kind"] = "tool_continuation"
 
         # Execute tool calls and add results
         for tc in tool_calls:
@@ -829,6 +869,7 @@ def run_agent_task(
             f"Agent exhausted tool round limit ({MAX_TOOL_ROUNDS}) without a final response"
         )
         traj.metadata["stop_reason"] = "tool_round_limit"
+        traj.metadata["termination_kind"] = "tool_round_limit"
 
     traj.duration_seconds = time.monotonic() - start_time
     return traj

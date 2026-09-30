@@ -44,6 +44,7 @@ from healthcraft.mcp.server import create_server
 from healthcraft.tasks.evaluator import evaluate_task
 from healthcraft.tasks.inject import inject_task_patient
 from healthcraft.tasks.loader import Task, load_task, load_tasks
+from healthcraft.tasks.prompts import compose_system_prompt
 from healthcraft.tasks.rubrics import Criterion, VerificationMethod
 from healthcraft.trajectory import (
     CriterionEvalResult,
@@ -132,25 +133,14 @@ def _load_system_prompt(task: Task) -> str:
 
     Concatenates base.txt + mercy_point.txt + policies.txt + tool_reference.txt
     to give the agent full context about its role, facility, policies, and
-    available tools. Tasks can override with system_prompt_override.
+    available tools. Tasks can override with system_prompt_override and append
+    literal instructions with system_prompt_append.
     """
-    if task.system_prompt_override:
-        override_path = _SYSTEM_PROMPT_DIR / task.system_prompt_override
-        if override_path.exists():
-            return override_path.read_text(encoding="utf-8")
-        return task.system_prompt_override
-
-    # Concatenate all system prompt components
-    components = []
-    for filename in ("base.txt", "mercy_point.txt", "policies.txt", "tool_reference.txt"):
-        path = _SYSTEM_PROMPT_DIR / filename
-        if path.exists():
-            components.append(path.read_text(encoding="utf-8"))
-
-    if components:
-        return "\n\n".join(components)
-
-    return "You are an emergency physician at Mercy Point Emergency Department."
+    return compose_system_prompt(
+        task,
+        _SYSTEM_PROMPT_DIR,
+        ("base.txt", "mercy_point.txt", "policies.txt", "tool_reference.txt"),
+    )
 
 
 def _parse_criteria(raw_criteria: tuple[dict[str, Any], ...]) -> list[Criterion]:

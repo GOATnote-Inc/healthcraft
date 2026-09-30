@@ -136,3 +136,72 @@ definitions, and scores remain unchanged in this repair.
 The [task-validity findings](TASK_VALIDITY_FINDINGS.md) document the actual
 IR-002 tool behavior, distinguish narrative history from linked encounters,
 and specify the next versioned reference-execution certificate.
+
+## Subsequent local development checkpoint
+
+The user subsequently required demonstrated comparative end-user and
+healthcare value before formal red-team review, remote-main publication,
+and further manuscript updates. The [release evidence plan](RELEASE_EVIDENCE_PLAN.md)
+records that order and proposed measurements. This checkpoint is local
+engineering work; it does not satisfy the comparative-value gate. The
+earlier draft PR remains a prior engineering checkpoint, and the paper has
+not received additional edits during this phase.
+
+Additional TDD repairs:
+
+- `system_prompt_append` was documented but discarded by the task loader.
+  Live and simulated evaluation now append its literal text once after the
+  chosen base or override. Unspecified append values preserve prior prompt
+  bytes. Changed policy additions invalidate checkpoint reuse. Long literal
+  overrides no longer raise `ENAMETOOLONG` on Python 3.10/3.12.
+- Provider pauses, filters, refusals, unknown finish reasons, and inconsistent
+  pending tool calls no longer masquerade as completed agent execution or
+  dispatch mutations. Original evidence and distinct termination metadata
+  remain recorded. Valid blank completion after tool actions remains supported.
+- TR-017's authored social-history mapping values now survive injection and
+  appear through the actual patient-history tool; existing list inputs remain
+  unchanged.
+
+The new [offline evidence report](EVALUATE_YOUR_MODEL.md#offline-evidence-review)
+selects numeric latest attempts, exposes original sources, criterion evidence,
+and complete traces, and keeps malformed records visible. It separates
+execution errors, incomplete/unknown completion, ungraded criteria, abstention,
+and rubric failures. Historical `PARSE FAILURE (fail-closed):` evidence is
+classified as a grader error even when the archived boolean says `true`.
+All saved values remain available; the report does not regrade or correct
+historical results. Its content and HTML structure were tested; a browser URL
+policy blocked local-file preview, so visual/interactive QA remains incomplete.
+
+Installation commands, CI, and Docker build recipes now consume
+`constraints-security.txt`, which pins patched versions of five selected
+dependencies. The legacy lock no longer pins HealthCraft itself to an old Git
+revision. Actual clean editable development installs succeeded on Python
+3.10.18 and 3.12.8; the existing 3.14.3 environment received the five upgrades.
+All three environments passed `pip check`. Docker recipes were inspected,
+not rebuilt during this local checkpoint.
+
+| Verification | Result |
+|---|---|
+| Full suite, Python 3.10.18, clean development extras | 1,847 passed, 14 skipped; 98.63 s |
+| Full suite, Python 3.12.8, clean development extras | 1,847 passed, 14 skipped; 79.60 s |
+| Full suite, Python 3.14.3, existing environment with optional dependencies | 1,859 passed, two skipped; 239.64 s |
+| Final report and retry-reader suite, all three runtimes | 71 passed on each |
+| `make preflight` | Passed; structural validity only |
+| `make smoke` | 48 checks passed, zero failed |
+| `make lint`, clean export of staged repository | Passed; 272 Python files formatted |
+
+Full-suite counts precede the last report-only historical parse-marker
+refinement; its seven additional regression cases and the affected reader
+integration were then tested on every runtime in the 71-test suite. The
+minimal development environments omit the optional Google SDK tests; the
+existing environment exercises them. Untracked research archives retain their
+previous unrelated lint errors and are excluded from the staged export.
+
+The refreshed [native local smoke](../artifacts/local-models/20260930/native-smoke-dependency-refresh.json)
+passed in 34.535 seconds: Nemotron completed a real encounter tool round trip,
+and MedGemma distinguished two known text fixtures. Its
+[provenance](../artifacts/local-models/20260930/native-smoke-dependency-refresh.provenance.json)
+records runtime/model identity, upgraded dependencies, start/end times, and
+116 unchanged source/configuration hashes. This remains integration evidence,
+not a benchmark score or clinical validation. No hosted model calls, weight
+downloads, or formal red-team review were performed in this phase.

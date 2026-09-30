@@ -391,7 +391,13 @@ def inject_task_patient(
     allergies = tuple(patient_data.get("allergies", []))
     medications = tuple(patient_data.get("medications", []))
     pmh = tuple(patient_data.get("past_medical_history", []))
-    social_history = tuple(patient_data.get("social_history", []))
+    social_raw = patient_data.get("social_history", [])
+    if isinstance(social_raw, dict):
+        social_history = tuple(
+            f"{key}: {_format_note_value(value)}" for key, value in social_raw.items()
+        )
+    else:
+        social_history = tuple(social_raw)
     family_history = tuple(patient_data.get("family_history", []))
     advance_directives = patient_data.get("advance_directives", "")
 

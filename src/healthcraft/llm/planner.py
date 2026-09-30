@@ -57,6 +57,7 @@ class TaskPlan:
     contract: SprintContract
     trials: int
     seed: int
+    system_prompt_append: str | None = None
 
 
 @dataclass
@@ -228,6 +229,7 @@ def plan_evaluation(
                 contract=contract,
                 trials=trials,
                 seed=seed,
+                system_prompt_append=task.system_prompt_append,
             )
         )
 

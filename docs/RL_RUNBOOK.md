@@ -38,7 +38,7 @@ git clone --depth 1 https://github.com/NVIDIA/Megatron-LM.git
 # (slime picks it up via PYTHONPATH; follow slime's README for the exact glue)
 
 # HealthCraft itself (editable for the env-side adapters)
-pip install -e /path/to/healthcraft
+python -m pip install -c /path/to/healthcraft/constraints-security.txt -e /path/to/healthcraft
 ```
 
 ## 3. Bring up SGLang

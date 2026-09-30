@@ -195,8 +195,10 @@ See [`docs/TOOL_MAPPING.md`](docs/TOOL_MAPPING.md) for the complete tool referen
 
 ## Evaluate Your Model
 
-HEALTHCRAFT supports any MCP-compatible LLM. See
-[Evaluate Your Model](docs/EVALUATE_YOUR_MODEL.md) for setup and protocol.
+HEALTHCRAFT exposes MCP tools and provides native adapters for selected hosted
+providers and installed local Ollama models. See
+[Evaluate Your Model](docs/EVALUATE_YOUR_MODEL.md) for supported clients and
+protocol, and [local testing](docs/LOCAL_MODELS.md) for free diagnostic runs.
 
 ```bash
 python -m healthcraft.llm.orchestrator \
@@ -206,11 +208,24 @@ python -m healthcraft.llm.orchestrator \
 
 Results welcome. Open a PR or issue with your summary.json.
 
+Inspect saved attempts, criterion evidence, tool calls, and incomplete runs in
+a self-contained offline report:
+
+```bash
+python scripts/build_evidence_report.py results/<run-name> \
+  --output /tmp/healthcraft-evidence-review.html
+```
+
+The report preserves recorded scores and their limitations; it does not
+regrade results or establish clinical readiness. Comparative-value evidence
+and publication requirements are tracked in the
+[release evidence plan](docs/RELEASE_EVIDENCE_PLAN.md).
+
 ## Quick Start
 
 ```bash
 # Install
-pip install -e ".[dev]"
+python -m pip install -c constraints-security.txt -e ".[dev]"
 
 # Run tests
 make test
@@ -222,6 +237,14 @@ make docker-up
 make smoke
 ```
 
+Run installation commands from the repository root. The security constraints
+pin five patched dependency versions when those packages are selected; they
+do not install optional network or model dependencies into a core-only setup.
+Use the same constraint file for core (`-e .`) and evaluation (`-e ".[eval]"`)
+installs. These repository constraints apply to commands that pass `-c`.
+`requirements-lock.txt` is a legacy development snapshot with optional
+dependencies, not a portable lock for every supported Python version.
+
 ### With OpenEM integration
 
 OpenEM is not published to PyPI. The `.[openem]` extra installs the `openem`
@@ -230,7 +253,7 @@ package from the
 commit pinned in `pyproject.toml` / `requirements-lock.txt`:
 
 ```bash
-pip install -e ".[openem]"
+python -m pip install -c constraints-security.txt -e ".[openem]"
 ```
 
 Note: the packaged install provides the Python API only — openem locates its
@@ -242,7 +265,7 @@ entries, 4,450 entities total), install OpenEM editable from a clone, matching
 ```bash
 git clone https://github.com/GOATnote-Inc/openem-corpus ../openem-corpus
 git -C ../openem-corpus checkout 8d0820e81ed60eaf814388ca15935e5fc5c7d7ac
-pip install -e ../openem-corpus
+python -m pip install -c constraints-security.txt -e ../openem-corpus
 ```
 
 ## Evaluation Integrity

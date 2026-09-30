@@ -151,3 +151,152 @@ def test_gemini_prompt_block_has_explicit_reason():
     )
     with pytest.raises(RuntimeError, match="SAFETY"):
         client.chat([{"role": "user", "content": "test"}])
+
+
+@pytest.mark.parametrize("reason", ["content_filter", "refusal", "pause_turn", "unknown", None, ""])
+@pytest.mark.parametrize("with_tool", [False, True])
+def test_non_completion_termination_preserves_evidence_without_dispatch(reason, with_tool):
+    response = {"content": "Partial provider output", "stop_reason": reason, "tool_calls": []}
+    if with_tool:
+        response["tool_calls"] = [{"id": "call", "name": "searchPatients", "arguments": {}}]
+    client = SimpleNamespace(chat=lambda *args, **kwargs: response)
+    server = _server()
+    dispatched = []
+    server.call_tool = lambda *args: dispatched.append(args)
+    trajectory = agent.run_agent_task(client, _task(), server, "system")
+    assert trajectory.error is not None
+    assert trajectory.metadata["stop_reason"] == reason
+    assert trajectory.turns[-1].role == "assistant"
+    assert trajectory.turns[-1].content == "Partial provider output"
+    assert dispatched == []
+    if reason in {"content_filter", "refusal"}:
+        assert "provider" in trajectory.error.lower()
+        assert trajectory.metadata["termination_kind"] == (
+            "provider_filter" if reason == "content_filter" else "provider_refusal"
+        )
+
+
+@pytest.mark.parametrize("reason", ["tool_calls", "tool_use"])
+def test_tool_continuation_without_tool_calls_is_incomplete(reason):
+    client = SimpleNamespace(
+        chat=lambda *args, **kwargs: {
+            "content": "I intend to retrieve the record",
+            "tool_calls": [],
+            "stop_reason": reason,
+        }
+    )
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error and "tool" in trajectory.error.lower()
+    assert trajectory.metadata["stop_reason"] == reason
+
+
+@pytest.mark.parametrize("reason", ["stop", "end_turn", "stop_sequence"])
+def test_recognized_final_completion_is_accepted_without_tools(reason):
+    client = SimpleNamespace(
+        chat=lambda *args, **kwargs: {
+            "content": "Completed response",
+            "tool_calls": [],
+            "stop_reason": reason,
+        }
+    )
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error is None
+    assert trajectory.metadata["stop_reason"] == reason
+
+
+@pytest.mark.parametrize("reason", ["stop", "end_turn", "stop_sequence"])
+def test_final_completion_reason_cannot_authorize_pending_tools(reason):
+    client = SimpleNamespace(
+        chat=lambda *args, **kwargs: {
+            "content": "Inconsistent response",
+            "stop_reason": reason,
+            "tool_calls": [{"id": "call", "name": "searchPatients", "arguments": {}}],
+        }
+    )
+    server = _server()
+    dispatched = []
+    server.call_tool = lambda *args: dispatched.append(args)
+    trajectory = agent.run_agent_task(client, _task(), server, "system")
+    assert trajectory.error is not None
+    assert dispatched == []
+
+
+@pytest.mark.parametrize("reason", ["tool_calls", "tool_use"])
+def test_recognized_tool_continuation_executes_then_requires_completion(reason):
+    responses = iter(
+        [
+            {
+                "content": "Retrieving",
+                "stop_reason": reason,
+                "tool_calls": [{"id": "call", "name": "searchPatients", "arguments": {}}],
+            },
+            {"content": "Complete", "stop_reason": "end_turn", "tool_calls": []},
+        ]
+    )
+    client = SimpleNamespace(chat=lambda *args, **kwargs: next(responses))
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error is None
+    assert [turn.role for turn in trajectory.turns] == [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+    ]
+
+
+@pytest.mark.parametrize("reason", ["stop", "end_turn", "stop_sequence"])
+def test_action_only_completion_can_have_blank_final_narrative(reason):
+    responses = iter(
+        [
+            {
+                "content": "",
+                "stop_reason": "tool_calls",
+                "tool_calls": [{"id": "call", "name": "searchPatients", "arguments": {}}],
+            },
+            {"content": "", "stop_reason": reason, "tool_calls": []},
+        ]
+    )
+    client = SimpleNamespace(chat=lambda *args, **kwargs: next(responses))
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error is None
+    assert trajectory.metadata["termination_kind"] == "complete"
+    assert trajectory.turns[-1].content == ""
+
+
+def test_missing_finish_reason_is_not_inferred_to_be_completion():
+    client = SimpleNamespace(chat=lambda *args, **kwargs: {"content": "Partial", "tool_calls": []})
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error is not None
+    assert trajectory.metadata["stop_reason"] is None
+
+
+def test_explicit_refusal_metadata_overrides_normal_stop():
+    client = SimpleNamespace(
+        chat=lambda *args, **kwargs: {
+            "content": "Partial",
+            "tool_calls": [],
+            "stop_reason": "stop",
+            "refusal": "Provider declined this request.",
+        }
+    )
+    trajectory = agent.run_agent_task(client, _task(), _server(), "system")
+    assert trajectory.error and "provider refusal" in trajectory.error.lower()
+    assert trajectory.metadata["termination_kind"] == "provider_refusal"
+    assert trajectory.metadata["provider_refusal"] == "Provider declined this request."
+    assert trajectory.turns[-1].content == "Partial"
+
+
+def test_openai_refusal_metadata_is_not_discarded_by_adapter():
+    client = agent.OpenAIClient(api_key="unused", model="gpt-fixture")
+    message = SimpleNamespace(content=None, tool_calls=None, refusal="Provider refusal text")
+    response = SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+    client._client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(
+                create=lambda **kwargs: response,
+            )
+        )
+    )
+    result = client.chat([{"role": "user", "content": "test"}])
+    assert result.get("refusal") == "Provider refusal text"

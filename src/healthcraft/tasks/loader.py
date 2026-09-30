@@ -30,6 +30,8 @@ class Task:
     system_prompt_override: str | None = None
     # Kept for backward compatibility / diagnostic analysis
     rubric: dict[str, Any] | None = None
+    # Literal task instructions appended after the selected default/override.
+    system_prompt_append: str | None = None
 
 
 # --- Schema validation ---
@@ -58,6 +60,10 @@ def _validate_task_dict(data: dict[str, Any], source: str = "") -> list[str]:
         level = data["level"]
         if not isinstance(level, int) or not (1 <= level <= 5):
             errors.append(f"{prefix}level must be an integer 1-5, got: {level}")
+
+    append = data.get("system_prompt_append")
+    if append is not None and not isinstance(append, str):
+        errors.append(f"{prefix}system_prompt_append must be a string or null")
 
     # Validate criteria if present
     if "criteria" in data:
@@ -148,6 +154,7 @@ def load_task(path: Path) -> Task:
         patient=data.get("patient"),
         system_prompt_override=data.get("system_prompt_override"),
         rubric=data.get("rubric"),
+        system_prompt_append=data.get("system_prompt_append"),
     )
 
 

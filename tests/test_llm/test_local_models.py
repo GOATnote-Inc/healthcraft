@@ -258,9 +258,10 @@ def test_agent_trajectory_keeps_tool_call_ids_for_replay(monkeypatch):
         [
             {
                 "content": "",
+                "stop_reason": "tool_calls",
                 "tool_calls": [{"id": "call-123", "name": "searchPatients", "arguments": {}}],
             },
-            {"content": "Done", "tool_calls": []},
+            {"content": "Done", "tool_calls": [], "stop_reason": "stop"},
         ]
     )
     client = SimpleNamespace(chat=lambda *a, **k: next(replies))

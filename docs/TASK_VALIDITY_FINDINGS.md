@@ -78,3 +78,53 @@ in its run identity. The following acceptance conditions are concrete:
 
 Broader clinical claims still require the independent review and held-out
 evaluation described in the [design roadmap](EVALUATION_DESIGN_ROADMAP.md).
+
+## Broader development inventory: 2026-09-30
+
+A read-only development inventory exercised default injection and the real
+`searchEncounters`, `getEncounterDetails`, and `getPatientHistory` handlers
+for all 205 tasks in isolated synthetic worlds. Tasks with patient sections
+(196) each added one patient and one encounter; nine tasks added neither.
+These counts describe injected task entities, not the complete seeded world.
+Five subsequent seed-42 spot checks confirmed selected observations.
+
+The following are implementation opportunities, not evidence that every task
+is unsolvable. Supplied narratives often remain accessible: all 81 selected
+note-backed source strings checked by the inventory appeared in read-tool
+outputs. Family counts overlap and count supplied records, not unique
+clinical events.
+
+| Family | Observed representation | Next contract to review |
+|---|---|---|
+| Prior encounters | Seven tasks supply 33 prior visits as current-encounter notes, with no linked prior entities under default injection. Beyond IR-002: CC-020, CC-023, CC-030, IR-004, IR-016, IR-029. | Generalize a versioned linked-history profile while preserving date precision, ownership, and source provenance. |
+| Multiple patients | Seventeen tasks contain 84 supplied entries: 47 in current-encounter notes, 33 in root-level collections omitted by the task loader, four in setting context. | Separately identified patients and encounters, with observation fields explicitly separated from grading targets. |
+| Temporal collections | Forty-eight tasks contain 292 entries: 228 in notes, 61 in setting text, and three existing typed vitals in TR-006. | Versioned event times, provenance, and observation availability; do not infer missing units or timestamps. |
+
+Omitted root collections occur in CC-022 (`patients_requiring_action`),
+CC-027 (`incoming_ambulances`), CC-028 and IR-025 (`incoming_patients`),
+IR-018 (`patients_requiring_iv_fluids`), and IR-023
+(`patients_on_norepinephrine`, `patients_at_risk`, `icu_requests`). Some
+source content may be paraphrased in the task description. Blindly exposing
+all YAML fields would also leak answer labels, such as IR-025's
+`actual_priority`; a profile needs an explicit observation-field contract.
+
+This inventory was exploratory. Code revision, dirty-state, interpreter,
+and task hashes were captured retrospectively, after the TR-017 fix below,
+not at outcome acquisition. It must not be used as frozen benchmark or
+manuscript evidence. A prospective reproducible inventory needs a new run
+with contemporaneous provenance and reviewed family definitions.
+
+## TR-017: social-history value loss
+
+The authored `social_history` is a mapping in TR-017. Converting it directly
+to a tuple kept only `occupation` and `tetanus_risk_factors`, discarding
+their values. The corrected injector exposes both keys and authored values
+through `getPatientHistory`. Existing list-shaped social histories remain
+unchanged. A regression test reproduces the loss through the real MCP tool
+and verifies preservation after the fix; no clinical facts are inferred.
+
+Sources: [task](../configs/tasks/temporal_reasoning/task_017_tetanus_prophylaxis.yaml),
+[injection](../src/healthcraft/tasks/inject.py), and
+[regression](../tests/test_tasks/test_inject_social_history.py).
+The source change affects future run identities; historical results are not
+regraded or rewritten.

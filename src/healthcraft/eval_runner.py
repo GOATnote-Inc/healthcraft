@@ -22,6 +22,7 @@ from typing import Any
 from healthcraft.mcp.server import create_server
 from healthcraft.tasks.evaluator import TaskResult, evaluate_task
 from healthcraft.tasks.loader import Task, load_task, load_tasks
+from healthcraft.tasks.prompts import compose_system_prompt
 from healthcraft.trajectory import (
     CriterionEvalResult,
     ExperimentEntry,
@@ -42,19 +43,10 @@ _SYSTEM_PROMPT_DIR = Path(__file__).parents[2] / "system-prompts"
 def load_system_prompt(task: Task) -> str:
     """Load the system prompt for a task.
 
-    Uses task.system_prompt_override if set, otherwise loads base.txt.
+    Uses task.system_prompt_override if set, otherwise loads base.txt, then
+    appends any literal task.system_prompt_append instructions.
     """
-    if task.system_prompt_override:
-        override_path = _SYSTEM_PROMPT_DIR / task.system_prompt_override
-        if override_path.exists():
-            return override_path.read_text(encoding="utf-8")
-        return task.system_prompt_override
-
-    base_path = _SYSTEM_PROMPT_DIR / "base.txt"
-    if base_path.exists():
-        return base_path.read_text(encoding="utf-8")
-
-    return "You are an emergency physician at Mercy Point Emergency Department."
+    return compose_system_prompt(task, _SYSTEM_PROMPT_DIR, ("base.txt",))
 
 
 def run_task_locally(
