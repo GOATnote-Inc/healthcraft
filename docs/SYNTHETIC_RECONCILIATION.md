@@ -115,6 +115,44 @@ did not repair or replace the first pilot's failed responses. These open-case
 attempts provide software and workflow diagnostics, not a held-out reliability
 estimate or comparator performance claim.
 
+## Explain a recorded attempt
+
+The offline explanation separates successful write acknowledgements, notes in
+the final store, actual post-write retrieval, and the oracle's stricter
+content-qualified checks. It identifies missing, unexpected, duplicate and
+misattributed scope exclusions with pointers into the original evidence and
+expectations. It does not diagnose observation/conflict fidelity, retrieval
+coverage or clinical validity. Those areas remain explicitly unassessed by the
+explanation; the underlying oracle is unchanged.
+
+```bash
+PYTHONPATH=src python scripts/explain_reconciliation.py \
+  --scenario configs/evaluation/reconciliation_v1/scenario.json \
+  --expectations configs/evaluation/reconciliation_v1/expectations.json \
+  --evidence artifacts/reconciliation/20260930/local-model-pilot-v3/medgemma-direct-01/backend/session/evidence.json \
+  --output-dir /tmp/hc-reconciliation-explanation-01
+```
+
+Open `report.html` in the new output directory. The bundle preserves exact input
+bytes, recomputed `verification.json`, `explanation.json`, and a file-hash
+manifest. An optional `--verification` accepts a standalone earlier oracle
+result and refuses a mismatch. Existing output directories are never replaced.
+Unavailable provenance produces an unavailable report, not zero event counts.
+Exit code 0 means an explanation is available, including for a failed
+reconciliation; it does not mean the task passed. Exit code 2 indicates an
+unavailable explanation or a creation error. A partially written directory has
+no completion manifest and must be retained separately from a new attempt.
+
+This command performs no model or tool execution. Hashes establish content
+identity, not authenticated execution. The HTML uses no scripts or external
+assets; automated structure/escaping checks are distinct from browser visual
+QA and human usability testing.
+
+The [four saved-attempt reports](../artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1/README.md)
+show the distinction directly: all four attempts stored a note; the two MedGemma
+attempts also read it back. All four still failed the required source exclusions.
+These reports preserve the original verdicts and inputs.
+
 Operator-value measurement, independent clinical review and held-out
 evaluation remain unperformed. Ordinary TDD and peer
 review here are not the final formal red team. The release gate remains

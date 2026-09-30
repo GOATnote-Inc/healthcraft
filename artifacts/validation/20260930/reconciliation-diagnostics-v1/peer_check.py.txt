@@ -1,0 +1,120 @@
+"""Read-only diagnostic sidecar review against saved synthetic v3 evidence."""
+from pathlib import Path
+from copy import deepcopy
+from datetime import datetime, timezone
+import hashlib
+import json
+import socket
+import sys
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+BASE=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3'
+CANDIDATE=Path('/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/healthcraft-model-candidate-v3-09pbmxgu')
+DEST=Path('/private/tmp/healthcraft-reconciliation-diagnostics/peer-review.json')
+
+def denied(*args,**kwargs):
+    raise RuntimeError('No network calls in saved-evidence sidecar review')
+
+socket.create_connection=denied
+socket.socket.connect=denied
+socket.socket.connect_ex=denied
+sys.path.insert(0,str(ROOT/'src'))
+from healthcraft.reconciliation.diagnostics import explain_reconciliation
+from healthcraft.reconciliation.oracle import verify_reconciliation,load_expectations
+
+def canonical(value):
+    return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)
+
+def digest(value):
+    return hashlib.sha256(canonical(value).encode('utf-8')).hexdigest()
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def load(path):
+    return json.loads(path.read_text())
+
+checks={}
+findings=[]
+
+def check(name,condition):
+    checks[name]=bool(condition)
+    if not condition:
+        findings.append({'check':name,'message':'Diagnostic sidecar consistency check failed'})
+
+def resolve(document,pointer):
+    if pointer=='': return document
+    assert pointer.startswith('/')
+    for part in pointer.split('/')[1:]:
+        part=part.replace('~1','/').replace('~0','~')
+        document=document[int(part)] if type(document) is list else document[part]
+    return document
+
+def refs(value,documents):
+    count=0
+    if type(value) is dict:
+        if 'document' in value and 'pointer' in value:
+            selected=resolve(documents[value['document']],value['pointer'])
+            if 'decoded_json_pointer' in value:
+                resolve(json.loads(selected),value['decoded_json_pointer'])
+            count+=1
+        for child in value.values(): count+=refs(child,documents)
+    elif type(value) is list:
+        for child in value: count+=refs(child,documents)
+    return count
+
+source_files=['src/healthcraft/reconciliation/diagnostics.py','tests/test_reconciliation/test_diagnostics.py','src/healthcraft/reconciliation/oracle.py','src/healthcraft/mcp/server.py','configs/evaluation/reconciliation_v1/scenario.json','configs/evaluation/reconciliation_v1/expectations.json']
+source_hashes={p:sha(ROOT/p) for p in source_files}
+frozen=load(CANDIDATE/'manifest.json')
+check('oracle_unchanged_from_v3_runtime',source_hashes['src/healthcraft/reconciliation/oracle.py']==frozen['src/healthcraft/reconciliation/oracle.py'])
+scenario=load(ROOT/'configs/evaluation/reconciliation_v1/scenario.json')
+expected=load_expectations()
+trials=[]
+input_hashes={}
+roster=load(BASE/'roster.json')['roster']
+for item in roster:
+    ident=item['id']; evidence_path=BASE/ident/'backend/session/evidence.json'
+    input_hashes[str(evidence_path.relative_to(ROOT))]=sha(evidence_path)
+    evidence=load(evidence_path)
+    documents={'scenario':scenario,'expectations':expected,'evidence':evidence}
+    before=deepcopy(documents)
+    oracle_before=verify_reconciliation(scenario,expected,evidence)
+    result=explain_reconciliation(scenario,expected,evidence)
+    oracle_after=verify_reconciliation(scenario,expected,evidence)
+    prefix=ident+':'
+    check(prefix+'available',result['status']=='available')
+    check(prefix+'unchanged_oracle',oracle_before==oracle_after==load(BASE/ident/'result.json')['oracle'])
+    check(prefix+'exact_oracle_checks',result['oracle_checks']==oracle_before['checks'])
+    check(prefix+'canonical_input_output_bindings',result['bindings']=={name+'_sha256':digest(value) for name,value in {**documents,'oracle':oracle_before}.items()})
+    check(prefix+'input_objects_unchanged',documents==before)
+    check(prefix+'deterministic_sidecar',result==explain_reconciliation(scenario,expected,evidence))
+    check(prefix+'no_score_claim',not {'reward','passed','mechanical_passed','benchmark_score','clinical_passed'} & result.keys())
+    check(prefix+'explicit_unassessed_scope',set(result['coverage']['unassessed'])=={'observations','unresolved_conflicts','retrieval_coverage','clinical_validity'})
+    check(prefix+'one_acknowledged_write_and_new_stored_note',len(result['observed_execution']['successful_write_calls'])==len(result['observed_execution']['new_stored_notes'])==len(result['notes'])==1 and result['observed_execution']['deduplicated_retries']==[])
+    ref_count=refs(result,documents)
+    check(prefix+'all_original_pointers_resolve',ref_count>0)
+    note=result['notes'][0]
+    check(prefix+'matching_note_id_correct',note['matching_stored_note_ids']==sorted(evidence['after']['entities']['clinical_note']))
+    readback=note['readback']
+    expected_readback=['call-0005'] if ident.startswith('medgemma') else []
+    check(prefix+'readback_matches_recorded_calls',readback['attempted_call_ids']==readback['successful_target_call_ids']==readback['stored_text_seen_call_ids']==expected_readback)
+    check(prefix+'oracle_readback_remains_false',readback['oracle_verified'] is False)
+    issues=note['scope_exclusions']['issues']
+    expected_codes=['exclusion_missing','exclusion_missing','exclusion_unexpected','exclusion_unexpected'] if ident.startswith('nano') else ['exclusion_missing','exclusion_unexpected','exclusion_field_mismatch','exclusion_field_mismatch','exclusion_field_mismatch']
+    check(prefix+'strict_exclusion_difference_counts',note['scope_exclusions']['status']=='different' and sorted(i['code'] for i in issues)==sorted(expected_codes))
+    check(prefix+'no_guessed_replacement_pairing',all('replacement' not in issue for issue in issues))
+    mutations=deepcopy(result)
+    mutations['notes'][0]['scope_exclusions']['issues'][0]['source_id']='MUTATED'
+    mutations['oracle_checks']['provenance']=False
+    mutations['observed_execution']['new_stored_notes'][0]['note_id']='MUTATED'
+    check(prefix+'nested_result_is_detached',documents==before and explain_reconciliation(scenario,expected,evidence)==result)
+    bad=deepcopy(evidence);bad['audit'][0]['params']={'tampered':True}
+    unavailable=explain_reconciliation(scenario,expected,bad)
+    check(prefix+'invalid_provenance_unavailable',unavailable['status']=='unavailable' and unavailable['observed_execution'] is None and unavailable['notes']==[] and unavailable['errors'] and unavailable['oracle_checks']['provenance'] is False)
+    trials.append({'id':ident,'evidence_file_sha256':sha(evidence_path),'diagnostic_sha256':digest(result),'pointer_count':ref_count,'acknowledged_writes':len(result['observed_execution']['successful_write_calls']),'new_stored_notes':len(result['observed_execution']['new_stored_notes']),'readback':readback,'exclusion_issue_codes':[i['code'] for i in issues],'scope_exclusions_status':note['scope_exclusions']['status']})
+check('source_files_unchanged_during_review',source_hashes=={p:sha(ROOT/p) for p in source_files})
+check('all_actual_evidence_bytes_unchanged',all(sha(ROOT/path)==value for path,value in input_hashes.items()))
+receipt={'schema_version':'reconciliation-diagnostics-peer-review/v1','reviewed_at':datetime.now(timezone.utc).isoformat(),'status':'passed' if not findings else 'findings','findings':findings,'scope':'Ordinary bounded development review of diagnostic sidecar only, not formal red team. Per-call acknowledged writes vs final-state matching storage; postwrite readback; strict exclusion differences and original pointers; invalid-provenance unavailable behavior; detached outputs and unchanged oracle.','checks':checks,'source_files_sha256':source_hashes,'actual_evidence_files_sha256':input_hashes,'frozen_runtime_manifest_sha256':sha(CANDIDATE/'manifest.json'),'tests':{'argv':['.venv/bin/python','-m','pytest','tests/test_reconciliation/test_diagnostics.py','tests/test_reconciliation/test_oracle.py','-q'],'environment_overrides':{'PYTHONDONTWRITEBYTECODE':'1'},'result':'95 passed in 0.24s','exit_code':0},'actual_v3_probes':trials,'model_calls':0,'repo_edits':0,'review_script_sha256':sha(Path(__file__)),'limitations':['Matching stored IDs establish final-state text matches after an acknowledged write response, not unique per-call note creation; the sidecar states this explicitly.','Sidecar observed readback is distinct from the existing content-qualified oracle readback result.','Exclusion diagnostics do not assess observations, conflict fidelity, retrieval coverage or clinical validity.','Input hashes and consistent receipts are not execution authentication.','Only existing local test runtime was rerun independently; three-runtime results are the owner\'s validation.']}
+with DEST.open('x') as f:
+    json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({'status':receipt['status'],'checks':len(checks),'findings':findings,'receipt':str(DEST),'sha256':sha(DEST),'pointers':sum(x['pointer_count'] for x in trials)}))

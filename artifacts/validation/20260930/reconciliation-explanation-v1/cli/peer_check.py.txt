@@ -1,0 +1,111 @@
+"""Offline CLI copy/binding and failure-path review; no inference or network."""
+from pathlib import Path
+from unittest.mock import patch
+from datetime import datetime, timezone
+import contextlib
+import hashlib
+import importlib
+import io
+import json
+import socket
+import sys
+import tempfile
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-reconciliation-explanation-cli')
+CANDIDATE=Path('/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/healthcraft-model-candidate-v3-09pbmxgu')
+ARTIFACT=ROOT/'artifacts/reconciliation/20260930/local-model-pilot-v3'
+
+def blocked(*args, **kwargs):
+    raise RuntimeError('Network forbidden during offline CLI review')
+socket.create_connection=blocked
+socket.socket.connect=blocked
+socket.socket.connect_ex=blocked
+sys.path[:0]=[str(ROOT),str(ROOT/'src')]
+module=importlib.import_module('scripts.explain_reconciliation')
+
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def load(path): return json.loads(path.read_text())
+def files(path): return {str(p.relative_to(path)):sha(p) for p in sorted(path.rglob('*')) if p.is_file()}
+checks={}
+findings=[]
+def check(name,value):
+    checks[name]=bool(value)
+    if not value: findings.append({'check':name,'message':'Offline report contract failed'})
+source_names=['scripts/explain_reconciliation.py','tests/test_scripts/test_explain_reconciliation.py','src/healthcraft/reconciliation/diagnostics.py','src/healthcraft/reconciliation/explanation_report.py','src/healthcraft/reconciliation/oracle.py','src/healthcraft/reconciliation/terminal.py']
+sources={name:sha(ROOT/name) for name in source_names}
+workspace=Path(tempfile.mkdtemp(prefix='peer-probes-',dir=OUT))
+scenario=CANDIDATE/'configs/evaluation/reconciliation_v1/scenario.json'
+expectations=CANDIDATE/'configs/evaluation/reconciliation_v1/expectations.json'
+input_hashes={str(scenario):sha(scenario),str(expectations):sha(expectations)}
+outputs=[]
+for row in load(ARTIFACT/'roster.json')['roster']:
+    identifier=row['id']; evidence=ARTIFACT/identifier/'backend/session/evidence.json'
+    input_hashes[str(evidence)]=sha(evidence)
+    output=workspace/identifier
+    summary=module.write_explanation_bundle(scenario=scenario,expectations=expectations,evidence=evidence,output_dir=output)
+    manifest=load(output/'manifest.json'); explanation=load(output/'explanation.json')
+    check(identifier+':report_available_not_task_pass',summary['status']=='available' and summary['model_calls']==0 and not load(output/'verification.json')['mechanical_passed'])
+    check(identifier+':exact_original_input_copies',all((output/'inputs'/f'{name}.json').read_bytes()==path.read_bytes() for name,path in {'scenario':scenario,'expectations':expectations,'evidence':evidence}.items()))
+    check(identifier+':oracle_matches_recorded_result',load(output/'verification.json')==load(ARTIFACT/identifier/'result.json')['oracle'])
+    check(identifier+':complete_payload_manifest',manifest['status']=='complete' and manifest['files']=={name:value for name,value in files(output).items() if name!='manifest.json'})
+    check(identifier+':all_source_snapshot_hashes_correct',all(sha(ROOT/name)==digest for name,digest in manifest['source_files'].items()))
+    check(identifier+':explanation_binding_matches_manifest',explanation['bindings']==manifest['bindings'])
+    check(identifier+':real_notes_preserved_independent_of_oracle',len(explanation['observed_execution']['new_stored_notes'])==1 and explanation['oracle_checks']['persisted_action'] is False)
+    outputs.append({'id':identifier,'path':str(output),'manifest_sha256':sha(output/'manifest.json'),'report_sha256':sha(output/'report.html')})
+
+arguments={'scenario':scenario,'expectations':expectations,'evidence':ARTIFACT/'nano-direct-01/backend/session/evidence.json'}
+failure=workspace/'partial-write'
+original_open=Path.open
+
+def fail_report_write(path,*args,**kwargs):
+    if path==failure/'report.html' and args and args[0]=='xb':
+        raise OSError('Injected local report write failure')
+    return original_open(path,*args,**kwargs)
+try:
+    with patch.object(Path,'open',fail_report_write):
+        module.write_explanation_bundle(**arguments,output_dir=failure)
+except OSError:
+    pass
+else:
+    raise AssertionError('Expected simulated filesystem error')
+check('partial_payload_failure_has_no_completion_manifest',failure.is_dir() and (failure/'inputs/evidence.json').exists() and not (failure/'manifest.json').exists())
+partial_before=files(failure)
+try:
+    module.write_explanation_bundle(**arguments,output_dir=failure)
+except FileExistsError:
+    pass
+else:
+    raise AssertionError('Partial output was accepted for overwrite')
+check('retry_refuses_partial_directory_and_preserves_bytes',files(failure)==partial_before)
+
+# Mutate only a private temporary copy, never the cohort input.
+bad_evidence=load(arguments['evidence']);bad_evidence['scenario_sha256']='0'*64
+bad_path=workspace/'invalid-provenance-input.json'
+bad_path.write_text(json.dumps(bad_evidence))
+argv=['--scenario',str(scenario),'--expectations',str(expectations),'--evidence',str(bad_path),'--output-dir',str(workspace/'unavailable')]
+with contextlib.redirect_stdout(io.StringIO()) as out:
+    code=module.main(argv)
+summary=json.loads(out.getvalue())
+unavailable=load(workspace/'unavailable/explanation.json')
+check('unavailable_cli_returns_two_with_explicit_receipt',code==2 and summary['status']=='unavailable')
+check('unavailable_preserves_unknown_not_zero_events',unavailable['observed_execution'] is None and unavailable['notes']==[] and 'Event counts unavailable' in (workspace/'unavailable/report.html').read_text())
+check('unavailable_manifest_is_complete_bundle_not_execution_pass',load(workspace/'unavailable/manifest.json')['status']=='complete' and load(workspace/'unavailable/manifest.json')['explanation_status']=='unavailable')
+
+# An earlier verdict with integer 1 instead of boolean true must not be accepted.
+verification=load(workspace/'nano-direct-01/verification.json')
+verification['checks']['provenance']=1
+vpath=workspace/'wrong-typed-verification.json';vpath.write_text(json.dumps(verification))
+try:
+    module.write_explanation_bundle(**arguments,verification=vpath,output_dir=workspace/'wrong-verdict')
+except ValueError:
+    pass
+else:
+    raise AssertionError('Typed verification mismatch accepted')
+check('strict_earlier_verification_stops_before_output',not (workspace/'wrong-verdict').exists())
+check('no_input_file_mutations',all(sha(Path(path))==digest for path,digest in input_hashes.items()))
+check('reviewed_source_files_unchanged',sources=={name:sha(ROOT/name) for name in source_names})
+receipt={'schema_version':'reconciliation-explanation-cli-peer-review/v1','reviewed_at':datetime.now(timezone.utc).isoformat(),'status':'passed' if not findings else 'findings','scope':'Ordinary bounded development review of CLI and tests: exact source input copies, full canonical bindings, strict prior verification, exclusive outputs, partial-write failure, unavailable evidence and integration with renderer. Renderer internals were not separately audited here.','findings':findings,'checks':checks,'source_files_sha256':sources,'original_input_files_sha256':input_hashes,'offline_actual_v3_bundles':outputs,'probe_workspace':str(workspace),'tests':{'argv':['.venv/bin/python','-m','pytest','tests/test_scripts/test_explain_reconciliation.py','-q'],'environment_overrides':{'PYTHONDONTWRITEBYTECODE':'1'},'exit_code':0,'result':'15 passed in 0.19s'},'model_calls':0,'tool_calls':0,'network_calls':0,'repo_edits':0,'review_script_sha256':sha(Path(__file__)),'limitations':['Source-file inventory is a current Python source snapshot, not a complete runtime attestation; the CLI states this boundary.','Simulated filesystem failure covered a payload write before manifest creation, not every operating-system durability failure.','HTML was checked as generated static content; no browser rendering or visual usability assessment.','The generated temporary probes and review receipt are new derivative artifacts; all original model records and source files were read-only.','No clinical validity, model ranking or formal-red-team claim.']}
+with (OUT/'peer-review.json').open('x') as stream:
+    json.dump(receipt,stream,indent=2,sort_keys=True,allow_nan=False);stream.write('\n')
+print(json.dumps({'status':receipt['status'],'checks':len(checks),'findings':findings,'receipt':str(OUT/'peer-review.json'),'sha256':sha(OUT/'peer-review.json')}))
