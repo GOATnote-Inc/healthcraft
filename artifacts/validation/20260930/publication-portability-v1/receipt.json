@@ -1,0 +1,74 @@
+{
+  "scope": "Portable workbench test fixtures; test file only, production integrity and frozen artifacts unchanged",
+  "source_sha256": {
+    "tests/test_operator_workbench.py": "73cf81f84cd0485ef0e986e55bfa8a6dee69403187aa06158dd333e156519b80"
+  },
+  "red": {
+    "python": "3.10.18",
+    "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src /private/tmp/healthcraft-check-py310/bin/python -m pytest tests/test_operator_workbench.py -q",
+    "passed": 6,
+    "failed": 10,
+    "log": "red.log",
+    "reproduction": "Fixture masks Path.is_dir only for the absolute source root recorded in the copied historical issuer manifest, modeling its absence on fresh CI without moving or modifying originals."
+  },
+  "repair": "Copy the pinned historical source inventory into the temporary fixture; pass source_manifest_override explicitly to incident build and validate calls. Adjudication tests retain their independent embedded-source contract. Added a mismatched raw source-manifest pin rejection control.",
+  "green": [
+    {
+      "runtime": "3.10.18",
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src /private/tmp/healthcraft-check-py310/bin/python -m pytest tests/test_operator_workbench.py tests/test_operator_workbench_drafts.py tests/test_operator_workbench_report.py -q",
+      "passed": 80,
+      "log": "green-py310.log"
+    },
+    {
+      "runtime": "3.12.8",
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src /private/tmp/healthcraft-check-py312/bin/python -m pytest tests/test_operator_workbench.py tests/test_operator_workbench_drafts.py tests/test_operator_workbench_report.py -q",
+      "passed": 80,
+      "log": "green-py312.log"
+    }
+  ],
+  "lint": [
+    {
+      "command": [
+        ".venv/bin/ruff",
+        "check",
+        "/Users/kiteboard/healthcraft/tests/test_operator_workbench.py"
+      ],
+      "returncode": 0,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        ".venv/bin/ruff",
+        "format",
+        "--check",
+        "/Users/kiteboard/healthcraft/tests/test_operator_workbench.py"
+      ],
+      "returncode": 0,
+      "stdout": "1 file already formatted\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "tests/test_operator_workbench.py"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limitations": [
+    "Tests are repeated across runtimes, not independent cohorts.",
+    "One expected unknown asyncio_mode pytest warning with plugin autoload disabled.",
+    "No production edits, browser/model/network calls, original artifact changes, staging or commits."
+  ],
+  "logs_sha256": {
+    "green-py310.log": "c5b1eeb607caa6ae7a74cc1fcbef99b984990a27d880d1447a781e9639a5d2bb",
+    "green-py312.log": "667c605452a2f3d12b23102566731d61633771a087c7484cd1d4606658f567b8",
+    "red.log": "400ff7c9366d74ac09133d21c1937a383c583aa0ceca957ddb59832af595d92d"
+  }
+}
