@@ -1,0 +1,49 @@
+"""Freeze public prompt and installed-model identities before any pilot inference."""
+import hashlib
+import json
+from dataclasses import asdict
+from pathlib import Path
+import sys
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+sys.path.insert(0,str(ROOT/'src'))
+from healthcraft.reconciliation.casebook import load_cases, digest
+from healthcraft.reconciliation.controller import PilotSettings, command_format_identity
+from healthcraft.reconciliation.public_case import public_case_context
+from healthcraft.reconciliation.model_cohort import load_plan
+
+out=ROOT/'configs/evaluation/reconciliation_model_v2/local-pilot-plan.json'
+out.parent.mkdir(parents=True,exist_ok=False)
+models=[]
+for label,alias,weight in [
+    ('nano','counsel-nano-q5:latest','36896b6271148892f83130812cb14116beeb2a518f98a0a17b469250b84901c8'),
+    ('medgemma','counsel-medgemma-27b-text-q5:latest','2b0cb8e40675a79615511f634e09bfe9f4ea3d36165ff1e357799ce749293f67'),
+]:
+    models.append({'id':label,'config':{'model':alias,'expected_digest':weight,
+                  'expected_runtime':'0.34.4','settings':asdict(PilotSettings()),
+                  'command_format':command_format_identity()}})
+cases=load_cases()
+plan={'schema_version':'healthcraft-reconciliation-model-cohort-plan/v2',
+      'exposure':'development','casebook_sha256':cases[0]['casebook_sha256'],
+      'models':models,
+      'cases':[{'case_id':case['case_id'],
+                'initial_messages_sha256':public_case_context(case['scenario']['target'])['initial_messages_sha256']}
+               for case in cases],
+      'roster':[{'id':f"{case['case_id']}/{model['id']}",'case_id':case['case_id'],'model_id':model['id']}
+                for case in cases for model in models]}
+with out.open('x') as stream:
+    json.dump(plan,stream,indent=2,ensure_ascii=False,allow_nan=False)
+    stream.write('\n')
+pin=digest(plan)
+loaded=load_plan(out,expected_sha256=pin)
+assert loaded[0]==plan
+receipt={'plan_path':str(out),'canonical_sha256':pin,
+         'file_sha256':hashlib.sha256(out.read_bytes()).hexdigest(),
+         'cases':len(cases),'scheduled_attempts':len(plan['roster']),
+         'model_calls_at_freeze':0,'registered_study':False,
+         'purpose':'Exposed mechanical source-reconciliation development cohort'}
+dest=Path('/private/tmp/healthcraft-local-casebook-plan-freeze.json')
+with dest.open('x') as stream:
+    json.dump(receipt,stream,indent=2)
+    stream.write('\n')
+print(json.dumps(receipt,indent=2))

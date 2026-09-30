@@ -1,0 +1,66 @@
+import hashlib,json
+from datetime import datetime,timezone
+from pathlib import Path
+root=Path('/Users/kiteboard/healthcraft'); out=Path('/private/tmp/healthcraft-local-casebook-validation-index'); tmp=Path('/private/tmp')
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+groups={
+ 'parent-supervisor':('healthcraft-model-case',['receipt.json','red.log','green-initial.log','journal-red.log','partial-frame-red.log','blocked-reply-red.log','green-supervision.log','green-final-own.log','green-py310.log','green-py312.log','green-py314.log','lint.log','finalize_receipt.py']),
+ 'worker':('healthcraft-model-worker',['receipt.json','red.log','green-initial.log','green-compatible.log','green-py310.log','green-py312.log']),
+ 'public-context':('healthcraft-casebook-model-instruction-review',['receipt.json','design-and-diagnostics.md','red.log','green-initial.log','green-310.log','green-312.log','green-314.log','final-green-0.log','final-green-1.log','final-green-2.log','lint.log','make-lint.log']),
+ 'native-parser-peer':('healthcraft-native-json-peer',['peer-review.json','run_peer.py','test_peer.py','string-tool-arguments-reproduction.json','initial-green.log','green-initial-corrected.log','string-args-green.log','final-green-0.log','final-green-1.log','final-green-2.log']),
+ 'supervisor-cohort-peer':('healthcraft-model-cohort-peer',['peer-review.json','partial-frame-reproduction.json','blocked-reply-reproduction.json','partial_frame.py','blocked_reply.py','ipc-recheck.json','native-json-recheck.json','check_cohort.py','cohort-checks.json','cohort-py310.log','cohort-py312.log','cohort-py314.log','focused.log','focused-corrected.log']),
+ 'initial-completion-review':('healthcraft-casebook-model-completion-review',['reproduction.json','reproduce.py','reproduction.log']),
+ 'plan-review':('healthcraft-local-casebook-plan-peer',['peer-review.json','check_plan.py']),
+ 'metadata-preflight':('healthcraft-casebook-model-preflight',['read_runtime.py','runtime-metadata.json','runtime-metadata-verified.json','feasibility-review.json']),
+ 'candidate-lint':('healthcraft-local-casebook-final',['lint-inputs.json','lint-receipt.json','candidate-inputs.json','isolated-make-lint.log','root-make-lint.log']),
+}
+standalone={
+ 'native-parser-tdd':['healthcraft-native-json-red.log','healthcraft-native-json-green.log','healthcraft-native-arguments-red.log','healthcraft-native-arguments-green.log'],
+ 'cohort-tdd':['healthcraft-model-cohort-red.log','healthcraft-model-cohort-green.log','healthcraft-model-cohort-count-red.log','healthcraft-model-cohort-count-green.log','healthcraft-model-cohort-retention-red.log','healthcraft-model-cohort-retention-green.log'],
+ 'plan-identity':['healthcraft-local-casebook-plan-freeze.json','healthcraft-freeze-local-casebook-plan.py'],
+}
+files=[]
+def add(group,p,destination):
+ assert p.is_file() and not p.is_symlink(),str(p)
+ files.append({'group':group,'source':str(p),'destination':destination+('.txt' if p.suffix=='.py' else ''),'bytes':p.stat().st_size,'sha256':sha(p)})
+for group,(directory,names) in groups.items():
+ for name in names: add(group,tmp/directory/name,f'{group}/{name}')
+for group,names in standalone.items():
+ for name in names:add(group,tmp/name,f'{group}/{name}')
+peer=json.loads((tmp/'healthcraft-model-cohort-peer/peer-review.json').read_text())
+expected=dict(peer['source_sha256'])
+public=json.loads((tmp/'healthcraft-casebook-model-instruction-review/receipt.json').read_text())
+expected['tests/test_reconciliation/test_public_case.py']=public['source_after']['tests/test_reconciliation/test_public_case.py']
+expected['configs/mcp-tools.json']=public['source_after']['configs/mcp-tools.json']
+actual={p:sha(root/p) for p in expected}
+assert expected==actual,[(p,h,actual[p]) for p,h in expected.items() if h!=actual[p]]
+meaningful=[
+ {'scope':'Parent spawn/native state supervisor','initial_red':'28 failed before module existed','additional_red':'Missing/corrupt capture 3 failed; partial-frame and blocked-reply each externally bounded failing test','final':'34 own tests; 172 combined supervisor/worker/public/controller tests on each of Python3.10,3.12,3.14','properties':['Public-only child configuration','Strict sequential IPC and allowed native tools','Real persisted note/audit preserved after failure, interruption and timeout','Explicit completion plus fresh matching identity and durable request evidence','No false zero when dispatch journal missing']},
+ {'scope':'Worker','initial_red':'30 failed before module existed','final':'34 own tests;139 combined tests on each of3 runtimes','properties':['Prompt/config identity before client construction','Native request and controller journals fsynced','Exact reply IDs, no repair/retry/fallback','Fresh postflight required; terminal delivery failure retained']},
+ {'scope':'Public context','initial_red':'25 errors before module existed','final':'104 public-context/controller tests on each of3 runtimes','properties':['Only two public target IDs instantiate common instruction','Five sorted canonical schemas','Actual CommandController initial-message digest bound','No source answers or private case/control labels in child prompt']},
+ {'scope':'Strict native JSON/body capture','initial_red':'13 failed/1 passed; later string-encoded arguments4 failed','final':'153 source tests plus43 independent peer cases=196 on each of3 runtimes','properties':['Duplicate/escaped-equivalent keys, NaN/Infinity/overflow and non-UTF8 reject','Raw successful-HTTP body retained before decode','Nested string arguments same strict contract','Journal sink failure stops before tool command']},
+ {'scope':'Cohort accounting','initial_red':'21 missing-module errors;8 grader/count failures;1 outcome-file-collision failure','final':'35 root cohort tests;18 independent boundary checks on each of3 runtimes','properties':['Full planned denominator and no retry','Grader failures retained and unassessed','Literal actual note writes/readbacks separate from content-qualified oracle','Source drift withholds certification; output collision retains failure and remaining roster']},
+ {'scope':'Independent supervisor/cohort integration','final':'177 focused tests;two exact formerly hanging IPC probes return at0.62/0.65sec for0.5sec budgets;child and I/O threads stopped','properties':['Blocked reply actual write/call/audit retained','No external kill required after fixes','Duplicate done_reason rejects with exact raw body retained']},
+ {'scope':'Frozen public pilot plan','final':'49 structural/identity checks;16 unique planned slots (8 cases by2 models), no actual attempts','properties':['Prompt and tool hashes for all8 cases','Saved metadata read only; execution still requires fresh identity checks']},
+]
+index={
+ 'schema_version':'healthcraft-local-casebook-validation-index/v1',
+ 'created_at':datetime.now(timezone.utc).isoformat(),
+ 'scope':'Packaging inventory only for this candidate local-casebook implementation turn; no tests, models, daemon or network calls performed by this indexing operation.',
+ 'status':'scoped_evidence_indexed_full_suite_pending_parent_confirmation',
+ 'files':files,'file_count':len(files),'total_bytes':sum(v['bytes'] for v in files),
+ 'final_source_sha256':actual,'all_final_sources_match_frozen_peer_hashes':True,
+ 'meaningful_validation':meaningful,
+ 'pending_not_hashed':[{'source':'/private/tmp/healthcraft-local-casebook-final/full-suite.log','reason':'Parent reports full suite still running; do not package/hash mutable log until confirmed final.'}],
+ 'optional_large_raw_support':[
+  {'source':'/private/tmp/healthcraft-model-cohort-peer/'+name,'reason':'Synthetic actual native state/journals for IPC repro; primary small receipts already selected; copy complete tree only if needed.'}
+  for name in ['partial-frame-attempt','blocked-reply-attempt','partial_frame-fixed','blocked_reply-fixed']],
+ 'excluded':['All results/ and prior completed artifacts','Runtimes, wheels, dependencies, caches, __pycache__','Model outcome evidence (no live cohort evidence indexed here)','Pre-final proposed context-size files: context-feasibility.json/context_preflight.py/context-preflight.log; they used an earlier proposal, not the final 10486-byte message context.'],
+ 'caveats':['Counts overlap and repeat across runtimes; do not add them as independent tests or model attempts.','Ordinary engineering validation, not formal red team, held-out evaluation, clinical validation, comparative ranking or deployment readiness.','Case labels are engineering-authored using shared authoring; independent review remains pending.','Root lint and initial command/assertion failures are retained alongside corrected runs; isolated final candidate lint passed799 inputs/411Python files.','IPC peer stderr retains one nonblocking CPython3.14 BytesIO finalizer BufferError; state and cleanup checked.','Raw body hook covers successful HTTP responses including malformed bodies, not every HTTP error body.','Saved runtime metadata is a prior read-only observation; it is not a current identity attestation and this inventory does not contact Ollama.','Child process/input separation is not a hostile-code filesystem sandbox; killing it does not cancel in-flight Ollama daemon work.','Initial completion-review observations predate the strict supervisor and parser repairs; preserve them as causal defect evidence, not final-candidate outcomes.'],
+}
+for row in files: assert sha(Path(row['source']))==row['sha256']
+with (out/'inventory.json').open('x') as f:json.dump(index,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+with (out/'package-list.tsv').open('x') as f:
+ f.write('source\tdestination\tsha256\tbytes\n')
+ for row in files:f.write('\t'.join(str(row[k]) for k in ['source','destination','sha256','bytes'])+'\n')
+print(json.dumps({'files':len(files),'bytes':index['total_bytes'],'source_hashes_match':expected==actual},indent=2))

@@ -1,0 +1,85 @@
+"""Read archived bytes only; never replay outcomes using current implementation."""
+import hashlib
+import json
+import subprocess
+import tarfile
+from pathlib import Path,PurePosixPath
+
+ROOT=Path('/Users/kiteboard/healthcraft')
+OUT=Path('/private/tmp/healthcraft-local-casebook-history-peer')
+BASES=[
+'artifacts/reconciliation/20260930/local-model-pilot-v1',
+'artifacts/reconciliation/20260930/local-model-pilot-v2',
+'artifacts/reconciliation/20260930/local-model-pilot-v3',
+'artifacts/reconciliation/20260930/local-model-pilot-v3-explanations-v1',
+'artifacts/reconciliation/20260930/local-model-pilot-v3-source-context-v1',
+'artifacts/reconciliation/20260930/operator-review-tutorial-v1',
+'artifacts/validation/20260930/operator-review-v1',
+'artifacts/reconciliation/20260930/casebook-native-v2',
+'artifacts/validation/20260930/reconciliation-casebook-v2',
+'artifacts/validation/20260930/reconciliation-explanation-v1',
+'artifacts/validation/20260930/grading-source-context-v2',
+]
+def digest(data):return hashlib.sha256(data).hexdigest()
+def sha(path):return digest(path.read_bytes())
+def unique(pairs):
+    result={}
+    for key,value in pairs:
+        if key in result:raise ValueError('Duplicate archived manifest key')
+        result[key]=value
+    return result
+
+def inspect():
+    reports=[]
+    for rel in BASES:
+        base=ROOT/rel
+        manifest=base/'manifest.json'
+        raw=manifest.read_bytes()
+        data=json.loads(raw,object_pairs_hook=unique)
+        files=data['files']
+        assert type(files) is dict
+        checked={}
+        for name,expected in files.items():
+            path=PurePosixPath(name)
+            assert not path.is_absolute() and '..' not in path.parts and '.' not in path.parts
+            target=base/name
+            assert not target.is_symlink()
+            actual=sha(target)
+            assert actual==expected,(rel,name,expected,actual)
+            checked[name]=actual
+        existing={p.relative_to(base).as_posix() for p in base.rglob('*') if p.is_file()}
+        assert not any(p.is_symlink() for p in base.rglob('*'))
+        extras=existing-set(files)-{'manifest.json'}
+        archive=None
+        if extras:
+            assert rel.endswith(('local-model-pilot-v1','local-model-pilot-v2','local-model-pilot-v3'))
+            assert all(name.startswith('build/') for name in extras)
+            with tarfile.open(base/'build-context.tar.gz','r:gz') as tar:
+                members=tar.getmembers()
+                assert all(member.isfile() for member in members)
+                assert len({m.name for m in members})==len(members)
+                archive_names={'build/'+m.name for m in members}
+                assert archive_names==extras
+                for member in members:
+                    archive_stream=tar.extractfile(member)
+                    assert archive_stream is not None
+                    archived=archive_stream.read()
+                    target=base/'build'/member.name
+                    assert digest(archived)==sha(target),(rel,member.name)
+                    checked['build/'+member.name]=sha(target)
+                archive={'path':'build-context.tar.gz','sha256':sha(base/'build-context.tar.gz'),'regular_members':len(members),'all_exact_member_bytes_match_unlisted_build_tree':True,'extracted':False}
+        committed=subprocess.run(['git','show',f'HEAD:{rel}/manifest.json'],cwd=ROOT,capture_output=True)
+        committed_sha=digest(committed.stdout) if committed.returncode==0 else None
+        if committed_sha is not None:assert committed_sha==digest(raw),(rel,'manifest differs from HEAD')
+        reports.append({'path':rel,'manifest_sha256':digest(raw),'head_manifest_sha256':committed_sha,'manifest_matches_head':committed_sha==digest(raw) if committed_sha else None,'listed_payload_files':len(files),'actual_regular_files':len(existing),'unlisted_build_files':len(extras),'archive_members':archive,'all_payload_bytes_match':True,'unexpected_unlisted_files':[],'payload_sha256':checked})
+    return reports
+
+head_before=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+before=inspect()
+after=inspect()
+head_after=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+assert before==after
+receipt={'scope':'Read-only historical artifact integrity; no inference, network, regrading, formal red team, publication or repository writes.','head_before':head_before,'head_after':head_after,'head_stable':head_before==head_after,'archived_input_snapshots_compared_to_current_source':False,'bundles':after,'bundle_count':len(after),'listed_payload_file_count':sum(item['listed_payload_files'] for item in after),'archive_verified_unlisted_build_file_count':sum(item['unlisted_build_files'] for item in after),'top_manifest_count':len(after),'total_actual_regular_files':sum(item['actual_regular_files'] for item in after),'all_archived_bytes_stable_during_review':before==after,'findings':[],'limitations':['Manifest identity and byte checks establish consistency against the archived manifests and local HEAD, not execution authenticity or external attestation.','Archived candidate source snapshots were treated as payloads; current candidate code intentionally differs and was not used to replay or replace their recorded outcomes.','Each build archive was read in memory without extraction; its exact regular member bytes match the otherwise excluded on-disk build tree.','Counts are filesystem entries across eleven disjoint bundles, not independent experiments, participants or outcomes.']}
+with (OUT/'receipt.json').open('x') as f:json.dump(receipt,f,indent=2,sort_keys=True,allow_nan=False);f.write('\n')
+print(json.dumps({k:v for k,v in receipt.items() if k not in {'bundles'}}))
+print(json.dumps([{'path':b['path'],'manifest_sha256':b['manifest_sha256'],'listed':b['listed_payload_files'],'archive_members':b['unlisted_build_files'],'total':b['actual_regular_files'],'head_matches':b['manifest_matches_head']} for b in after]))

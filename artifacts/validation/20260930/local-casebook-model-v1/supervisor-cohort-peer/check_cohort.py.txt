@@ -1,0 +1,72 @@
+import hashlib,importlib.util,json,sys,tempfile
+from copy import deepcopy
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'/Users/kiteboard/healthcraft/src')
+from healthcraft.reconciliation import model_cohort as cohort
+from healthcraft.reconciliation.casebook import digest
+ROOT=Path('/Users/kiteboard/healthcraft'); OUT=Path('/private/tmp/healthcraft-model-cohort-peer')
+spec=importlib.util.spec_from_file_location('cohort_test_helpers',ROOT/'tests/test_reconciliation/test_model_cohort.py'); helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+paths=['src/healthcraft/reconciliation/model_cohort.py','src/healthcraft/reconciliation/model_case.py','src/healthcraft/reconciliation/model_worker.py','src/healthcraft/llm/local_models.py','src/healthcraft/reconciliation/controller.py','scripts/reconciliation_local_cohort.py']
+hashes=lambda:{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths}
+before=hashes();checks=[]
+def check(name,p):
+ assert p,name
+ checks.append(name)
+with tempfile.TemporaryDirectory(prefix='cohort-review-',dir=OUT) as tmp:
+ work=Path(tmp);plan=helper.plan.__wrapped__(cohort,work);path,value=plan
+ def run(name,runner=helper.reference_attempt):
+  return cohort.run_model_cohort(path,work/name,expected_sha256=digest(value),attempt_runner=runner)
+ result=run('valid');check('4 exact reference attempts accounted',result['counts']['scheduled']==result['counts']['attempted']==result['counts']['completed']==4)
+ check('cohort stores no clinical score',result['benchmark_score'] is None and result['clinical_criteria']==result['safety_criteria']==0)
+ check('all immutable output bytes indexed',result['files']=={p.relative_to(work/'valid').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (work/'valid').rglob('*') if p.is_file() and p.name!='manifest.json'})
+ for mutant in ('missing_pair','unknown_case','duplicate_pair','unknown_model','wrong_prompt','different_settings'):
+  original=deepcopy(value)
+  if mutant=='missing_pair':value['roster'].pop()
+  elif mutant=='unknown_case':value['cases'][0]['case_id']='REC2-999'
+  elif mutant=='duplicate_pair':value['roster'].append(deepcopy(value['roster'][0]))
+  elif mutant=='unknown_model':value['roster'][0]['model_id']='missing'
+  elif mutant=='wrong_prompt':value['cases'][0]['initial_messages_sha256']='0'*64
+  else:value['models'][1]['config']['settings']['seed']+=1
+  helper.save(path,value);seen=[]
+  try:run(mutant,lambda *args:seen.append(args))
+  except ValueError:pass
+  else:raise AssertionError(mutant+' accepted')
+  check(mutant+' rejected before any output/runner',not seen and not (work/mutant).exists())
+  value.clear();value.update(original);helper.save(path,value)
+ seen=[]
+ def first_error(case,config,output):
+  seen.append(case['case_id'])
+  if len(seen)==1:raise RuntimeError('offline preparation failure')
+  return helper.reference_attempt(case,config,output)
+ result=run('first-failed',first_error);check('preparation error retains later attempts',len(seen)==4 and result['counts']['failed']==1 and len(result['outcomes'])==4 and result['counts']['mechanical_passed']==3)
+ seen=[]
+ def stop(case,config,output):
+  seen.append(case['case_id']);raise KeyboardInterrupt('offline user stop')
+ result=run('interrupted',stop);check('interrupt stops new work but retains all assigned rows',len(seen)==1 and result['counts']['interrupted']==1 and result['counts']['not_attempted']==3 and len(result['outcomes'])==4)
+ with patch.object(cohort,'verify_case',side_effect=ValueError('offline unavailable verifier')):
+  result=run('ungradable')
+ check('unavailable verification remains null, not a model failure',result['counts']['completed']==4 and result['counts']['grading_errors']==4 and all(r['mechanical_passed'] is None for r in result['outcomes']) and result['status']=='incomplete')
+ actual=cohort._source_hashes()
+ with patch.object(cohort,'_source_hashes',side_effect=[actual,{**actual,'peer-synthetic-drift':'f'*64}]):
+  result=run('source-drift')
+ check('source drift retains all rows and marks cohort incomplete',result['status']=='implementation_changed' and result['counts']['attempted']==4 and len(result['outcomes'])==4)
+ with patch.object(cohort,'_source_hashes',side_effect=[actual,OSError('offline source snapshot error')]):
+  result=run('source-unavailable')
+ check('postflight provenance failure retains all rows',result['sources_unchanged'] is False and result['counts']['attempted']==4 and len(result['outcomes'])==4)
+ before_artifact={p.relative_to(work/'valid').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (work/'valid').rglob('*') if p.is_file()}
+ try:run('valid')
+ except FileExistsError:pass
+ else:raise AssertionError('overwrote prior output')
+ check('existing output preserved',before_artifact=={p.relative_to(work/'valid').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (work/'valid').rglob('*') if p.is_file()})
+ for alias in (False,True):
+  parent=path.parent
+  if alias:
+   parent=work/'plan-alias';parent.symlink_to(path.parent,target_is_directory=True)
+  try:cohort.run_model_cohort(path,parent/'forbidden-child',expected_sha256=digest(value),attempt_runner=helper.reference_attempt)
+  except ValueError:pass
+  else:raise AssertionError('output containment accepted')
+  check('containment preflight '+str(alias),not (parent/'forbidden-child').exists())
+check('source stable',before==hashes())
+report={'checks_passed':len(checks),'checks':checks,'source_sha256_before':before,'source_sha256_after':hashes(),'findings':[],'limitations':['Offline mocked model-attempt runner and actual native reference captures only; no inference or network.','Ordinary development review, not formal red team or clinical benefit.']}
+(OUT/'cohort-checks.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');print(json.dumps({'passed':len(checks)}))

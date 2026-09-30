@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import math
 import os
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -28,6 +29,22 @@ class ToolCapabilityError(LocalModelError):
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise LocalModelError("Local inference refused an HTTP redirect")
+
+
+def _native_pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("Duplicate native JSON object key")
+        result[key] = value
+    return result
+
+
+def _native_number(value):
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Nonfinite native JSON number")
+    return number
 
 
 def is_local_model(model: str | None) -> bool:
@@ -109,7 +126,7 @@ class OllamaClient:
         )
         try:
             with self._opener.open(request, timeout=self._timeout) as response:
-                result = json.load(response)
+                body = response.read()
         except HTTPError as exc:
             # No retry or fallback: propagate infrastructure failure to the runner.
             detail = exc.read(4096).decode("utf-8", errors="replace")
@@ -118,13 +135,26 @@ class OllamaClient:
             raise LocalModelError(
                 f"Local Ollama unavailable at {self._base_url}; start Ollama. No cloud fallback."
             ) from exc
-        except (ValueError, UnicodeError) as exc:
+        # Evidence capture precedes decoding. Sink failures retain their own
+        # exception identity rather than being mislabeled as a network error.
+        self._response_received(path, body)
+        try:
+            result = json.loads(
+                body.decode("utf-8"),
+                object_pairs_hook=_native_pairs,
+                parse_constant=_native_number,
+                parse_float=_native_number,
+            )
+        except (ValueError, UnicodeError, RecursionError) as exc:
             raise LocalModelError("Ollama returned invalid JSON") from exc
         if not isinstance(result, dict):
             raise LocalModelError("Ollama returned a non-object response")
         if result.get("error"):
             raise LocalModelError(f"Ollama: {result['error']}")
         return result
+
+    def _response_received(self, path: str, body: bytes) -> None:
+        """Optional evidence hook for the exact successful HTTP response body."""
 
     def validate_capabilities(self, *, require_tools: bool = False) -> dict[str, Any]:
         """Check installed identity, reject remote aliases, and require native tools."""
@@ -248,8 +278,13 @@ class OllamaClient:
             arguments = function.get("arguments")
             if isinstance(arguments, str):
                 try:
-                    arguments = json.loads(arguments)
-                except ValueError as exc:
+                    arguments = json.loads(
+                        arguments,
+                        object_pairs_hook=_native_pairs,
+                        parse_constant=_native_number,
+                        parse_float=_native_number,
+                    )
+                except (ValueError, RecursionError) as exc:
                     raise LocalModelError("Ollama tool arguments are not valid JSON") from exc
             if not isinstance(arguments, dict):
                 raise LocalModelError("Ollama tool arguments must be a JSON object")

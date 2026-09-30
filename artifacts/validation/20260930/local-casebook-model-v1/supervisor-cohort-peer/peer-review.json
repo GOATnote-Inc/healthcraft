@@ -1,0 +1,123 @@
+{
+  "cohort_probes": {
+    "per_runtime_checks": 18,
+    "receipt": "cohort-checks.json",
+    "runtimes": [
+      "3.10",
+      "3.12",
+      "3.14"
+    ],
+    "source_before_after_stable": true
+  },
+  "command_corrections": [
+    "Initial focused command named nonexistent test_native_response_capture.py, collected no tests and exit4; corrected to test_llm/test_local_native_json.py,177passed."
+  ],
+  "evidence_sha256": {
+    "blocked-reply-reproduction.json": "74c5d1e6bbcf022eda175043a193937c12aab61ab3f831b864da528bb83d11ec",
+    "blocked_reply.py": "6b0f03b29037d8203eca0b6ba3596a07df3c2d10d9aed08e77fd95b0dac7e7fd",
+    "check_cohort.py": "5a103bfa1f7c0913c19de2b543889fa006dc210ab280449ca66efda754805c86",
+    "cohort-checks.json": "c120ee39f799ba9b72968876ff2da6f6d2990cccb7d11dc93078e0549bdbcfc0",
+    "cohort-py310.log": "27cdfff67db28d09cfea994e9476d2498e2dcceadc8d9e9e9da45fd56478b64b",
+    "cohort-py312.log": "27cdfff67db28d09cfea994e9476d2498e2dcceadc8d9e9e9da45fd56478b64b",
+    "cohort-py314.log": "27cdfff67db28d09cfea994e9476d2498e2dcceadc8d9e9e9da45fd56478b64b",
+    "focused-corrected.log": "8537cf540ebd6262e9e2c461a77c596704f0e9731c6d6d75dd2de7afad447db2",
+    "focused.log": "d3b2bada745d15faaa07bccd30fd0203b5b229d534d2b326479f3fef76a065f7",
+    "ipc-recheck.json": "d5588e080aaef043d1cc4c52a8612137850806c395eca1e1d55964342dac0b3d",
+    "native-json-recheck.json": "9ba5064d528779547a2baaa462e8e59ef5b50bc1b7bb3114ed66f93e6d459ffd",
+    "partial-frame-reproduction.json": "857919e4d966d5245b197a3c0213ab1e26a3625fd13d5eae3b03edd4942ba291",
+    "partial_frame.py": "baef1a9401ec91a430cc1808bd67ddd29d680abbf515a7beb3ef914563f5baab"
+  },
+  "findings_remaining": [],
+  "focused_tests": {
+    "log": "focused-corrected.log",
+    "passed": 177,
+    "python": "3.14"
+  },
+  "limitations": [
+    "Offline scripted responses and actual native handlers only; no inference/network/browser/remote calls.",
+    "Not formal red team, clinical validation, comparative value evidence or authentication of arbitrary child code.",
+    "Public-only configuration is not a filesystem sandbox; hard child deadline cannot cancel an already-dispatched Ollama daemon inference.",
+    "Native handlers execute synchronously in parent as documented."
+  ],
+  "nonblocking_observations": [
+    "CPython3.14 printed an unraisable BytesIO BufferError while a large reply was interrupted; parent retained timeout, native write/audit and execution snapshot, all child/I/O threads stopped. Exact stderr is retained in ipc-recheck.json."
+  ],
+  "resolved_reproductions": {
+    "blocked_reply": {
+      "cleanup": {
+        "alive": false,
+        "exitcode": -15,
+        "killed": false,
+        "receiver_alive": false,
+        "sender_alive": false,
+        "terminated": true
+      },
+      "configured_deadline_seconds": 0.5,
+      "elapsed_seconds": 0.6540130420034984,
+      "error": {
+        "message": "Worker did not accept native reply before deadline",
+        "type": "TimeoutError"
+      },
+      "execution_sha256": "9e75e5eed3ff03dfbed8f4da00cf3d8278ab2fbe613ac266387fec9fe607b815",
+      "external_timeout_required": false,
+      "native_calls": 1,
+      "reproduction": "blocked_reply",
+      "retained_notes": 1,
+      "returncode": 0,
+      "source_sha256": "0374d8325cba4ba5c425026e2f1cd14f8aa3198918762f7b8967caaed7637e3f",
+      "status": "failed",
+      "stderr": "Exception ignored while finalizing file <_io.BytesIO object at 0x10a9549a0>:\nBufferError: Existing exports of data: object cannot be re-sized\n"
+    },
+    "duplicate_native_completion": {
+      "accepted_tool_commands": 0,
+      "error": {
+        "message": "Ollama returned invalid JSON",
+        "type": "LocalModelError"
+      },
+      "exact_raw_body_preserved": true,
+      "native_request_attempts": 1,
+      "no_network_calls": true,
+      "original_duplicate_reason_now_rejected": true
+    },
+    "partial_frame": {
+      "cleanup": {
+        "alive": false,
+        "exitcode": -15,
+        "killed": false,
+        "receiver_alive": false,
+        "sender_alive": false,
+        "terminated": true
+      },
+      "configured_deadline_seconds": 0.5,
+      "elapsed_seconds": 0.6165578340005595,
+      "error": {
+        "message": "Model worker exceeded the hard attempt deadline",
+        "type": "TimeoutError"
+      },
+      "execution_sha256": "c2182917f71bd5687a1de5f79598f12545c0fc15a908c8ab0050b77b6f7d9c85",
+      "external_timeout_required": false,
+      "native_calls": 0,
+      "reproduction": "partial_frame",
+      "retained_notes": 0,
+      "returncode": 0,
+      "source_sha256": "0374d8325cba4ba5c425026e2f1cd14f8aa3198918762f7b8967caaed7637e3f",
+      "status": "failed",
+      "stderr": ""
+    }
+  },
+  "schema_version": "healthcraft-development-peer-review/v1",
+  "scope": "Bounded ordinary offline review of model worker/supervisor/cohort integration and native response capture",
+  "source_sha256": {
+    "scripts/reconciliation_local_cohort.py": "b1830de5e09878185eeaaebe7d99c9d5ff3dd980bb18f6ae48bb70e1f3ecfb05",
+    "src/healthcraft/llm/local_models.py": "72839443dde01e6538f834709d87ba55a0a4f14016a9ca210af3145b9ef09ccd",
+    "src/healthcraft/reconciliation/controller.py": "40b15954c361fac02eda9e01a2da87aa5b03b49dca178b3e2a6bd16f932fd099",
+    "src/healthcraft/reconciliation/model_case.py": "0374d8325cba4ba5c425026e2f1cd14f8aa3198918762f7b8967caaed7637e3f",
+    "src/healthcraft/reconciliation/model_cohort.py": "9440662e376e5417ed799d53d649ec74428e612edf9e7ad0a7c4a7ec042e9fb3",
+    "src/healthcraft/reconciliation/model_worker.py": "2549cf3f2efc5d6d65fd4448c5509c18ca6dfb56ff98b61b80a12132a0d5c7d1",
+    "src/healthcraft/reconciliation/public_case.py": "00f485f2337cd689d06a506af2a39d8f07028b604b50398fcc13eac9a415f0ff",
+    "tests/test_llm/test_local_native_json.py": "dc7e42851c284b35394117020d345ecc60881115fd4b132501e8b34e5a4dc7ca",
+    "tests/test_reconciliation/test_model_case.py": "fa27845e462faf748dc987431453949d3a25f270c12a144fc34a5ec9c18b4211",
+    "tests/test_reconciliation/test_model_cohort.py": "71038884e93725997cd6f74990e745353921b5a4f7b2da675445ddf6fd933063",
+    "tests/test_reconciliation/test_model_worker.py": "986f11979ae5494696e390b868e8d74ecaece3529e3647deec691f850c395d86"
+  }
+}

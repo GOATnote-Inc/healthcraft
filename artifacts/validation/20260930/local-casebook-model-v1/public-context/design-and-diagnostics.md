@@ -1,0 +1,21 @@
+# Public v2 instruction and diagnostic boundaries
+
+The public module accepts only the target patient and encounter IDs. All eight development cases receive the same instruction template and unchanged sorted full canonical schemas for the five public tools. Case count, source counts, patient names, source/event identifiers, expectations, case identity and designated controls are absent. The initial messages come from the actual CommandController snapshot and existing SYSTEM_PROMPT. Schema identity is separate from prompt/tool hashes. No model client is constructed.
+
+The instruction defines a mechanical task: discover the closed same-name cohort through public tools; retrieve all source records before writing; conserve whole original rows, ownership, collection, RFC 6901 pointer, nulls, absent fields, scalar types and literal timestamps; include only target-current rows as observations; preserve all members of an explicitly identified target-current event with opposing reported-status assertions; attribute other rows with other_patient or other_encounter. It requests exactly one notes-only JSON note/v1 write and exact target readback. A finish command only terminates; it never declares success. These are source-reconciliation rules, not clinical recommendations or a claim that an assertion is medically true.
+
+The same JSON text-command protocol works without native tools: CommandController supplies tools=None to RecordingOllamaClient, and the separately bound v2 format schema permits only one call or finish object. A completion-only MedGemma adapter can use this path. The existing adapter's actual think field depends on declared capabilities, so cross-model byte identity is not claimed. No inference was performed to test this instruction's effectiveness. These exposed development cases are not held out, independently clinician-labeled, or evidence of superiority.
+
+## Required per-attempt diagnostic distinctions (design, not a new implementation)
+
+- Keep every scheduled attempt with case/family, model/runtime/source, instruction/tool/message/command-format identities and raw failures. Never rerun to replace a failed attempt.
+- Separate provider completion, strict command parsing, model finish, pending tool outcome, timeout and response limit from the reconciliation verdict.
+- Show actual retrieved source owners and source IDs before the first write, with request/response/audit pointers. Expected-ledger coverage belongs only to post-run verification, never model input.
+- Distinguish each write request and acknowledgement from real new storage. Show its exact target, note text/hash, audit response, error or dedup marker and chronology.
+- Show final new-note count, IDs, owners and exact text separately from correct-note validity. Attribute a stored note to a write only with a matching response and ordering; an earlier ACK-only call cannot acquire a later write's storage evidence.
+- Show actual successful post-write retrieval returning stored text independently of strict readback correctness. A wrong-target or wrong-content readback may really have returned text while failing the oracle. Pre-write, missing or failed retrieval does not establish readback.
+- For strict note checks, preserve malformed raw notes. Report exact missing/extra/duplicate source IDs, ownership/path differences, type/null/absence/timestamp changes, conflict membership and exclusion-reason mismatches without repairing output.
+- Preserve the five oracle checks as their existing contracts. In particular, persisted_action/readback can fail because the note is incorrect even when a real write and actual retrieval occurred. Do not label such failures as no action.
+- Missing capture/provenance means unavailable derived assessment, not zero events or safety. Keep raw observed facts separately and never produce clinical readiness, participant-value or superiority claims from this development run.
+
+Relevant implementation: src/healthcraft/reconciliation/controller.py, public_case.py, fixture_v2.py, oracle_v2.py and configs/evaluation/reconciliation_v2. Existing v1 instructions and all prior model outcomes remain unchanged. This template was authored from the public contracts and eight authored source structures, without inspecting previous model answers during this task.

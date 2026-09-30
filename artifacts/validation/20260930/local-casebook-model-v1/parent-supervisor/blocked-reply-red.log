@@ -1,0 +1,100 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_partial_pipe_frame_cannot_defeat_parent_hard_deadline[blocked_reply_worker] _
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-588/test_partial_pipe_frame_cannot0')
+worker = 'blocked_reply_worker'
+
+    @pytest.mark.parametrize("worker", ["partial_frame_worker", "blocked_reply_worker"])
+    def test_partial_pipe_frame_cannot_defeat_parent_hard_deadline(tmp_path, worker):
+        root = Path(__file__).resolve().parents[2]
+        code = (
+            "import json; from pathlib import Path; "
+            f"from tests.test_reconciliation.test_model_case import config, {worker}; "
+            "from healthcraft.reconciliation.casebook import load_cases; "
+            "from healthcraft.reconciliation.model_case import run_model_case; "
+            f"r=run_model_case(load_cases()[0],config(timeout=1),Path({str(tmp_path / 'partial')!r}),worker_target={worker}); "
+            "print(json.dumps(r))"
+        )
+        process = subprocess.Popen(
+            [sys.executable, "-c", code],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+>           stdout, stderr = process.communicate(timeout=4)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_reconciliation/test_model_case.py:447: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1220: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:2153: in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['/Users/kiteboard/healthcraft/.venv/bin/python...>
+endtime = 66495.056388416, orig_timeout = 4, stdout_seq = [b'']
+stderr_seq = [b''], skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['/Users/kiteboard/healthcraft/.venv/bin/python', '-c', "import json; from pathlib import Path; from tests.test_reconciliation.test_model_case import config, blocked_reply_worker; from healthcraft.reconciliation.casebook import load_cases; from healthcraft.reconciliation.model_case import run_model_case; r=run_model_case(load_cases()[0],config(timeout=1),Path('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-588/test_partial_pipe_frame_cannot0/partial'),worker_target=blocked_reply_worker); print(json.dumps(r))"]' timed out after 4 seconds
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1267: TimeoutExpired
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/xq/dg2vt9lx5zn4v_7fpp5bf7140000gn/T/pytest-of-kiteboard/pytest-588/test_partial_pipe_frame_cannot0')
+worker = 'blocked_reply_worker'
+
+    @pytest.mark.parametrize("worker", ["partial_frame_worker", "blocked_reply_worker"])
+    def test_partial_pipe_frame_cannot_defeat_parent_hard_deadline(tmp_path, worker):
+        root = Path(__file__).resolve().parents[2]
+        code = (
+            "import json; from pathlib import Path; "
+            f"from tests.test_reconciliation.test_model_case import config, {worker}; "
+            "from healthcraft.reconciliation.casebook import load_cases; "
+            "from healthcraft.reconciliation.model_case import run_model_case; "
+            f"r=run_model_case(load_cases()[0],config(timeout=1),Path({str(tmp_path / 'partial')!r}),worker_target={worker}); "
+            "print(json.dumps(r))"
+        )
+        process = subprocess.Popen(
+            [sys.executable, "-c", code],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = process.communicate(timeout=4)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+>           pytest.fail("Partial worker pipe frame blocked the parent's hard deadline")
+E           Failed: Partial worker pipe frame blocked the parent's hard deadline
+
+tests/test_reconciliation/test_model_case.py:451: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434
+  /Users/kiteboard/healthcraft/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_reconciliation/test_model_case.py::test_partial_pipe_frame_cannot_defeat_parent_hard_deadline[blocked_reply_worker]
+1 failed, 33 deselected, 1 warning in 4.10s

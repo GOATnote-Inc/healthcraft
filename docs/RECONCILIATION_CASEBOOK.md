@@ -112,8 +112,8 @@ whether the report is valid. Response format acceptance alone cannot do that.
 The casebook command currently emits inspectable JSON and journals, not a new
 browser interface or visually verified workflow.
 
-Local MedGemma/Nemotron attempts on v1 remain exposed development observations;
-they are not rerun or relabeled by this casebook. V2 model testing, independent
-clinical review, registered assignments, instrumented operator timing and
-held-out comparative outcomes remain separate work. The release sequence stays
+The [v2 local-model runner](RECONCILIATION_LOCAL_MODELS.md) uses a separately
+frozen eight-case, two-model plan. Earlier v1 attempts remain unchanged.
+Independent clinical review, registered assignments, instrumented operator timing
+and held-out comparative outcomes remain separate work. The release sequence stays
 [value evidence → formal red team → main and paper](RELEASE_EVIDENCE_PLAN.md).

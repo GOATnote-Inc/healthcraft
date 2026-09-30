@@ -8,6 +8,7 @@ clinical assessment or an independent persistence verdict.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
@@ -195,6 +196,13 @@ class RecordingOllamaClient(OllamaClient):
 
     def _transport_request(self, path, payload=None):
         return super()._request(path, payload)
+
+    def _response_received(self, path: str, body: bytes) -> None:
+        if path == "/api/chat":
+            exchange = self._exchanges[-1]
+            exchange["response_body_b64"] = base64.b64encode(body).decode("ascii")
+            exchange["response_body_sha256"] = hashlib.sha256(body).hexdigest()
+            self.event_sink({"event": "model_response_received", "exchange": deepcopy(exchange)})
 
     def _request(self, path, payload=None):
         if path != "/api/chat":

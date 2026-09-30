@@ -1,5 +1,10 @@
 # Free local evaluation
 
+For the varied source-reconciliation workflow, see the
+[v2 local-model cohort](RECONCILIATION_LOCAL_MODELS.md): a frozen eight-case,
+two-model roster with supervised inference, real handler state and explicit
+failure evidence. Its mechanical findings are development diagnostics.
+
 HEALTHCRAFT accepts installed Ollama models as `ollama:<model-name>`. This
 provider uses Ollama's native API without API keys. Its endpoint must be
 loopback, HTTP proxies and redirects are disabled, and cloud model aliases are
